@@ -1,0 +1,499 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "support for byte vectors added in 8.16"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: "2"
+          mappings:
+            properties:
+              title:
+                type: text
+              genre:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+
+  - do:
+      index: { refresh: true, index: test-index, id: "1", routing: 0, body: {"title": "Star wars", "genre": "Sci-fi"} }
+  - do:
+      index: { refresh: true, index: test-index, id: "2", routing: 1, body: {"title": "Star trek", "genre": "Sci-fi"} }
+  - do:
+      index: { refresh: true, index: test-index, id: "3", routing: 1, body: {"title": "Rambo", "genre": "War movie"} }
+  - do:
+      index: { refresh: true, index: test-index, id: "4", routing: 1, body: {"title": "Rambo II", "genre": "War movie"} }
+
+---
+"Match query: uniqueTermsCount without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.uniqueTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 2 }
+
+---
+"Match query: uniqueTermsCount with DFS":
+  - do:
+      search:
+        search_type: dfs_query_then_fetch
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.uniqueTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 2 }
+
+---
+"Match query: matchedTermsCount without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.matchedTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Match query: matchedTermsCount with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.matchedTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Match query: docFreq min without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.docFreq().getMin()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 0 }
+
+---
+"Match query: docFreq min with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.docFreq().getMin()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Match query: docFreq max without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.docFreq().getMax()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Match query: docFreq max with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.docFreq().getMax()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 2 }
+
+---
+"Match query: totalTermFreq sum without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.totalTermFreq().getSum()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Match query: totalTermFreq sum with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.totalTermFreq().getSum()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 3 }
+  - match: { hits.hits.1._score: 3 }
+
+---
+"Match query: termFreq sum without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.termFreq().getSum()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Match query: termFreq sum with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.termFreq().getSum()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Match query: termPositions avg without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.termPositions().getAverage()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1.5 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Match query: termPositions avg with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { match: { "title": "Star wars" } }
+              script:
+                source: "return _termStatistics.termPositions().getAverage()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1.5 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: uniqueTermsCount without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.uniqueTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: uniqueTermsCount with DFS":
+  - do:
+      search:
+        search_type: dfs_query_then_fetch
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.uniqueTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: matchedTermsCount without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.matchedTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: matchedTermsCount with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.matchedTermsCount()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: docFreq min without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.docFreq().getMin()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: docFreq min with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.docFreq().getMin()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 2 }
+
+---
+"Term query: docFreq max without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.docFreq().getMax()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: docFreq max with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.docFreq().getMax()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 2 }
+
+---
+"Term query: totalTermFreq sum without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.totalTermFreq().getSum()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: totalTermFreq sum with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.totalTermFreq().getSum()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 2 }
+  - match: { hits.hits.1._score: 2 }
+
+---
+"Term query: termFreq sum without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.termFreq().getSum()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: termFreq sum with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.termFreq().getSum()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"Term query: termPositions avg without DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.termPositions().getAverage()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 0 }
+  - match: { hits.hits.1._score: 0 }
+
+---
+"Term query: termPositions avg with DFS":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        search_type: dfs_query_then_fetch
+        index: test-index
+        body:
+          query:
+            script_score:
+              query: { term: { "genre.keyword": "Sci-fi" } }
+              script:
+                source: "return _termStatistics.termPositions().getAverage()"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 0 }
+  - match: { hits.hits.1._score: 0 }

@@ -40,20 +40,16 @@ public class TermStatsReader {
         this.terms = terms;
     }
 
-    public Set<Term> terms() {
-        return terms;
-    }
-
     public long uniqueTermsCount() {
         return terms.size();
     }
 
     public long matchedTermsCount() {
-        return terms().stream().filter(term -> {
+        return terms.stream().filter(term -> {
             try {
                 PostingsEnum postingsEnum = postings(term);
                 int docId = docIdSupplier.get();
-                return postingsEnum != null && postingsEnum.advance(docId) == docId;
+                return postingsEnum != null && postingsEnum.advance(docId) == docId && postingsEnum.freq() > 0;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -62,7 +58,7 @@ public class TermStatsReader {
 
     public DoubleSummaryStatistics docFreq() {
         DoubleSummaryStatistics docFreqStatistics = new DoubleSummaryStatistics();
-        for (Term term : terms()) {
+        for (Term term : terms) {
             TermStatistics termStats = termStatistics(term);
             docFreqStatistics.accept(termStats != null ? termStats.docFreq() : 0);
         }
@@ -71,7 +67,7 @@ public class TermStatsReader {
 
     public DoubleSummaryStatistics totalTermFreq() {
         DoubleSummaryStatistics totalTermFreqStatistics = new DoubleSummaryStatistics();
-        for (Term term : terms()) {
+        for (Term term : terms) {
             TermStatistics termStats = termStatistics(term);
             totalTermFreqStatistics.accept(termStats != null ? termStats.totalTermFreq() : 0);
         }
@@ -81,7 +77,7 @@ public class TermStatsReader {
     public DoubleSummaryStatistics termFreq() {
         DoubleSummaryStatistics termFreqStatistics = new DoubleSummaryStatistics();
 
-        for (Term term : terms()) {
+        for (Term term : terms) {
             try {
                 PostingsEnum postingsEnum = postings(term);
                 int docId = docIdSupplier.get();
@@ -101,7 +97,7 @@ public class TermStatsReader {
     public DoubleSummaryStatistics termPositions() {
         DoubleSummaryStatistics termPositionsStatistics = new DoubleSummaryStatistics();
 
-        for (Term term : terms()) {
+        for (Term term : terms) {
             try {
                 PostingsEnum postingsEnum = postings(term);
                 int docId = docIdSupplier.get();

@@ -13,13 +13,7 @@ class org.elasticsearch.script.ScoreScript @no_import {
 class org.elasticsearch.script.ScoreScript$Factory @no_import {
 }
 
-class org.apache.lucene.index.Term {
-    String field()
-    String text()
-}
-
 class org.elasticsearch.script.TermStatsReader {
-    Set terms()
     long uniqueTermsCount()
     long matchedTermsCount()
     DoubleSummaryStatistics docFreq()

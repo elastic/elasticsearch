@@ -452,11 +452,8 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible according to the following graph (jumps allowed):
 
-[ditaa]
 ----
-/------\     /---------\     /---------\     /----\     /---------\     /---------\
-| flat | --> |int8_flat| --> |int4_flat| --> |hnsw| --> |int8_hnsw| --> |int4_hnsw|
-\------/     \---------/     \---------/     \----/     \---------/     \---------/
+flat < int8_flat < int4_flat < hnsw < int8_hnsw < int4_hnsw
 ----
 
 The following special cases apply:

@@ -58,7 +58,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     );
 
     /**
-     * if index.mode "logs" is applied by default in logs@settings for 'logs-*-*'
+     * if index.mode "logsdb" is applied by default in logs@settings for 'logs-*-*'
      */
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",

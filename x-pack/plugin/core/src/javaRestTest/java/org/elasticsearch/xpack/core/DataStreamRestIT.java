@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -56,7 +57,7 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<?, ?> logsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/logs").get("index_templates")).get(0);
             assertThat(logsTemplate, notNullValue());
-            assertThat(logsTemplate.get("name"), equalTo("logs"));
+            assertThat(logsTemplate.get("name"), equalTo(IndexMode.LOGSDB.getName()));
             assertThat(((Map<?, ?>) logsTemplate.get("index_template")).get("data_stream"), notNullValue());
         });
         putFailureStoreTemplate();

@@ -24,7 +24,7 @@ create logs index:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -75,7 +75,7 @@ create logs index:
         index: test
 
   - is_true: test
-  - match: { test.settings.index.mode: "logs" }
+  - match: { test.settings.index.mode: "logsdb" }
 
   - do:
       indices.get_mapping:
@@ -89,8 +89,8 @@ using default timestamp field mapping:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -98,7 +98,7 @@ using default timestamp field mapping:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -121,8 +121,8 @@ using default timestamp field mapping:
 #      capabilities:
 #        - method: PUT
 #          path: /{index}
-#          capabilities: [ logs_index_mode ]
-#      reason: "Support for 'logs' index mode capability required"
+#          capabilities: [ logsdb_index_mode ]
+#      reason: "Support for 'logsdb' index mode capability required"
 #
 #  - do:
 #      indices.create:
@@ -130,7 +130,7 @@ using default timestamp field mapping:
 #        body:
 #          settings:
 #            index:
-#              mode: logs
+#              mode: logsdb
 #              number_of_replicas: 0
 #              number_of_shards: 2
 #          mappings:
@@ -151,7 +151,7 @@ using default timestamp field mapping:
 #        index: test-hostname-missing
 #
 #  - is_true: test-hostname-missing
-#  - match: { test-hostname-missing.settings.index.mode: "logs" }
+#  - match: { test-hostname-missing.settings.index.mode: "logsdb" }
 
 ---
 missing sort field:
@@ -160,8 +160,8 @@ missing sort field:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -237,7 +237,7 @@ non-default sort settings:
         index: test-sort
 
   - is_true: test-sort
-  - match: { test-sort.settings.index.mode: "logs" }
+  - match: { test-sort.settings.index.mode: "logsdb" }
   - match: { test-sort.settings.index.sort.field.0: "agent_id" }
   - match: { test-sort.settings.index.sort.field.1: "@timestamp" }
   - match: { test-sort.settings.index.sort.order.0: "asc" }
@@ -289,7 +289,7 @@ override sort order settings:
         index: test-sort-order
 
   - is_true: test-sort-order
-  - match: { test-sort-order.settings.index.mode: "logs" }
+  - match: { test-sort-order.settings.index.mode: "logsdb" }
   - match: { test-sort-order.settings.index.sort.field.0: null }
   - match: { test-sort-order.settings.index.sort.field.1: null }
   - match: { test-sort-order.settings.index.sort.order.0: "asc" }
@@ -337,7 +337,7 @@ override sort missing settings:
         index: test-sort-missing
 
   - is_true: test-sort-missing
-  - match: { test-sort-missing.settings.index.mode: "logs" }
+  - match: { test-sort-missing.settings.index.mode: "logsdb" }
   - match: { test-sort-missing.settings.index.sort.field.0: null }
   - match: { test-sort-missing.settings.index.sort.field.1: null }
   - match: { test-sort-missing.settings.index.sort.missing.0: "_last" }
@@ -385,7 +385,7 @@ override sort mode settings:
         index: test-sort-mode
 
   - is_true: test-sort-mode
-  - match: { test-sort-mode.settings.index.mode: "logs" }
+  - match: { test-sort-mode.settings.index.mode: "logsdb" }
   - match: { test-sort-mode.settings.index.sort.field.0: null }
   - match: { test-sort-mode.settings.index.sort.field.1: null }
   - match: { test-sort-mode.settings.index.sort.mode.0: "max" }

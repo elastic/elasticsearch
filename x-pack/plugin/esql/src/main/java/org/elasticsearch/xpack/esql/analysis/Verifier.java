@@ -343,7 +343,7 @@ public class Verifier {
         if (p instanceof RegexExtract re) {
             Expression expr = re.input();
             DataType type = expr.dataType();
-            if (EsqlDataTypes.isString(type) == false) {
+            if (DataType.isString(type) == false) {
                 failures.add(
                     fail(
                         expr,

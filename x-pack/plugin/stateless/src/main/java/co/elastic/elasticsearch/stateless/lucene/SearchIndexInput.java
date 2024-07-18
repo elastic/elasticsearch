@@ -22,6 +22,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
+import co.elastic.elasticsearch.stateless.utils.BytesCountingFilterInputStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,18 +34,32 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.SparseFileTracker;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.RangeMissingHandler;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.SourceInputStreamFactory;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
+import static org.elasticsearch.common.io.Streams.limitStream;
 
 public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
@@ -191,26 +206,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                         rangeToRead.start() + len
                     );
                     return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, byteBufferReference);
-                }, (channel, channelPos, streamFactory, relativePos, len, progressUpdater) -> {
-                    assert streamFactory == null : streamFactory;
-                    final long streamStartPosition = rangeToWrite.start() + relativePos;
-                    try (
-                        // this length is computed from the rangeToWrite and the sum of "streamStartPosition + len" can exceed the real
-                        // length of the blob
-                        InputStream in = cacheBlobReader.getRangeInputStream(streamStartPosition, len)
-                    ) {
-                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
-                        logger.debug(
-                            "{}: loading [{}][{}-{}] from [{}]",
-                            SearchIndexInput.super.toString(),
-                            cacheFile.getCacheKey().fileName(),
-                            streamStartPosition,
-                            streamStartPosition + len,
-                            cacheBlobReader.getClass().getSimpleName()
-                        );
-                        SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.get().clear());
-                    }
-                });
+                }, new SequentialRangeMissingHandler(rangeToWrite));
                 byteBufferReference.finish(bytesRead);
             } catch (Exception e) {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
@@ -230,6 +226,151 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             assert bytesRead == length : bytesRead + " vs " + length;
         } finally {
             byteBufferReference.finish(0);
+        }
+    }
+
+    /**
+     * A RangeMissingHandler that fills a sorted list of gaps sequentially from a shared {@link SourceInputStreamFactory}.
+     */
+    class SequentialRangeMissingHandler implements RangeMissingHandler {
+        private final ByteRange rangeToWrite;
+
+        SequentialRangeMissingHandler(ByteRange rangeToWrite) {
+            this.rangeToWrite = rangeToWrite;
+        }
+
+        @Override
+        @Nullable
+        public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+            assert gaps.isEmpty() == false;
+            assert gaps.equals(gaps.stream().sorted(Comparator.comparingLong(SparseFileTracker.Gap::start)).toList())
+                : "gaps not sorted: " + gaps;
+
+            final var numberGaps = gaps.size();
+            if (numberGaps == 1) {
+                return null; // simple case for filling a single gap
+            }
+
+            final var totalGapLength = Math.toIntExact(gaps.get(numberGaps - 1).end() - gaps.get(0).start());
+            return new SourceInputStreamFactory() {
+                // No volatile or synchronization is needed since these fields are accessed in the same thread
+                private InputStream in;
+                private int currentRelativePos = 0;
+                private final AtomicInteger invocationCount = Assertions.ENABLED ? new AtomicInteger(0) : null;
+                private final AtomicReference<Thread> invocationThread = Assertions.ENABLED ? new AtomicReference<>() : null;
+
+                @Override
+                public InputStream create(int relativePos) throws IOException {
+                    assert invocationCount.incrementAndGet() <= numberGaps : invocationCount.get() + " > " + numberGaps;
+                    if (in == null) {
+                        assert assertCompareAndSetInvocationThread(null, Thread.currentThread());
+                        in = inputStreamFromCacheBlobReader(rangeToWrite.start() + relativePos, totalGapLength);
+                        currentRelativePos = relativePos;
+                    }
+                    assert invocationThread.get() == Thread.currentThread() : invocationThread.get() + " != " + Thread.currentThread();
+                    if (currentRelativePos != relativePos) {
+                        assert currentRelativePos < relativePos : currentRelativePos + " > " + relativePos;
+                        try {
+                            in.skipNBytes(relativePos - currentRelativePos); // skip over any already filled range
+                        } catch (EOFException e) {
+                            // It is possible that the source input stream has less data than what a cache region can store. In this case,
+                            // we return a zero-length input stream which allows the gap to be completed.
+                            logger.trace(
+                                () -> Strings.format(
+                                    "%s encountered EOF trying to advance currentRelativePos from %s to %s",
+                                    this,
+                                    currentRelativePos,
+                                    relativePos
+                                )
+                            );
+                            assert invocationCount.get() == numberGaps : invocationCount.get() + " != " + numberGaps;
+                            return InputStream.nullInputStream();
+                        }
+                        logger.trace(Strings.format("%s advanced currentRelativePos from %s to %s", this, currentRelativePos, relativePos));
+                        currentRelativePos = relativePos;
+                    }
+
+                    return bytesCountingFilterInputStream(in);
+                }
+
+                private InputStream bytesCountingFilterInputStream(InputStream in) {
+                    return new BytesCountingFilterInputStream(in) {
+                        @Override
+                        public void close() {
+                            currentRelativePos += getBytesRead();
+                        }
+
+                        @Override
+                        protected boolean assertInvariant() {
+                            assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+                            return super.assertInvariant();
+                        }
+                    };
+                }
+
+                @Override
+                public void close() {
+                    IOUtils.closeWhileHandlingException(in);
+                    logger.trace(() -> Strings.format("closed %s", this));
+                    assert (invocationCount.get() == 0 && invocationThread.get() == null)
+                        || assertCompareAndSetInvocationThread(Thread.currentThread(), null);
+                }
+
+                @Override
+                public String toString() {
+                    return "sharedInputStreamFactory for " + SearchIndexInput.this;
+                }
+
+                private boolean assertCompareAndSetInvocationThread(Thread current, Thread updated) {
+                    final Thread witness = invocationThread.compareAndExchange(current, updated);
+                    assert witness == current
+                        : "Unable to set invocation thread to ["
+                            + updated
+                            + "]: expected thread ["
+                            + current
+                            + "] but got thread ["
+                            + witness
+                            + "]";
+                    return true;
+                }
+            };
+        }
+
+        @Override
+        public void fillCacheRange(
+            SharedBytes.IO channel,
+            int channelPos,
+            @Nullable SourceInputStreamFactory streamFactory,
+            int relativePos,
+            int len,
+            IntConsumer progressUpdater
+        ) throws IOException {
+            assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
+            try (var in = createInputStream(streamFactory, relativePos, len)) {
+                SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.get().clear());
+            }
+        }
+
+        private InputStream createInputStream(SourceInputStreamFactory streamFactory, int relativePos, int len) throws IOException {
+            if (streamFactory == null) {
+                return inputStreamFromCacheBlobReader(rangeToWrite.start() + relativePos, len);
+            } else {
+                return limitStream(streamFactory.create(relativePos), len);
+            }
+        }
+
+        private InputStream inputStreamFromCacheBlobReader(long streamStartPosition, int len) throws IOException {
+            // this length is computed from the rangeToWrite and the sum of "streamStartPosition + len" can real
+            // length of the blob
+            logger.debug(
+                "{}: loading [{}][{}-{}] from [{}]",
+                SearchIndexInput.this.toString(),
+                cacheFile.getCacheKey().fileName(),
+                streamStartPosition,
+                streamStartPosition + len,
+                cacheBlobReader.getClass().getSimpleName()
+            );
+            return cacheBlobReader.getRangeInputStream(streamStartPosition, len);
         }
     }
 

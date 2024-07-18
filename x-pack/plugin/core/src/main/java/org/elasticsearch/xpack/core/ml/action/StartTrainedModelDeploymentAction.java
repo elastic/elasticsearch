@@ -620,6 +620,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return deploymentId;
         }
 
+        /**
+         * @return the estimated memory (in bytes) required for the model deployment to run
+         */
         public long estimateMemoryUsageBytes() {
             // We already take into account 2x the model bytes. If the cache size is larger than the model bytes, then
             // we need to take it into account when returning the estimate.
@@ -729,10 +732,16 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return modelBytes;
         }
 
+        /**
+         * @return the number of threads per allocation used by the model during inference. each thread requires one processor.
+         */
         public int getThreadsPerAllocation() {
             return threadsPerAllocation;
         }
 
+        /**
+         * @return the number of allocations requested by the user
+         */
         public int getNumberOfAllocations() {
             return numberOfAllocations;
         }

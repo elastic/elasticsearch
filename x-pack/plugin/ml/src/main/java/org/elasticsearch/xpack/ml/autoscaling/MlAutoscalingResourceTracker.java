@@ -231,7 +231,8 @@ public final class MlAutoscalingResourceTracker {
         }
 
         // trained models
-        int processorsNewlyAssignedToTrainedModelsAllocationsThisTime = 0;
+        int processorsNewlyAssignedToTrainedModelsAllocationsThisTime = 0; // tracks how many processors are needed for allocations which
+                                                                           // have been added since the last time this code was run
         for (var modelAssignment : autoscalingContext.modelAssignments.entrySet()) {
             TrainedModelAssignment assignment = modelAssignment.getValue();
             final int numberOfRequestedAllocations = assignment.getTaskParams().getNumberOfAllocations();
@@ -244,6 +245,12 @@ public final class MlAutoscalingResourceTracker {
                 .sum();
             final int numMissingAllocations = numberOfRequestedAllocations - numTargetAllocationsOnExistingNodes;
             final int numProcessorsNeeded = numMissingAllocations * numberOfThreadsPerAllocation;
+            int numberOfAvailableProcessors = numberOfAvailableProcessors(
+                autoscalingContext,
+                allocatedProcessorsScale,
+                processorsNewlyAssignedToTrainedModelsAllocationsThisTime
+            );
+            int numExistingProcessorsToBeUsed = Math.min(numProcessorsNeeded, numberOfAvailableProcessors);
 
             if (AssignmentState.STARTING.equals(assignment.getAssignmentState()) && assignment.getNodeRoutingTable().isEmpty()) {
                 // this state occurs when the assignment has just been added and has not been assigned to any nodes
@@ -257,39 +264,34 @@ public final class MlAutoscalingResourceTracker {
                 extraPerNodeModelMemoryBytes = Math.max(extraPerNodeModelMemoryBytes, estimatedMemoryUsage);
                 extraModelMemoryInBytes += estimatedMemoryUsage;
 
-                // if not low priority, check processor requirements
-                if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false
-                    && numProcessorsNeeded > numberOfAvailableProcessors(
-                        autoscalingContext,
-                        allocatedProcessorsScale,
-                        processorsNewlyAssignedToTrainedModelsAllocationsThisTime
-                    )) {
-                    // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
-                    extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
-                    extraProcessors += numberOfRequestedAllocations * numberOfThreadsPerAllocation;
+                // if not low priority, check processor requirements. If
+                if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
+                    if (numProcessorsNeeded > numberOfAvailableProcessors) {
+                        // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
+                        extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
+                        extraProcessors += numberOfRequestedAllocations * numberOfThreadsPerAllocation - numExistingProcessorsToBeUsed;
+                    }
+                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime += numExistingProcessorsToBeUsed;
                 }
             } else if (assignment.getNodeRoutingTable().values().stream().allMatch(r -> r.getState().consumesMemory() == false)) {
                 // Ignore states that don't consume memory, for example all allocations are failed or stopped
                 continue;
             } else if (AssignmentState.STARTED.equals(assignment.getAssignmentState()) && numMissingAllocations > 0) {
                 // this state occurs when we have a partial allocation, but not fully allocated
-                int numAvailableProcessors = numberOfAvailableProcessors(
-                    autoscalingContext,
-                    allocatedProcessorsScale,
-                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime
-                );
+
                 long numMemoryBytesNeeded = assignment.getTaskParams().estimateMemoryUsageBytes();
 
-                if (numAvailableProcessors < numProcessorsNeeded || perNodeAvailableModelMemoryBytes < numMemoryBytesNeeded) {
-                    // we don't have enough processors to start the new allocations, we need to scale up
+                if (numberOfAvailableProcessors < numProcessorsNeeded || perNodeAvailableModelMemoryBytes < numMemoryBytesNeeded) {
+                    // we don't have enough processors or memory to start the new allocations, we need to scale up
 
-                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime += numAvailableProcessors;
+                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime += numExistingProcessorsToBeUsed;
 
-                    extraProcessors += numMissingAllocations * numberOfThreadsPerAllocation - numAvailableProcessors;
+                    extraProcessors += numMissingAllocations * numberOfThreadsPerAllocation - numExistingProcessorsToBeUsed;
                     extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
                     extraModelMemoryInBytes += numMemoryBytesNeeded;
                     extraPerNodeModelMemoryBytes = Math.max(extraPerNodeModelMemoryBytes, numMemoryBytesNeeded);
-                    final int extraProcessorsNeededForAssignment = numMissingAllocations * numberOfThreadsPerAllocation;
+                    final int extraProcessorsNeededForAssignment = numMissingAllocations * numberOfThreadsPerAllocation
+                        - numExistingProcessorsToBeUsed;
                     logger.warn(
                         () -> format(
                             "trained model [%s] assigned to [%s], waiting for [%d] allocations to start; waiting on [%d] extra processors "
@@ -309,7 +311,7 @@ public final class MlAutoscalingResourceTracker {
                             numMissingAllocations
                         )
                     );
-                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime += numProcessorsNeeded;
+                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime += numExistingProcessorsToBeUsed;
                 }
 
                 existingModelMemoryBytes += estimatedMemoryUsage;

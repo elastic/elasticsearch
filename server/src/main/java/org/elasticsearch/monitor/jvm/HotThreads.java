@@ -241,13 +241,15 @@ public class HotThreads {
 
     ThreadInfo[][] captureThreadStacks(ThreadMXBean threadBean, long[] threadIds) throws InterruptedException {
         ThreadInfo[][] result = new ThreadInfo[threadElementsSnapshotCount][];
-        for (int j = 0; j < threadElementsSnapshotCount; j++) {
-            // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
-            // null will be set in the corresponding element in the returned array. A thread is alive if it has
-            // been started and has not yet died.
+
+        // NOTE, javadoc of getThreadInfo says: If a thread of the given ID is not alive or does not exist,
+        // null will be set in the corresponding element in the returned array. A thread is alive if it has
+        // been started and has not yet died.
+        for (int j = 0; j < threadElementsSnapshotCount - 1; j++) {
             result[j] = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
             Thread.sleep(threadElementsSnapshotDelay.millis());
         }
+        result[threadElementsSnapshotCount - 1] = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
 
         return result;
     }

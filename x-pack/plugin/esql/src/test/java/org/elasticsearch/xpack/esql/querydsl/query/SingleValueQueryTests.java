@@ -148,8 +148,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         }
         assertThat(count, equalTo(expected));
 
-        // the SingleValueQuery.TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries can scan all docs - and generate warnings - even if
-        // inner query matches none, so warn if MVs have been encountered within given range, OR if a full scan is required
+        // we should only have warnings if we have matched a multi-value
         if (mvCountInRange > 0) {
             assertWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",

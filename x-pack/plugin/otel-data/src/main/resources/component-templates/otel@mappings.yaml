@@ -28,8 +28,12 @@ template:
           name:
             type: keyword
             ignore_above: 1024
-          version:
-            type: version
+# TODO:
+#Causes error during YAML test
+# [2024-07-19T04:36:51,833][ERROR][o.e.x.c.t.IndexTemplateRegistry] [test-cluster-0] error adding index template [otel@mappings] for [otel] org.elasticsearch.index.mapper.MapperParsingException: Failed to parse mapping: No handler for type [version] declared on field [version]
+#	at org.elasticsearch.server@8.16.0-SNAPSHOT/org.elasticsearch.index.mapper.MapperService.parseMapping(MapperService.java:610)
+#          version:
+#            type: version
           schema_url:
             type: keyword
             ignore_above: 1024

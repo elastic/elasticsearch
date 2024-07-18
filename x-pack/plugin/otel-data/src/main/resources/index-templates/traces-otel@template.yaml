@@ -1,4 +1,5 @@
 ---
+version: ${xpack.oteldata.template.version}
 index_patterns: ["traces-*.otel-*"]
 priority: 120
 data_stream: {}

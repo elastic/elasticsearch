@@ -40,12 +40,12 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
     );
 
     public OTelPlugin(Settings settings) {
-        this.enabled = XPackSettings.APM_DATA_ENABLED.get(settings);
+        this.enabled = XPackSettings.OTEL_DATA_ENABLED.get(settings);
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        logger.info("APM ingest plugin is {}", enabled ? "enabled" : "disabled");
+        logger.info("OTel ingest plugin is {}", enabled ? "enabled" : "disabled");
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
         registry.set(

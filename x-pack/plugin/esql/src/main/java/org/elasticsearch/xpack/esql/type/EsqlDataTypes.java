@@ -32,8 +32,4 @@ public final class EsqlDataTypes {
         return isTemporalAmount(t) || isNull(t);
     }
 
-    public static boolean isNullOrDatePeriod(DataType t) {
-        return t == DataType.DATE_PERIOD || isNull(t);
-    }
-
 }

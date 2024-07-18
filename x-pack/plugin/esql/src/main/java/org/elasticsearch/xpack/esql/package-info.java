@@ -125,7 +125,7 @@
  * <h3>Query Planner</h3>
  * <p>The query planner encompasses a huge chunk of serving a query.  Essentially, this covers everything from the output of the Antlr
  * parser through to the actual computations and lucene operations.</p>
- * <p>Two key concepts in the planner layer:
+ * <p>Two key concepts in the planner layer:</p>
  * <ul>
  *     <li>Logical vs Physical optimization - Logical optimizations refer to things that can be done strictly based on the structure
  *     of the query, while Physical optimizations take into account information about the index or indices the query will execute
@@ -133,7 +133,6 @@
  *     <li>Local vs non-local operations - "local" refers to operations happening on the data nodes, while non-local operations generally
  *     happen on the coordinating node and can apply to all participating nodes in the query</li>
  * </ul>
- * </p>
  * <h4>Query Planner Steps</h4>
  * <ul>
  *     <li>{@link org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder} - Translates what we get back from Antlr into the data structures

@@ -24,10 +24,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.DoubleStream;
 
+
+/**
+ * Access the term statistics of the children query of a script_score query.
+ */
 public class TermStatsReader {
-    private static final DoubleSummaryStatistics EMPTY_STATS = DoubleStream.of(0).summaryStatistics();
+    private static final DoubleSummaryStatistics EMPTY_STATS = new DoubleSummaryStatistics(1, 0, 0, 0);
     private final IndexSearcher searcher;
     private final LeafReaderContext leafReaderContext;
     private final Supplier<Integer> docIdSupplier;
@@ -42,10 +45,20 @@ public class TermStatsReader {
         this.terms = terms;
     }
 
+    /**
+     * Number of unique terms in the query.
+     *
+     * @return the number of unique terms
+     */
     public long uniqueTermsCount() {
         return terms.size();
     }
 
+    /**
+     * Number of terms that are matched im the query.
+     *
+     * @return the number of matched terms
+     */
     public long matchedTermsCount() {
         return terms.stream().filter(term -> {
             try {
@@ -58,37 +71,44 @@ public class TermStatsReader {
         }).count();
     }
 
+    /**
+     * Collect docFreq (number of documents a term occurs in) for the terms of the query and returns statistics for them.
+     *
+     * @return statistics on docFreq for the terms of the query.
+     */
     public DoubleSummaryStatistics docFreq() {
-        if (terms.isEmpty()) {
-            return EMPTY_STATS;
-        }
-
         DoubleSummaryStatistics docFreqStatistics = new DoubleSummaryStatistics();
+
         for (Term term : terms) {
             TermStatistics termStats = termStatistics(term);
-            docFreqStatistics.accept(termStats != null ? termStats.docFreq() : 0);
+            docFreqStatistics.accept(termStats != null ? termStats.docFreq() : 0L);
         }
-        return docFreqStatistics;
+
+        return docFreqStatistics.getCount() > 0 ? docFreqStatistics : EMPTY_STATS;
     }
 
+    /**
+     * Collect totalTermFreq (total number of occurrence of a term in the index) for the terms of the query and returns statistics for them.
+     *
+     * @return statistics on totalTermFreq for the terms of the query.
+     */
     public DoubleSummaryStatistics totalTermFreq() {
-        if (terms.isEmpty()) {
-            return EMPTY_STATS;
-        }
-
         DoubleSummaryStatistics totalTermFreqStatistics = new DoubleSummaryStatistics();
+
         for (Term term : terms) {
             TermStatistics termStats = termStatistics(term);
-            totalTermFreqStatistics.accept(termStats != null ? termStats.totalTermFreq() : 0);
+            totalTermFreqStatistics.accept(termStats != null ? termStats.totalTermFreq() : 0L);
         }
-        return totalTermFreqStatistics;
+
+        return totalTermFreqStatistics.getCount() > 0 ? totalTermFreqStatistics : EMPTY_STATS;
     }
 
+    /**
+     * Collect totalFreq (number of occurrence of a term in the current doc for the terms of the query and returns statistics for them.
+     *
+     * @return statistics on totalTermFreq for the terms of the query in the current dac
+     */
     public DoubleSummaryStatistics termFreq() {
-        if (terms.isEmpty()) {
-            return EMPTY_STATS;
-        }
-
         DoubleSummaryStatistics termFreqStatistics = new DoubleSummaryStatistics();
 
         for (Term term : terms) {
@@ -105,14 +125,15 @@ public class TermStatsReader {
             }
         }
 
-        return termFreqStatistics;
+        return termFreqStatistics.getCount() > 0 ? termFreqStatistics : EMPTY_STATS;
     }
 
+    /**
+     * Collect termPositions (positions of a term in the current document) for the terms of the query and returns statistics for them.
+     *
+     * @return statistics on termPositions for the terms of the query in the current dac
+     */
     public DoubleSummaryStatistics termPositions() {
-        if (terms.isEmpty()) {
-            return EMPTY_STATS;
-        }
-
         DoubleSummaryStatistics termPositionsStatistics = new DoubleSummaryStatistics();
 
         for (Term term : terms) {
@@ -130,7 +151,7 @@ public class TermStatsReader {
             }
         }
 
-        return termPositionsStatistics;
+        return termPositionsStatistics.getCount() > 0 ? termPositionsStatistics : EMPTY_STATS;
     }
 
     private TermStatistics termStatistics(Term term) {

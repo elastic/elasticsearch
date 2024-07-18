@@ -106,7 +106,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
     public void testGet() {
         int numOfShards = randomIntBetween(1, 3);
         int numOfReplicas = randomIntBetween(1, 2);
-        startIndexNodes(numOfShards);
+        startIndexNodes(numOfShards, disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNodes(numOfReplicas);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -282,7 +282,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
     @TestLogging(value = "org.elasticsearch.index.engine:DEBUG", reason = "https://github.com/elastic/elasticsearch-serverless/pull/2068")
     public void testLiveVersionMapArchive() throws Exception {
         final int numberOfShards = 1;
-        var indexNode = startIndexNode();
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         var searchNode = startSearchNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
@@ -366,7 +366,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testRealTimeGetLocalRefreshDuringUnpromotableRefresh() throws Exception {
-        var indexNode = startIndexNode();
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
@@ -566,7 +566,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testLiveVersionMapMemoryBytesUsed() throws Exception {
-        var indexNode = startMasterAndIndexNode();
+        var indexNode = startMasterAndIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());

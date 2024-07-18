@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -39,7 +38,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -78,8 +76,7 @@ public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.ZERO);
+        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
     }
 
     @Before
@@ -113,7 +110,12 @@ public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testRecoverSearchShardFromVirtualBcc() {
-        startIndexNode(Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10).build());
+        startIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .build()
+        );
 
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
@@ -158,7 +160,7 @@ public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testNewCommitNotificationOfRecoveringSearchShard() throws Exception {
-        String indexNode = startIndexNode();
+        String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         String searchNode = startSearchNode();
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());

@@ -27,7 +27,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -59,13 +58,8 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockRepository.Plugin.class);
     }
 
-    @Override
-    protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), "1h");
-    }
-
     public void testMergeWhileRelocationCausesCorruption() throws Exception {
-        final var indexNode = startMasterAndIndexNode();
+        final var indexNode = startMasterAndIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         final var searchNode = startSearchNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -128,7 +122,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         final var finalCommitBlobName = StatelessCompoundCommit.blobNameFromGeneration(finalGeneration);
 
         // We want more commits to be made by the source shard while the relocation handoff is executing, so we block the handoff here
-        var newIndexNode = startIndexNode();
+        var newIndexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         final var pauseHandoff = new CountDownLatch(1);
         final var resumeHandoff = new CountDownLatch(1);
         MockTransportService.getInstance(newIndexNode)

@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.TestStateless;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -30,7 +29,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -246,7 +244,7 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
      */
     public void testUnpromotableCommitRegistrationDuringUpload() throws InterruptedException {
         startMasterOnlyNode();
-        var indexNodeA = startIndexNode();
+        var indexNodeA = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
@@ -293,7 +291,7 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
 
     public void testSearchShardCloseDuringCommitRegistration() throws Exception {
         final String indexNodeA = startMasterAndIndexNode();
-        final String searchNodeA = startSearchNode();
+        startSearchNode();
         ensureStableCluster(2);
         final var indexName = randomIdentifier();
         // Create an index with 2 primary shards to get ShardNotFoundException instead of IndexNotFoundException in the test
@@ -310,7 +308,7 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
         final IndexShard indexShard = indexNodeAIndexService.getShard(0);
 
         final String indexNodeB = startMasterAndIndexNode();
-        final String searchNodeB = startSearchNode();
+        startSearchNode();
         ensureStableCluster(4);
 
         final CyclicBarrier commitRegistrationBarrier = new CyclicBarrier(2);
@@ -355,7 +353,7 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
                 bulkRequestBuilder.add(client(indexNodeB).prepareIndex(indexName).setSource("field", randomAlphaOfLengthBetween(20, 50)));
             }
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            final BulkResponse bulkResponse = bulkRequestBuilder.get(TEST_REQUEST_TIMEOUT);
+            bulkRequestBuilder.get(TEST_REQUEST_TIMEOUT);
             safeSleep(randomLongBetween(1, 100));
         }
 
@@ -363,13 +361,11 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessIntegTestCase
         ensureGreen(indexName);
     }
 
-    public void testSearchShardWillNotRegisterWithOldPrimaryAfterItIsRelocated() throws Exception {
-        final Settings nodeSettings = Settings.builder()
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
-            .build();
+    public void testSearchShardWillNotRegisterWithOldPrimaryAfterItIsRelocated() {
+        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         startMasterOnlyNode(nodeSettings);
         final String indexNode = startIndexNode(nodeSettings);
-        final String searchNode = startSearchNode(nodeSettings);
+        startSearchNode(nodeSettings);
         ensureStableCluster(3);
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());

@@ -206,7 +206,8 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.ZERO);
+        // tests in this suite expect a precise number of commits
+        return super.nodeSettings().put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
     private String indexNode;

@@ -96,8 +96,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.ZERO);
+            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s");
     }
 
     @Before
@@ -204,7 +203,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testStartingTranslogFileWrittenInCommit() throws Exception {
-        List<String> indexNodes = startIndexNodes(1);
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -217,7 +216,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 100));
         }
 
-        var objectStoreService = getObjectStoreService(indexNodes.get(0));
+        var objectStoreService = getObjectStoreService(indexNode);
         Map<String, BlobMetadata> translogFiles = objectStoreService.getTranslogBlobContainer().listBlobs(operationPurpose);
 
         final String newIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -289,7 +288,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testRelocateIndexingShardDoesNotReadFromTranslog() throws Exception {
-        final String indexNodeA = startIndexNode();
+        final String indexNodeA = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         ensureStableCluster(2);
         final String indexName = "test";
         createIndex(
@@ -329,7 +328,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             )
         ).actionGet(TimeValue.timeValueSeconds(10));
 
-        ensureGreen(timeout);
+        ensureGreen(timeout, indexName);
         internalCluster().stopNode(indexNodeA);
 
         assertThat(repository.getFailureCount(), equalTo(0L));
@@ -339,7 +338,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testIndexShardRecoveryDoesNotUseTranslogOperationsBeforeFlush() throws Exception {
-        final String indexNodeA = startIndexNode();
+        final String indexNodeA = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
 
         String indexName = "test-index";
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());

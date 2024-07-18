@@ -63,7 +63,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -99,7 +98,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
             Settings.builder()
                 .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
-                .put(INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 .build()
         );
         final String indexName = randomIdentifier();
@@ -138,9 +137,9 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         });
     }
 
-    public void testFlushAfterRelocationWillThrowOnlyExpectedError() throws Exception {
+    public void testFlushAfterRelocationWillThrowOnlyExpectedError() {
         startMasterOnlyNode();
-        final String oldIndexNode = startIndexNode();
+        startIndexNode();
         ensureStableCluster(2);
 
         final String indexName = randomIdentifier();
@@ -212,7 +211,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
     }
 
     public void testBCCDoesNotHoldHoldCommitReferencesAfterIndexShardClose() throws Exception {
-        final String indexNode = startMasterAndIndexNode(
+        startMasterAndIndexNode(
             Settings.builder()
                 .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
@@ -239,7 +238,10 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
 
     public void testNewCommitNotificationOnCreation() throws Exception {
         final String indexNode = startMasterAndIndexNode(
-            Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true).build()
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .build()
         );
         startSearchNode(Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true).build());
 

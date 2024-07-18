@@ -378,7 +378,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchShardsNotifiedOnNewCommits() throws Exception {
-        startIndexNodes(numShards);
+        startIndexNodes(numShards, disableIndexingDiskAndMemoryControllersNodeSettings());
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(numShards, 0).build());
         ensureGreen(indexName);
@@ -432,7 +432,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     // TODO move this test to a separate test class for refresh cost optimization
     public void testDifferentiateForFlushByRefresh() {
-        final String indexNode = startIndexNode();
+        final String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -487,7 +487,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     // TODO move this test to a separate test class for refresh cost optimization
     public void testRefreshWillSetMaxUploadGenForFlushThatDoesNotWait() throws Exception {
-        final String indexNode = startIndexNode();
+        final String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -525,7 +525,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     // TODO move this test to a separate test class for refresh cost optimization
     public void testConcurrentFlushAndMultipleRefreshesWillSetMaxUploadGen() throws Exception {
-        final String indexNode = startIndexNode();
+        final String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -604,7 +604,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
     // TODO move this test to a separate test class for refresh cost optimization
     public void testConcurrentAppendAndFreezeForVirtualBcc() throws Exception {
-        final String indexNode = startIndexNode();
+        final String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -889,7 +889,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testAcquiredPrimaryTermAndGenerations() {
-        startIndexNode();
+        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -1193,7 +1193,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(exception.getMessage(), containsString("disabling [track_total_hits] is not allowed in a scroll context"));
     }
 
-    public void testSearchWithWaitForCheckpoint() throws ExecutionException, InterruptedException {
+    public void testSearchWithWaitForCheckpoint() {
         startMasterOnlyNode();
         var indexNode = startIndexNodes(1).get(0);
         startSearchNodes(1);
@@ -1637,7 +1637,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
      * closure.
      */
     public void testShardClosureMovesActiveReaderCommitTrackingToClosedShardService() throws Exception {
-        final String indexNode = startMasterAndIndexNode();
+        startMasterAndIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         final String searchNodeA = startSearchNode();
         final String searchNodeB = startSearchNode();
 

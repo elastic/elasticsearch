@@ -375,6 +375,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
                 .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.MAX_VALUE)
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 .build()
         );
 

@@ -67,6 +67,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -347,9 +348,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected List<String> startIndexNodes(int numOfNodes) {
+        return startIndexNodes(numOfNodes, Settings.EMPTY);
+    }
+
+    protected List<String> startIndexNodes(int numOfNodes, Settings extraSettings) {
         final List<String> nodes = new ArrayList<>(numOfNodes);
         for (int i = 0; i < numOfNodes; i++) {
-            nodes.add(startIndexNode());
+            nodes.add(startIndexNode(extraSettings));
         }
         return List.copyOf(nodes);
     }
@@ -791,5 +796,12 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .filterPlugins(pluginType)
             .findFirst()
             .orElseThrow(() -> new AssertionError("Plugin not found: " + pluginType.getName()));
+    }
+
+    protected static Settings disableIndexingDiskAndMemoryControllersNodeSettings() {
+        return Settings.builder()
+            .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE)
+            .build();
     }
 }

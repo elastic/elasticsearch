@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import fixture.s3.S3HttpHandler;
@@ -200,9 +199,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final Settings nodeSettings = Settings.builder()
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
-            .build();
+        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 
@@ -350,9 +347,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     public void testShouldNotRetryForNoSuchFileException() throws Exception {
-        final Settings nodeSettings = Settings.builder()
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
-            .build();
+        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 

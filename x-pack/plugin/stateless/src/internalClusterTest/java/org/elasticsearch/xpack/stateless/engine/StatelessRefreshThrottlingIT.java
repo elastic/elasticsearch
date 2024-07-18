@@ -123,7 +123,6 @@ public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase
         RefreshBurstableThrottler systemIndexThrottler = getRefreshBurstableThrottler(indexNode, SYSTEM_INDEX_NAME, 0);
 
         RefreshNodeCreditManager nodeRegularIndicesCreditManager = getRegularIndicesCreditManager(indexNode);
-        RefreshNodeCreditManager nodeSystemIndicesCreditManager = getSystemIndicesCreditManager(indexNode);
         // Trigger throttler's credit to number of indices - 1
         nodeRegularIndicesCreditManager.setCredit(indices - 1);
 
@@ -175,7 +174,6 @@ public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase
         refresh(regularIndexName);
         RefreshBurstableThrottler regularIndexThrottler = getRefreshBurstableThrottler(indexNode, regularIndexName, 0);
 
-        RefreshNodeCreditManager nodeRegularIndicesCreditManager = getRegularIndicesCreditManager(indexNode);
         RefreshNodeCreditManager nodeSystemIndicesCreditManager = getSystemIndicesCreditManager(indexNode);
         // Trigger throttler's credit to number of indices - 1
         nodeSystemIndicesCreditManager.setCredit(indices - 1);
@@ -205,7 +203,7 @@ public class StatelessRefreshThrottlingIT extends AbstractStatelessIntegTestCase
         }
     }
 
-    public void testSystemIndexWithFastRefreshIsNotThrottled() throws Exception {
+    public void testSystemIndexWithFastRefreshIsNotThrottled() {
         String indexNode = startMasterAndIndexNode();
         createSystemIndex(indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
         indexDoc(SYSTEM_INDEX_NAME, "1", "field", "value");

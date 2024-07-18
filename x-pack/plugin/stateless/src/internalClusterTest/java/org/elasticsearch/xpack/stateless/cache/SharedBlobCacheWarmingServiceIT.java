@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -100,6 +99,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256))
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         var indexNodeA = startIndexNode(cacheSettings);
 
@@ -323,10 +323,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .build();
-        cacheSettings = Settings.builder()
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), randomIntBetween(1, 10))
-            .put(cacheSettings)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         startIndexNode(cacheSettings);
 
@@ -388,7 +386,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         boolean indexNodeUploadDelayed = randomBoolean();
         var indexNodeSettings = indexNodeUploadDelayed

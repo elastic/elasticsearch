@@ -128,7 +128,6 @@ import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrim
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
-import static org.elasticsearch.indices.IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
@@ -161,7 +160,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     public void testCompoundCommitHasNodeEphemeralId() throws Exception {
         startMasterOnlyNode();
 
-        String indexNodeName = startIndexNodes(1).get(0);
+        String indexNodeName = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -263,7 +262,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     public void testScheduledRefreshBypassesSearchIdleness() throws Exception {
         startMasterOnlyNode();
-        startIndexNodes(1);
+        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         Settings.Builder indexSettings = indexSettings(1, 0).put(
@@ -306,7 +305,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     public void testTranslogIsSyncedToObjectStoreDuringIndexing() throws Exception {
         startMasterOnlyNode();
-        startIndexNode();
+        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
@@ -344,7 +343,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     public void testGlobalCheckpointOnlyAdvancesAfterObjectStoreSync() throws Exception {
         startMasterOnlyNode();
         final int numberOfShards = 1;
-        String indexNode = startIndexNodes(numberOfShards).get(0);
+        String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(numberOfShards, 0).build());
         ensureGreen(indexName);
@@ -459,7 +458,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     public void testDownloadNewCommitsFromObjectStore() throws Exception {
         startMasterOnlyNode();
         final int numberOfShards = randomIntBetween(1, 2);
-        startIndexNodes(numberOfShards);
+        startIndexNodes(numberOfShards, disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         // Disable scheduled refreshes so it doesn't add non-uploaded commits to the BCC
@@ -690,7 +689,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     public void testIndexSearchDirectoryPruned() throws Exception {
         startMasterOnlyNode();
-        startIndexNode();
+        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -736,7 +735,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     }
 
-    private static Set<String> toSet(String[] strings) throws IOException {
+    private static Set<String> toSet(String[] strings) {
         return Set.of(strings);
     }
 
@@ -826,7 +825,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             // Ensure that merges are flushed immediately
             .put(SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.ZERO)
             // Disable background flushes
-            .put(SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(2))
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         var indexNode1 = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);

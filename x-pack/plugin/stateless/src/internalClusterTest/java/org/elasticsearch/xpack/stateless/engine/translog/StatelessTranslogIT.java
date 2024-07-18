@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.engine.translog;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -91,9 +90,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
     public void testTranslogFileHoldDirectoryOfReferencedFiles() throws Exception {
         startMasterOnlyNode();
 
-        String indexNode = startIndexNode(
-            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
-        );
+        String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -138,9 +135,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
     public void testTranslogFileHoldDirectoryForIdleShards() throws Exception {
         startMasterOnlyNode();
 
-        String indexNode = startIndexNode(
-            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
-        );
+        String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -215,7 +210,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                     StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(),
                     TimeValue.timeValueMillis(200)
                 )
-                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 .build()
         );
         ensureStableCluster(2);
@@ -279,12 +274,10 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public void testTranslogWillRecoveryAllFilesIfShardMissingDirectory() throws Exception {
+    public void testTranslogWillRecoveryAllFilesIfShardMissingDirectory() {
         startMasterOnlyNode();
         startSearchNode();
-        String indexNode = startIndexNode(
-            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
-        );
+        String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         ensureStableCluster(3);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -321,8 +314,8 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         startMasterOnlyNode();
         var indexNode = startIndexNode(
             Settings.builder()
-                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
                 .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 .build()
         );
         ensureStableCluster(2);
@@ -769,10 +762,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
 
     private void startIndexingAndMasterNode(Settings additionalSettings) {
         startMasterAndIndexNode(
-            Settings.builder()
-                .put(additionalSettings)
-                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
-                .build()
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(additionalSettings).build()
         );
     }
 

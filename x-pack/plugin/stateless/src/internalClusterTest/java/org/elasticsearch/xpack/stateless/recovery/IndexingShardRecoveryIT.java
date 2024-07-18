@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -126,8 +125,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1))
-            .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueDays(1))
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE);
+            .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueDays(1));
     }
 
     /**
@@ -146,7 +144,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testEmptyStoreRecovery() throws Exception {
-        startMasterAndIndexNode();
+        startMasterAndIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         var indexName = createIndex(randomIntBetween(1, 3), 0);
 
         var initialTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
@@ -161,7 +159,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
     public void testExistingStoreRecovery() throws Exception {
         startMasterOnlyNode();
-        var indexNode = startIndexNode();
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         var indexName = createIndex(randomIntBetween(1, 3), 0);
 
         var recoveredBcc = new PrimaryTermAndGeneration(1L, 3L);
@@ -193,7 +191,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
                 internalCluster().restartNode(indexNode);
             } else {
                 internalCluster().stopNode(indexNode);
-                indexNode = startIndexNode();
+                indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
             }
             ensureGreen(indexName);
 
@@ -207,7 +205,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
     public void testSnapshotRecovery() throws Exception {
         startMasterOnlyNode();
-        startIndexNode();
+        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
 
         var indexName = createIndex(randomIntBetween(1, 3), 0);
         var lastUploaded = new PrimaryTermAndGeneration(1L, 3L);
@@ -261,7 +259,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
     public void testPeerRecovery() throws Exception {
         startMasterOnlyNode();
-        var indexNode = startIndexNode();
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         var indexName = createIndex(randomIntBetween(1, 3), 0);
 
         var currentGeneration = new PrimaryTermAndGeneration(1L, 3L);
@@ -295,7 +293,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
                 expectedGenerationAfterRelocation = currentGeneration.generation() + 1L;
             }
 
-            var newIndexNode = startIndexNode();
+            var newIndexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
             logger.info("--> iteration {}/{}: node {} started", i, iters, newIndexNode);
 
             var excludedNode = indexNode;
@@ -317,6 +315,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
         final var masterNode = startMasterOnlyNode();
         final var extraSettings = Settings.builder()
             .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         final var indexNode = startIndexNode(extraSettings);
         ensureStableCluster(2, masterNode);

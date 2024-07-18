@@ -17,7 +17,6 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -53,12 +52,13 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+        return super.nodeSettings().put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueDays(1))
-            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1000);
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1000)
+            // tests in this suite check the number of commits, generations etc
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
     /**

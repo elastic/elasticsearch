@@ -51,6 +51,11 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
 
     private static final TimeValue DEFAULT_BOOST_WINDOW = TimeValue.timeValueDays(7);
 
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(disableIndexingDiskAndMemoryControllersNodeSettings());
+    }
+
     public void testShardSizeWithoutTimestampField() throws Exception {
         startMasterOnlyNode();
         startIndexNode();

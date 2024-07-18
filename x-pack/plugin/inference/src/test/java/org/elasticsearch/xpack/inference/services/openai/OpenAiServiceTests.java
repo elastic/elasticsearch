@@ -22,7 +22,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -56,6 +55,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
+import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -342,7 +342,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModel() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", 100, false),
+                getServiceSettingsMap("model", "url", "org", 100, null, false),
                 getTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
@@ -393,7 +393,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", null, null, null, true),
+                getServiceSettingsMap("model", null, null, null, null, true),
                 getTaskSettingsMap(null),
                 getSecretSettingsMap("secret")
             );
@@ -419,7 +419,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, true),
+                getServiceSettingsMap("model", "url", "org", null, null, true),
                 getTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
@@ -450,7 +450,7 @@ public class OpenAiServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, true),
+                getServiceSettingsMap("model", "url", "org", null, null, true),
                 getTaskSettingsMap("user"),
                 secretSettingsMap
             );
@@ -476,11 +476,11 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, true),
+                getServiceSettingsMap("model", "url", "org", null, null, true),
                 getTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
-            persistedConfig.secrets.put("extra_key", "value");
+            persistedConfig.secrets().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -503,7 +503,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createOpenAiService()) {
-            var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, true);
+            var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, null, true);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("user"), getSecretSettingsMap("secret"));
@@ -532,7 +532,7 @@ public class OpenAiServiceTests extends ESTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, true),
+                getServiceSettingsMap("model", "url", "org", null, null, true),
                 taskSettingsMap,
                 getSecretSettingsMap("secret")
             );
@@ -558,7 +558,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, true),
+                getServiceSettingsMap("model", "url", "org", null, null, true),
                 getTaskSettingsMap("user")
             );
 
@@ -593,7 +593,10 @@ public class OpenAiServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
         try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", null, null, null, true), getTaskSettingsMap(null));
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null)
+            );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
@@ -611,7 +614,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, true),
+                getServiceSettingsMap("model", "url", "org", null, null, true),
                 getTaskSettingsMap("user")
             );
             persistedConfig.config().put("extra_key", "value");
@@ -631,7 +634,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createOpenAiService()) {
-            var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, true);
+            var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, null, true);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("user"));
@@ -654,7 +657,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var taskSettingsMap = getTaskSettingsMap("user");
             taskSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org", null, true), taskSettingsMap);
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org", null, null, true), taskSettingsMap);
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
@@ -1307,26 +1310,4 @@ public class OpenAiServiceTests extends ESTestCase {
             Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
         );
     }
-
-    private PeristedConfig getPersistedConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
-    ) {
-
-        return new PeristedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
-        );
-    }
-
-    private PeristedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
-
-        return new PeristedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            null
-        );
-    }
-
-    private record PeristedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 }

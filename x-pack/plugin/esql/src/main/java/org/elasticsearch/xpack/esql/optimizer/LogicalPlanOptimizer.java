@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
@@ -66,8 +63,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSpatialSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates;
+import org.elasticsearch.xpack.esql.optimizer.rules.TranslateMetricsAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -115,6 +116,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceStatsAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
+            // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
+            new TranslateMetricsAggregate(),
+            new ReplaceStatsNestedExpressionWithEval(),
             new ReplaceRegexMatch(),
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),

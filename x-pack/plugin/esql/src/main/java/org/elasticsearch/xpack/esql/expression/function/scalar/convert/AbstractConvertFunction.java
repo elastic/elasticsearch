@@ -57,7 +57,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     }
 
     protected AbstractConvertFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
     }
 
     /**
@@ -77,7 +77,11 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(factories().keySet()));
+        return isType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(supportedTypes()));
+    }
+
+    public Set<DataType> supportedTypes() {
+        return factories().keySet();
     }
 
     public static String supportedTypesNames(Set<DataType> types) {

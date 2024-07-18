@@ -578,7 +578,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             } : SourceProvider.fromStoredFields();
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
-                new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                new FieldDataContext(
+                    "",
+                    mapperService.getIndexSettings(),
+                    () -> searchLookup,
+                    Set::of,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                )
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             DocValuesScriptFieldFactory sff = lfd.getScriptFieldFactory("field");
@@ -1039,13 +1045,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return "All fields that match routing_path must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                 + "without the [script] parameter. ["
-                + mapper.name()
+                + mapper.fullPath()
                 + "] was not a dimension.";
         }
         return "All fields that match routing_path must be configured with [time_series_dimension: true] "
             + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
             + "without the [script] parameter. ["
-            + mapper.name()
+            + mapper.fullPath()
             + "] was ["
             + mapper.typeName()
             + "].";
@@ -1123,8 +1129,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSource() throws IOException {
-        boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
-        assertSyntheticSource(syntheticSourceSupport(ignoreMalformed).example(5));
+        assertSyntheticSource(syntheticSourceSupport(shouldUseIgnoreMalformed()).example(5));
     }
 
     public void testSyntheticSourceIgnoreMalformedExamples() throws IOException {
@@ -1177,7 +1182,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceMany() throws IOException {
-        boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
+        boolean ignoreMalformed = shouldUseIgnoreMalformed();
         int maxValues = randomBoolean() ? 1 : 5;
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
@@ -1239,7 +1244,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceInObject() throws IOException {
-        boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
+        boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("obj").startObject("properties").startObject("field");
@@ -1255,7 +1260,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticEmptyList() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
-        boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
+        boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
         SyntheticSourceExample syntheticSourceExample = support.example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
@@ -1266,6 +1271,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         var expected = support.preservesExactSource() ? "{\"field\":[]}" : "{}";
         assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
+    }
+
+    private boolean shouldUseIgnoreMalformed() {
+        // 5% of test runs use ignore_malformed
+        return supportsIgnoreMalformed() && randomDouble() <= 0.05;
     }
 
     public final void testSyntheticEmptyListNoDocValuesLoader() throws IOException {
@@ -1318,6 +1328,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public IndexSettings indexSettings() {
                     throw new UnsupportedOperationException();
                 }
 
@@ -1490,7 +1505,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceInvalid() throws IOException {
-        boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
+        boolean ignoreMalformed = shouldUseIgnoreMalformed();
         List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport(ignoreMalformed).invalidExample());
         if (supportsCopyTo()) {
             examples.add(
@@ -1515,6 +1530,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
             assertThat(e.getMessage(), example.error);
         }
+    }
+
+    public final void testSyntheticSourceInNestedObject() throws IOException {
+        boolean ignoreMalformed = shouldUseIgnoreMalformed();
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("obj").field("type", "nested").startObject("properties").startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject().endObject().endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> {
+            b.startObject("obj");
+            syntheticSourceExample.buildInput(b);
+            b.endObject();
+        }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
     }
 
     @Override

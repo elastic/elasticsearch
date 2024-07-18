@@ -331,6 +331,21 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
     }
 
+    public void testCompareFloats() {
+        BlockFactory blockFactory = blockFactory();
+        testCompare(
+            new Page(
+                blockFactory.newFloatBlockBuilder(2).appendFloat(-Float.MAX_VALUE).appendFloat(randomFloatBetween(-1000, -1, true)).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(randomFloatBetween(-1000, -1, true)).appendFloat(0.0f).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(0).appendFloat(randomFloatBetween(1, 1000, true)).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(randomLongBetween(1, 1000)).appendFloat(Float.MAX_VALUE).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(0.0f).appendFloat(Float.MAX_VALUE).build()
+            ),
+            FLOAT,
+            DEFAULT_SORTABLE
+        );
+    }
+
     public void testCompareDoubles() {
         BlockFactory blockFactory = blockFactory();
         testCompare(
@@ -505,7 +520,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == FLOAT) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
                 continue;
             }
             elementTypes.add(e);
@@ -577,7 +592,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == FLOAT) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
                 continue;
             }
             elementTypes.add(e);
@@ -965,7 +980,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE || t == FLOAT,
+                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

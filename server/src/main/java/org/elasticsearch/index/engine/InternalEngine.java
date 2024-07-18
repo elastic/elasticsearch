@@ -45,6 +45,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -72,6 +74,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -343,8 +346,8 @@ public class InternalEngine extends Engine {
         final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             store.readLastCommittedSegmentsInfo().userData.entrySet()
         );
-        maxSeqNo = seqNoStats.maxSeqNo;
-        localCheckpoint = seqNoStats.localCheckpoint;
+        maxSeqNo = seqNoStats.maxSeqNo();
+        localCheckpoint = seqNoStats.localCheckpoint();
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
     }
@@ -1687,7 +1690,13 @@ public class InternalEngine extends Engine {
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
-            return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "]");
+            return new IllegalArgumentException(
+                Strings.format(
+                    "Number of documents in the shard cannot exceed [%d]; for more information, see [%s]",
+                    maxDocs,
+                    ReferenceDocs.LUCENE_MAX_DOCS_LIMIT
+                )
+            );
         } else {
             return null;
         }
@@ -2142,9 +2151,8 @@ public class InternalEngine extends Engine {
         final long localCheckpointOfLastCommit = Long.parseLong(
             lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
-        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointOfLastCommit + 1
-        ).translogFileGeneration;
+        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(localCheckpointOfLastCommit + 1)
+            .translogFileGeneration();
         if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThresholdSizeInBytes
             && relativeTimeInNanosSupplier.getAsLong() - lastFlushTimestamp < flushThresholdAgeInNanos) {
             return false;
@@ -2164,9 +2172,8 @@ public class InternalEngine extends Engine {
          *
          * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
          */
-        final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointTracker.getProcessedCheckpoint() + 1
-        ).translogFileGeneration;
+        final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(localCheckpointTracker.getProcessedCheckpoint() + 1)
+            .translogFileGeneration();
         return translogGenerationOfLastCommit < translogGenerationOfNewCommit
             || localCheckpointTracker.getProcessedCheckpoint() == localCheckpointTracker.getMaxSeqNo();
     }
@@ -2728,6 +2735,10 @@ public class InternalEngine extends Engine {
         }
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+            if (config().getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                // Needed to support index sorting in the presence of nested objects.
+                iwc.setParentField(ROOT_DOC_FIELD_NAME);
+            }
         }
         // Provide a custom leaf sorter, so that index readers opened from this writer
         // will have its leaves sorted according the given leaf sorter.

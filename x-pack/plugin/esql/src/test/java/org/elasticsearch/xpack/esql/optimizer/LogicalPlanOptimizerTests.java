@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
@@ -41,11 +42,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -57,13 +53,18 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -110,16 +111,22 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -152,6 +159,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
@@ -204,6 +212,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Analyzer analyzerExtra;
     private static EnrichResolution enrichResolution;
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
+
+    private static Map<String, EsField> metricMapping;
+    private static Analyzer metricsAnalyzer;
 
     private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
         static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
@@ -258,6 +269,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
         analyzerExtra = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultExtra, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        metricMapping = loadMapping("k8s-mappings.json");
+        var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Set.of("k8s")));
+        metricsAnalyzer = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), metricsIndex, enrichResolution),
             TEST_VERIFIER
         );
     }
@@ -802,7 +820,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         // invalid aggregate but that's fine cause its properties are not used by this rule
-        Aggregate aggregate = new Aggregate(EMPTY, fa, singletonList(getFieldAttribute("b")), emptyList());
+        Aggregate aggregate = new Aggregate(
+            EMPTY,
+            fa,
+            Aggregate.AggregateType.STANDARD,
+            singletonList(getFieldAttribute("b")),
+            emptyList()
+        );
         Filter fb = new Filter(EMPTY, aggregate, new And(EMPTY, aggregateCondition, conditionB));
 
         // expected
@@ -811,6 +835,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             new Aggregate(
                 EMPTY,
                 new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+                Aggregate.AggregateType.STANDARD,
                 singletonList(getFieldAttribute("b")),
                 emptyList()
             ),
@@ -4986,11 +5011,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLookupSimple() {
-        var plan = optimizedPlan("""
+        String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
-            """);
+            | LOOKUP int_number_names ON int""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = optimizedPlan(query);
         var join = as(plan, Join.class);
 
         // Right is the lookup table
@@ -5008,12 +5038,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(join.config().type(), equalTo(JoinType.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
-        assertThat(join.config().conditions().size(), equalTo(1));
-        Equals eq = as(join.config().conditions().get(0), Equals.class);
-        assertThat(eq.left().toString(), startsWith("int{r}"));
-        assertThat(eq.right().toString(), startsWith("int{r}"));
-        assertTrue(join.children().get(0).outputSet() + " contains " + eq.left(), join.children().get(0).outputSet().contains(eq.left()));
-        assertTrue(join.children().get(1).outputSet() + " contains " + eq.right(), join.children().get(1).outputSet().contains(eq.right()));
+        assertThat(join.config().leftFields().size(), equalTo(1));
+        assertThat(join.config().rightFields().size(), equalTo(1));
+        Attribute lhs = join.config().leftFields().get(0);
+        Attribute rhs = join.config().rightFields().get(0);
+        assertThat(lhs.toString(), startsWith("int{r}"));
+        assertThat(rhs.toString(), startsWith("int{r}"));
+        assertTrue(join.children().get(0).outputSet() + " contains " + lhs, join.children().get(0).outputSet().contains(lhs));
+        assertTrue(join.children().get(1).outputSet() + " contains " + rhs, join.children().get(1).outputSet().contains(rhs));
 
         // Join's output looks sensible too
         assertMap(
@@ -5057,12 +5089,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLookupStats() {
-        var plan = optimizedPlan("""
+        String query = """
               FROM test
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
-            | STATS MIN(emp_no) BY name
-            """);
+            | STATS MIN(emp_no) BY name""";
+        if (Build.current().isProductionRelease()) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        var plan = optimizedPlan(query);
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
 
@@ -5088,10 +5125,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(join.config().type(), equalTo(JoinType.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
-        assertThat(join.config().conditions().size(), equalTo(1));
-        Equals eq = as(join.config().conditions().get(0), Equals.class);
-        assertThat(eq.left().toString(), startsWith("int{r}"));
-        assertThat(eq.right().toString(), startsWith("int{r}"));
+        assertThat(join.config().leftFields().size(), equalTo(1));
+        assertThat(join.config().rightFields().size(), equalTo(1));
+        Attribute lhs = join.config().leftFields().get(0);
+        Attribute rhs = join.config().rightFields().get(0);
+        assertThat(lhs.toString(), startsWith("int{r}"));
+        assertThat(rhs.toString(), startsWith("int{r}"));
 
         // Join's output looks sensible too
         assertMap(
@@ -5119,6 +5158,418 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                  */
                 .item(containsString("name{r}"))
         );
+    }
+
+    public void testTranslateMetricsWithoutGrouping() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "METRICS k8s max(rate(network.total_bytes_in))";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        as(aggsByTsid.child(), EsRelation.class);
+
+        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+        assertThat(finalAggs.aggregates(), hasSize(1));
+        Max max = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
+        assertThat(Expressions.attribute(max.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(finalAggs.groupings(), empty());
+
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        assertThat(aggsByTsid.aggregates(), hasSize(1)); // _tsid is dropped
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+    }
+
+    public void testTranslateMixedAggsWithoutGrouping() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost)";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        as(aggsByTsid.child(), EsRelation.class);
+
+        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+        assertThat(finalAggs.aggregates(), hasSize(2));
+        Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
+        FromPartial maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), FromPartial.class);
+        assertThat(Expressions.attribute(maxRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+        assertThat(finalAggs.groupings(), empty());
+
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        assertThat(aggsByTsid.aggregates(), hasSize(2));
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        ToPartial toPartialMaxCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), ToPartial.class);
+        assertThat(Expressions.attribute(toPartialMaxCost.field()).name(), equalTo("network.cost"));
+    }
+
+    public void testTranslateMixedAggsWithMathWithoutGrouping() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Project project = as(plan, Project.class);
+        Eval mulEval = as(project.child(), Eval.class);
+        assertThat(mulEval.fields(), hasSize(1));
+        Mul mul = as(Alias.unwrap(mulEval.fields().get(0)), Mul.class);
+        Limit limit = as(mulEval.child(), Limit.class);
+        Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs.aggregates(), hasSize(2));
+        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(2));
+        Eval addEval = as(aggsByTsid.child(), Eval.class);
+        assertThat(addEval.fields(), hasSize(1));
+        Add add = as(Alias.unwrap(addEval.fields().get(0)), Add.class);
+        as(addEval.child(), EsRelation.class);
+
+        assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
+        assertThat(mul.right().fold(), equalTo(1.1));
+
+        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+        Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
+        FromPartial maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), FromPartial.class);
+        assertThat(Expressions.attribute(maxRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+        assertThat(finalAggs.groupings(), empty());
+
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        ToPartial toPartialMaxCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), ToPartial.class);
+        assertThat(Expressions.attribute(toPartialMaxCost.field()).id(), equalTo(addEval.fields().get(0).id()));
+        assertThat(Expressions.attribute(add.left()).name(), equalTo("network.cost"));
+        assertThat(add.right().fold(), equalTo(0.2));
+    }
+
+    public void testTranslateMetricsGroupedByOneDimension() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        TopN topN = as(plan, TopN.class);
+        Aggregate aggsByCluster = as(topN.child(), Aggregate.class);
+        assertThat(aggsByCluster.aggregates(), hasSize(2));
+        Aggregate aggsByTsid = as(aggsByCluster.child(), Aggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        as(aggsByTsid.child(), EsRelation.class);
+
+        assertThat(aggsByCluster.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+        Sum sum = as(Alias.unwrap(aggsByCluster.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(aggsByCluster.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(aggsByCluster.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+        assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+    }
+
+    public void testTranslateMetricsGroupedByTwoDimension() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "METRICS k8s avg(rate(network.total_bytes_in)) BY cluster, pod";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Limit limit = as(eval.child(), Limit.class);
+        Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs.aggregates(), hasSize(4));
+        Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(3)); // _tsid is dropped
+        as(aggsByTsid.child(), EsRelation.class);
+
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
+        assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAggs.aggregates().get(0).id()));
+        assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAggs.aggregates().get(1).id()));
+
+        assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+        Sum sum = as(Alias.unwrap(finalAggs.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        Count count = as(Alias.unwrap(finalAggs.aggregates().get(1)), Count.class);
+        assertThat(Expressions.attribute(count.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(finalAggs.groupings(), hasSize(2));
+        assertThat(Expressions.attribute(finalAggs.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+        assertThat(Expressions.attribute(finalAggs.groupings().get(1)).id(), equalTo(aggsByTsid.aggregates().get(2).id()));
+
+        assertThat(finalAggs.groupings(), hasSize(2));
+
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        assertThat(aggsByTsid.aggregates(), hasSize(3)); // rates, values(cluster), values(pod)
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        Values values1 = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+        assertThat(Expressions.attribute(values1.field()).name(), equalTo("cluster"));
+        Values values2 = as(Alias.unwrap(aggsByTsid.aggregates().get(2)), Values.class);
+        assertThat(Expressions.attribute(values2.field()).name(), equalTo("pod"));
+    }
+
+    public void testTranslateMetricsGroupedByTimeBucket() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg.aggregates(), hasSize(2));
+        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
+        Eval eval = as(aggsByTsid.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        as(eval.child(), EsRelation.class);
+
+        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+        Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(finalAgg.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(eval.fields().get(0).id()));
+        Bucket bucket = as(Alias.unwrap(eval.fields().get(0)), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    public void testTranslateMetricsGroupedByTimeBucketAndDimensions() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = """
+            METRICS k8s avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
+            | SORT cluster
+            | LIMIT 10
+            """;
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Project project = as(plan, Project.class);
+        TopN topN = as(project.child(), TopN.class);
+        Eval eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
+        Aggregate finalAgg = as(eval.child(), Aggregate.class);
+        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        Eval bucket = as(aggsByTsid.child(), Eval.class);
+        as(bucket.child(), EsRelation.class);
+        assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
+        assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
+
+        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+        assertThat(finalAgg.aggregates(), hasSize(5)); // sum, count, pod, bucket, cluster
+        Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        Count count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
+        assertThat(Expressions.attribute(sum.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(Expressions.attribute(count.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(finalAgg.groupings(), hasSize(3));
+        assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        assertThat(aggsByTsid.aggregates(), hasSize(4)); // rate, values(pod), values(cluster), bucket
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        Values podValues = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+        assertThat(Expressions.attribute(podValues.field()).name(), equalTo("pod"));
+        Values clusterValues = as(Alias.unwrap(aggsByTsid.aggregates().get(3)), Values.class);
+        assertThat(Expressions.attribute(clusterValues.field()).name(), equalTo("cluster"));
+    }
+
+    public void testTranslateMixedAggsGroupedByTimeBucketAndDimensions() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = """
+            METRICS k8s avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
+            | SORT cluster
+            | LIMIT 10
+            """;
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Project project = as(plan, Project.class);
+        TopN topN = as(project.child(), TopN.class);
+        Eval eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
+        Aggregate finalAgg = as(eval.child(), Aggregate.class);
+        Aggregate aggsByTsid = as(finalAgg.child(), Aggregate.class);
+        Eval bucket = as(aggsByTsid.child(), Eval.class);
+        as(bucket.child(), EsRelation.class);
+        assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
+        assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
+
+        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+        assertThat(finalAgg.aggregates(), hasSize(6)); // sum, count, sum, count, bucket, cluster
+        Sum sumRate = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        Count countRate = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
+        assertThat(Expressions.attribute(sumRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(Expressions.attribute(countRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+
+        FromPartial sumCost = as(Alias.unwrap(finalAgg.aggregates().get(2)), FromPartial.class);
+        FromPartial countCost = as(Alias.unwrap(finalAgg.aggregates().get(3)), FromPartial.class);
+        assertThat(Expressions.attribute(sumCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+        assertThat(Expressions.attribute(countCost.field()).id(), equalTo(aggsByTsid.aggregates().get(2).id()));
+
+        assertThat(finalAgg.groupings(), hasSize(2));
+        assertThat(Expressions.attribute(finalAgg.groupings().get(0)).id(), equalTo(aggsByTsid.aggregates().get(3).id()));
+
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        assertThat(aggsByTsid.aggregates(), hasSize(5)); // rate, to_partial(sum(cost)), to_partial(count(cost)), values(cluster), bucket
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        ToPartial toPartialSum = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), ToPartial.class);
+        assertThat(toPartialSum.function(), instanceOf(Sum.class));
+        assertThat(Expressions.attribute(toPartialSum.field()).name(), equalTo("network.cost"));
+        ToPartial toPartialCount = as(Alias.unwrap(aggsByTsid.aggregates().get(2)), ToPartial.class);
+        assertThat(toPartialCount.function(), instanceOf(Count.class));
+        assertThat(Expressions.attribute(toPartialCount.field()).name(), equalTo("network.cost"));
+        Values clusterValues = as(Alias.unwrap(aggsByTsid.aggregates().get(4)), Values.class);
+        assertThat(Expressions.attribute(clusterValues.field()).name(), equalTo("cluster"));
+    }
+
+    public void testAdjustMetricsRateBeforeFinalAgg() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = """
+            METRICS k8s avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
+            | SORT cluster
+            | LIMIT 10
+            """;
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        Project project = as(plan, Project.class);
+        TopN topN = as(project.child(), TopN.class);
+        Eval evalDiv = as(topN.child(), Eval.class);
+        assertThat(evalDiv.fields(), hasSize(1));
+        Div div = as(Alias.unwrap(evalDiv.fields().get(0)), Div.class);
+
+        Aggregate finalAgg = as(evalDiv.child(), Aggregate.class);
+        assertThat(finalAgg.aggregates(), hasSize(4)); // sum, count, bucket, cluster
+        assertThat(finalAgg.groupings(), hasSize(2));
+
+        Eval evalRound = as(finalAgg.child(), Eval.class);
+        Round round = as(Alias.unwrap(evalRound.fields().get(0)), Round.class);
+        Mul mul = as(round.field(), Mul.class);
+
+        Aggregate aggsByTsid = as(evalRound.child(), Aggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(3)); // rate, cluster, bucket
+        assertThat(aggsByTsid.groupings(), hasSize(2));
+
+        Eval evalBucket = as(aggsByTsid.child(), Eval.class);
+        assertThat(evalBucket.fields(), hasSize(1));
+        Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
+        as(evalBucket.child(), EsRelation.class);
+
+        assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAgg.aggregates().get(0).id()));
+        assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAgg.aggregates().get(1).id()));
+
+        assertThat(finalAgg.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+
+        Sum sum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+        Count count = as(Alias.unwrap(finalAgg.aggregates().get(1)), Count.class);
+        assertThat(Expressions.attribute(sum.field()).id(), equalTo(evalRound.fields().get(0).id()));
+        assertThat(Expressions.attribute(count.field()).id(), equalTo(evalRound.fields().get(0).id()));
+
+        assertThat(
+            Expressions.attribute(finalAgg.groupings().get(0)).id(),
+            equalTo(Expressions.attribute(aggsByTsid.groupings().get(1)).id())
+        );
+        assertThat(Expressions.attribute(finalAgg.groupings().get(1)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+
+        assertThat(Expressions.attribute(mul.left()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
+        assertThat(mul.right().fold(), equalTo(1.05));
+        assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
+        Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
+        assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
+        Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+        assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+    }
+
+    public void testMetricsWithoutRate() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        List<String> queries = List.of("""
+            METRICS k8s count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """, """
+            METRICS k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """, """
+            FROM k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """);
+        List<LogicalPlan> plans = new ArrayList<>();
+        for (String query : queries) {
+            var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+            plans.add(plan);
+        }
+        for (LogicalPlan plan : plans) {
+            Limit limit = as(plan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            assertThat(aggregate.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
+            assertThat(aggregate.aggregates(), hasSize(2));
+            assertThat(aggregate.groupings(), hasSize(1));
+            Eval eval = as(aggregate.child(), Eval.class);
+            assertThat(eval.fields(), hasSize(2));
+            assertThat(Alias.unwrap(eval.fields().get(0)), instanceOf(Bucket.class));
+            assertThat(Alias.unwrap(eval.fields().get(1)), instanceOf(ToLong.class));
+            EsRelation relation = as(eval.child(), EsRelation.class);
+            assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        }
+        // TODO: Unmute this part
+        // https://github.com/elastic/elasticsearch/issues/110827
+        // for (int i = 1; i < plans.size(); i++) {
+        // assertThat(plans.get(i), equalTo(plans.get(0)));
+        // }
+    }
+
+    public void testRateInStats() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = """
+            METRICS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        VerificationException error = expectThrows(
+            VerificationException.class,
+            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)))
+        );
+        assertThat(error.getMessage(), equalTo("""
+            Found 1 problem
+            line 1:25: the rate aggregate[rate(network.total_bytes_in)] can only be used within the metrics command"""));
+    }
+
+    public void testMvSortInvalidOrder() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | EVAL sd = mv_sort(salary, "ABC")
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        assertEquals(
+            "2:29: Invalid order value in [mv_sort(salary, \"ABC\")], expected one of [ASC, DESC] but got [ABC]",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | EVAL order = "ABC", sd = mv_sort(salary, order)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "2:16: Invalid order value in [mv_sort(salary, order)], expected one of [ASC, DESC] but got [ABC]",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | EVAL order = concat("d", "sc"), sd = mv_sort(salary, order)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "2:16: Invalid order value in [mv_sort(salary, order)], expected one of [ASC, DESC] but got [dsc]",
+            e.getMessage().substring(header.length())
+        );
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> plan("""
+            row v = [1, 2, 3] | EVAL sd = mv_sort(v, "dsc")
+            """));
+        assertEquals("Invalid order value in [mv_sort(v, \"dsc\")], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
+
+        iae = expectThrows(IllegalArgumentException.class, () -> plan("""
+            row v = [1, 2, 3], o = concat("d", "sc") | EVAL sd = mv_sort(v, o)
+            """));
+        assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
     }
 
     private Literal nullOf(DataType dataType) {

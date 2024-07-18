@@ -16,12 +16,16 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.upgrades.AbstractRollingUpgradeTestCase;
 
 import java.io.IOException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class InferenceUpgradeTestCase extends AbstractRollingUpgradeTestCase {
+
+    static final String MODELS_RENAMED_TO_ENDPOINTS = "8.15.0";
 
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -103,5 +107,18 @@ public class InferenceUpgradeTestCase extends AbstractRollingUpgradeTestCase {
         request.setJsonEntity(modelConfig);
         var response = client().performRequest(request);
         assertOKAndConsume(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    // in version 8.15, there was a breaking change where "models" was renamed to "endpoints"
+    LinkedList<Map<String, Object>> getConfigsWithBreakingChangeHandling(TaskType testTaskType, String oldClusterId) throws IOException {
+
+        LinkedList<Map<String, Object>> configs;
+        configs = new LinkedList<>(
+            (List<Map<String, Object>>) Objects.requireNonNullElse((get(testTaskType, oldClusterId).get("endpoints")), List.of())
+        );
+        configs.addAll(Objects.requireNonNullElse((List<Map<String, Object>>) get(testTaskType, oldClusterId).get("models"), List.of()));
+
+        return configs;
     }
 }

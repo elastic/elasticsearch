@@ -108,6 +108,8 @@ preview:[]
 
 * <<check-in-connector-sync-job-api>>
 preview:[]
+* <<claim-connector-sync-job-api>>
+preview:[]
 * <<set-connector-sync-job-error-api>>
 preview:[]
 * <<set-connector-sync-job-stats-api>>
@@ -141,5 +143,6 @@ include::update-connector-last-sync-api.asciidoc[]
 include::update-connector-status-api.asciidoc[]
 
 include::check-in-connector-sync-job-api.asciidoc[]
+include::claim-connector-sync-job-api.asciidoc[]
 include::set-connector-sync-job-error-api.asciidoc[]
 include::set-connector-sync-job-stats-api.asciidoc[]

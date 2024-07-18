@@ -44,7 +44,7 @@ public class KnnQuery extends Query {
             return new MatchNoDocsQuery();
         }
         ScoreDoc[] scoreDocs = topDocs.scoreDocs;
-        Arrays.sort(scoreDocs, (a, b) -> Float.compare(b.doc, a.doc));
+        Arrays.sort(scoreDocs, (a, b) -> Float.compare(a.doc, b.doc));
         int numDocs = scoreDocs.length;
         int[] docs = new int[numDocs];
         float[] scores = new float[numDocs];

@@ -237,6 +237,51 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
         }
     }
 
+    public void testRandomWithKnnQuery() throws IOException {
+        int numDocs = atLeast(100);
+        int dimension = atLeast(5);
+        int numIters = atLeast(10);
+        boolean everyDocHasAVector = random().nextBoolean();
+        try (Directory d = newDirectoryForTest()) {
+            RandomIndexWriter w = new RandomIndexWriter(random(), d);
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                if (everyDocHasAVector || random().nextInt(10) != 2) {
+                    doc.add(getKnnVectorField("field", randomVector(dimension), VectorSimilarityFunction.EUCLIDEAN));
+                }
+                w.addDocument(doc);
+            }
+            w.close();
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                IndexSearcher searcher = newSearcher(reader);
+                for (int i = 0; i < numIters; i++) {
+                    DenseVectorQuery query = getDenseVectorQuery("field", randomVector(dimension));
+                    int n = random().nextInt(100) + 1;
+                    KnnQuery knnQuery = new KnnQuery(query, 10);
+                    Query rewritten = searcher.rewrite(knnQuery);
+                    assertTrue(rewritten instanceof KnnScoreDocQuery);
+                    KnnScoreDocQuery knnScoreDocQuery = (KnnScoreDocQuery) rewritten;
+                    assertEquals(reader.getContext().id(), knnScoreDocQuery.getContextIdentity());
+                    int previousDocId = -1;
+                    for (int j = 0; j < knnScoreDocQuery.docs().length; j++) {
+                        assertTrue(knnScoreDocQuery.docs()[j] >= 0);
+                        assertTrue(knnScoreDocQuery.docs()[j] > previousDocId);
+                        previousDocId = knnScoreDocQuery.docs()[j];
+                    }
+                    TopDocs results = searcher.search(rewritten, n);
+                    assert reader.hasDeletions() == false;
+                    assertTrue(results.totalHits.value >= results.scoreDocs.length);
+                    // verify the results are in descending score order
+                    float last = Float.MAX_VALUE;
+                    for (ScoreDoc scoreDoc : results.scoreDocs) {
+                        assertTrue(scoreDoc.score <= last);
+                        last = scoreDoc.score;
+                    }
+                }
+            }
+        }
+    }
+
     void assertIdMatches(IndexReader reader, String expectedId, ScoreDoc scoreDoc) throws IOException {
         String actualId = reader.storedFields().document(scoreDoc.doc).get("id");
         assertEquals(expectedId, actualId);

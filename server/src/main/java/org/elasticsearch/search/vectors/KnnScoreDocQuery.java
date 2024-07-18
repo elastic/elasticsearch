@@ -195,6 +195,10 @@ public class KnnScoreDocQuery extends Query {
         return scores;
     }
 
+    Object getContextIdentity() {
+        return contextIdentity;
+    }
+
     @Override
     public String toString(String field) {
         return "ScoreAndDocQuery";

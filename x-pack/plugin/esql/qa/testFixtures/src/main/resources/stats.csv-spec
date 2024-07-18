@@ -1947,8 +1947,7 @@ MIN(i):integer | a:keyword | b:integer
 // end::multi-mv-group-result[]
 ;
 
-statsByConstant
-required_capability: stats_by_constant
+statsByConstant#[skip:-8.12.1,reason:implemented in 8.12]
 from employees
 | stats m = max(salary), a = round(avg(salary)) by 0
 ;
@@ -1957,8 +1956,7 @@ m:integer |a:double |0:integer
 74999     |48249.0  |0
 ;
 
-statsByConstantFromStats
-required_capability: stats_by_constant
+statsByConstantFromStats#[skip:-8.12.1,reason:implemented in 8.12]
 from employees
 | stats c = count(languages)
 | stats a = count(*) by c
@@ -1968,8 +1966,7 @@ a:long |c:long
 1      |90
 ;
 
-statsByConstantFromEval
-required_capability: stats_by_constant
+statsByConstantFromEval#[skip:-8.12.1,reason:implemented in 8.12]
 from employees
 | eval x = 0
 | stats m = max(salary), a = round(avg(salary)) by x

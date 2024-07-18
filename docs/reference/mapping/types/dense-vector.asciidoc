@@ -452,6 +452,7 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible according to the following graph (jumps allowed):
 
+[source,console-result]
 ----
 flat < int8_flat < int4_flat < hnsw < int8_hnsw < int4_hnsw
 ----
@@ -474,6 +475,8 @@ Updating `type` in `index_options` will fail in all other scenarios.
 Switching `types` won't re-index vectors that have already been indexed (they will keep using their original `type`), vectors being indexed after the change will use the new `type` instead.
 
 For example, it's possible to define a dense vector field that utilizes the `flat` type (raw float32 arrays) for a first batch of data to be indexed.
+
+[source,console-result]
 ----
 PUT my-index
 {
@@ -493,6 +496,7 @@ PUT my-index
 
 Changing the `type` to `int4_hnsw` makes sure vectors indexed after that will use an int4 scalar quantized representation and HNSW (e.g., for KNN queries).
 
+[source,console-result]
 ----
 PUT my-index
 {

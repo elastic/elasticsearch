@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
 import java.time.Duration;
@@ -57,7 +56,7 @@ public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithme
 
     @Override
     protected final boolean supportsType(DataType type) {
-        return EsqlDataTypes.isDateTimeOrTemporal(type) || super.supportsType(type);
+        return DataType.isDateTimeOrTemporal(type) || super.supportsType(type);
     }
 
     @Override

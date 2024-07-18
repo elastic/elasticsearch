@@ -19,8 +19,4 @@ public final class EsqlDataTypes {
         return t != OBJECT && t != NESTED;
     }
 
-    public static boolean isDateTimeOrTemporal(DataType t) {
-        return DataType.isDateTime(t) || DataType.isTemporalAmount(t);
-    }
-
 }

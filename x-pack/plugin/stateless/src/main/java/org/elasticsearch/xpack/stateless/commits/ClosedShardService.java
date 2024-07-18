@@ -33,7 +33,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ClosedShardService {
     private static final Logger logger = LogManager.getLogger(ClosedShardService.class);
 
-    // Active shard reader information, per shard. Readers may continue running after a shard is technically closed.
+    /**
+     * Active shard reader information, per shard. Readers may continue running after a shard is technically closed.
+     */
     private final Map<ShardId, Set<PrimaryTermAndGeneration>> openReadersByShardId = new ConcurrentHashMap<>();
 
     /**
@@ -59,7 +61,8 @@ public class ClosedShardService {
     }
 
     /**
-     * Fetches what serverless commits were still in use when the shard was closed, if any.
+     * Fetches any serverless commits that are still in active use by readers even though the index shard was closed. Readers can continue
+     * past shard closure.
      *
      * @param shardId
      * @return A set of serverless commit identifiers. Can be empty.

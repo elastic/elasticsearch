@@ -53,6 +53,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -178,6 +179,37 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         // clear mock client before teardown
         mockClient.updateSettingsToBeVerified = false;
+    }
+
+    /**
+     * Test that the scheduled job runs at least once when a node running ReplicasUpdaterService becomes master.
+     * We increase the schuled task interval for this and only call the onMaster() method to see
+     * if the configured test client gets at least one call.
+     */
+    public void testSchedulingRunsJobOnce() throws InterruptedException {
+        SearchMetricsService searchMetricsServiceMock = Mockito.mock(SearchMetricsService.class);
+        Metadata.Builder clusterMetadata = Metadata.builder();
+        Index index = new Index("index", "uuid");
+        ShardMetrics shardMetrics = new ShardMetrics();
+        shardMetrics.shardSize = new ShardSize(1000, 0, null);
+        when(searchMetricsServiceMock.createRankingContext()).thenReturn(
+            new ReplicaRankingContext(
+                Map.of(index, new SearchMetricsService.IndexProperties("index", 1, 1, true, false, 0)),
+                Map.of(new ShardId(index, 0), shardMetrics),
+                250
+            )
+        );
+        ReplicasUpdaterService instance = new ReplicasUpdaterService(
+            testThreadPool,
+            createClusterService(testThreadPool, createClusterSettings()),
+            mockClient,
+            searchMetricsServiceMock
+        );
+        // start job but with a very high interval to control calls manually
+        replicasUpdaterService.setInterval(TimeValue.timeValueMinutes(60));
+        mockClient.assertNoUpdate();
+        instance.onMaster();
+        mockClient.assertUpdates("SPmin: " + 250, Map.of(2, Set.of(index.getName())));
     }
 
     private record SearchPowerSteps(int sp, IndexMetadata expectedAdditionalIndex) {}

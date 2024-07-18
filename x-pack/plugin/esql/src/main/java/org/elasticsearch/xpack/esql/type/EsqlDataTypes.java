@@ -8,13 +8,10 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.Locale;
-
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
@@ -22,7 +19,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
@@ -30,14 +26,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 public final class EsqlDataTypes {
 
     private EsqlDataTypes() {}
-
-    public static DataType fromTypeName(String name) {
-        return DataType.fromTypeName(name.toLowerCase(Locale.ROOT));
-    }
-
-    public static boolean isString(DataType t) {
-        return t == KEYWORD || t == TEXT;
-    }
 
     public static boolean isPrimitive(DataType t) {
         return t != OBJECT && t != NESTED;
@@ -98,7 +86,9 @@ public final class EsqlDataTypes {
         if (left == right) {
             return true;
         } else {
-            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
+            return (left == NULL || right == NULL)
+                || (DataType.isString(left) && DataType.isString(right))
+                || (left.isNumeric() && right.isNumeric());
         }
     }
 }

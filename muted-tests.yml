@@ -100,6 +100,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
   method: testLoadAllStatusAllInOnePage
   issue: https://github.com/elastic/elasticsearch/issues/111048
+- class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
+  method: testKnnSearchAction
+  issue: https://github.com/elastic/elasticsearch/issues/111072
 
 # Examples:
 #

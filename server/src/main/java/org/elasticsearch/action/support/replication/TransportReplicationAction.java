@@ -118,6 +118,20 @@ public abstract class TransportReplicationAction<
     }
 
     /**
+     * Execution of the replica action
+     */
+    protected enum ReplicaActionExecution {
+        /**
+         * Will bypass queue length and indexing pressure checks
+         */
+        SubjectToCircuitBreaker,
+        /**
+         * Will bypass queue length, indexing pressure and circuit breaker checks
+         */
+        BypassCircuitBreaker
+    }
+
+    /**
      * The timeout for retrying replication requests.
      */
     public static final Setting<TimeValue> REPLICATION_RETRY_TIMEOUT = Setting.timeSetting(
@@ -170,11 +184,13 @@ public abstract class TransportReplicationAction<
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
         Executor executor,
         SyncGlobalCheckpointAfterOperation syncGlobalCheckpointAfterOperation,
-        PrimaryActionExecution primaryActionExecution
+        PrimaryActionExecution primaryActionExecution,
+        ReplicaActionExecution replicaActionExecution
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         assert syncGlobalCheckpointAfterOperation != null : "Must specify global checkpoint sync behaviour";
         assert primaryActionExecution != null : "Must specify primary action execution behaviour";
+        assert replicaActionExecution != null : "Must specify replica action execution behaviour";
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -208,12 +224,15 @@ public abstract class TransportReplicationAction<
             this::handlePrimaryRequest
         );
 
-        // we must never reject on because of thread pool capacity on replicas
+        boolean canTripCircuitBreakerOnReplica = switch (replicaActionExecution) {
+            case BypassCircuitBreaker -> false;
+            case SubjectToCircuitBreaker -> true;
+        };
         transportService.registerRequestHandler(
             transportReplicaAction,
             executor,
-            true,
-            true,
+            true, // we must never reject because of thread pool capacity on replicas
+            canTripCircuitBreakerOnReplica,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
             this::handleReplicaRequest
         );

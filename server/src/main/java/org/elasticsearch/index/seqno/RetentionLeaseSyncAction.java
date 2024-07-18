@@ -93,7 +93,8 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             new ManagementOnlyExecutorFunction(threadPool),
             PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

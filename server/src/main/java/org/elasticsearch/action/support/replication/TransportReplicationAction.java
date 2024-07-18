@@ -190,7 +190,7 @@ public abstract class TransportReplicationAction<
         super(actionName, actionFilters, transportService.getTaskManager());
         assert syncGlobalCheckpointAfterOperation != null : "Must specify global checkpoint sync behaviour";
         assert primaryActionExecution != null : "Must specify primary action execution behaviour";
-        assert replicaActionExecution != null : "Myst specify replica action execution behaviour";
+        assert replicaActionExecution != null : "Must specify replica action execution behaviour";
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;

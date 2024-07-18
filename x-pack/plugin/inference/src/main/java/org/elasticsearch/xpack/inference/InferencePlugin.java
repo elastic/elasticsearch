@@ -276,11 +276,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public List<Setting<?>> getSettings() {
         return Stream.of(
-            HttpSettings.getSettings(),
-            HttpClientManager.getSettings(),
-            ThrottlerManager.getSettings(),
+            HttpSettings.getSettingsDefinitions(),
+            HttpClientManager.getSettingsDefinitions(),
+            ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettings(),
+            Truncator.getSettingsDefinitions(),
             RequestExecutorServiceSettings.getSettingsDefinitions(),
             List.of(SKIP_VALIDATE_AND_START)
         ).flatMap(Collection::stream).collect(Collectors.toList());

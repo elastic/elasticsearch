@@ -180,12 +180,12 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     private static final String[] CARTESIAN_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
 
     protected static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
-        return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
-            || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
+        return DataType.isSpatialGeo(spatialDataType) && DataType.isSpatialGeo(otherDataType)
+            || DataType.isSpatialGeo(spatialDataType) == false && DataType.isSpatialGeo(otherDataType) == false;
     }
 
     static String[] compatibleTypeNames(DataType spatialDataType) {
-        return EsqlDataTypes.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
+        return DataType.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
     }
 
     @Override
@@ -214,7 +214,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         UNSPECIFIED;
 
         public static SpatialCrsType fromDataType(DataType dataType) {
-            return EsqlDataTypes.isSpatialGeo(dataType) ? SpatialCrsType.GEO
+            return DataType.isSpatialGeo(dataType) ? SpatialCrsType.GEO
                 : EsqlDataTypes.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
                 : SpatialCrsType.UNSPECIFIED;
         }

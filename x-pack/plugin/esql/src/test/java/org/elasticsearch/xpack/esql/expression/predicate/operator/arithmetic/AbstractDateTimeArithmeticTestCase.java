@@ -20,7 +20,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.hamcrest.Matchers.equalTo;
 

@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 
 public final class EsqlDataTypes {
 
@@ -22,10 +21,6 @@ public final class EsqlDataTypes {
 
     public static boolean isDateTimeOrTemporal(DataType t) {
         return DataType.isDateTime(t) || DataType.isTemporalAmount(t);
-    }
-
-    public static boolean isNullOrTemporalAmount(DataType t) {
-        return DataType.isTemporalAmount(t) || isNull(t);
     }
 
 }

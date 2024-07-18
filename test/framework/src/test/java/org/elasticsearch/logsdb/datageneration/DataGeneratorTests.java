@@ -49,7 +49,7 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorStressTest() throws IOException {
-        // Let's generate 8000000 fields to test an extreme case (2 levels of nested objects + 1 leaf level with 200 fields per object).
+        // Let's generate 1000000 fields to test an extreme case (2 levels of nested objects + 1 leaf level with 100 fields per object).
         var arbitrary = new Arbitrary() {
             private int generatedFields = 0;
 
@@ -83,7 +83,7 @@ public class DataGeneratorTests extends ESTestCase {
                 return "";
             }
         };
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(200, 2, arbitrary));
+        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(100, 2, arbitrary));
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);

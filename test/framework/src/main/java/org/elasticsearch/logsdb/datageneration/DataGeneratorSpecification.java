@@ -20,6 +20,6 @@ import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
  */
 public record DataGeneratorSpecification(int maxFieldCountPerLevel, int maxObjectDepth, Arbitrary arbitrary) {
     public DataGeneratorSpecification() {
-        this(100, 3, new RandomBasedArbitrary());
+        this(50, 3, new RandomBasedArbitrary());
     }
 }

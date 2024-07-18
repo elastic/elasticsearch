@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -180,9 +179,6 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
         private final int searchChance = 250;
         private final int indexingChance = 1000;
         private final TimeValue defaultTestTimeout = TimeValue.timeValueSeconds(30);
-        private final Settings extraNodeSettings = Settings.builder()
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
-            .build();
 
         TrackedCluster() {
             final var numberOfIndexingNodes = between(3, 5);
@@ -219,7 +215,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
 
             this.nodes = ConcurrentCollections.newConcurrentMap();
             IntStream.range(0, numberOfIndexingNodes)
-                .forEach(ignore -> startMasterAndIndexNode(extraNodeSettings, statelessMockRepositoryStrategy));
+                .forEach(ignore -> startMasterAndIndexNode(Settings.EMPTY, statelessMockRepositoryStrategy));
             startSearchNodes(numberOfSearchNodes).forEach(name -> this.nodes.put(name, new TrackedNode(name, false, false)));
             int totalNodes = numberOfIndexingNodes + numberOfSearchNodes;
             ensureStableCluster(totalNodes);
@@ -778,7 +774,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                         return;
                     }
                     logger.info("--> replacing indexing node [{}]", namedReleasable.name);
-                    final String newNodeName = startMasterAndIndexNode(extraNodeSettings, statelessMockRepositoryStrategy);
+                    final String newNodeName = startMasterAndIndexNode(Settings.EMPTY, statelessMockRepositoryStrategy);
                     ensureStableCluster(nodes.size() + 1, masterNodeName());
                     logger.info("--> added new indexing node [{}]", newNodeName);
                     final TrackedNode removed = nodes.remove(namedReleasable.name);

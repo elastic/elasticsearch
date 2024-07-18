@@ -76,7 +76,7 @@ public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
         assertDocCount(indexName, numDocs);
     }
 
-    public void testRenameOnRestore() throws Exception {
+    public void testRenameOnRestore() {
         startIndexNodes(1);
         startSearchNode();
         Client client = client();

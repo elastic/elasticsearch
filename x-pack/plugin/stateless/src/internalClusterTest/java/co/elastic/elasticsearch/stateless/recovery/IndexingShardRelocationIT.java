@@ -771,6 +771,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         var nodeSettings = Settings.builder()
             .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
 
         final var indexNodeSource = startIndexNode(nodeSettings);

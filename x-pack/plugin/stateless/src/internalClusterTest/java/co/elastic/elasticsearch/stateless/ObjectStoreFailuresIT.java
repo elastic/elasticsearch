@@ -172,7 +172,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         logger.info("--> move replica shard from: {} to: {}", searchNodeA, searchNodeB);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, searchNodeA, searchNodeB));
 
-        ensureGreen();
+        ensureGreen(indexName);
         assertThat(repository.getFailureCount(), greaterThan(0L));
         assertNodeHasNoCurrentRecoveries(searchNodeB);
         assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
@@ -214,7 +214,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
 
     public void testRelocateIndexingShardWithObjectStoreFailures() {
         startMasterOnlyNode();
-        final String indexNodeA = startIndexNode();
+        final String indexNodeA = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         ensureStableCluster(2);
         final String indexName = "test";
         createIndex(
@@ -242,7 +242,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
 
-        ensureGreen();
+        ensureGreen(indexName);
         assertThat(repository.getFailureCount(), greaterThan(0L));
         assertNodeHasNoCurrentRecoveries(indexNodeB);
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));

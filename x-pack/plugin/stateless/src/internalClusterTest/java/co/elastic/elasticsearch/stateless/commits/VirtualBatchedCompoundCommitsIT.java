@@ -20,7 +20,6 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
@@ -262,11 +261,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+        return super.nodeSettings().put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1))
-            .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueDays(1));
+            .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueDays(1))
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
     private void evictSearchShardCache(String indexName) {
@@ -1044,13 +1043,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             }
         );
 
-        // We should retry indefinitely on CircuitBreakingException during indexing, eventually make progress and and
+        // We should retry indefinitely on CircuitBreakingException during indexing, eventually make progress and
         // don't fail the search shard
         indexDocsAndRefresh(indexName);
         ensureSearchable(indexName);
     }
 
-    public void testVirtualBatchedCompoundCommitChunksPressure() throws Exception {
+    public void testVirtualBatchedCompoundCommitChunksPressure() {
         // The test admits a first refresh that requests a 1-page chunk, and halts it mid-way before returning the chunk response.
         // Then, a second refresh comes in, that requests another 1-page chunk. It is rejected two times in a row, and the third retry
         // attempt is halted mid-way before processing the chunk request (and thus is not yet counted by the pressure). Then, we complete
@@ -1059,6 +1058,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         startMasterOnlyNode();
         final var indexNode = startIndexNode(
             Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 .put(GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT.getKey(), (PAGE_SIZE + 1) + "b")
                 // We need at least 2 vbcc chunk threads to be able to reject the second refresh requests.
                 .put(NODE_PROCESSORS_SETTING.getKey(), 2)
@@ -1212,7 +1212,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         final var indexNode = startMasterAndIndexNode(
             Settings.builder()
                 .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), -1)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 .build()
         );
 

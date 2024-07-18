@@ -63,7 +63,7 @@ public class StoreStatsIT extends AbstractStatelessIntegTestCase {
 
     public void testStoreStats() throws Exception {
         startMasterOnlyNode();
-        final String indexNode = startIndexNode();
+        final String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,

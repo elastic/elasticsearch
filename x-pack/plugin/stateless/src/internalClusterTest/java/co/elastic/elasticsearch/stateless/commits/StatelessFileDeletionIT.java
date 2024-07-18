@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
@@ -212,7 +211,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
             .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
             .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
-            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.ZERO);
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
     public void testSnapshotRetainsCommits() throws Exception {

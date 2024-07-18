@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -247,7 +246,6 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
         Settings settings = Settings.builder().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1)).build();
         String masterNode = startMasterOnlyNode(settings);
         ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
-        int numDocs = randomIntBetween(1, 10);
         AtomicInteger nodes = new AtomicInteger(1);
 
         String indexNodeA = buildNodeWithIndex(nodes, settings); // has the persistent task and will be isolated
@@ -492,15 +490,5 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexNode, randomIntBetween(1, 5));
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", (String) null), indexNode);
         return indexNode;
-    }
-
-    private String startMasterNode(Settings settings) {
-        // Quick fail-over
-        return internalCluster().startMasterOnlyNode(
-            nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
-                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
-                .put(settings)
-                .build()
-        );
     }
 }

@@ -113,6 +113,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111041
 - class: org.elasticsearch.xpack.esql.querydsl.query.SingleValueQueryTests
   issue: https://github.com/elastic/elasticsearch/issues/111042
+- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
+  method: testLoadAllStatusAllInOnePage
+  issue: https://github.com/elastic/elasticsearch/issues/111048
 
 # Examples:
 #

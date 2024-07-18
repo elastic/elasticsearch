@@ -8,44 +8,66 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 
 public class NodesStatsRequestParametersTests extends ESTestCase {
 
-    private static NodesStatsRequestParameters randomRequest() {
-        var req = new NodesStatsRequestParameters();
-        req.setIndices(CommonStatsFlags.ALL);
-        req.setIncludeShardsStats(randomBoolean());
-        req.requestedMetrics().addAll(randomSubsetOf(Metric.ALL));
-        return req;
-    }
-
     public void testReadWriteMetricSet() {
-        var reqOut = randomRequest();
-        try {
-            var out = new BytesRefStreamOutput();
-            reqOut.writeTo(out);
-            var in = new ByteArrayStreamInput(out.get().bytes);
-            var reqIn = new NodesStatsRequestParameters(in);
-            assertEquals(reqOut.requestedMetrics(), reqIn.requestedMetrics());
-        } catch (IOException e) {
-            var errMsg = "metrics=" + reqOut.requestedMetrics().toString();
-            throw new AssertionError(errMsg, e);
+        for (var version : List.of(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS, TransportVersions.NODES_STATS_ENUM_SET)) {
+            var randSet = randomSubsetOf(Metric.ALL);
+            var metricsOut = randSet.isEmpty() ? EnumSet.noneOf(Metric.class) : EnumSet.copyOf(randSet);
+            try {
+                var out = new BytesRefStreamOutput();
+                out.setTransportVersion(version);
+                Metric.writeSetTo(out, metricsOut);
+                var in = new ByteArrayStreamInput(out.get().bytes);
+                in.setTransportVersion(version);
+                var metricsIn = Metric.readSetFrom(in);
+                assertEquals(metricsOut, metricsIn);
+            } catch (IOException e) {
+                var errMsg = "metrics=" + metricsOut.toString();
+                throw new AssertionError(errMsg, e);
+            }
         }
     }
 
-    public void testReadWriteMetricThrowsOnUnknown() throws IOException {
-        var metricsOut = List.of("os", "wrong");
-        var out = new BytesRefStreamOutput();
-        out.writeStringCollection(metricsOut);
-        var in = new ByteArrayStreamInput(out.get().bytes);
-        assertThrows(AssertionError.class, () -> Metric.readSetFrom(in));
+    // future-proof of accidental enum ordering change or extension
+    public void testEnsureMetricOrdinalsOrder() throws IOException {
+        final var ordinalsOrder = new Metric[] {
+            Metric.OS,
+            Metric.PROCESS,
+            Metric.JVM,
+            Metric.THREAD_POOL,
+            Metric.FS,
+            Metric.TRANSPORT,
+            Metric.HTTP,
+            Metric.BREAKER,
+            Metric.SCRIPT,
+            Metric.DISCOVERY,
+            Metric.INGEST,
+            Metric.ADAPTIVE_SELECTION,
+            Metric.SCRIPT_CACHE,
+            Metric.INDEXING_PRESSURE,
+            Metric.REPOSITORIES,
+            Metric.ALLOCATIONS };
+
+        assertArrayEquals("metrics order changed", Metric.values(), ordinalsOrder);
+
+        for (var ordinal = 0; ordinal < ordinalsOrder.length; ordinal++) {
+            var out = new BytesRefStreamOutput();
+            out.writeVInt(ordinal);
+            var in = new ByteArrayStreamInput(out.get().bytes);
+            var metric = in.readEnum(Metric.class);
+            assertEquals(ordinalsOrder[ordinal], metric);
+        }
     }
+
 }

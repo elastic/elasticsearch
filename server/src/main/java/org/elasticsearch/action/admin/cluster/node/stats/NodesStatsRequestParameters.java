@@ -28,7 +28,7 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
  */
 public class NodesStatsRequestParameters implements Writeable {
     private CommonStatsFlags indices = new CommonStatsFlags();
-    private final Set<Metric> requestedMetrics;
+    private final EnumSet<Metric> requestedMetrics;
     private boolean includeShardsStats = true;
 
     public NodesStatsRequestParameters() {
@@ -115,16 +115,24 @@ public class NodesStatsRequestParameters implements Writeable {
             return metric;
         }
 
-        public static void writeSetTo(StreamOutput out, Set<Metric> metrics) throws IOException {
-            out.writeCollection(metrics, (output, metric) -> output.writeString(metric.metricName));
+        public static void writeSetTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_ENUM_SET)) {
+                out.writeEnumSet(metrics);
+            } else {
+                out.writeCollection(metrics, (output, metric) -> output.writeString(metric.metricName));
+            }
         }
 
-        public static Set<Metric> readSetFrom(StreamInput in) throws IOException {
-            return in.readCollection((i) -> EnumSet.noneOf(Metric.class), (is, out) -> {
-                var name = is.readString();
-                var metric = Metric.get(name);
-                out.add(metric);
-            });
+        public static EnumSet<Metric> readSetFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_ENUM_SET)) {
+                return in.readEnumSet(Metric.class);
+            } else {
+                return in.readCollection((i) -> EnumSet.noneOf(Metric.class), (is, out) -> {
+                    var name = is.readString();
+                    var metric = Metric.get(name);
+                    out.add(metric);
+                });
+            }
         }
 
         public String metricName() {

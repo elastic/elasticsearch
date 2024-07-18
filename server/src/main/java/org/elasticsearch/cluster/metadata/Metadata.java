@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.DiffableUtils.MapDiff;
 import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -74,6 +77,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -133,11 +137,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    /**
-     * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
-     * with the {@link NamedXContentRegistry}.
-     */
-    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
+    public interface MetadataCustom<T> extends NamedDiffable<T>, ChunkedToXContent {
 
         EnumSet<XContentContext> context();
 
@@ -148,6 +148,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return context().contains(XContentContext.SNAPSHOT);
         }
     }
+
+    /**
+     * Cluster-level custom metadata that persists (via XContent) across restarts.
+     * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
+     */
+    public interface ClusterCustom extends MetadataCustom<ClusterCustom> {}
+
+    /**
+     * Project-level custom metadata that persists (via XContent) across restarts.
+     * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
+     */
+    public interface ProjectCustom extends MetadataCustom<ProjectCustom> {}
 
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
@@ -196,7 +208,28 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public static final String DEDUPLICATED_MAPPINGS_PARAM = "deduplicated_mappings";
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
-    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
+    private static final NamedDiffableValueSerializer<ClusterCustom> CLUSTER_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
+        ClusterCustom.class
+    );
+    private static final NamedDiffableValueSerializer<ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
+        ProjectCustom.class
+    );
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static final NamedDiffableValueSerializer BWC_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer(MetadataCustom.class) {
+        @Override
+        public MetadataCustom read(StreamInput in, String key) throws IOException {
+            final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
+            final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
+            if (clusterScopedNames.contains(key)) {
+                return in.readNamedWriteable(ClusterCustom.class, key);
+            } else if (projectScopedNames.contains(key)) {
+                return in.readNamedWriteable(ProjectCustom.class, key);
+            } else {
+                throw new IllegalArgumentException("Unknown custom name [" + key + "]");
+            }
+        }
+    };
 
     private final String clusterUUID;
     private final boolean clusterUUIDCommitted;
@@ -209,6 +242,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     private final Settings persistentSettings;
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
+    final ImmutableOpenMap<String, Metadata.ClusterCustom> customs;
     private final Map<String, ReservedStateMetadata> reservedStateMetadata;
 
     // Used in the findAliases and findDataStreamAliases functions
@@ -231,6 +265,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         Settings persistentSettings,
         Settings settings,
         DiffableStringMap hashesOfConsistentSettings,
+        ImmutableOpenMap<String, ClusterCustom> customs,
         Map<String, ReservedStateMetadata> reservedStateMetadata
     ) {
         this.clusterUUID = clusterUUID;
@@ -242,6 +277,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         this.persistentSettings = persistentSettings;
         this.settings = settings;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
+        this.customs = customs;
         this.reservedStateMetadata = reservedStateMetadata;
     }
 
@@ -256,6 +292,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
+            customs,
             reservedStateMetadata
         );
     }
@@ -319,6 +356,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
+            customs,
             reservedStateMetadata
         );
     }
@@ -361,6 +399,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
+            customs,
             reservedStateMetadata
         );
     }
@@ -376,6 +415,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
+            customs,
             reservedStateMetadata
         );
     }
@@ -398,6 +438,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
+            customs,
             reservedStateMetadata
         );
     }
@@ -441,6 +482,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
+            customs,
             reservedStateMetadata
         );
     }
@@ -542,6 +584,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             persistentSettings,
             settings,
             hashesOfConsistentSettings,
+            customs,
             reservedStateMetadata
         );
     }
@@ -1036,13 +1079,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {
-        return Optional.ofNullable((ComponentTemplateMetadata) this.custom(ComponentTemplateMetadata.TYPE))
+        return Optional.ofNullable((ComponentTemplateMetadata) this.projectMetadata.custom(ComponentTemplateMetadata.TYPE))
             .map(ComponentTemplateMetadata::componentTemplates)
             .orElse(Collections.emptyMap());
     }
 
     public Map<String, ComposableIndexTemplate> templatesV2() {
-        return Optional.ofNullable((ComposableIndexTemplateMetadata) this.custom(ComposableIndexTemplateMetadata.TYPE))
+        return Optional.ofNullable((ComposableIndexTemplateMetadata) projectMetadata.custom(ComposableIndexTemplateMetadata.TYPE))
             .map(ComposableIndexTemplateMetadata::indexTemplates)
             .orElse(Collections.emptyMap());
     }
@@ -1071,11 +1114,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     public Map<String, DataStream> dataStreams() {
-        return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).dataStreams();
+        return projectMetadata.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).dataStreams();
     }
 
     public Map<String, DataStreamAlias> dataStreamAliases() {
-        return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
+        return projectMetadata.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
     }
 
     /**
@@ -1127,8 +1170,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return true;
     }
 
-    public Map<String, Custom> customs() {
-        return projectMetadata.customs;
+    public ImmutableOpenMap<String, ClusterCustom> customs() {
+        return this.customs;
     }
 
     /**
@@ -1144,17 +1187,17 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * The collection of index deletions in the cluster.
      */
     public IndexGraveyard indexGraveyard() {
-        return custom(IndexGraveyard.TYPE);
+        return projectMetadata.custom(IndexGraveyard.TYPE);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type) {
-        return (T) projectMetadata.customs.get(type);
+    public <T extends ClusterCustom> T custom(String type) {
+        return (T) customs.get(type);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type, T defaultValue) {
-        return (T) projectMetadata.customs.getOrDefault(type, defaultValue);
+    public <T extends ClusterCustom> T custom(String type, T defaultValue) {
+        return (T) customs.getOrDefault(type, defaultValue);
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
@@ -1176,29 +1219,39 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
             return false;
         }
-        // Check if any persistent metadata needs to be saved
-        int customCount1 = 0;
-        for (Map.Entry<String, Custom> cursor : metadata1.projectMetadata.customs.entrySet()) {
-            if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
-                if (cursor.getValue().equals(metadata2.custom(cursor.getKey())) == false) {
-                    return false;
-                }
-                customCount1++;
-            }
+        if (customsEqual(metadata1.customs, metadata2.customs) == false) {
+            return false;
         }
-        int customCount2 = 0;
-        for (Custom custom : metadata2.projectMetadata.customs.values()) {
-            if (custom.context().contains(XContentContext.GATEWAY)) {
-                customCount2++;
-            }
-        }
-        if (customCount1 != customCount2) {
+        if (customsEqual(metadata1.projectMetadata.customs, metadata2.projectMetadata.customs) == false) {
             return false;
         }
         if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
             return false;
         }
         return true;
+    }
+
+    private static <C extends MetadataCustom<C>> boolean customsEqual(
+        ImmutableOpenMap<String, C> customs1,
+        ImmutableOpenMap<String, C> customs2
+    ) {
+        // Check if any persistent metadata needs to be saved
+        int customCount1 = 0;
+        for (Map.Entry<String, C> cursor : customs1.entrySet()) {
+            if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
+                if (cursor.getValue().equals(customs2.get(cursor.getKey())) == false) {
+                    return false;
+                }
+                customCount1++;
+            }
+        }
+        int customCount2 = 0;
+        for (C custom : customs2.values()) {
+            if (custom.context().contains(XContentContext.GATEWAY)) {
+                customCount2++;
+            }
+        }
+        return customCount1 == customCount2;
     }
 
     @Override
@@ -1236,6 +1289,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             ? ChunkedToXContentHelper.wrapWithObject("indices", projectMetadata.indices().values().iterator())
             : Collections.emptyIterator();
 
+        final Iterator<ToXContent> projectCustoms = Iterators.flatMap(
+            this.projectMetadata.customs.entrySet().iterator(),
+            entry -> entry.getValue().context().contains(context)
+                ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                : Collections.emptyIterator()
+        );
         return Iterators.concat(start, Iterators.single((builder, params) -> {
             builder.field("cluster_uuid", clusterUUID);
             builder.field("cluster_uuid_committed", clusterUUIDCommitted);
@@ -1253,11 +1312,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             ),
             indices,
             Iterators.flatMap(
-                projectMetadata.customs.entrySet().iterator(),
+                customs.entrySet().iterator(),
                 entry -> entry.getValue().context().contains(context)
                     ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
                     : Collections.emptyIterator()
             ),
+            // For BWC, the API does not have an embedded "project:", but other contexts do
+            context == XContentContext.API ? projectCustoms : ChunkedToXContentHelper.wrapWithObject("project", projectCustoms),
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
         );
@@ -1282,7 +1343,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms;
+        private final MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>> projectCustoms;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
         /**
@@ -1302,7 +1364,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
                 indices = DiffableUtils.emptyDiff();
                 templates = DiffableUtils.emptyDiff();
-                customs = DiffableUtils.emptyDiff();
+                clusterCustoms = DiffableUtils.emptyDiff();
+                projectCustoms = DiffableUtils.emptyDiff();
                 reservedStateMetadata = DiffableUtils.emptyDiff();
             } else {
                 hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
@@ -1316,11 +1379,17 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     after.projectMetadata.templates,
                     DiffableUtils.getStringKeySerializer()
                 );
-                customs = DiffableUtils.diff(
+                clusterCustoms = DiffableUtils.diff(
+                    before.customs,
+                    after.customs,
+                    DiffableUtils.getStringKeySerializer(),
+                    CLUSTER_CUSTOM_VALUE_SERIALIZER
+                );
+                projectCustoms = DiffableUtils.diff(
                     before.projectMetadata.customs,
                     after.projectMetadata.customs,
                     DiffableUtils.getStringKeySerializer(),
-                    CUSTOM_VALUE_SERIALIZER
+                    PROJECT_CUSTOM_VALUE_SERIALIZER
                 );
                 reservedStateMetadata = DiffableUtils.diff(
                     before.reservedStateMetadata,
@@ -1352,7 +1421,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            var bwcCustoms = readBwcCustoms(in);
+            clusterCustoms = bwcCustoms.v1();
+            projectCustoms = bwcCustoms.v2();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata = DiffableUtils.readJdkMapDiff(
                     in,
@@ -1362,6 +1433,23 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             } else {
                 reservedStateMetadata = DiffableUtils.emptyDiff();
             }
+        }
+
+        @SuppressWarnings("unchecked")
+        private static
+            Tuple<
+                MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>>,
+                MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>>>
+            readBwcCustoms(StreamInput in) throws IOException {
+            MapDiff<String, MetadataCustom<?>, ImmutableOpenMap<String, MetadataCustom<?>>> customs = DiffableUtils
+                .readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), BWC_CUSTOM_VALUE_SERIALIZER);
+            return DiffableUtils.split(
+                customs,
+                in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet(),
+                CLUSTER_CUSTOM_VALUE_SERIALIZER,
+                in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet(),
+                PROJECT_CUSTOM_VALUE_SERIALIZER
+            );
         }
 
         @Override
@@ -1387,10 +1475,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
             indices.writeTo(out);
             templates.writeTo(out);
-            customs.writeTo(out);
+            buildUnifiedCustomDiff().writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata.writeTo(out);
             }
+        }
+
+        @SuppressWarnings("unchecked")
+        private Diff<ImmutableOpenMap<String, ?>> buildUnifiedCustomDiff() {
+            return DiffableUtils.merge(clusterCustoms, projectCustoms, DiffableUtils.getStringKeySerializer(), BWC_CUSTOM_VALUE_SERIALIZER);
         }
 
         @Override
@@ -1411,10 +1504,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
             builder.indices(updatedIndices);
             builder.templates(templates.apply(part.projectMetadata.templates));
-            builder.customs(customs.apply(part.projectMetadata.customs));
+            builder.customs(clusterCustoms.apply(part.customs));
+            builder.projectCustoms(projectCustoms.apply(part.projectMetadata.customs));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
             if (part.projectMetadata.indices == updatedIndices
-                && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
+                && builder.dataStreamMetadata() == part.projectMetadata.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
                 builder.projectMetadata.previousIndicesLookup = part.projectMetadata.indicesLookup;
             }
             return builder.build(true);
@@ -1453,11 +1547,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         for (int i = 0; i < size; i++) {
             builder.put(IndexTemplateMetadata.readFrom(in));
         }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
-            builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
-        }
+        readBwcCustoms(in, builder);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
@@ -1465,6 +1555,24 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
         }
         return builder.build();
+    }
+
+    private static <T extends NamedWriteable> void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
+        final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
+        final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
+        final int count = in.readVInt();
+        for (int i = 0; i < count; i++) {
+            final String name = in.readString();
+            if (clusterScopedNames.contains(name)) {
+                final ClusterCustom custom = in.readNamedWriteable(ClusterCustom.class, name);
+                builder.putCustom(custom.getWriteableName(), custom);
+            } else if (projectScopedNames.contains(name)) {
+                final ProjectCustom custom = in.readNamedWriteable(ProjectCustom.class, name);
+                builder.putProjectCustom(custom.getWriteableName(), custom);
+            } else {
+                throw new IllegalArgumentException("Unknown custom name [" + name + "]");
+            }
+        }
     }
 
     @Override
@@ -1489,7 +1597,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             indexMetadata.writeTo(out, writeMappingsHash);
         }
         out.writeCollection(projectMetadata.templates.values());
-        VersionedNamedWriteable.writeVersionedWritables(out, projectMetadata.customs);
+        // It would be nice to do this as flattening iterable (rather than allocation a whole new list), but flattening
+        // Iterable<? extends VersionNamedWriteable> into Iterable<VersionNamedWriteable> is messy, so we can fix that later
+        List<VersionedNamedWriteable> merge = new ArrayList<>(customs.size() + projectMetadata.customs.size());
+        merge.addAll(customs.values());
+        merge.addAll(projectMetadata.customs.values());
+        VersionedNamedWriteable.writeVersionedWriteables(out, merge);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeCollection(reservedStateMetadata.values());
         }
@@ -1520,6 +1633,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private Settings persistentSettings = Settings.EMPTY;
         private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
+        private final ImmutableOpenMap.Builder<String, ClusterCustom> customs;
+
         private final ProjectMetadata.Builder projectMetadata;
 
         private final Map<String, ReservedStateMetadata> reservedStateMetadata;
@@ -1537,6 +1652,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             this.persistentSettings = metadata.persistentSettings;
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
+            this.customs = ImmutableOpenMap.builder(metadata.customs);
             this.projectMetadata = ProjectMetadata.builder(metadata.projectMetadata);
             this.reservedStateMetadata = new HashMap<>(metadata.reservedStateMetadata);
         }
@@ -1544,6 +1660,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         @SuppressWarnings("this-escape")
         private Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
+            customs = ImmutableOpenMap.builder();
             projectMetadata = new ProjectMetadata.Builder(mappingsByHash, indexCountHint);
             reservedStateMetadata = new HashMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
@@ -1663,27 +1780,57 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return projectMetadata.removeDataStreamAlias(aliasName, dataStreamName, mustExist);
         }
 
-        public Custom getCustom(String type) {
-            return projectMetadata.getCustom(type);
-        }
-
-        public Builder putCustom(String type, Custom custom) {
-            projectMetadata.putCustom(type, custom);
+        public Builder putCustom(String type, ClusterCustom custom) {
+            customs.put(type, Objects.requireNonNull(custom, type));
             return this;
         }
 
+        public Builder putCustom(String type, ProjectCustom custom) {
+            return putProjectCustom(type, custom);
+        }
+
+        public ClusterCustom getCustom(String type) {
+            return customs.get(type);
+        }
+
         public Builder removeCustom(String type) {
+            customs.remove(type);
+            return this;
+        }
+
+        public Builder removeCustomIf(BiPredicate<String, ? super ClusterCustom> p) {
+            customs.removeAll(p);
+            return this;
+        }
+
+        public Builder customs(Map<String, ClusterCustom> clusterCustoms) {
+            clusterCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
+            customs.putAllFromMap(clusterCustoms);
+            return this;
+        }
+
+        public ProjectCustom getProjectCustom(String type) {
+            return projectMetadata.getCustom(type);
+        }
+
+        public Builder putProjectCustom(String type, ProjectCustom custom) {
+            projectMetadata.putCustom(type, Objects.requireNonNull(custom, type));
+            return this;
+        }
+
+        public Builder removeProjectCustom(String type) {
             projectMetadata.removeCustom(type);
             return this;
         }
 
-        public Builder removeCustomIf(BiPredicate<String, Custom> p) {
+        public Builder removeProjectCustomIf(BiPredicate<String, ? super ProjectCustom> p) {
             projectMetadata.removeCustomIf(p);
             return this;
         }
 
-        public Builder customs(Map<String, Custom> customs) {
-            projectMetadata.customs(customs);
+        public Builder projectCustoms(Map<String, ProjectCustom> projectCustoms) {
+            projectCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
+            projectMetadata.customs(projectCustoms);
             return this;
         }
 
@@ -1723,7 +1870,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         public IndexGraveyard indexGraveyard() {
-            return (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
+            return (IndexGraveyard) getProjectCustom(IndexGraveyard.TYPE);
         }
 
         public Builder updateSettings(Settings settings, String... indices) {
@@ -1816,6 +1963,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 persistentSettings,
                 Settings.builder().put(persistentSettings).put(transientSettings).build(),
                 hashesOfConsistentSettings,
+                customs.build(),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
         }
@@ -1864,11 +2012,24 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(ReservedStateMetadata.fromXContent(parser));
                         }
+                    } else if ("project".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                                    parseCustomObject(parser, currentFieldName, ProjectCustom.class, builder::putProjectCustom);
+                                }
+                            }
+                        }
                     } else {
-                        try {
-                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
-                            builder.putCustom(custom.getWriteableName(), custom);
-                        } catch (NamedObjectNotFoundException ex) {
+                        // Older clusters didn't separate cluster-scoped and project-scope customs so a top-level custom object might
+                        // actually be a project-scoped custom
+                        final NamedXContentRegistry registry = parser.getXContentRegistry();
+                        if (registry.hasParser(ClusterCustom.class, currentFieldName, parser.getRestApiVersion())) {
+                            parseCustomObject(parser, currentFieldName, ClusterCustom.class, builder::putCustom);
+                        } else if (registry.hasParser(ProjectCustom.class, currentFieldName, parser.getRestApiVersion())) {
+                            parseCustomObject(parser, currentFieldName, ProjectCustom.class, builder::putProjectCustom);
+                        } else {
                             logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                             parser.skipChildren();
                         }
@@ -1891,6 +2052,20 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return builder.build();
         }
 
+        private static <C extends MetadataCustom<C>> void parseCustomObject(
+            XContentParser parser,
+            String name,
+            Class<C> categoryClass,
+            BiConsumer<String, C> consumer
+        ) throws IOException {
+            try {
+                C custom = parser.namedObject(categoryClass, name, null);
+                consumer.accept(custom.getWriteableName(), custom);
+            } catch (NamedObjectNotFoundException _ex) {
+                logger.warn("Skipping unknown custom [{}] object with type {}", categoryClass.getSimpleName(), name);
+                parser.skipChildren();
+            }
+        }
     }
 
     private static final ToXContent.Params FORMAT_PARAMS;

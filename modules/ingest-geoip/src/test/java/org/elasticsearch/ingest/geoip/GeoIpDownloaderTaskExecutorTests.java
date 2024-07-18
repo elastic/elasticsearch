@@ -39,13 +39,13 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         when(clusterState.getMetadata()).thenReturn(metadata);
 
         final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
-        when(metadata.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
 
         final Settings[] indexSettings = new Settings[1];
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         when(indexMetadata.getSettings()).thenAnswer(invocationMock -> indexSettings[0]);
-        ProjectMetadata project = mock(ProjectMetadata.class);
-        when(metadata.getProject()).thenReturn(project);
         when(project.indices()).thenReturn(Map.of("index", indexMetadata));
 
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
@@ -71,7 +71,9 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
-        when(metadata.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
         when(clusterState.getMetadata()).thenReturn(metadata);
         List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors(true);
         List<String> expectMissesInputs = getPipelinesWithoutGeoIpProcessors();

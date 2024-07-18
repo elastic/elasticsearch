@@ -16,12 +16,15 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -177,6 +180,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     equalTo(clusterState.metadata().projectMetadata.templates())
                 );
                 assertThat(clusterStateFromDiffs.metadata().customs(), equalTo(clusterState.metadata().customs()));
+                assertThat(
+                    clusterStateFromDiffs.metadata().projectMetadata.customs(),
+                    equalTo(clusterState.metadata().projectMetadata.customs())
+                );
                 assertThat(clusterStateFromDiffs.metadata().equalsAliases(clusterState.metadata()), is(true));
 
                 // JSON Serialization test - make sure that both states produce similar JSON
@@ -450,11 +457,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         Metadata metadata = clusterState.metadata();
         int changesCount = randomIntBetween(1, 10);
         for (int i = 0; i < changesCount; i++) {
-            metadata = switch (randomInt(3)) {
+            metadata = switch (randomInt(4)) {
                 case 0 -> randomMetadataSettings(metadata);
                 case 1 -> randomIndices(metadata);
                 case 2 -> randomTemplates(metadata);
-                case 3 -> randomMetadataCustoms(metadata);
+                case 3 -> randomMetadataClusterCustoms(metadata);
+                case 4 -> randomMetadataProjectCustoms(metadata);
                 default -> throw new IllegalArgumentException("Shouldn't be here");
             };
         }
@@ -663,18 +671,18 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     }
 
     /**
-     * Randomly adds, deletes or updates repositories in the metadata
+     * Randomly adds, deletes or updates project customs (repositories or indexGraveyard) in the metadata
      */
-    private Metadata randomMetadataCustoms(final Metadata metadata) {
-        return randomParts(metadata, "custom", new RandomPart<Metadata.Custom>() {
+    private Metadata randomMetadataProjectCustoms(final Metadata metadata) {
+        return randomParts(metadata, "project-custom", new RandomPart<Metadata.ProjectCustom>() {
 
             @Override
-            public Map<String, Metadata.Custom> parts(Metadata metadata) {
-                return metadata.customs();
+            public Map<String, Metadata.ProjectCustom> parts(Metadata metadata) {
+                return metadata.projectMetadata.customs();
             }
 
             @Override
-            public Metadata.Builder put(Metadata.Builder builder, Metadata.Custom part) {
+            public Metadata.Builder put(Metadata.Builder builder, Metadata.ProjectCustom part) {
                 return builder.putCustom(part.getWriteableName(), part);
             }
 
@@ -684,21 +692,58 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     // there must always be at least an empty graveyard
                     return builder.indexGraveyard(IndexGraveyard.builder().build());
                 } else {
-                    return builder.removeCustom(name);
+                    return builder.removeProjectCustom(name);
                 }
             }
 
             @Override
-            public Metadata.Custom randomCreate(String name) {
+            public Metadata.ProjectCustom randomCreate(String name) {
                 if (randomBoolean()) {
-                    return new RepositoriesMetadata(Collections.emptyList());
+                    return new ComponentTemplateMetadata(Map.of());
                 } else {
                     return IndexGraveyardTests.createRandom();
                 }
             }
 
             @Override
-            public Metadata.Custom randomChange(Metadata.Custom part) {
+            public Metadata.ProjectCustom randomChange(Metadata.ProjectCustom part) {
+                return part;
+            }
+        });
+    }
+
+    /**
+     * Randomly adds, deletes or updates cluster customs (DesiredNodes or NodesShutdown) in the metadata
+     */
+    private Metadata randomMetadataClusterCustoms(final Metadata metadata) {
+        return randomParts(metadata, "cluster-custom", new RandomPart<Metadata.ClusterCustom>() {
+
+            @Override
+            public Map<String, Metadata.ClusterCustom> parts(Metadata metadata) {
+                return metadata.customs();
+            }
+
+            @Override
+            public Metadata.Builder put(Metadata.Builder builder, Metadata.ClusterCustom part) {
+                return builder.putCustom(part.getWriteableName(), part);
+            }
+
+            @Override
+            public Metadata.Builder remove(Metadata.Builder builder, String name) {
+                return builder.removeCustom(name);
+            }
+
+            @Override
+            public Metadata.ClusterCustom randomCreate(String name) {
+                if (randomBoolean()) {
+                    return new DesiredNodesMetadata(DesiredNodesTestCase.randomDesiredNodes());
+                } else {
+                    return new NodesShutdownMetadata(Map.of());
+                }
+            }
+
+            @Override
+            public Metadata.ClusterCustom randomChange(Metadata.ClusterCustom part) {
                 return part;
             }
         });

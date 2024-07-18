@@ -39,7 +39,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
     final ImmutableOpenMap<String, IndexMetadata> indices;
     final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
-    final ImmutableOpenMap<String, Metadata.Custom> customs;
+    final ImmutableOpenMap<String, Metadata.ProjectCustom> customs;
 
     final int totalNumberOfShards;
     final int totalOpenIndexShards;
@@ -60,7 +60,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         ImmutableOpenMap<String, IndexMetadata> indices,
         ImmutableOpenMap<String, Set<Index>> aliasedIndices,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
-        ImmutableOpenMap<String, Metadata.Custom> customs,
+        ImmutableOpenMap<String, Metadata.ProjectCustom> customs,
         int totalNumberOfShards,
         int totalOpenIndexShards,
         String[] allIndices,
@@ -204,16 +204,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         return templates;
     }
 
-    @SuppressWarnings("unchecked")
-    public <T extends Metadata.Custom> T custom(String type) {
-        return (T) customs.get(type);
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T extends Metadata.Custom> T custom(String type, T defaultValue) {
-        return (T) customs.getOrDefault(type, defaultValue);
-    }
-
     /**
      * Checks whether the provided index is a data stream.
      */
@@ -302,6 +292,20 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         return indices.size();
     }
 
+    @SuppressWarnings("unchecked")
+    public <T extends Metadata.ProjectCustom> T custom(String type) {
+        return (T) customs.get(type);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends Metadata.ProjectCustom> T custom(String type, T defaultValue) {
+        return (T) customs.getOrDefault(type, defaultValue);
+    }
+
+    public ImmutableOpenMap<String, Metadata.ProjectCustom> customs() {
+        return customs;
+    }
+
     public static ProjectMetadata.Builder builder() {
         return new ProjectMetadata.Builder(Map.of(), 0);
     }
@@ -315,7 +319,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
-        private final ImmutableOpenMap.Builder<String, Metadata.Custom> customs;
+        private final ImmutableOpenMap.Builder<String, Metadata.ProjectCustom> customs;
 
         SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
@@ -713,11 +717,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
             return true;
         }
 
-        public Metadata.Custom getCustom(String type) {
+        public Metadata.ProjectCustom getCustom(String type) {
             return customs.get(type);
         }
 
-        public Builder putCustom(String type, Metadata.Custom custom) {
+        public Builder putCustom(String type, Metadata.ProjectCustom custom) {
             customs.put(type, Objects.requireNonNull(custom, type));
             return this;
         }
@@ -727,12 +731,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
             return this;
         }
 
-        public Builder removeCustomIf(BiPredicate<String, Metadata.Custom> p) {
+        public Builder removeCustomIf(BiPredicate<String, ? super Metadata.ProjectCustom> p) {
             customs.removeAll(p);
             return this;
         }
 
-        public Builder customs(Map<String, Metadata.Custom> customs) {
+        public Builder customs(Map<String, Metadata.ProjectCustom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
             return this;

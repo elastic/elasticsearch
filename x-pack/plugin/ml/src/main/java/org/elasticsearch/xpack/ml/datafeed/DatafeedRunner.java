@@ -569,7 +569,7 @@ public class DatafeedRunner {
 
         private void closeJob() {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
             JobState jobState = MlTasks.getJobState(getJobId(), tasks);
             if (jobState != JobState.OPENED) {
                 logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
@@ -635,7 +635,7 @@ public class DatafeedRunner {
 
         private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask, String jobId) {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
             if (getJobState(tasks, jobId) == JobState.OPENED && jobHasOpenAutodetectCommunicator(tasks, jobId)) {
                 runTask(datafeedTask);
             } else {
@@ -667,8 +667,12 @@ public class DatafeedRunner {
             if (tasksToRun.isEmpty() || event.metadataChanged() == false) {
                 return;
             }
-            PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().projectMetadata.custom(
+                PersistentTasksCustomMetadata.TYPE
+            );
+            PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().projectMetadata.custom(
+                PersistentTasksCustomMetadata.TYPE
+            );
             if (Objects.equals(previousTasks, currentTasks)) {
                 return;
             }

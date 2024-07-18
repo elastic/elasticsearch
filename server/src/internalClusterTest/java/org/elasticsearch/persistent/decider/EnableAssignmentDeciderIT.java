@@ -58,7 +58,9 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
         latch.await();
 
         ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().projectMetadata.custom(
+            PersistentTasksCustomMetadata.TYPE
+        );
         assertEquals(numberOfTasks, tasks.tasks().stream().filter(t -> TestPersistentTasksExecutor.NAME.equals(t.getTaskName())).count());
 
         logger.trace("waiting for the tasks to be running");
@@ -79,7 +81,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
             assertEnableAssignmentSetting(Allocation.NONE);
 
             logger.trace("persistent tasks are not assigned");
-            tasks = internalCluster().clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            tasks = internalCluster().clusterService().state().getMetadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(
                 numberOfTasks,
                 tasks.tasks()

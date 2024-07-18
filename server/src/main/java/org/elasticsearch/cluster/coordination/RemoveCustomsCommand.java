@@ -55,13 +55,31 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = termAndClusterState.v2();
-        terminal.println(Terminal.Verbosity.VERBOSE, "custom metadata names: " + oldClusterState.metadata().customs().keySet());
+        terminal.println(
+            Terminal.Verbosity.VERBOSE,
+            "cluster scoped custom metadata names: " + oldClusterState.metadata().customs().keySet()
+        );
+        terminal.println(
+            Terminal.Verbosity.VERBOSE,
+            "project scoped custom metadata names: " + oldClusterState.metadata().projectMetadata.customs().keySet()
+        );
         final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
         for (String customToRemove : customsToRemove) {
             boolean matched = false;
+            // TODO[MultiProject]: Should we add a scope flag to the command, or just iterate through both maps?
             for (String customKey : oldClusterState.metadata().customs().keySet()) {
                 if (Regex.simpleMatch(customToRemove, customKey)) {
                     metadataBuilder.removeCustom(customKey);
+                    if (matched == false) {
+                        terminal.println("The following customs will be removed:");
+                    }
+                    matched = true;
+                    terminal.println(customKey);
+                }
+            }
+            for (String customKey : oldClusterState.metadata().projectMetadata.customs().keySet()) {
+                if (Regex.simpleMatch(customToRemove, customKey)) {
+                    metadataBuilder.removeProjectCustom(customKey);
                     if (matched == false) {
                         terminal.println("The following customs will be removed:");
                     }

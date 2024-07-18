@@ -102,12 +102,20 @@ tests:
   method: "testNotMatchSome {p0=StandardSetup[fieldType=keyword, multivaluedField=true, empty=true, count=100]}"
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/110978
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.MvExpandExec}
-  issue: https://github.com/elastic/elasticsearch/issues/110980
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec}
-  issue: https://github.com/elastic/elasticsearch/issues/110981
+- class: org.elasticsearch.search.sort.FieldSortIT
+  method: testIssue6614
+  issue: https://github.com/elastic/elasticsearch/issues/110999
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/111002
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/190_failure_store_redirection/Ensure failure is redirected to correct failure store after a reroute processor}
+  issue: https://github.com/elastic/elasticsearch/issues/111041
+- class: org.elasticsearch.xpack.esql.querydsl.query.SingleValueQueryTests
+  issue: https://github.com/elastic/elasticsearch/issues/111042
+- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
+  method: testLoadAllStatusAllInOnePage
+  issue: https://github.com/elastic/elasticsearch/issues/111048
 
 # Examples:
 #

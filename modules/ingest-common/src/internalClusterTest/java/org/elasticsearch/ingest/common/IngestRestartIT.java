@@ -371,33 +371,6 @@ public class IngestRestartIT extends ESIntegTestCase {
             bulkRequest.add(indexRequest);
         }
 
-        /*
-        createIndex("index");
-
-        BytesReference source = BytesReference.bytes(
-            jsonBuilder().startObject()
-                .field("description", "my_pipeline")
-                .startArray("processors")
-                .startObject()
-                .startObject("test")
-                .endObject()
-                .endObject()
-                .endArray()
-                .endObject()
-        );
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
-        clusterAdmin().putPipeline(putPipelineRequest).get();
-
-        int numRequests = scaledRandomIntBetween(32, 128);
-        BulkRequest bulkRequest = new BulkRequest();
-        BulkResponse response;
-        for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
-            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value");
-            bulkRequest.add(indexRequest);
-        }
-        */
-
         // Block system_write thread pool on the ingest node
         final ThreadPool ingestNodeThreadPool = internalCluster().getInstance(ThreadPool.class, ingestNode);
         final var blockingLatch = new CountDownLatch(1);
@@ -412,7 +385,6 @@ public class IngestRestartIT extends ESIntegTestCase {
 
         // Make sure the requests are processed (even though we blocked system_write thread pool
         // above.
-        // BulkResponse response = client(masterOnlyNode).bulk(bulkRequest).actionGet();
         assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
         assertFalse(response.hasFailures());
 
@@ -421,21 +393,6 @@ public class IngestRestartIT extends ESIntegTestCase {
             document = client().prepareGet("index", Integer.toString(i)).get().getSource();
             assertThat(document.get("y"), equalTo(0));
         }
-
-        /*
-        for (int i = 0; i < bulkRequest.requests().size(); i++) {
-            BulkItemResponse itemResponse = response.getItems()[i];
-            IndexResponse indexResponse = itemResponse.getResponse();
-            assertThat(
-                "Expected a successful response but found failure [" + itemResponse.getFailure() + "].",
-                itemResponse.isFailed(),
-                is(false)
-            );
-            assertThat(indexResponse, notNullValue());
-            assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
-            assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-        }
-        */
 
         // cleanup
         AcknowledgedResponse deletePipelineResponse = clusterAdmin().prepareDeletePipeline("_id").get();

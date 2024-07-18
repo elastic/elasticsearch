@@ -1,5 +1,5 @@
 pr: 110993
-summary: (Err>Doc) Max Shards Per Node
+summary:  Add link to Max Shards Per Node exception message
 area: Distributed
 type: enhancement
 issues: []

@@ -14,6 +14,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.SparseFileTracker;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.RangeMissingHandler;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.SourceInputStreamFactory;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -34,6 +38,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,6 +50,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -53,7 +60,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SharedBlobCacheServiceTests extends ESTestCase {
 
@@ -1334,6 +1344,110 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 var cacheFileRegion = cacheService.get(cacheKey, blobLength, region);
                 assertThat(cacheFileRegion.tracker.getLength(), equalTo(regionSize));
             }
+        }
+    }
+
+    public void testSharedSourceInputStreamFactory() throws IOException {
+        final long regionSizeInBytes = size(100);
+        final Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(200)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final ThreadPool threadPool = new TestThreadPool("test");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            assertEquals(2, cacheService.freeRegionCount());
+            final var region = cacheService.get(cacheKey, size(250), 0);
+            assertEquals(regionSizeInBytes, region.tracker.getLength());
+
+            // Read disjoint ranges to create holes in the region
+            final long interval = regionSizeInBytes / between(5, 20);
+            for (var start = interval; start < regionSizeInBytes - 2 * SharedBytes.PAGE_SIZE; start += interval) {
+                final var range = ByteRange.of(start, start + SharedBytes.PAGE_SIZE);
+                final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+                region.populateAndRead(
+                    range,
+                    range,
+                    (channel, channelPos, relativePos, length) -> length,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    future
+                );
+                safeGet(future);
+            }
+
+            // Read the entire region with a shared source input stream and we want to ensure the following behaviours
+            // 1. fillCacheRange is invoked as many times as the number of holes/gaps
+            // 2. fillCacheRange is invoked single threaded with the gap order
+            // 3. The shared streamFactory is passed to each invocation
+            final int numberGaps = region.tracker.getCompletedRanges().size() + 1;
+            final var invocationCounter = new AtomicInteger();
+            final var dummyStreamFactory = new SourceInputStreamFactory() {
+                @Override
+                public InputStream create(int relativePos) {
+                    return null;
+                }
+
+                @Override
+                public void close() {}
+            };
+
+            final var rangeMissingHandler = new RangeMissingHandler() {
+                final AtomicReference<Thread> invocationThread = new AtomicReference<>();
+                final AtomicInteger position = new AtomicInteger(-1);
+
+                @Override
+                public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                    return dummyStreamFactory;
+                }
+
+                @Override
+                public void fillCacheRange(
+                    SharedBytes.IO channel,
+                    int channelPos,
+                    SourceInputStreamFactory streamFactory,
+                    int relativePos,
+                    int length,
+                    IntConsumer progressUpdater
+                ) throws IOException {
+                    if (invocationCounter.incrementAndGet() == 1) {
+                        final Thread witness = invocationThread.compareAndExchange(null, Thread.currentThread());
+                        assertThat(witness, nullValue());
+                    } else {
+                        assertThat(invocationThread.get(), sameInstance(Thread.currentThread()));
+                    }
+                    assertThat(streamFactory, sameInstance(dummyStreamFactory));
+                    assertThat(position.getAndSet(relativePos), lessThan(relativePos));
+                    progressUpdater.accept(length);
+                }
+            };
+
+            final var range = ByteRange.of(0, regionSizeInBytes);
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            region.populateAndRead(
+                range,
+                range,
+                (channel, channelPos, relativePos, length) -> length,
+                rangeMissingHandler,
+                threadPool.generic(),
+                future
+            );
+            safeGet(future);
+            assertThat(invocationCounter.get(), equalTo(numberGaps));
+            assertThat(region.tracker.checkAvailable(regionSizeInBytes), is(true));
+        } finally {
+            threadPool.shutdown();
         }
     }
 }

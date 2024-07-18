@@ -278,4 +278,26 @@ public final class MultiRowTestCaseSupplier {
 
         return cases;
     }
+
+    public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        cases.add(new TypedDataSupplier("<true booleans>", () -> randomList(minRows, maxRows, () -> true), DataType.BOOLEAN, false, true));
+
+        cases.add(
+            new TypedDataSupplier("<false booleans>", () -> randomList(minRows, maxRows, () -> false), DataType.BOOLEAN, false, true)
+        );
+
+        cases.add(
+            new TypedDataSupplier(
+                "<random booleans>",
+                () -> randomList(minRows, maxRows, ESTestCase::randomBoolean),
+                DataType.BOOLEAN,
+                false,
+                true
+            )
+        );
+
+        return cases;
+    }
 }

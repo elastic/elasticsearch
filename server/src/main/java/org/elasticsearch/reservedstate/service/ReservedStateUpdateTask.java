@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.reservedstate.NonStateTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 
@@ -51,12 +50,10 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
-    private final Collection<NonStateTransformResult> nonStateTransformResults;
 
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
-        Collection<NonStateTransformResult> nonStateTransformResults,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
@@ -64,7 +61,6 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     ) {
         this.namespace = namespace;
         this.stateChunk = stateChunk;
-        this.nonStateTransformResults = nonStateTransformResults;
         this.handlers = handlers;
         this.orderedHandlers = orderedHandlers;
         this.errorReporter = errorReporter;
@@ -114,12 +110,6 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         }
 
         checkAndThrowOnError(errors, reservedStateVersion);
-
-        // Once we have set all of the handler state from the cluster state update tasks, we add the reserved keys
-        // from the non cluster state transforms.
-        for (var transform : nonStateTransformResults) {
-            reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(transform.handlerName(), transform.updatedKeys()));
-        }
 
         // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);

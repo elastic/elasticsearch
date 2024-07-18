@@ -97,6 +97,7 @@ multiIndexIpString
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: casting_operator
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
 | EVAL client_ip = client_ip::ip
@@ -125,6 +126,7 @@ multiIndexIpStringRename
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: casting_operator
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
 | EVAL host_ip = client_ip::ip
@@ -152,6 +154,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233         
 multiIndexIpStringRenameToString
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
 | EVAL host_ip = TO_STRING(TO_IP(client_ip))
@@ -179,6 +182,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233      
 multiIndexWhereIpString
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
 | WHERE STARTS_WITH(TO_STRING(client_ip), "172.21.2")
@@ -196,6 +200,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  3450233              |  Connected
 multiIndexWhereIpStringLike
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
 | WHERE TO_STRING(client_ip) LIKE "172.21.2.*"
@@ -210,9 +215,39 @@ sample_data_str | 2023-10-23T12:27:28.948Z  |  2764889              |  Connected
 sample_data_str | 2023-10-23T12:15:03.360Z  |  3450233              |  Connected to 10.1.0.3
 ;
 
+multiIndexSortIpString
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_remove_fields
+
+FROM sample_data, sample_data_str
+| SORT client_ip::ip
+| LIMIT 1
+;
+
+@timestamp:date           |  client_ip:null  |  event_duration:long  |  message:keyword
+2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected
+;
+
+multiIndexSortIpStringEval
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_remove_fields
+
+FROM sample_data, sample_data_str
+| SORT client_ip::ip, @timestamp ASC
+| EVAL client_ip_as_ip = client_ip::ip
+| LIMIT 1
+;
+
+@timestamp:date           |  client_ip:null  |  event_duration:long  |  message:keyword | client_ip_as_ip:ip
+2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected    | 172.21.0.5
+;
+
 multiIndexIpStringStats
 required_capability: union_types
 required_capability: casting_operator
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str
 | EVAL client_ip = client_ip::ip
@@ -231,6 +266,7 @@ count:long  |  client_ip:ip
 multiIndexIpStringRenameStats
 required_capability: union_types
 required_capability: casting_operator
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str
 | EVAL host_ip = client_ip::ip
@@ -248,6 +284,7 @@ count:long  |  host_ip:ip
 
 multiIndexIpStringRenameToStringStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str
 | EVAL host_ip = TO_STRING(TO_IP(client_ip))
@@ -333,6 +370,7 @@ mc:l | count:l
 
 multiIndexWhereIpStringStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str
 | WHERE STARTS_WITH(TO_STRING(client_ip), "172.21.2")
@@ -349,6 +387,7 @@ count:long  |  message:keyword
 multiIndexTsLong
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
 | EVAL @timestamp = TO_DATETIME(@timestamp)
@@ -376,6 +415,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 multiIndexTsLongRename
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
 | EVAL ts = TO_DATETIME(@timestamp)
@@ -403,6 +443,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 multiIndexTsLongRenameToString
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
 | EVAL ts = TO_STRING(TO_DATETIME(@timestamp))
@@ -430,6 +471,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 multiIndexWhereTsLong
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
 | WHERE TO_LONG(@timestamp) < 1698068014937
@@ -446,6 +488,7 @@ sample_data_ts_long  | 172.21.2.162  |  3450233              |  Connected to 10.
 
 multiIndexTsLongStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long
 | EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
@@ -514,8 +557,25 @@ mc:l | count:l
 7    | 2
 ;
 
+multiIndexTsLongStatsStats
+required_capability: union_types
+required_capability: union_types_agg_cast
+required_capability: union_types_remove_fields
+
+FROM sample_data, sample_data_ts_long
+| EVAL ts = TO_STRING(@timestamp)
+| STATS count = COUNT(*) BY ts
+| STATS mc = COUNT(count) BY count
+| SORT mc DESC, count ASC
+;
+
+mc:l | count:l
+14   | 1
+;
+
 multiIndexTsLongRenameStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long
 | EVAL hour = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
@@ -531,6 +591,7 @@ count:long  |  hour:date
 
 multiIndexTsLongRenameToDatetimeToStringStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long
 | EVAL hour = LEFT(TO_STRING(TO_DATETIME(@timestamp)), 13)
@@ -546,6 +607,7 @@ count:long  |  hour:keyword
 
 multiIndexTsLongRenameToStringStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long
 | EVAL mess = LEFT(TO_STRING(@timestamp), 7)
@@ -564,6 +626,7 @@ count:long  |  mess:keyword
 
 multiIndexTsLongStatsInline
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long
 | STATS count=COUNT(*), max=MAX(TO_DATETIME(@timestamp))
@@ -588,6 +651,7 @@ count:long
 
 multiIndexWhereTsLongStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long
 | WHERE TO_LONG(@timestamp) < 1698068014937
@@ -604,6 +668,7 @@ count:long  |  message:keyword
 multiIndexIpStringTsLong
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data* METADATA _index
 | EVAL @timestamp = TO_DATETIME(@timestamp), client_ip = TO_IP(client_ip)
@@ -672,6 +737,7 @@ sample_data_ts_long |  8268153              |  Connection error
 multiIndexIpStringTsLongRename
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data* METADATA _index
 | EVAL ts = TO_DATETIME(@timestamp), host_ip = TO_IP(client_ip)
@@ -740,6 +806,7 @@ sample_data_ts_long |  8268153              |  Connection error
 multiIndexIpStringTsLongRenameToString
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data* METADATA _index
 | EVAL ts = TO_STRING(TO_DATETIME(@timestamp)), host_ip = TO_STRING(TO_IP(client_ip))
@@ -774,6 +841,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233  
 multiIndexWhereIpStringTsLong
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data* METADATA _index
 | WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) == "172.21.2.162"
@@ -789,6 +857,7 @@ sample_data_ts_long  |  3450233              |  Connected to 10.1.0.3
 
 multiIndexWhereIpStringTsLongStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data*
 | WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) == "172.21.2.162"
@@ -804,6 +873,7 @@ count:long  |  message:keyword
 multiIndexWhereIpStringLikeTsLong
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data* METADATA _index
 | WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) LIKE "172.21.2.16?"
@@ -819,6 +889,7 @@ sample_data_ts_long  |  3450233              |  Connected to 10.1.0.3
 
 multiIndexWhereIpStringLikeTsLongStats
 required_capability: union_types
+required_capability: union_types_remove_fields
 
 FROM sample_data*
 | WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) LIKE "172.21.2.16?"
@@ -834,6 +905,7 @@ count:long  |  message:keyword
 multiIndexMultiColumnTypesRename
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data* METADATA _index
 | WHERE event_duration > 8000000
@@ -850,6 +922,7 @@ null            | null           |  8268153            | Connection error | samp
 multiIndexMultiColumnTypesRenameAndKeep
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data* METADATA _index
 | WHERE event_duration > 8000000
@@ -867,6 +940,7 @@ sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 16
 multiIndexMultiColumnTypesRenameAndDrop
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: union_types_remove_fields
 
 FROM sample_data* METADATA _index
 | WHERE event_duration > 8000000

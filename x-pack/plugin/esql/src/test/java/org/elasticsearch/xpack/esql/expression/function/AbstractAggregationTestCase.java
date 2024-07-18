@@ -10,11 +10,17 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -52,7 +58,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * </p>
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
-        // TODO: Add case with no input expecting null
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
 
@@ -98,6 +103,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
     }
 
+    public void testGroupingAggregate() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+
+        resolveExpression(expression, this::aggregateGroupingSingleMode, this::evaluate);
+    }
+
     public void testAggregateIntermediate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
@@ -131,11 +142,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     private void aggregateSingleMode(Expression expression) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
-            Page inputPage = rows(testCase.getMultiRowFields());
-            try {
-                aggregator.processPage(inputPage);
-            } finally {
-                inputPage.releaseBlocks();
+            for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                try {
+                    aggregator.processPage(inputPage);
+                } finally {
+                    inputPage.releaseBlocks();
+                }
             }
 
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
@@ -152,6 +164,39 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
+    private void aggregateGroupingSingleMode(Expression expression) {
+        var pages = rows(testCase.getMultiRowFields());
+        List<Object> results;
+        try {
+            assumeFalse("Grouping aggregations must receive data to check results", pages.isEmpty());
+
+            try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+                var groupCount = randomIntBetween(1, 1000);
+                for (Page inputPage : pages) {
+                    processPageGrouping(aggregator, inputPage, groupCount);
+                }
+
+                results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()), groupCount);
+            }
+        } finally {
+            for (var page : pages) {
+                page.releaseBlocks();
+            }
+        }
+
+        for (var result : results) {
+            assertThat(result, not(equalTo(Double.NaN)));
+            assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+            assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+            assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+            assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+            assertThat(result, testCase.getMatcher());
+            if (testCase.getExpectedWarnings() != null) {
+                assertWarnings(testCase.getExpectedWarnings());
+            }
+        }
+    }
+
     private void aggregateWithIntermediates(Expression expression) {
         int intermediateBlockOffset = randomIntBetween(0, 10);
         Block[] intermediateBlocks;
@@ -164,11 +209,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             int intermediateBlockExtraSize = randomIntBetween(0, 10);
             intermediateBlocks = new Block[intermediateBlockOffset + intermediateStates + intermediateBlockExtraSize];
 
-            Page inputPage = rows(testCase.getMultiRowFields());
-            try {
-                aggregator.processPage(inputPage);
-            } finally {
-                inputPage.releaseBlocks();
+            for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                try {
+                    aggregator.processPage(inputPage);
+                } finally {
+                    inputPage.releaseBlocks();
+                }
             }
 
             aggregator.evaluate(intermediateBlocks, intermediateBlockOffset, driverContext());
@@ -195,7 +241,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         ) {
             Page inputPage = new Page(intermediateBlocks);
             try {
-                aggregator.processPage(inputPage);
+                if (inputPage.getPositionCount() > 0) {
+                    aggregator.processPage(inputPage);
+                }
             } finally {
                 inputPage.releaseBlocks();
             }
@@ -251,6 +299,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
 
+        assumeTrue(
+            "Surrogate expression with non-trivial children cannot be evaluated",
+            expression.children()
+                .stream()
+                .allMatch(child -> child instanceof FieldAttribute || child instanceof DeepCopy || child instanceof Literal)
+        );
+
         if (expression instanceof AggregateFunction == false) {
             onEvaluableExpression.accept(expression);
             return;
@@ -275,6 +330,29 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
             return toJavaObject(blocks[resultBlockIndex], 0);
+        } finally {
+            Releasables.close(blocks);
+        }
+    }
+
+    /**
+     * Returns a list of results, one for each group from 0 to {@code groupCount}
+     */
+    private List<Object> extractResultsFromAggregator(GroupingAggregator aggregator, ElementType expectedElementType, int groupCount) {
+        var blocksArraySize = randomIntBetween(1, 10);
+        var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
+        var blocks = new Block[blocksArraySize];
+        try (var groups = IntVector.range(0, groupCount, driverContext().blockFactory())) {
+            aggregator.evaluate(blocks, resultBlockIndex, groups, driverContext());
+
+            var block = blocks[resultBlockIndex];
+
+            // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
+            assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
+
+            return IntStream.range(resultBlockIndex, groupCount)
+                .mapToObj(position -> toJavaObject(blocks[resultBlockIndex], position))
+                .toList();
         } finally {
             Releasables.close(blocks);
         }
@@ -324,5 +402,62 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
 
         return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), mode);
+    }
+
+    private GroupingAggregator groupingAggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+
+        return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext()), mode);
+    }
+
+    /**
+     * Make a groupsId block with all the groups in the range for each row.
+     */
+    private IntBlock makeGroupsVector(int groupStart, int groupEnd, int rowCount) {
+        try (var groupsBuilder = driverContext().blockFactory().newIntBlockBuilder(rowCount)) {
+            for (var i = 0; i < rowCount; i++) {
+                groupsBuilder.beginPositionEntry();
+                for (int groupId = groupStart; groupId < groupEnd; groupId++) {
+                    groupsBuilder.appendInt(groupId);
+                }
+                groupsBuilder.endPositionEntry();
+            }
+
+            return groupsBuilder.build();
+        }
+    }
+
+    /**
+     * Process the page with the aggregator. Adds all the values in all the groups in the range [0, {@code groupCount}).
+     * <p>
+     *   This method splits the data and groups in chunks, to test the aggregator capabilities.
+     * </p>
+     */
+    private void processPageGrouping(GroupingAggregator aggregator, Page inputPage, int groupCount) {
+        var groupSliceSize = 1;
+        // Add data to chunks of groups
+        for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
+            var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
+            var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
+
+            var positionCount = inputPage.getPositionCount();
+            var dataSliceSize = 1;
+            // Divide data in chunks
+            for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
+                try (var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceSize, dataSliceSize)) {
+                    addInput.add(currentDataOffset, groups);
+                }
+
+                currentDataOffset += dataSliceSize;
+                if (positionCount > currentDataOffset) {
+                    dataSliceSize = randomIntBetween(1, Math.min(100, positionCount - currentDataOffset));
+                }
+            }
+
+            currentGroupOffset += groupSliceSize;
+            if (groupCount > currentGroupOffset) {
+                groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
+            }
+        }
     }
 }

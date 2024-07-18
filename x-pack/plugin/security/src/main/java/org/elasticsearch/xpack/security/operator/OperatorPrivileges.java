@@ -193,7 +193,7 @@ public class OperatorPrivileges {
                     );
                     throw e;
                 }
-            } else if (featureService.clusterHasFeature(clusterService.state(), SECURITY_OPERATOR_REQUEST_MARKER)) {
+            } else {
                 restRequest.markAsOperatorRequest();
                 logger.trace("Marked request for uri [{}] as operator request", restRequest.uri());
             }

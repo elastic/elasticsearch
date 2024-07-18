@@ -33,7 +33,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 /**
  * Reduce a multivalued field to a single valued field containing the average value.

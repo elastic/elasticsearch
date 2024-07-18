@@ -66,7 +66,7 @@ public class EsqlTypeResolutions {
     private static final String[] POINT_TYPE_NAMES = new String[] { GEO_POINT.typeName(), CARTESIAN_POINT.typeName() };
     private static final String[] NON_SPATIAL_TYPE_NAMES = DataType.types()
         .stream()
-        .filter(EsqlDataTypes::isRepresentable)
+        .filter(DataType::isRepresentable)
         .filter(t -> EsqlDataTypes.isSpatial(t) == false)
         .map(DataType::esType)
         .toArray(String[]::new);

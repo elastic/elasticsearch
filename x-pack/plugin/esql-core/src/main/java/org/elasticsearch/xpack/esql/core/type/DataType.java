@@ -243,6 +243,25 @@ public enum DataType {
         }
     }
 
+    /**
+     * Supported types that can be contained in a block.
+     */
+    public static boolean isRepresentable(DataType t) {
+        return t != OBJECT
+            && t != NESTED
+            && t != UNSUPPORTED
+            && t != DATE_PERIOD
+            && t != TIME_DURATION
+            && t != BYTE
+            && t != SHORT
+            && t != FLOAT
+            && t != SCALED_FLOAT
+            && t != SOURCE
+            && t != HALF_FLOAT
+            && t != PARTIAL_AGG
+            && t.isCounter() == false;
+    }
+
     public String nameUpper() {
         return name;
     }

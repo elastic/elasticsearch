@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -153,7 +152,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field, EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isType(field, DataType::isRepresentable, sourceText(), FIRST, "representable");
         if (resolution.unresolved()) {
             return resolution;
         }

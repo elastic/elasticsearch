@@ -8,18 +8,8 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 
 public final class EsqlDataTypes {
@@ -60,25 +50,6 @@ public final class EsqlDataTypes {
 
     public static boolean isSpatialPoint(DataType t) {
         return t == DataType.GEO_POINT || t == DataType.CARTESIAN_POINT;
-    }
-
-    /**
-     * Supported types that can be contained in a block.
-     */
-    public static boolean isRepresentable(DataType t) {
-        return t != OBJECT
-            && t != NESTED
-            && t != UNSUPPORTED
-            && t != DATE_PERIOD
-            && t != TIME_DURATION
-            && t != BYTE
-            && t != SHORT
-            && t != FLOAT
-            && t != SCALED_FLOAT
-            && t != SOURCE
-            && t != HALF_FLOAT
-            && t != PARTIAL_AGG
-            && t.isCounter() == false;
     }
 
 }

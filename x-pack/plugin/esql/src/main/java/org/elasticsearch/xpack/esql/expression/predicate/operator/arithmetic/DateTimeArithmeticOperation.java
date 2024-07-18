@@ -26,8 +26,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
 public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {

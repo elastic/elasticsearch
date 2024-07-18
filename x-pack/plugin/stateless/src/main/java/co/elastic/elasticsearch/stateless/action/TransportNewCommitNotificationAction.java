@@ -174,6 +174,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                 if (request.isUploaded()) {
                     shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
                 }
+                // Since new data has been written, update the shard size tracking.
                 shardSizeCollector.collectShardSize(shard.shardId());
                 l.onResponse(new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations()));
             })

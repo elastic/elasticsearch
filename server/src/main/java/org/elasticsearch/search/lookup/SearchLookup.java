@@ -54,7 +54,6 @@ public class SearchLookup implements SourceProvider {
 
     /**
      * Create a new SearchLookup, using the default stored fields provider
-     *
      * @param fieldTypeLookup defines how to look up field types
      * @param fieldDataLookup defines how to look up field data
      * @param sourceProvider  defines how to look up the source
@@ -69,7 +68,6 @@ public class SearchLookup implements SourceProvider {
 
     /**
      * Create a new SearchLookup, using the default stored fields provider
-     *
      * @param fieldTypeLookup     defines how to look up field types
      * @param fieldDataLookup     defines how to look up field data
      * @param sourceProvider      defines how to look up the source
@@ -94,7 +92,7 @@ public class SearchLookup implements SourceProvider {
      * and prevents resolving fields that depend on more than {@link #MAX_FIELD_CHAIN_DEPTH} fields.
      *
      * @param searchLookup the existing lookup to create a new one from
-     * @param fieldChain   the chain of fields that required the field currently being loaded
+     * @param fieldChain the chain of fields that required the field currently being loaded
      */
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
@@ -111,7 +109,7 @@ public class SearchLookup implements SourceProvider {
      * @param field the field being referred to, for which fielddata needs to be loaded
      * @return the new lookup
      * @throws IllegalArgumentException if a cycle is detected in the fields required to build doc values, or if the field
-     *                                  being resolved depends on more than {@link #MAX_FIELD_CHAIN_DEPTH}
+     * being resolved depends on more than {@link #MAX_FIELD_CHAIN_DEPTH}
      */
     public final SearchLookup forkAndTrackFieldReferences(String field) {
         Objects.requireNonNull(field, "field cannot be null");

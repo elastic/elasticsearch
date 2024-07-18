@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-
 /**
  * Access the term statistics of the children query of a script_score query.
  */

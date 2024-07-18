@@ -33,7 +33,6 @@ public interface DocReader {
     void setDocument(int docID);
 
     // Compatibility APIS
-
     /** Old-style doc access for contexts that map some doc contents in params */
     Map<String, Object> docAsMap();
 

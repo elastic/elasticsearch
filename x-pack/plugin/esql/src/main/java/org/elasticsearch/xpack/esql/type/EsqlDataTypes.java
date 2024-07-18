@@ -48,8 +48,4 @@ public final class EsqlDataTypes {
         return t == DataType.GEO_POINT || t == DataType.GEO_SHAPE;
     }
 
-    public static boolean isSpatialPoint(DataType t) {
-        return t == DataType.GEO_POINT || t == DataType.CARTESIAN_POINT;
-    }
-
 }

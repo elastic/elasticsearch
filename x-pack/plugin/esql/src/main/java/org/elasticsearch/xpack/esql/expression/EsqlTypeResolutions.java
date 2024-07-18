@@ -72,7 +72,7 @@ public class EsqlTypeResolutions {
         .toArray(String[]::new);
 
     public static Expression.TypeResolution isSpatialPoint(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, EsqlDataTypes::isSpatialPoint, operationName, paramOrd, POINT_TYPE_NAMES);
+        return isType(e, DataType::isSpatialPoint, operationName, paramOrd, POINT_TYPE_NAMES);
     }
 
     public static Expression.TypeResolution isSpatial(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {

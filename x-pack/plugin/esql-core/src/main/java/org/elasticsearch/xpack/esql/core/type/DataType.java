@@ -262,6 +262,10 @@ public enum DataType {
             && t.isCounter() == false;
     }
 
+    public static boolean isSpatialPoint(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
+    }
+
     public String nameUpper() {
         return name;
     }

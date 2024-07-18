@@ -1,5 +1,5 @@
 # "version" holds the version of the templates and ingest pipelines installed
-# by xpack-plugin apm-data. This must be increased whenever an existing template or
+# by xpack-plugin otel-data. This must be increased whenever an existing template or
 # pipeline is changed, in order for it to be updated on Elasticsearch upgrade.
 version: 1
 
@@ -9,11 +9,7 @@ component-templates:
   - semconv-resource-to-ecs@mappings
   - ecs-tsdb@mappings
   - metrics-otel@mappings
-  - tracer-otel@mappings
-  # Data lifecycle.
-  - traces@lifecycle
-
-  - traces@settings
+  - traces-otel@mappings
 index-templates:
   - logs-otel@template
   - metrics-otel@template

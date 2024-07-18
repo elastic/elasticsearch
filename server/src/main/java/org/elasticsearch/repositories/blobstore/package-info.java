@@ -59,8 +59,8 @@
  *      |  |  |- snap-20131011.dat - SMILE serialized {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} for
  *      |  |  |                      snapshot "20131011"
  *      |  |  |- index-123         - SMILE serialized {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} for
- *      |  |  |                      the shard (files with numeric suffixes were created by older versions, newer ES versions use a uuid
- *      |  |  |                      suffix instead)
+ *      |  |  |                      the shard. The suffix is the {@link org.elasticsearch.repositories.ShardGeneration } (files with
+ *      |  |  |                      numeric suffixes were created by older versions, newer ES versions use a uuid suffix instead)
  *      |  |
  *      |  |- 1/ - data for shard "1" of index "foo"
  *      |  |  |- __1
@@ -158,20 +158,23 @@
  *
  * <ol>
  * <li>Create the {@link org.apache.lucene.index.IndexCommit} for the shard to snapshot.</li>
- * <li>Get the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
- * with name {@code index-${uuid}} with the {@code uuid} generation returned by
- * {@link org.elasticsearch.repositories.ShardGenerations#getShardGen} to get the information of what segment files are
- * already available in the blobstore.</li>
- * <li>By comparing the files in the {@code IndexCommit} and the available file list from the previous step, determine the segment files
- * that need to be written to the blob store. For each segment that needs to be added to the blob store, generate a unique name by combining
- * the segment data blob prefix {@code __} and a UUID and write the segment to the blobstore.</li>
- * <li>After completing all segment writes, a blob containing a
+ * <li>Get the current {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob file with name
+ * {@code index-${uuid}} by loading the index shard's generation {@code uuid} from {@link org.elasticsearch.repositories.ShardGenerations}
+ * (via {@link org.elasticsearch.repositories.ShardGenerations#getShardGen}). This blob file will list what segment files are already
+ * available in the blobstore.</li>
+ * <li>By comparing the files in the {@code IndexCommit} and the available file list from the previous step's blob file, determine the new
+ * segment files that need to be written to the blob store. For each segment that needs to be added to the blob store, generate a unique
+ * name by combining the segment data blob prefix {@code __} and a new UUID and write the segment to the blobstore.</li>
+ * <li>After completing all segment writes, a new blob file containing the new shard snapshot's
  * {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} with name {@code snap-${snapshot-uuid}.dat} is written to
  * the shard's path and contains a list of all the files referenced by the snapshot as well as some metadata about the snapshot. See the
  * documentation of {@code BlobStoreIndexShardSnapshot} for details on its contents.</li>
  * <li>Once all the segments and the {@code BlobStoreIndexShardSnapshot} blob have been written, an updated
  * {@code BlobStoreIndexShardSnapshots} blob is written to the shard's path with name {@code index-${newUUID}}.</li>
  * </ol>
+ * At this point, all of the necessary shard data and shard metadata for the new shard snapshot have been written to the repository, but the
+ * metadata outside of the shard directory has not been updated to point to the new shard snapshot as the latest. The next finalization step
+ * will handle updates external to the index shard directory, and add references in the root directory.
  *
  * <h3>Finalizing the Snapshot</h3>
  *
@@ -180,10 +183,10 @@
  * following actions in order:</p>
  * <ol>
  * <li>Write a blob containing the cluster metadata to the root of the blob store repository at {@code /meta-${snapshot-uuid}.dat}</li>
- * <li>Write the metadata for each index to a blob in that index's directory at
+ * <li>Write the metadata for the index to a blob in that index's directory at
  * {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}.dat}</li>
- * <li>Write the {@link org.elasticsearch.snapshots.SnapshotInfo} blob for the given snapshot to the key {@code /snap-${snapshot-uuid}.dat}
- * directly under the repository root.</li>
+ * <li>Write the {@link org.elasticsearch.snapshots.SnapshotInfo} blob for the given snapshot in a new blob file
+ * {@code /snap-${snapshot-uuid}.dat} directly under the repository root.</li>
  * <li>Write an updated {@code RepositoryData} blob containing the new snapshot.</li>
  * </ol>
  *

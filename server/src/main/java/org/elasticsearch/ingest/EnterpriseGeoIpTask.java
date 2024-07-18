@@ -63,7 +63,7 @@ public final class EnterpriseGeoIpTask {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+            return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15;
         }
 
         @Override

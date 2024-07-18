@@ -46,6 +46,8 @@ public class Percentile extends NumericAggregate {
             + "For example, the 95th percentile is the value which is greater than 95% of the "
             + "observed values and the 50th percentile is the `MEDIAN`.",
         appendix = """
+            [discrete]
+            [[esql-agg-percentile-approximate]]
             ==== `PERCENTILE` is (usually) approximate
 
             include::../../../aggregations/metrics/percentile-aggregation.asciidoc[tag=approximate]

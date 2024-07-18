@@ -448,3 +448,71 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 }
 ----
 
+==== Updatable field type
+
+To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible according to the following graph (jumps allowed):
+
+[ditaa]
+----
+/------\     /---------\     /---------\     /----\     /---------\     /---------\
+| flat | --> |int8_flat| --> |int4_flat| --> |hnsw| --> |int8_hnsw| --> |int4_hnsw|
+\------/     \---------/     \---------/     \----/     \---------/     \---------/
+----
+
+The following special cases apply:
+
+* updating `type` from `hnsw` to `int8_hnsw` is possible when:
+** the `m` setting is updated to the same or larger value
+** the `confidence_interval` setting is either unspecified in the original mapping or it doesn't get changed
+* updating `type` from `int8_hnsw` to `int8_hnsw` is possible when:
+** the `m` setting is updated to the same or larger value
+** the `confidence_interval` setting is either unspecified in the original mapping or it doesn't get updated
+* updating `type` from `int4_hnsw` to `int4_hnsw` is possible when:
+** the `m` setting is updated to the same or larger value
+** the `confidence_interval` setting is left untouched
+
+
+Updating `type` in `index_options` will fail in all other scenarios.
+
+Switching `types` won't re-index vectors that have already been indexed (they will keep using their original `type`), vectors being indexed after the change will use the new `type` instead.
+
+For example, it's possible to define a dense vector field that utilizes the `flat` type (raw float32 arrays) for a first batch of data to be indexed.
+----
+PUT my-index
+{
+    "mappings": {
+        "properties": {
+            "text_embedding": {
+                "type": "dense_vector",
+                "dims": 384,
+                "index_options": {
+                    "type": "flat"
+                }
+            }
+        }
+    }
+}
+----
+
+Changing the `type` to `int4_hnsw` makes sure vectors indexed after that will use an int4 scalar quantized representation and HNSW (e.g., for KNN queries).
+
+----
+PUT my-index
+{
+    "mappings": {
+        "properties": {
+            "text_embedding": {
+                "type": "dense_vector",
+                "dims": 384,
+                "index_options": {
+                    "type": "int4_hnsw"
+                }
+            }
+        }
+    }
+}
+----
+
+Vectors indexed before this change will keep using the `flat` type (raw float32 representation and brute force search for KNN queries).
+
+For debugging purposes, it's possible to inspect how many segments (and docs) exist for each `type` used with the <<index-segments-api-request,Index Segments API>>.

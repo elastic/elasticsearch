@@ -233,6 +233,10 @@ public enum DataType {
         return type == DATETIME;
     }
 
+    public static boolean isNullOrTimeDuration(DataType t) {
+        return t == TIME_DURATION || isNull(t);
+    }
+
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;

@@ -36,8 +36,4 @@ public final class EsqlDataTypes {
         return t == DataType.DATE_PERIOD || isNull(t);
     }
 
-    public static boolean isNullOrTimeDuration(DataType t) {
-        return t == DataType.TIME_DURATION || isNull(t);
-    }
-
 }

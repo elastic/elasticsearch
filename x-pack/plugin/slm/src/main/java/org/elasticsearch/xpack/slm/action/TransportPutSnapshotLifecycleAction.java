@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
@@ -137,44 +136,36 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata()
+                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
+            final SnapshotLifecyclePolicyMetadata existingPolicyMetadata = snapMeta.getSnapshotConfigurations()
+                .get(request.getLifecycleId());
 
-            String id = request.getLifecycleId();
-            final SnapshotLifecycleMetadata lifecycleMetadata;
-            if (snapMeta == null) {
-                SnapshotLifecyclePolicyMetadata meta = SnapshotLifecyclePolicyMetadata.builder()
-                    .setPolicy(request.getLifecycle())
-                    .setHeaders(filteredHeaders)
-                    .setModifiedDate(Instant.now().toEpochMilli())
-                    .build();
-                lifecycleMetadata = new SnapshotLifecycleMetadata(
-                    Collections.singletonMap(id, meta),
-                    currentMode,
-                    new SnapshotLifecycleStats()
-                );
-                logger.info("adding new snapshot lifecycle [{}]", id);
+            long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
+            Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
+            SnapshotLifecyclePolicyMetadata newLifecycle = SnapshotLifecyclePolicyMetadata.builder(existingPolicyMetadata)
+                .setPolicy(request.getLifecycle())
+                .setHeaders(filteredHeaders)
+                .setVersion(nextVersion)
+                .setModifiedDate(Instant.now().toEpochMilli())
+                .build();
+
+            SnapshotLifecyclePolicyMetadata oldPolicy = snapLifecycles.put(newLifecycle.getId(), newLifecycle);
+            if (oldPolicy == null) {
+                logger.info("adding new snapshot lifecycle [{}]", newLifecycle.getId());
             } else {
-                Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
-                SnapshotLifecyclePolicyMetadata oldLifecycle = snapLifecycles.get(id);
-                SnapshotLifecyclePolicyMetadata newLifecycle = SnapshotLifecyclePolicyMetadata.builder(oldLifecycle)
-                    .setPolicy(request.getLifecycle())
-                    .setHeaders(filteredHeaders)
-                    .setVersion(oldLifecycle == null ? 1L : oldLifecycle.getVersion() + 1)
-                    .setModifiedDate(Instant.now().toEpochMilli())
-                    .build();
-                snapLifecycles.put(id, newLifecycle);
-                lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats());
-                if (oldLifecycle == null) {
-                    logger.info("adding new snapshot lifecycle [{}]", id);
-                } else {
-                    logger.info("updating existing snapshot lifecycle [{}]", id);
-                }
+                logger.info("updating existing snapshot lifecycle [{}]", newLifecycle.getId());
             }
 
-            Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
+                .metadata(
+                    Metadata.builder(currentState.metadata())
+                        .putCustom(
+                            SnapshotLifecycleMetadata.TYPE,
+                            new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats())
+                        )
+                )
                 .build();
         }
     }

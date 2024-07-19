@@ -90,16 +90,6 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
 
-        {
-            SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
-            SnapshotLifecyclePolicyMetadata existingPolicy = snapMeta.getSnapshotConfigurations().get(request.getLifecycleId());
-            // Make the request a no-op if the policy and filtered headers match exactly
-            if (isNoopUpdate(existingPolicy, request.getLifecycle(), filteredHeaders)) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
-        }
-
         submitUnbatchedTask(
             "put-snapshot-lifecycle-" + request.getLifecycleId(),
             new UpdateSnapshotPolicyTask(request, listener, filteredHeaders)
@@ -141,6 +131,11 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
             final SnapshotLifecyclePolicyMetadata existingPolicyMetadata = snapMeta.getSnapshotConfigurations()
                 .get(request.getLifecycleId());
+
+            // check for no-op in the state update task, in case it was changed/reset in the meantime
+            if (isNoopUpdate(existingPolicyMetadata, request.getLifecycle(), filteredHeaders)) {
+                return currentState;
+            }
 
             long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());

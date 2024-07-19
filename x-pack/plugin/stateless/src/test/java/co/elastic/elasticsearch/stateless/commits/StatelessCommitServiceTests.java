@@ -1868,7 +1868,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(STATELESS_UPLOAD_DELAYED.getKey(), true)
                     .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueMillis(50))
                     .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueMillis(30))
                     // TODO: ES-8152 enable BCC with more than one CC when the settings are ready
@@ -2118,7 +2117,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(STATELESS_UPLOAD_DELAYED.getKey(), "true")
                     .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), commitsPerBCC)
                     .build();
             }
@@ -2282,10 +2280,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
     public void testDoesNotCloseCommitReferenceOnceAppended() throws IOException {
         final var expectedException = new AssertionError("failure after append");
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_DELAYED.getKey(), true).build();
-            }
 
             @Override
             protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {

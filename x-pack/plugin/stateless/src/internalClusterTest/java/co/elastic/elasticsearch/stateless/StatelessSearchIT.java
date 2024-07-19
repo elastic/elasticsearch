@@ -1402,7 +1402,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         int maxNonUploadedCommits = randomIntBetween(1, 20);
         startIndexNode(
             Settings.builder()
-                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
                 .build()

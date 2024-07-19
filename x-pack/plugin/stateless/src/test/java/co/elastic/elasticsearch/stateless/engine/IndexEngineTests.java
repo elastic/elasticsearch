@@ -195,10 +195,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     public void testRefreshesDoesNotWaitForUploadWithStatelessUploadDelayed() throws IOException {
-        Settings nodeSettings = Settings.builder()
-            .put(Stateless.STATELESS_ENABLED.getKey(), true)
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-            .build();
+        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
 
         try (
             var engine = newIndexEngine(

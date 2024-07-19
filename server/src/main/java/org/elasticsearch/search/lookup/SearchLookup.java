@@ -54,9 +54,9 @@ public class SearchLookup implements SourceProvider {
 
     /**
      * Create a new SearchLookup, using the default stored fields provider
-     * @param fieldTypeLookup defines how to look up field types
-     * @param fieldDataLookup defines how to look up field data
-     * @param sourceProvider  defines how to look up the source
+     * @param fieldTypeLookup   defines how to look up field types
+     * @param fieldDataLookup   defines how to look up field data
+     * @param sourceProvider    defines how to look up the source
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
@@ -68,10 +68,10 @@ public class SearchLookup implements SourceProvider {
 
     /**
      * Create a new SearchLookup, using the default stored fields provider
-     * @param fieldTypeLookup     defines how to look up field types
-     * @param fieldDataLookup     defines how to look up field data
-     * @param sourceProvider      defines how to look up the source
-     * @param fieldLookupProvider defines how to look up stored fields
+     * @param fieldTypeLookup       defines how to look up field types
+     * @param fieldDataLookup       defines how to look up field data
+     * @param sourceProvider        defines how to look up the source
+     * @param fieldLookupProvider   defines how to look up stored fields
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
@@ -90,7 +90,6 @@ public class SearchLookup implements SourceProvider {
      * Create a new {@link SearchLookup} that looks fields up the same as the one provided as argument,
      * while also tracking field references starting from the provided field name. It detects cycles
      * and prevents resolving fields that depend on more than {@link #MAX_FIELD_CHAIN_DEPTH} fields.
-     *
      * @param searchLookup the existing lookup to create a new one from
      * @param fieldChain the chain of fields that required the field currently being loaded
      */
@@ -105,7 +104,6 @@ public class SearchLookup implements SourceProvider {
     /**
      * Creates a copy of the current {@link SearchLookup} that looks fields up in the same way, but also tracks field references
      * in order to detect cycles and prevent resolving fields that depend on more than {@link #MAX_FIELD_CHAIN_DEPTH} other fields.
-     *
      * @param field the field being referred to, for which fielddata needs to be loaded
      * @return the new lookup
      * @throws IllegalArgumentException if a cycle is detected in the fields required to build doc values, or if the field

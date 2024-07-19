@@ -450,7 +450,7 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 
 ==== Updatable field type
 
-To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible according to the following graph (jumps allowed):
+To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the <<update-mapping,Update Mapping API>>, according to the following graph (jumps allowed):
 
 [source,txt]
 ----
@@ -490,14 +490,12 @@ That includes new segments created by <<index-modules-merge,merging>> previously
 --------------------------------------------------
 PUT my-index
 {
-    "mappings": {
-        "properties": {
-            "text_embedding": {
-                "type": "dense_vector",
-                "dims": 384,
-                "index_options": {
-                    "type": "int4_hnsw"
-                }
+    "properties": {
+        "text_embedding": {
+            "type": "dense_vector",
+            "dims": 384,
+            "index_options": {
+                "type": "int4_hnsw"
             }
         }
     }

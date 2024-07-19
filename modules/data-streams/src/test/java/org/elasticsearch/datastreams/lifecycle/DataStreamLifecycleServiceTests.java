@@ -1347,7 +1347,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
         );
-        DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
 
         {
             // test for an index for which `now` is outside its time bounds
@@ -1509,7 +1509,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testMaybeExecuteRetentionSuccessfulDownsampledIndex() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         ClusterState state = downsampleSetup(dataStreamName, SUCCESS);
-        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = state.metadata().projectMetadata.dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
 
         // Executing the method to be tested:
@@ -1520,7 +1520,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testMaybeExecuteRetentionDownsampledIndexInProgress() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         ClusterState state = downsampleSetup(dataStreamName, STARTED);
-        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = state.metadata().projectMetadata.dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
 
         // Executing the method to be tested:
@@ -1531,7 +1531,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testMaybeExecuteRetentionDownsampledUnknown() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         ClusterState state = downsampleSetup(dataStreamName, UNKNOWN);
-        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = state.metadata().projectMetadata.dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
 
         // Executing the method to be tested:

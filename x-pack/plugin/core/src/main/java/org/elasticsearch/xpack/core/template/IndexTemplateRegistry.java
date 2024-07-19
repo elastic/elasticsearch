@@ -860,7 +860,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      */
     static List<String> findRolloverTargetDataStreams(ClusterState state, String templateName, ComposableIndexTemplate indexTemplate) {
         final Metadata metadata = state.metadata();
-        return metadata.dataStreams()
+        return metadata.projectMetadata.dataStreams()
             .values()
             .stream()
             // Limit to checking data streams that match any of the index template's index patterns

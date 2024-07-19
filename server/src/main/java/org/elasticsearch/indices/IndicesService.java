@@ -1723,7 +1723,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (dataStream != null) {
             String dataStreamName = dataStream.getName();
             List<QueryBuilder> filters = Arrays.stream(aliases)
-                .map(name -> metadata.dataStreamAliases().get(name))
+                .map(name -> metadata.projectMetadata.dataStreamAliases().get(name))
                 .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
                 .map(dataStreamAlias -> {
                     try {

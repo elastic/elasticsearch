@@ -184,7 +184,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     clusterStateFromDiffs.metadata().projectMetadata.customs(),
                     equalTo(clusterState.metadata().projectMetadata.customs())
                 );
-                assertThat(clusterStateFromDiffs.metadata().equalsAliases(clusterState.metadata()), is(true));
+                assertThat(clusterStateFromDiffs.metadata().getProject().equalsAliases(clusterState.metadata().getProject()), is(true));
 
                 // JSON Serialization test - make sure that both states produce similar JSON
                 assertNull(differenceBetweenMapsIgnoringArrayOrder(convertToMap(clusterStateFromDiffs), convertToMap(clusterState)));

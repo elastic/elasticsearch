@@ -249,7 +249,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         }
         ClusterState after = MetadataDeleteIndexService.deleteIndices(before, indicesToDelete, Settings.EMPTY);
 
-        DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = after.metadata().projectMetadata.dataStreams().get(dataStreamName);
         assertThat(dataStream, notNullValue());
         assertThat(dataStream.getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
@@ -311,7 +311,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         }
         ClusterState after = MetadataDeleteIndexService.deleteIndices(before, indicesToDelete, Settings.EMPTY);
 
-        DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = after.metadata().projectMetadata.dataStreams().get(dataStreamName);
         assertThat(dataStream, notNullValue());
         assertThat(dataStream.getFailureIndices().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {

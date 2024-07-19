@@ -149,7 +149,9 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             );
             assertThat(
                 reason.forecasted(),
-                lessThanOrEqualTo(totalSize(state.metadata().dataStreams().get("test").getIndices(), state.routingTable(), info))
+                lessThanOrEqualTo(
+                    totalSize(state.metadata().projectMetadata.dataStreams().get("test").getIndices(), state.routingTable(), info)
+                )
             );
 
             deciderResult = service.scale(
@@ -261,7 +263,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         state = randomAllocate(state);
 
-        DataStream dataStream = state.metadata().dataStreams().get("test");
+        DataStream dataStream = state.metadata().projectMetadata.dataStreams().get("test");
 
         ClusterInfo info = randomClusterInfo(state);
 
@@ -281,7 +283,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             int actualWindow = Math.min(window, indices);
             int expectedIndices = actualWindow + indices;
             assertThat(forecast.state().metadata().projectMetadata.indices().size(), Matchers.equalTo(expectedIndices));
-            DataStream forecastDataStream = forecast.state().metadata().dataStreams().get("test");
+            DataStream forecastDataStream = forecast.state().metadata().projectMetadata.dataStreams().get("test");
             assertThat(forecastDataStream.getIndices().size(), Matchers.equalTo(expectedIndices));
             assertThat(forecastDataStream.getIndices().subList(0, indices), Matchers.equalTo(dataStream.getIndices()));
 

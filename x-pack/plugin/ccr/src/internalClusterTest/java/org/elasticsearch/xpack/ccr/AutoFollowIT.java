@@ -708,7 +708,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         });
 
         final Metadata metadata = followerClient().admin().cluster().prepareState().get().getState().metadata();
-        final DataStream dataStream = metadata.dataStreams().get(datastream);
+        final DataStream dataStream = metadata.projectMetadata.dataStreams().get(datastream);
         assertTrue(dataStream.getIndices().stream().anyMatch(i -> i.getName().equals(indexInDatastream)));
         assertEquals(IndexMetadata.State.OPEN, metadata.projectMetadata.index(indexInDatastream).getState());
         ensureFollowerGreen("*");

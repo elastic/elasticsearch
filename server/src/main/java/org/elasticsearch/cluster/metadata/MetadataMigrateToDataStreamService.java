@@ -115,7 +115,9 @@ public class MetadataMigrateToDataStreamService {
                             throw new IllegalStateException(e);
                         }
                     }, request, metadataCreateIndexService, clusterService.getSettings(), delegate.reroute());
-                    writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
+                    writeIndexRef.set(
+                        clusterState.metadata().projectMetadata.dataStreams().get(request.aliasName).getWriteIndex().getName()
+                    );
                     return clusterState;
                 }
             }

@@ -131,7 +131,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
     }
 
     private void createIndex(final ClusterState state, final ProfilingIndex index, final ActionListener<? super ActionResponse> listener) {
-        if (state.metadata().hasAlias(index.getAlias())) {
+        if (state.metadata().projectMetadata.hasAlias(index.getAlias())) {
             // there is an existing index from a prior version. Use the rollover API to move the write alias atomically. This has the
             // following implications:
             //

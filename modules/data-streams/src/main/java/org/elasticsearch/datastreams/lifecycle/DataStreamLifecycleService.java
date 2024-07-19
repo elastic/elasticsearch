@@ -343,7 +343,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         lastRunStartedAt = startTime;
         int affectedIndices = 0;
         int affectedDataStreams = 0;
-        for (DataStream dataStream : state.metadata().dataStreams().values()) {
+        for (DataStream dataStream : state.metadata().projectMetadata.dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(dataStream);
             if (dataStream.getLifecycle() == null) {
                 continue;
@@ -851,7 +851,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 ),
                 e
             );
-            DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
+            DataStream latestDataStream = clusterService.state().metadata().projectMetadata.dataStreams().get(dataStream.getName());
             if (latestDataStream != null) {
                 if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
                     // data stream has not been rolled over in the meantime so record the error against the write index we
@@ -1024,7 +1024,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
+                DataStream dataStream = clusterService.state().metadata().projectMetadata.dataStreams().get(rolloverTarget);
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
                     // attempting to roll over

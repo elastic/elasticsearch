@@ -120,7 +120,7 @@ public class MetadataTests extends ESTestCase {
 
         {
             GetAliasesRequest request = new GetAliasesRequest();
-            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
+            Map<String, List<AliasMetadata>> aliases = metadata.projectMetadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases, anEmptyMap());
         }
         {
@@ -132,33 +132,33 @@ public class MetadataTests extends ESTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.projectMetadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases, aMapWithSize(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias*");
-            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.projectMetadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases, aMapWithSize(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias1");
-            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.projectMetadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases, aMapWithSize(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1")));
         }
         {
-            Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.projectMetadata.findAllAliases(new String[] { "index" });
             assertThat(aliases, aMapWithSize(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
         }
         {
-            Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
+            Map<String, List<AliasMetadata>> aliases = metadata.projectMetadata.findAllAliases(Strings.EMPTY_ARRAY);
             assertThat(aliases, anEmptyMap());
         }
     }
@@ -179,19 +179,25 @@ public class MetadataTests extends ESTestCase {
 
         {
             GetAliasesRequest request = new GetAliasesRequest();
-            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), Strings.EMPTY_ARRAY);
+            Map<String, List<DataStreamAlias>> aliases = metadata.projectMetadata.findDataStreamAliases(
+                request.aliases(),
+                Strings.EMPTY_ARRAY
+            );
             assertThat(aliases, anEmptyMap());
         }
 
         {
             GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
-            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<DataStreamAlias>> aliases = metadata.projectMetadata.findDataStreamAliases(
+                request.aliases(),
+                new String[] { "index" }
+            );
             assertThat(aliases, anEmptyMap());
         }
 
         {
             GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
-            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(
+            Map<String, List<DataStreamAlias>> aliases = metadata.projectMetadata.findDataStreamAliases(
                 request.aliases(),
                 new String[] { "index", "d1", "d2" }
             );
@@ -202,7 +208,10 @@ public class MetadataTests extends ESTestCase {
 
         {
             GetAliasesRequest request = new GetAliasesRequest().aliases("ali*");
-            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d2" });
+            Map<String, List<DataStreamAlias>> aliases = metadata.projectMetadata.findDataStreamAliases(
+                request.aliases(),
+                new String[] { "index", "d2" }
+            );
             assertEquals(1, aliases.size());
             List<DataStreamAlias> found = aliases.get("d2");
             assertThat(found, transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
@@ -211,7 +220,7 @@ public class MetadataTests extends ESTestCase {
         // test exclusion
         {
             GetAliasesRequest request = new GetAliasesRequest().aliases("*");
-            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(
+            Map<String, List<DataStreamAlias>> aliases = metadata.projectMetadata.findDataStreamAliases(
                 request.aliases(),
                 new String[] { "index", "d1", "d2", "d3", "d4" }
             );
@@ -219,7 +228,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliases.get("d1"), transformedItemsMatch(DataStreamAlias::getAlias, contains("alias1")));
 
             request.aliases("*", "-alias1");
-            aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d1", "d2", "d3", "d4" });
+            aliases = metadata.projectMetadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d1", "d2", "d3", "d4" });
             assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
             assertNull(aliases.get("d1"));
         }
@@ -239,7 +248,7 @@ public class MetadataTests extends ESTestCase {
 
         Metadata metadata = builder.build();
 
-        var aliases = metadata.dataStreamAliasesByDataStream();
+        var aliases = metadata.projectMetadata.dataStreamAliasesByDataStream();
 
         assertTrue(aliases.containsKey("d1"));
         assertTrue(aliases.containsKey("d2"));
@@ -264,7 +273,7 @@ public class MetadataTests extends ESTestCase {
             )
             .build();
         GetAliasesRequest request = new GetAliasesRequest().aliases("*", "-alias1");
-        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
+        List<AliasMetadata> aliases = metadata.projectMetadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
         assertThat(aliases, transformedItemsMatch(AliasMetadata::alias, contains("alias2")));
     }
 
@@ -298,7 +307,7 @@ public class MetadataTests extends ESTestCase {
             )
             .build();
         GetAliasesRequest request = new GetAliasesRequest().aliases("a*", "-*b", "b*");
-        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
+        List<AliasMetadata> aliases = metadata.projectMetadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
         assertThat(aliases, transformedItemsMatch(AliasMetadata::alias, contains("aa", "bb")));
     }
 
@@ -1292,8 +1301,8 @@ public class MetadataTests extends ESTestCase {
 
         b.put(newInstance(dataStreamName, backingIndices, lastBackingIndexNum, null));
         Metadata metadata = b.build();
-        assertThat(metadata.dataStreams().keySet(), containsInAnyOrder(dataStreamName));
-        assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(metadata.projectMetadata.dataStreams().keySet(), containsInAnyOrder(dataStreamName));
+        assertThat(metadata.projectMetadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
     }
 
     public void testBuildIndicesLookupForDataStreams() {
@@ -1305,12 +1314,12 @@ public class MetadataTests extends ESTestCase {
         }
 
         Metadata metadata = b.build();
-        assertThat(metadata.dataStreams().size(), equalTo(numDataStreams));
+        assertThat(metadata.projectMetadata.dataStreams().size(), equalTo(numDataStreams));
         for (int i = 0; i < numDataStreams; i++) {
             String name = "data-stream-" + i;
             IndexAbstraction value = metadata.projectMetadata.getIndicesLookup().get(name);
             assertThat(value, notNullValue());
-            DataStream ds = metadata.dataStreams().get(name);
+            DataStream ds = metadata.projectMetadata.dataStreams().get(name);
             assertThat(ds, notNullValue());
 
             assertThat(value.isHidden(), is(false));
@@ -1334,7 +1343,7 @@ public class MetadataTests extends ESTestCase {
         b.put("a3", "d1", null, null);
 
         Metadata metadata = b.build();
-        assertThat(metadata.dataStreams(), aMapWithSize(4));
+        assertThat(metadata.projectMetadata.dataStreams(), aMapWithSize(4));
         IndexAbstraction value = metadata.projectMetadata.getIndicesLookup().get("d1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
@@ -1579,9 +1588,9 @@ public class MetadataTests extends ESTestCase {
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au", null, null), is(false));
 
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au")
         );
     }
@@ -1595,8 +1604,11 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
         mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-eu"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu")
+        );
     }
 
     public void testDeleteDataStreamShouldUpdateAlias() {
@@ -1608,31 +1620,34 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
         mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au")
         );
 
         mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeDataStream("logs-postgres-us");
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-au")
         );
 
         mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeDataStream("logs-postgres-au");
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-eu"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeDataStream("logs-postgres-eu");
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), nullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), nullValue());
     }
 
     public void testDeleteDataStreamAlias() {
@@ -1644,31 +1659,34 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
         mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au")
         );
 
         mdBuilder = Metadata.builder(metadata);
         assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-us", true), is(true));
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-au")
         );
 
         mdBuilder = Metadata.builder(metadata);
         assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-au", true), is(true));
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-eu"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-eu", true), is(true));
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), nullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), nullValue());
     }
 
     public void testDeleteDataStreamAliasMustExists() {
@@ -1680,9 +1698,9 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
         mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au")
         );
 
@@ -1697,17 +1715,26 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null);
 
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-replicated")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null), is(true));
 
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(),
+            equalTo("logs-postgres-replicated")
+        );
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-replicated")
+        );
     }
 
     public void testDataStreamMultipleWriteAlias() {
@@ -1718,9 +1745,12 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put("logs", "logs-barbaz", true, null);
 
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs").getWriteDataStream(), equalTo("logs-barbaz"));
-        assertThat(metadata.dataStreamAliases().get("logs").getDataStreams(), containsInAnyOrder("logs-foobar", "logs-barbaz"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs").getWriteDataStream(), equalTo("logs-barbaz"));
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs").getDataStreams(),
+            containsInAnyOrder("logs-foobar", "logs-barbaz")
+        );
     }
 
     public void testDataStreamWriteAliasUnset() {
@@ -1729,9 +1759,15 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null);
 
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(),
+            equalTo("logs-postgres-replicated")
+        );
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-replicated")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         // Side check: null value isn't changing anything:
@@ -1739,9 +1775,12 @@ public class MetadataTests extends ESTestCase {
         // Unset write flag
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", false, null), is(true));
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-replicated")
+        );
     }
 
     public void testDataStreamWriteAliasChange() {
@@ -1752,10 +1791,13 @@ public class MetadataTests extends ESTestCase {
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
 
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(),
+            equalTo("logs-postgres-primary")
+        );
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated")
         );
 
@@ -1764,10 +1806,13 @@ public class MetadataTests extends ESTestCase {
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", false, null), is(true));
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null), is(true));
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(),
+            equalTo("logs-postgres-replicated")
+        );
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated")
         );
     }
@@ -1780,19 +1825,25 @@ public class MetadataTests extends ESTestCase {
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
 
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(),
+            equalTo("logs-postgres-primary")
+        );
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated")
         );
 
         mdBuilder = Metadata.builder(metadata);
         assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-primary", randomBoolean()), is(true));
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-replicated")
+        );
     }
 
     public void testDataStreamWriteRemoveDataStream() {
@@ -1803,20 +1854,26 @@ public class MetadataTests extends ESTestCase {
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
 
         Metadata metadata = mdBuilder.build();
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(
-            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(),
+            equalTo("logs-postgres-primary")
+        );
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated")
         );
 
         mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeDataStream("logs-postgres-primary");
         metadata = mdBuilder.build();
-        assertThat(metadata.dataStreams().keySet(), contains("logs-postgres-replicated"));
-        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+        assertThat(metadata.projectMetadata.dataStreams().keySet(), contains("logs-postgres-replicated"));
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(
+            metadata.projectMetadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-replicated")
+        );
     }
 
     public void testReuseIndicesLookup() {

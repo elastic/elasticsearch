@@ -240,7 +240,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         new SnapshotInfo(
                             snapshot,
                             List.copyOf(indicesMap.keySet()),
-                            List.copyOf(responseMetadata.dataStreams().keySet()),
+                            List.copyOf(responseMetadata.projectMetadata.dataStreams().keySet()),
                             List.of(),
                             maxIndexVersion,
                             SnapshotState.SUCCESS

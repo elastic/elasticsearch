@@ -105,7 +105,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     break;
                 case ALIASES:
                     if (doneAliases == false) {
-                        aliasesResult = state.metadata().findAllAliases(concreteIndices);
+                        aliasesResult = state.metadata().projectMetadata.findAllAliases(concreteIndices);
                         doneAliases = true;
                     }
                     break;

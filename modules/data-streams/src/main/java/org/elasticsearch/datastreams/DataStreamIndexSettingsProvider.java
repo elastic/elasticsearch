@@ -65,7 +65,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         List<CompressedXContent> combinedTemplateMappings
     ) {
         if (dataStreamName != null) {
-            DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dataStreamName);
             // First backing index is created and then data stream is rolled over (in a single cluster state update).
             // So at this point we can't check index_mode==time_series,
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES

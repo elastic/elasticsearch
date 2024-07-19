@@ -826,7 +826,7 @@ public class IndexNameExpressionResolver {
                 // skip the filters when the request targets the data stream name
                 return null;
             }
-            Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
+            Map<String, DataStreamAlias> dataStreamAliases = state.metadata().projectMetadata.dataStreamAliases();
             List<DataStreamAlias> aliasesForDataStream;
             if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
                 aliasesForDataStream = dataStreamAliases.values()

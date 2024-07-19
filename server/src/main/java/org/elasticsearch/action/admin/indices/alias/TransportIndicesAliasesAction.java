@@ -268,7 +268,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
             String[] concreteIndices = { concreteIndex };
-            Map<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action.aliases(), concreteIndices);
+            Map<String, List<AliasMetadata>> aliasMetadata = metadata.projectMetadata.findAliases(action.aliases(), concreteIndices);
             List<String> finalAliases = new ArrayList<>();
             for (List<AliasMetadata> aliases : aliasMetadata.values()) {
                 for (AliasMetadata aliasMeta : aliases) {
@@ -288,7 +288,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     private static String[] concreteDataStreamAliases(AliasActions action, Metadata metadata, String concreteDataStreamName) {
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
-            Stream<String> stream = metadata.dataStreamAliases()
+            Stream<String> stream = metadata.projectMetadata.dataStreamAliases()
                 .values()
                 .stream()
                 .filter(alias -> alias.getDataStreams().contains(concreteDataStreamName))

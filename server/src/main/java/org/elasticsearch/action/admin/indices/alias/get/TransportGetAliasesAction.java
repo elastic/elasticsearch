@@ -95,7 +95,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         // resolve all concrete indices upfront and warn/error later
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
-        Map<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request.aliases(), concreteIndices);
+        Map<String, List<AliasMetadata>> aliases = state.metadata().projectMetadata.findAliases(request.aliases(), concreteIndices);
         cancellableTask.ensureNotCancelled();
         listener.onResponse(
             new GetAliasesResponse(
@@ -149,7 +149,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
 
-        return state.metadata().findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
+        return state.metadata().projectMetadata.findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
     }
 
     private static void checkSystemIndexAccess(

@@ -576,7 +576,7 @@ public final class RestoreService implements ClusterStateApplier {
             if (globalMetadata == null) {
                 globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
             }
-            final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
+            final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.projectMetadata.dataStreams();
             dataStreams = Maps.newMapWithExpectedSize(requestedDataStreams.size());
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
@@ -602,7 +602,7 @@ public final class RestoreService implements ClusterStateApplier {
             }
             if (includeAliases) {
                 dataStreamAliases = new HashMap<>();
-                final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
+                final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.projectMetadata.dataStreamAliases();
                 for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
                     DataStreamAlias copy = alias.intersect(dataStreams.keySet()::contains);
                     if (copy.getDataStreams().isEmpty() == false) {
@@ -1438,14 +1438,16 @@ public final class RestoreService implements ClusterStateApplier {
         }
 
         private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder) {
-            final Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().dataStreams());
+            final Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().projectMetadata.dataStreams());
             updatedDataStreams.putAll(
                 dataStreamsToRestore.stream()
                     .map(ds -> updateDataStream(ds, mdBuilder, request))
                     .collect(Collectors.toMap(DataStream::getName, Function.identity()))
             );
-            final Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>(currentState.metadata().dataStreamAliases());
-            for (DataStreamAlias alias : metadata.dataStreamAliases().values()) {
+            final Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>(
+                currentState.metadata().projectMetadata.dataStreamAliases()
+            );
+            for (DataStreamAlias alias : metadata.projectMetadata.dataStreamAliases().values()) {
                 // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
                 updatedDataStreamAliases.compute(
                     alias.getName(),

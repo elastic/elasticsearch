@@ -249,7 +249,7 @@ public class SearchApplicationIndexService {
         final String searchAliasName = getSearchAliasName(app);
 
         IndicesAliasesRequestBuilder requestBuilder = null;
-        if (metadata.hasAlias(searchAliasName)) {
+        if (metadata.projectMetadata.hasAlias(searchAliasName)) {
             Set<String> currentAliases = metadata.projectMetadata.aliasedIndices(searchAliasName)
                 .stream()
                 .map(Index::getName)

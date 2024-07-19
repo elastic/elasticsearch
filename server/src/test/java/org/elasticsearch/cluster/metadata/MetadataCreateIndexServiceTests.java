@@ -1042,10 +1042,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             metadataTransformer,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
-        assertTrue(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).containsKey("my-index"));
-        assertNotNull(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).get("my-index"));
+        assertTrue(updatedClusterState.metadata().projectMetadata.findAllAliases(new String[] { "my-index" }).containsKey("my-index"));
+        assertNotNull(updatedClusterState.metadata().projectMetadata.findAllAliases(new String[] { "my-index" }).get("my-index"));
         assertNotNull(
-            updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).get("my-index").get(0).alias(),
+            updatedClusterState.metadata().projectMetadata.findAllAliases(new String[] { "my-index" }).get("my-index").get(0).alias(),
             equalTo("alias1")
         );
     }

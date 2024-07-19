@@ -117,7 +117,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     private void checkAliases(SearchApplication searchApp) {
         Metadata metadata = clusterService.state().metadata();
         final String aliasName = searchApp.name();
-        assertTrue(metadata.hasAlias(aliasName));
+        assertTrue(metadata.projectMetadata.hasAlias(aliasName));
         final Set<String> aliasedIndices = metadata.projectMetadata.aliasedIndices(aliasName)
             .stream()
             .map(index -> index.getName())

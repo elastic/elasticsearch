@@ -832,7 +832,7 @@ public class MetadataIndexTemplateService {
      * addition/update time
      */
     private static void validateDataStreamsStillReferenced(ClusterState state, String templateName, ComposableIndexTemplate newTemplate) {
-        final Set<String> dataStreams = state.metadata().dataStreams().keySet();
+        final Set<String> dataStreams = state.metadata().projectMetadata.dataStreams().keySet();
 
         Function<Metadata, Set<String>> findUnreferencedDataStreams = meta -> {
             final Set<String> unreferenced = new HashSet<>();
@@ -1058,7 +1058,7 @@ public class MetadataIndexTemplateService {
             .reduce(Sets::union)
             .orElse(Set.of());
 
-        return metadata.dataStreams()
+        return metadata.projectMetadata.dataStreams()
             .values()
             .stream()
             // Limit to checking data streams that match any of the templates' index patterns

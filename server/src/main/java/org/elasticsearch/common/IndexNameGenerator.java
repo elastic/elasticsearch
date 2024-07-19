@@ -69,7 +69,7 @@ public final class IndexNameGenerator {
         if (state.routingTable().hasIndex(generatedIndexName) || state.metadata().projectMetadata.hasIndex(generatedIndexName)) {
             err.addValidationError("the index name we generated [" + generatedIndexName + "] already exists");
         }
-        if (state.metadata().hasAlias(generatedIndexName)) {
+        if (state.metadata().projectMetadata.hasAlias(generatedIndexName)) {
             err.addValidationError("the index name we generated [" + generatedIndexName + "] already exists as alias");
         }
 

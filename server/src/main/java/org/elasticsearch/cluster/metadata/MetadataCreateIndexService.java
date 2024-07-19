@@ -182,7 +182,7 @@ public class MetadataCreateIndexService {
         if (state.metadata().projectMetadata.hasIndex(index)) {
             throw new ResourceAlreadyExistsException(state.metadata().projectMetadata.index(index).getIndex());
         }
-        if (state.metadata().hasAlias(index)) {
+        if (state.metadata().projectMetadata.hasAlias(index)) {
             throw new InvalidIndexNameException(index, "already exists as alias");
         }
     }

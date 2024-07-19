@@ -69,7 +69,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         }
         assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
         assertThat(loadedMetadata.clusterUUID(), equalTo(latestMetadata.clusterUUID()));
-        assertThat(loadedMetadata.dataStreams(), equalTo(latestMetadata.dataStreams()));
+        assertThat(loadedMetadata.projectMetadata.dataStreams(), equalTo(latestMetadata.projectMetadata.dataStreams()));
 
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {

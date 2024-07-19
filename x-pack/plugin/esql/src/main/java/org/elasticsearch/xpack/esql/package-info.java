@@ -109,9 +109,10 @@
  * </ul>
  *
  * <h3>Core Classes</h3>
- * {@link org.elasticsearch.xpack.esql.core} - Core Utility Classes
+ * {@link org.elasticsearch.xpack.esql.core} - Core Classes
  * <ul>
- *     <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - Connects all major components and contains the high-level code for query execution</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - Connects all major components and contains the high-level code for
+ *     query execution</li>
  *     <li>{@link org.elasticsearch.xpack.esql.core.type.DataType} - ES|QL is a typed language, and all the supported data types
  *     are listed in this collection.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.core.expression.Expression} - Expression is the basis for all functions in ES|QL,
@@ -135,42 +136,21 @@
  * </ul>
  * <h4>Query Planner Steps</h4>
  * <ul>
- *     <li>{@link org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder} - Translates what we get back from Antlr into the data structures
- *      the rest of the planner steps will act on.  Generally speaking, things which change the grammar will need to make changes here
- *      as well.</li>
- *      <li>{@link org.elasticsearch.xpack.esql.analysis.PreAnalyzer} - Acts somewhat like a linker, to find the indices and enrich
- *      policies referenced by the query.</li>
- *     <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer} - Resolves references (such as variable names) and performs implicit
- *     casting.</li>
- *     <li>{@link org.elasticsearch.xpack.esql.analysis.Verifier} - Responsible for failing impossible queries with a human readable error
- *     message.</li>
- *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer} - Global optimizations based strictly on the structure of
- *     the query (i.e. not factoring in information about the backing indices).  The bulk of query transformations happen in this step.
- *     This has two important sub-phases:
- *     <ul>
- *         <li>The Substitution phase rewrites things to expand out shorthand in the syntax.  For example, a nested expression embedded in a
- *         stats gets replaced with an eval followed by a stats, followed by another eval.  This phase also applies surrogates, such as replacing
- *         an average with a sum divided by a count.</li>
- *         <li>"Operator Optimization" (NB: The word "operator" is extremely overloaded and referrers to many different things.) transform
- *         the tree in various different ways.  This includes folding (i.e. computing constant expressions at parse time), combining
- *         expressions, dropping redundant clauses, and some normalization such as putting literals on the right whenever possible.  These
- *         rules are run in a loop until none of the rules make any changes to the plan (there is also a safety shut off after many
- *         iterations, although hitting that is considered a bug)</li>
- *     </ul>
- *     </li>
- *     <li>{@link org.elasticsearch.xpack.esql.planner.Mapper} - Translates the logical plan into a physical plan.  This is where we start
- *     to decide what will be executed on the data nodes and what will be executed on the coordinator nodes.  This step creates
- *     {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} instances, which represent logical plan fragments to be sent
- *     to the data nodes and {@link org.elasticsearch.xpack.esql.plan.physical.ExchangeExec} instances, which represent data being
- *     sent back from the data nodes to the coordinating node.</li>
- *     <li>{@link org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer} - Apply any global physical optimizations, such as
- *     projecting away columns.</li>
- *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer} - Data node level logical optimizations.  At this point
- *     we have access to {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index</li>
- *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} - Manages field extraction and pushing parts of the
- *     query into Lucene. (Query elements that are not pushed into Lucene are executed via the compute engine)</li>
- *     <li>{@link org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner} - translates the query into drivers and operators (not to be
- *     confused with the operators from the LogicalPlanOptimizer step), which will actually execute the query.</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder LogicalPlanBuilder} translates from Antlr data structures to our
+ *     data structures</li>
+ *      <li>{@link org.elasticsearch.xpack.esql.analysis.PreAnalyzer PreAnalyzer} finds involved indices</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer Analyzer} resolves references</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.analysis.Verifier Verifier} does type checking</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer LogicalPlanOptimizer} applies many optimizations</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.planner.Mapper Mapper} translates logical plans to phyisical plans</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer PhysicalPlanOptimizer} - decides what plan fragments to
+ *     send to which data nodes</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer LocalLogicalPlanOptimizer} applies index-specific
+ *     optimizations, and reapplies top level logical optimizations</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer LocalPhysicalPlanOptimizer} Lucene push down and
+ *     similar</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner LocalExecutionPlanner} Creates the compute engine objects
+ *     to carry out the query</li>
  * </ul>
  *
  *

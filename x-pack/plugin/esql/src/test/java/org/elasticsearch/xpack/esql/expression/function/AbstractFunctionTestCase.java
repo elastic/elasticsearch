@@ -307,18 +307,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             var testCase = supplier.supplier().get();
 
             var newData = testCase.getData().stream().map(typedData -> {
-                if (typedData.data() instanceof BytesRef bytesRef) {
-                    var offset = randomIntBetween(0, 10);
-                    var extraLength = randomIntBetween(0, 10);
-                    var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
-
-                    System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
-
-                    var newBytesRef = new BytesRef(newBytesArray, offset, bytesRef.length);
-
-                    return typedData.withData(newBytesRef);
+                if (typedData.isMultiRow()) {
+                    return typedData.withData(
+                        typedData.multiRowData().stream().map(AbstractFunctionTestCase::tryRandomizeBytesRefOffset).toList()
+                    );
                 }
-                return typedData;
+
+                return typedData.withData(tryRandomizeBytesRefOffset(typedData.data()));
             }).toList();
 
             return new TestCaseSupplier.TestCase(
@@ -332,6 +327,33 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 testCase.foldingExceptionMessage()
             );
         })).toList();
+    }
+
+    private static Object tryRandomizeBytesRefOffset(Object value) {
+        if (value instanceof BytesRef bytesRef) {
+            return randomizeBytesRefOffset(bytesRef);
+        }
+
+        if (value instanceof List<?> list) {
+            return list.stream().map(element -> {
+                if (element instanceof BytesRef bytesRef) {
+                    return randomizeBytesRefOffset(bytesRef);
+                }
+                return element;
+            }).toList();
+        }
+
+        return value;
+    }
+
+    private static BytesRef randomizeBytesRefOffset(BytesRef bytesRef) {
+        var offset = randomIntBetween(0, 10);
+        var extraLength = randomIntBetween(0, 10);
+        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+
+        return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 
     public void testSerializationOfSimple() {

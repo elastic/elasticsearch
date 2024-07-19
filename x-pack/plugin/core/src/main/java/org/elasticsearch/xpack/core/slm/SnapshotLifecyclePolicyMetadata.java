@@ -94,7 +94,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         return PARSER.apply(parser, name);
     }
 
-    SnapshotLifecyclePolicyMetadata(
+    public SnapshotLifecyclePolicyMetadata(
         SnapshotLifecyclePolicy policy,
         Map<String, String> headers,
         long version,

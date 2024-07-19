@@ -94,9 +94,6 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
-  method: testEnterpriseDownloaderTask
-  issue: https://github.com/elastic/elasticsearch/issues/111002
 - class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
   method: testLoadAllStatusAllInOnePage
   issue: https://github.com/elastic/elasticsearch/issues/111048
@@ -106,6 +103,15 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testKnnQuantizedFlatVectorsFormat
   issue: https://github.com/elastic/elasticsearch/issues/111044
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
+  method: testPushedDownQueriesSingleValue
+  issue: https://github.com/elastic/elasticsearch/issues/111084
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {stats.MaxOfIpGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/111107
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/111002
 
 # Examples:
 #

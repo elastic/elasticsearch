@@ -62,17 +62,12 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
 
         try {
-
-            var clazz = this.getClass();
-            logger.info("========= classname: " + clazz.getName());
-
             final Map<String, Object> resources = XContentHelper.convertToMap(
                 YamlXContent.yamlXContent,
                 loadResource(this.getClass(), "/resources.yaml"),
                 false
             );
             version = (((Number) resources.get("version")).intValue());
-            logger.info("========= version: " + version);
 
             final List<Object> componentTemplateNames = (List<Object>) resources.get("component-templates");
             final List<Object> indexTemplateNames = (List<Object>) resources.get("index-templates");
@@ -136,7 +131,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
+    public Map<String, ComponentTemplate> getComponentTemplateConfigs() {
         if (enabled) {
             return componentTemplates;
         } else {
@@ -145,7 +140,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+    public Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (enabled) {
             return composableIndexTemplates;
         } else {
@@ -154,7 +149,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<IngestPipelineConfig> getIngestPipelines() {
+    public List<IngestPipelineConfig> getIngestPipelines() {
         if (enabled) {
             return ingestPipelines;
         } else {
@@ -188,7 +183,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static IngestPipelineConfig loadIngestPipeline(String name, int version, @Nullable List<String> dependencies) {
+    private IngestPipelineConfig loadIngestPipeline(String name, int version, @Nullable List<String> dependencies) {
         if (dependencies == null) {
             dependencies = Collections.emptyList();
         }
@@ -196,8 +191,9 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
             name,
             "/ingest-pipelines/" + name + ".yaml",
             version,
-             "TODO", //APM_TEMPLATE_VERSION_VARIABLE //TODO
-            dependencies
+            getVersionProperty(),
+            dependencies,
+            this.getClass()
         );
     }
 

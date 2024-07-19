@@ -8,13 +8,18 @@
 package org.elasticsearch.xpack.core.template;
 
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedResourceUTF8;
+
 public class YamlIngestPipelineConfig extends IngestPipelineConfig {
-    public YamlIngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies) {
+    private final Class<?> clazz;
+    public YamlIngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies, Class<?> clazz) {
         super(id, resource, version, versionProperty, dependencies);
+        this.clazz = clazz;
     }
 
     @Override
@@ -24,7 +29,12 @@ public class YamlIngestPipelineConfig extends IngestPipelineConfig {
 
     @Override
     public BytesReference loadConfig() {
-       // return new BytesArray(loadVersionedResourceUTF8("/ingest-pipelines/" + id + ".yaml", version, variables));
-        return null; // TODO
+        return new BytesArray(loadVersionedResourceUTF8(clazz, "/ingest-pipelines/" + id + ".yaml", version, versionProperty, variables));
+        //return null; // TODO
+
+        //orig:
+        // return new BytesArray(loadVersionedResourceUTF8("/ingest-pipelines/" + id + ".yaml", version, variables));
     }
+
+
 }

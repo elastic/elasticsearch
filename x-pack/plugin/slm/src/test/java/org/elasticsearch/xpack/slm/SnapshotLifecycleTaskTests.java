@@ -346,7 +346,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         final SnapshotId currentSnap1 = new SnapshotId(randomAlphaOfLength(10), randomUUID());
 
-        SnapshotLifecycleMetadata slmMetadata = makeSnapshotLifecycleMetadata(policyId, Set.of(currentSnap1, snapshotId));
+        SnapshotLifecycleMetadata slmMetadata = makeSnapshotLifecycleMetadata(policyId, List.of(currentSnap1, snapshotId));
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
             .metadata(Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, slmMetadata))
@@ -357,7 +357,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         SnapshotLifecyclePolicyMetadata newSlmPolicyMetadata = newSlmMetadata.getSnapshotConfigurations().get(policyId);
 
         // completed snapshotId is removed from preRegisteredSnapshots but still contains currently running
-        assertEquals(Set.of(currentSnap1), newSlmPolicyMetadata.getPreRegisteredSnapshots());
+        assertEquals(List.of(currentSnap1), newSlmPolicyMetadata.getPreRegisteredSnapshots());
     }
 
     public void testPreRegisteredSnapshotWithPreviousFailure() throws Exception {
@@ -393,7 +393,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             List.of(makeSnapshotInProgress(repo1, policyId, currentSnap1))
         ).withUpdatedEntriesForRepo(repo2, List.of(makeSnapshotInProgress(repo2, policyId, currentSnap2)));
 
-        Set<SnapshotId> alreadyPreRegistered = Set.of(currentSnap1, currentSnap2, previousFailedSnapshot);
+        List<SnapshotId> alreadyPreRegistered = List.of(currentSnap1, currentSnap2, previousFailedSnapshot);
         SnapshotLifecycleMetadata slmMetadata = makeSnapshotLifecycleMetadata(policyId, alreadyPreRegistered);
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
@@ -416,7 +416,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(1, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
 
         // failed snapshot no longer in preRegisteredSnapshot set
-        assertEquals(Set.of(snapshotId, currentSnap1, currentSnap2), newSlmPolicyMetadata.getPreRegisteredSnapshots());
+        assertEquals(List.of(currentSnap1, currentSnap2, snapshotId), newSlmPolicyMetadata.getPreRegisteredSnapshots());
 
         // confirm listener which will call SnapshotService is called serially
         preRegisterSLMRun.clusterStateProcessed(clusterState, newClusterState);
@@ -449,7 +449,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(Set.of(snapshot3, snapshot4), SnapshotLifecycleTask.currentlyRunningSnapshots("other-policy", clusterState));
     }
 
-    private static SnapshotLifecycleMetadata makeSnapshotLifecycleMetadata(String policyId, Set<SnapshotId> preRegistered) {
+    private static SnapshotLifecycleMetadata makeSnapshotLifecycleMetadata(String policyId, List<SnapshotId> preRegistered) {
         SnapshotLifecyclePolicyMetadata slmPolicyMeta = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
             .setPolicy(new SnapshotLifecyclePolicy(policyId, "snap", "", "repo-name", null, null))

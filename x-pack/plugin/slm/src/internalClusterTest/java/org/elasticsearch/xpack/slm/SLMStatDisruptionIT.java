@@ -61,8 +61,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -198,13 +198,13 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("Created snapshot A: " + snapshotA);
 
         // wait until snapshotA is preregistered before starting snapshotB
-        assertBusy(() -> assertPreRegistered(Set.of(snapshotA), policyName), 1, TimeUnit.MINUTES);
+        assertBusy(() -> assertPreRegistered(List.of(snapshotA), policyName), 1, TimeUnit.MINUTES);
 
         String snapshotB = executePolicy(masterNode, policyName);
         logger.info("Created snapshot B: " + snapshotA);
 
         // wait until both snapshots are preregistered before allowing snapshotA to continue
-        assertBusy(() -> assertPreRegistered(Set.of(snapshotA, snapshotB), policyName), 1, TimeUnit.MINUTES);
+        assertBusy(() -> assertPreRegistered(List.of(snapshotA, snapshotB), policyName), 1, TimeUnit.MINUTES);
 
         // remove delay from snapshotA
         TestDelayedRepoPlugin.removeDelay();
@@ -215,7 +215,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotA);
             assertSnapshotSuccess(repoName, snapshotB);
-            assertMetadata(policyName, 2, 0, 0, Set.of());
+            assertMetadata(policyName, 2, 0, 0, List.of());
 
         }, 1, TimeUnit.MINUTES);
     }
@@ -246,7 +246,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotName);
-            assertMetadata(policyName, 1, 0, 0, Set.of());
+            assertMetadata(policyName, 1, 0, 0, List.of());
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -290,7 +290,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            assertMetadata(policyName, 0, 0, 0, Set.of(snapshotName));
+            assertMetadata(policyName, 0, 0, 0, List.of(snapshotName));
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -308,7 +308,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotName2);
             // Check stats, this time past failure should be accounted for
-            assertMetadata(policyName, 1, 1, 0, Set.of());
+            assertMetadata(policyName, 1, 1, 0, List.of());
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -354,7 +354,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            assertMetadata(policyName, 0, 0, 0, Set.of(snapshotName));
+            assertMetadata(policyName, 0, 0, 0, List.of(snapshotName));
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -377,7 +377,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName2);
             // Check metadata, this time past failure should be accounted for
-            assertMetadata(policyName, 0, 2, 2, Set.of());
+            assertMetadata(policyName, 0, 2, 2, List.of());
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -457,10 +457,10 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             logger.info("--> Verified that snapshot was not successful");
         }, 1, TimeUnit.MINUTES);
 
-        assertBusy(() -> { assertMetadata(policyName, 0, 1, 1, Set.of()); }, 1, TimeUnit.MINUTES);
+        assertBusy(() -> assertMetadata(policyName, 0, 1, 1, List.of()), 1, TimeUnit.MINUTES);
     }
 
-    private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess, Set<String> preRegistered) {
+    private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess, List<String> preRegistered) {
         var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
         var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
         assertStats(snapshotLifecycleMetadata, policyName, taken, failure);
@@ -523,13 +523,13 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void assertPreRegistered(Set<String> expected, String policyName) {
+    private void assertPreRegistered(List<String> expected, String policyName) {
         var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
         var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-        Set<String> preRegisteredNames = snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots()
+        List<String> preRegisteredNames = snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots()
             .stream()
             .map(SnapshotId::getName)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toList());
         assertEquals(expected, preRegisteredNames);
     }
 

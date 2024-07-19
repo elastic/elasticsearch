@@ -518,7 +518,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         long currentTimeMillis = timeProvider.getAsLong();
         do {
             newWriteIndexName = dataStreamIndices.generateName(name, ++generation, currentTimeMillis);
-        } while (clusterMetadata.hasIndexAbstraction(newWriteIndexName));
+        } while (clusterMetadata.projectMetadata.hasIndexAbstraction(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
     }
 

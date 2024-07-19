@@ -116,7 +116,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
-        request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
+        request.request()
+            .routing(state.metadata().projectMetadata.resolveIndexRouting(request.request().routing(), request.request().index()));
     }
 
     @Override

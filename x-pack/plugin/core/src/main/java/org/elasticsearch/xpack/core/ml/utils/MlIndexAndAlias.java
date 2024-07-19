@@ -189,7 +189,7 @@ public final class MlIndexAndAlias {
         final String primaryIndex = descriptor.getPrimaryIndex();
 
         // The check for existence of the index is against the cluster state, so very cheap
-        if (clusterState.getMetadata().hasIndexAbstraction(primaryIndex)) {
+        if (clusterState.getMetadata().projectMetadata.hasIndexAbstraction(primaryIndex)) {
             finalListener.onResponse(true);
             return;
         }

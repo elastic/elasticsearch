@@ -129,7 +129,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         return this.systemIndices.getSystemIndexDescriptors()
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
+            .filter(d -> metadata.projectMetadata.hasIndexAbstraction(d.getPrimaryIndex()))
             .toList();
     }
 

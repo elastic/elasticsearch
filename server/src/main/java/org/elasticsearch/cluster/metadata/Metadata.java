@@ -44,7 +44,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -63,7 +62,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -950,105 +948,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     /**
-     * Returns indexing routing for the given <code>aliasOrIndex</code>. Resolves routing from the alias metadata used
-     * in the write index.
-     */
-    public String resolveWriteIndexRouting(@Nullable String routing, String aliasOrIndex) {
-        if (aliasOrIndex == null) {
-            return routing;
-        }
-
-        IndexAbstraction result = projectMetadata.getIndicesLookup().get(aliasOrIndex);
-        if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
-            return routing;
-        }
-        Index writeIndexName = result.getWriteIndex();
-        if (writeIndexName == null) {
-            throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
-        }
-        AliasMetadata writeIndexAliasMetadata = projectMetadata.index(writeIndexName).getAliases().get(result.getName());
-        if (writeIndexAliasMetadata != null) {
-            return resolveRouting(routing, aliasOrIndex, writeIndexAliasMetadata);
-        } else {
-            return routing;
-        }
-    }
-
-    /**
-     * Returns indexing routing for the given index.
-     */
-    // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
-    // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
-        if (aliasOrIndex == null) {
-            return routing;
-        }
-
-        IndexAbstraction result = projectMetadata.getIndicesLookup().get(aliasOrIndex);
-        if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
-            return routing;
-        }
-        if (result.getIndices().size() > 1) {
-            rejectSingleIndexOperation(aliasOrIndex, result);
-        }
-        return resolveRouting(routing, aliasOrIndex, AliasMetadata.getFirstAliasMetadata(this, result));
-    }
-
-    private static String resolveRouting(@Nullable String routing, String aliasOrIndex, AliasMetadata aliasMd) {
-        if (aliasMd.indexRouting() != null) {
-            if (aliasMd.indexRouting().indexOf(',') != -1) {
-                throw new IllegalArgumentException(
-                    "index/alias ["
-                        + aliasOrIndex
-                        + "] provided with routing value ["
-                        + aliasMd.getIndexRouting()
-                        + "] that resolved to several routing values, rejecting operation"
-                );
-            }
-            if (routing != null) {
-                if (routing.equals(aliasMd.indexRouting()) == false) {
-                    throw new IllegalArgumentException(
-                        "Alias ["
-                            + aliasOrIndex
-                            + "] has index routing associated with it ["
-                            + aliasMd.indexRouting()
-                            + "], and was provided with routing value ["
-                            + routing
-                            + "], rejecting operation"
-                    );
-                }
-            }
-            // Alias routing overrides the parent routing (if any).
-            return aliasMd.indexRouting();
-        }
-        return routing;
-    }
-
-    private static void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
-        String[] indexNames = new String[result.getIndices().size()];
-        int i = 0;
-        for (Index indexName : result.getIndices()) {
-            indexNames[i++] = indexName.getName();
-        }
-        throw new IllegalArgumentException(
-            "Alias ["
-                + aliasOrIndex
-                + "] has more than one index associated with it ["
-                + Arrays.toString(indexNames)
-                + "], can't execute a single index op"
-        );
-    }
-
-    /**
-     * Checks whether an index abstraction (that is, index, alias, or data stream) exists (as of this {@link Metadata} with the given name.
-     * @param index An index name that may or may not exist in the cluster.
-     * @return {@code true} if an index abstraction with that name exists, {@code false} otherwise.
-     */
-    public boolean hasIndexAbstraction(String index) {
-        return projectMetadata.getIndicesLookup().containsKey(index);
-    }
-
-    /**
      * Returns whether an alias exists with provided alias name.
      *
      * @param aliasName The provided alias name
@@ -1056,26 +955,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      */
     public boolean hasAlias(String aliasName) {
         return projectMetadata.aliasedIndices.containsKey(aliasName) || dataStreamAliases().containsKey(aliasName);
-    }
-
-    /**
-     * Returns all the indices that the alias with the provided alias name refers to.
-     * These are aliased indices. Not that, this only return indices that have been aliased
-     * and not indices that are behind a data stream or data stream alias.
-     *
-     * @param aliasName The provided alias name
-     * @return all aliased indices by the alias with the provided alias name
-     */
-    public Set<Index> aliasedIndices(String aliasName) {
-        Objects.requireNonNull(aliasName);
-        return projectMetadata.aliasedIndices.getOrDefault(aliasName, Set.of());
-    }
-
-    /**
-     * @return the names of all indices aliases.
-     */
-    public Set<String> aliasedIndices() {
-        return projectMetadata.aliasedIndices.keySet();
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {

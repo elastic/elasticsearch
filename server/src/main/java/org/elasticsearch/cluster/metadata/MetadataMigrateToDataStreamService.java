@@ -184,7 +184,7 @@ public class MetadataMigrateToDataStreamService {
         }
 
         // check for "clean" alias without routing or filter query
-        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(currentState.metadata(), ia);
+        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(currentState.metadata().getProject(), ia);
         assert aliasMetadata != null : "alias metadata may not be null";
         if (aliasMetadata.filteringRequired() || aliasMetadata.getIndexRouting() != null || aliasMetadata.getSearchRouting() != null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] may not have custom filtering or routing");

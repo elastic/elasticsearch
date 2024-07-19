@@ -419,33 +419,33 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(builder).build();
 
         // no alias, no index
-        assertNull(metadata.resolveIndexRouting(null, null));
-        assertEquals(metadata.resolveIndexRouting("0", null), "0");
+        assertNull(metadata.projectMetadata.resolveIndexRouting(null, null));
+        assertEquals(metadata.projectMetadata.resolveIndexRouting("0", null), "0");
 
         // index, no alias
-        assertNull(metadata.resolveIndexRouting(null, "index"));
-        assertEquals(metadata.resolveIndexRouting("0", "index"), "0");
+        assertNull(metadata.projectMetadata.resolveIndexRouting(null, "index"));
+        assertEquals(metadata.projectMetadata.resolveIndexRouting("0", "index"), "0");
 
         // alias with no index routing
-        assertNull(metadata.resolveIndexRouting(null, "alias0"));
-        assertEquals(metadata.resolveIndexRouting("0", "alias0"), "0");
+        assertNull(metadata.projectMetadata.resolveIndexRouting(null, "alias0"));
+        assertEquals(metadata.projectMetadata.resolveIndexRouting("0", "alias0"), "0");
 
         // alias with index routing.
-        assertEquals(metadata.resolveIndexRouting(null, "alias1"), "1");
-        Exception ex = expectThrows(IllegalArgumentException.class, () -> metadata.resolveIndexRouting("0", "alias1"));
+        assertEquals(metadata.projectMetadata.resolveIndexRouting(null, "alias1"), "1");
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> metadata.projectMetadata.resolveIndexRouting("0", "alias1"));
         assertThat(
             ex.getMessage(),
             is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation")
         );
 
         // alias with invalid index routing.
-        ex = expectThrows(IllegalArgumentException.class, () -> metadata.resolveIndexRouting(null, "alias2"));
+        ex = expectThrows(IllegalArgumentException.class, () -> metadata.projectMetadata.resolveIndexRouting(null, "alias2"));
         assertThat(
             ex.getMessage(),
             is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
         );
 
-        ex = expectThrows(IllegalArgumentException.class, () -> metadata.resolveIndexRouting("1", "alias2"));
+        ex = expectThrows(IllegalArgumentException.class, () -> metadata.projectMetadata.resolveIndexRouting("1", "alias2"));
         assertThat(
             ex.getMessage(),
             is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
@@ -461,7 +461,7 @@ public class MetadataTests extends ESTestCase {
         // alias with multiple indices
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> metadataTwoIndices.resolveIndexRouting("1", "alias0")
+            () -> metadataTwoIndices.projectMetadata.resolveIndexRouting("1", "alias0")
         );
         assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
     }
@@ -483,44 +483,50 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(builder).build();
 
         // no alias, no index
-        assertNull(metadata.resolveWriteIndexRouting(null, null));
-        assertEquals(metadata.resolveWriteIndexRouting("0", null), "0");
+        assertNull(metadata.projectMetadata.resolveWriteIndexRouting(null, null));
+        assertEquals(metadata.projectMetadata.resolveWriteIndexRouting("0", null), "0");
 
         // index, no alias
-        assertNull(metadata.resolveWriteIndexRouting(null, "index"));
-        assertEquals(metadata.resolveWriteIndexRouting("0", "index"), "0");
+        assertNull(metadata.projectMetadata.resolveWriteIndexRouting(null, "index"));
+        assertEquals(metadata.projectMetadata.resolveWriteIndexRouting("0", "index"), "0");
 
         // alias with no index routing
-        assertNull(metadata.resolveWriteIndexRouting(null, "alias0"));
-        assertEquals(metadata.resolveWriteIndexRouting("0", "alias0"), "0");
+        assertNull(metadata.projectMetadata.resolveWriteIndexRouting(null, "alias0"));
+        assertEquals(metadata.projectMetadata.resolveWriteIndexRouting("0", "alias0"), "0");
 
         // alias with index routing.
-        assertEquals(metadata.resolveWriteIndexRouting(null, "alias1"), "1");
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting("0", "alias1"));
+        assertEquals(metadata.projectMetadata.resolveWriteIndexRouting(null, "alias1"), "1");
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> metadata.projectMetadata.resolveWriteIndexRouting("0", "alias1")
+        );
         assertThat(
             exception.getMessage(),
             is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation")
         );
 
         // alias with invalid index routing.
-        exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting(null, "alias2"));
+        exception = expectThrows(IllegalArgumentException.class, () -> metadata.projectMetadata.resolveWriteIndexRouting(null, "alias2"));
         assertThat(
             exception.getMessage(),
             is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
         );
-        exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting("1", "alias2"));
+        exception = expectThrows(IllegalArgumentException.class, () -> metadata.projectMetadata.resolveWriteIndexRouting("1", "alias2"));
         assertThat(
             exception.getMessage(),
             is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
         );
-        exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting(randomFrom("1", null), "alias4"));
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> metadata.projectMetadata.resolveWriteIndexRouting(randomFrom("1", null), "alias4")
+        );
         assertThat(
             exception.getMessage(),
             is("index/alias [alias4] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
         );
 
         // alias with no write index
-        exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting("1", "alias3"));
+        exception = expectThrows(IllegalArgumentException.class, () -> metadata.projectMetadata.resolveWriteIndexRouting("1", "alias3"));
         assertThat(exception.getMessage(), is("alias [alias3] does not have a write index"));
 
         // aliases with multiple indices
@@ -538,7 +544,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadataTwoIndices = Metadata.builder(metadata).put(builder2).build();
 
         // verify that new write index is used
-        assertThat("0", equalTo(metadataTwoIndices.resolveWriteIndexRouting("0", "alias1")));
+        assertThat("0", equalTo(metadataTwoIndices.projectMetadata.resolveWriteIndexRouting("0", "alias1")));
     }
 
     public void testUnknownFieldClusterMetadata() throws IOException {
@@ -1941,7 +1947,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = builder.build();
         for (int i = 0; i < numAliases; i++) {
             String aliasName = "alias-" + i;
-            Set<Index> result = metadata.aliasedIndices(aliasName);
+            Set<Index> result = metadata.projectMetadata.aliasedIndices(aliasName);
             Index[] expected = IntStream.range(0, numIndicesPerAlias)
                 .mapToObj(j -> aliasName + "-" + j)
                 .map(name -> new Index(name, ClusterState.UNKNOWN_UUID))
@@ -1963,8 +1969,11 @@ public class MetadataTests extends ESTestCase {
             );
         }
         metadata = builder.build();
-        assertThat(metadata.aliasedIndices(), hasSize(numAliases + 1));
-        assertThat(metadata.aliasedIndices(newAliasName), contains(new Index(newAliasName + "-1", ClusterState.UNKNOWN_UUID)));
+        assertThat(metadata.projectMetadata.aliasedIndices(), hasSize(numAliases + 1));
+        assertThat(
+            metadata.projectMetadata.aliasedIndices(newAliasName),
+            contains(new Index(newAliasName + "-1", ClusterState.UNKNOWN_UUID))
+        );
 
         // Remove the new alias/index
         builder = Metadata.builder(metadata);
@@ -1972,8 +1981,8 @@ public class MetadataTests extends ESTestCase {
             builder.remove(newAliasName + "-1");
         }
         metadata = builder.build();
-        assertThat(metadata.aliasedIndices(), hasSize(numAliases));
-        assertThat(metadata.aliasedIndices(newAliasName), empty());
+        assertThat(metadata.projectMetadata.aliasedIndices(), hasSize(numAliases));
+        assertThat(metadata.projectMetadata.aliasedIndices(newAliasName), empty());
 
         // Add a new alias that points to existing indices
         builder = Metadata.builder(metadata);
@@ -1991,9 +2000,9 @@ public class MetadataTests extends ESTestCase {
             builder.put(imBuilder);
         }
         metadata = builder.build();
-        assertThat(metadata.aliasedIndices(), hasSize(numAliases + 1));
+        assertThat(metadata.projectMetadata.aliasedIndices(), hasSize(numAliases + 1));
         assertThat(
-            metadata.aliasedIndices(newAliasName),
+            metadata.projectMetadata.aliasedIndices(newAliasName),
             containsInAnyOrder(
                 new Index("alias-1-0", ClusterState.UNKNOWN_UUID),
                 new Index("alias-2-1", ClusterState.UNKNOWN_UUID),
@@ -2017,8 +2026,8 @@ public class MetadataTests extends ESTestCase {
             builder.put(imBuilder);
         }
         metadata = builder.build();
-        assertThat(metadata.aliasedIndices(), hasSize(numAliases));
-        assertThat(metadata.aliasedIndices(newAliasName), empty());
+        assertThat(metadata.projectMetadata.aliasedIndices(), hasSize(numAliases));
+        assertThat(metadata.projectMetadata.aliasedIndices(newAliasName), empty());
     }
 
     public static final String SYSTEM_ALIAS_NAME = "system_alias";

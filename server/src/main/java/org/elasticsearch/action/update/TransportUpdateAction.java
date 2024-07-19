@@ -110,7 +110,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected void resolveRequest(ClusterState state, UpdateRequest docWriteRequest) {
-        docWriteRequest.routing(state.metadata().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
+        docWriteRequest.routing(
+            state.metadata().projectMetadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index())
+        );
     }
 
     @Override

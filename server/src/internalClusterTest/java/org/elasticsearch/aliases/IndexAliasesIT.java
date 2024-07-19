@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -775,8 +775,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
-        Metadata metadata = internalCluster().clusterService().state().metadata();
-        IndexAbstraction ia = metadata.projectMetadata.getIndicesLookup().get("alias1");
+        ProjectMetadata metadata = internalCluster().clusterService().state().metadata().getProject();
+        IndexAbstraction ia = metadata.getIndicesLookup().get("alias1");
         AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(metadata, ia);
         assertThat(aliasMetadata.getFilter().toString(), equalTo("""
             {"term":{"name":{"value":"bar"}}}"""));

@@ -118,7 +118,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         Metadata metadata = clusterService.state().metadata();
         final String aliasName = searchApp.name();
         assertTrue(metadata.hasAlias(aliasName));
-        final Set<String> aliasedIndices = metadata.aliasedIndices(aliasName)
+        final Set<String> aliasedIndices = metadata.projectMetadata.aliasedIndices(aliasName)
             .stream()
             .map(index -> index.getName())
             .collect(Collectors.toSet());

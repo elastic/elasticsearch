@@ -484,7 +484,7 @@ PUT my-index
 --------------------------------------------------
 
 Changing the `type` to `int4_hnsw` makes sure vectors indexed after the change will use an int4 scalar quantized representation and HNSW (e.g., for KNN queries).
-That includes mew segments created by <<index-modules-merge,merging>> previously created segments.
+That includes new segments created by <<index-modules-merge,merging>> previously created segments.
 
 [source,console]
 --------------------------------------------------

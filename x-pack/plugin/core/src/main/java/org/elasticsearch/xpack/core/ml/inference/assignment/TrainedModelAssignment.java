@@ -324,6 +324,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum();
     }
 
+    public int totalTargetProcessors() {
+        return nodeRoutingTable.values().stream().mapToInt(r -> r.getTargetAllocations() * getTaskParams().getThreadsPerAllocation()).sum();
+    }
+
     public int totalFailedAllocations() {
         return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getFailedAllocations).sum();
     }

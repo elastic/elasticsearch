@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -119,8 +118,8 @@ public final class MlAutoscalingResourceTracker {
             processorsAvailableFirstNode,
             maxOpenJobsPerNode,
             mlDummyAutoscalingEntity,
-            listener,
-            clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE)
+            clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE),
+            listener
         );
     }
 
@@ -132,10 +131,12 @@ public final class MlAutoscalingResourceTracker {
         int perNodeAvailableProcessors,
         int maxOpenJobsPerNode,
         MlDummyAutoscalingEntity dummyAutoscalingEntity,
-        ActionListener<MlAutoscalingStats> listener,
-        int allocatedProcessorsScale
+        int allocatedProcessorsScale,
+        ActionListener<MlAutoscalingStats> listener
     ) {
-        Map<String, List<MlJobRequirements>> perNodeModelMemoryInBytes = new HashMap<>();
+
+        // TODO change the use of this variable to properly account for processors
+        Map<String, List<MlJobRequirements>> jobRequirementsByNode_onlyMemoryUsedCurrently = new HashMap<>();
 
         int numberMlNodes = nodeSizeByMlNode.size();
 
@@ -192,7 +193,7 @@ public final class MlAutoscalingResourceTracker {
 
                 existingModelMemoryBytes += jobMemory;
 
-                perNodeModelMemoryInBytes.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
+                jobRequirementsByNode_onlyMemoryUsedCurrently.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
                     .add(MlJobRequirements.of(jobMemory, 0));
             }
         }
@@ -225,32 +226,24 @@ public final class MlAutoscalingResourceTracker {
                 logger.debug("dfa job [{}] assigned to [{}], memory required [{}]", jobId, task.getAssignment(), jobMemory);
 
                 existingModelMemoryBytes += jobMemory;
-                perNodeModelMemoryInBytes.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
+                jobRequirementsByNode_onlyMemoryUsedCurrently.computeIfAbsent(task.getExecutorNode(), k -> new ArrayList<>())
                     .add(MlJobRequirements.of(jobMemory, 0));
             }
         }
 
         // trained models
-        int processorsNewlyAssignedToTrainedModelsAllocationsThisTime = 0; // tracks how many processors are needed for allocations which
-                                                                           // have been added since the last time this code was run
+        int numberOfAvailableProcessors = (int) Math.floor(
+            MlProcessors.getTotalMlNodeProcessors(autoscalingContext.mlNodes, allocatedProcessorsScale).count()
+        ) - totalAssignedProcessors(autoscalingContext);
         for (var modelAssignment : autoscalingContext.modelAssignments.entrySet()) {
             TrainedModelAssignment assignment = modelAssignment.getValue();
             final int numberOfRequestedAllocations = assignment.getTaskParams().getNumberOfAllocations();
             final int numberOfThreadsPerAllocation = assignment.getTaskParams().getThreadsPerAllocation();
             final long estimatedMemoryUsage = assignment.getTaskParams().estimateMemoryUsageBytes();
-            final int numTargetAllocationsOnExistingNodes = assignment.getNodeRoutingTable()
-                .values()
-                .stream()
-                .mapToInt(RoutingInfo::getTargetAllocations)
-                .sum();
-            final int numMissingAllocations = numberOfRequestedAllocations - numTargetAllocationsOnExistingNodes;
-            final int numProcessorsNeeded = numMissingAllocations * numberOfThreadsPerAllocation;
-            int numberOfAvailableProcessors = numberOfAvailableProcessors(
-                autoscalingContext,
-                allocatedProcessorsScale,
-                processorsNewlyAssignedToTrainedModelsAllocationsThisTime
-            );
-            int numExistingProcessorsToBeUsed = Math.min(numProcessorsNeeded, numberOfAvailableProcessors);
+            final int numberOfTargetAllocationsOnExistingNodes = assignment.totalTargetAllocations();
+            final int numMissingAllocations = numberOfRequestedAllocations - numberOfTargetAllocationsOnExistingNodes;
+            final int numMissingProcessors = numMissingAllocations * numberOfThreadsPerAllocation;
+            int numExistingProcessorsToBeUsed = Math.min(numMissingProcessors, numberOfAvailableProcessors);
 
             if (AssignmentState.STARTING.equals(assignment.getAssignmentState()) && assignment.getNodeRoutingTable().isEmpty()) {
                 // this state occurs when the assignment has just been added and has not been assigned to any nodes
@@ -264,14 +257,14 @@ public final class MlAutoscalingResourceTracker {
                 extraPerNodeModelMemoryBytes = Math.max(extraPerNodeModelMemoryBytes, estimatedMemoryUsage);
                 extraModelMemoryInBytes += estimatedMemoryUsage;
 
-                // if not low priority, check processor requirements. If
+                // if not low priority, check processor requirements.
                 if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
-                    if (numProcessorsNeeded > numberOfAvailableProcessors) {
+                    if (numMissingProcessors > numberOfAvailableProcessors) {
                         // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
                         extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
-                        extraProcessors += numberOfRequestedAllocations * numberOfThreadsPerAllocation - numExistingProcessorsToBeUsed;
+                        extraProcessors += numMissingProcessors - numExistingProcessorsToBeUsed;
                     }
-                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime += numExistingProcessorsToBeUsed;
+                    numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
                 }
             } else if (assignment.getNodeRoutingTable().values().stream().allMatch(r -> r.getState().consumesMemory() == false)) {
                 // Ignore states that don't consume memory, for example all allocations are failed or stopped
@@ -281,10 +274,10 @@ public final class MlAutoscalingResourceTracker {
 
                 long numMemoryBytesNeeded = assignment.getTaskParams().estimateMemoryUsageBytes();
 
-                if (numberOfAvailableProcessors < numProcessorsNeeded || perNodeAvailableModelMemoryBytes < numMemoryBytesNeeded) {
+                if (numberOfAvailableProcessors < numMissingProcessors || perNodeAvailableModelMemoryBytes < numMemoryBytesNeeded) {
                     // we don't have enough processors or memory to start the new allocations, we need to scale up
 
-                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime += numExistingProcessorsToBeUsed;
+                    numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
 
                     extraProcessors += numMissingAllocations * numberOfThreadsPerAllocation - numExistingProcessorsToBeUsed;
                     extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
@@ -311,20 +304,18 @@ public final class MlAutoscalingResourceTracker {
                             numMissingAllocations
                         )
                     );
-                    processorsNewlyAssignedToTrainedModelsAllocationsThisTime += numExistingProcessorsToBeUsed;
+                    numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
                 }
 
                 existingModelMemoryBytes += estimatedMemoryUsage;
-                sumOfCurrentlyExistingAndUsedProcessors += numTargetAllocationsOnExistingNodes * numberOfThreadsPerAllocation;
+                sumOfCurrentlyExistingAndUsedProcessors += numberOfTargetAllocationsOnExistingNodes * numberOfThreadsPerAllocation;
 
                 for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
-                    perNodeModelMemoryInBytes.computeIfAbsent(node, k -> new ArrayList<>())
+                    jobRequirementsByNode_onlyMemoryUsedCurrently.computeIfAbsent(node, k -> new ArrayList<>())
                         .add(
                             MlJobRequirements.of(
                                 estimatedMemoryUsage,
-                                Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority())
-                                    ? 0
-                                    : numberOfThreadsPerAllocation
+                                Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) ? 0 : 0
                             )
                         );
                 }
@@ -341,16 +332,14 @@ public final class MlAutoscalingResourceTracker {
                 );
 
                 existingModelMemoryBytes += estimatedMemoryUsage;
-                sumOfCurrentlyExistingAndUsedProcessors += numTargetAllocationsOnExistingNodes * numberOfThreadsPerAllocation;
+                sumOfCurrentlyExistingAndUsedProcessors += numberOfTargetAllocationsOnExistingNodes * numberOfThreadsPerAllocation;
 
                 for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
-                    perNodeModelMemoryInBytes.computeIfAbsent(node, k -> new ArrayList<>())
+                    jobRequirementsByNode_onlyMemoryUsedCurrently.computeIfAbsent(node, k -> new ArrayList<>())
                         .add(
                             MlJobRequirements.of(
                                 estimatedMemoryUsage,
-                                Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority())
-                                    ? 0
-                                    : numberOfThreadsPerAllocation
+                                Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) ? 0 : 0
                             )
                         );
                 }
@@ -362,7 +351,7 @@ public final class MlAutoscalingResourceTracker {
 
         // dummy autoscaling entity
         if (dummyEntityFitsOnLeastLoadedNode(
-            perNodeModelMemoryInBytes,
+            jobRequirementsByNode_onlyMemoryUsedCurrently,
             perNodeAvailableModelMemoryBytes,
             perNodeAvailableProcessors,
             dummyAutoscalingEntity
@@ -392,9 +381,9 @@ public final class MlAutoscalingResourceTracker {
             && extraProcessors == 0
             && existingModelMemoryBytes <= perNodeMemoryInBytes * (numberMlNodes - 1)
             && minNodes < numberMlNodes
-            && (perNodeModelMemoryInBytes.size() < numberMlNodes // a node has no assigned jobs
+            && (jobRequirementsByNode_onlyMemoryUsedCurrently.size() < numberMlNodes // a node has no assigned jobs
                 || checkIfOneNodeCouldBeRemoved(
-                    perNodeModelMemoryInBytes,
+                    jobRequirementsByNode_onlyMemoryUsedCurrently,
                     perNodeAvailableModelMemoryBytes,
                     perNodeAvailableProcessors,
                     maxOpenJobsPerNode,
@@ -403,9 +392,9 @@ public final class MlAutoscalingResourceTracker {
             removeNodeMemoryInBytes = perNodeMemoryInBytes;
         }
 
-        if (extraProcessors > 0 && extraSingleNodeProcessors == 0) {
+        if (extraProcessors > 0) {
             // if we need extra processors, we need to tell the elasticsearch-autoscaler that we need at least 1 processor per node
-            extraSingleNodeProcessors = 1;
+            assert extraSingleNodeProcessors > 0;
         }
 
         listener.onResponse(
@@ -425,17 +414,8 @@ public final class MlAutoscalingResourceTracker {
         );
     }
 
-    private static int numberOfAvailableProcessors(
-        MlAutoscalingContext autoscalingContext,
-        int allocatedProcessorsScale,
-        int processorsAllocatedThisCycle
-    ) {
-        return (int) Math.floor(MlProcessors.getTotalMlNodeProcessors(autoscalingContext.mlNodes, allocatedProcessorsScale).count())
-            - processorsAllocatedThisCycle - totalAssignedProcessors(autoscalingContext);
-    }
-
     private static int totalAssignedProcessors(MlAutoscalingContext autoscalingContext) {
-        return autoscalingContext.modelAssignments.values().stream().mapToInt(a -> a.totalTargetAllocations()).sum();
+        return autoscalingContext.modelAssignments.values().stream().mapToInt(TrainedModelAssignment::totalTargetProcessors).sum();
     }
 
     /**

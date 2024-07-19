@@ -69,8 +69,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -91,8 +91,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(0, stats.existingPerNodeMemoryBytes());
@@ -114,8 +114,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(memory / 2, 1),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(0, stats.existingPerNodeMemoryBytes());
@@ -219,8 +219,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 2,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -286,8 +286,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 2,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -351,8 +351,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -378,8 +378,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(memory / 4, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -405,8 +405,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(memory / 4, 1),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -477,8 +477,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -1239,8 +1239,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -1262,8 +1262,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 1),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -1286,8 +1286,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -1379,8 +1379,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -1482,8 +1482,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 4,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -1576,8 +1576,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(perNodeAvailableModelMemoryInBytes, 1),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -1678,8 +1678,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(0L, 9),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());
@@ -1774,8 +1774,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 MlDummyAutoscalingEntity.of(1024, 0),
-                listener,
-                1
+                1,
+                listener
             ),
             stats -> {
                 assertEquals(memory, stats.existingPerNodeMemoryBytes());

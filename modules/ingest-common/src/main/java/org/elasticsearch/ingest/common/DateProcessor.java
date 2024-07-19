@@ -107,7 +107,7 @@ public final class DateProcessor extends AbstractProcessor {
         Object obj = ingestDocument.getFieldValue(field, Object.class);
         String value = null;
         if (obj != null) {
-            // Not use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
+            // Don't use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
             value = obj.toString();
         }
 

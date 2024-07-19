@@ -41,7 +41,8 @@ public class Now extends EsqlConfigurationFunction {
     )
     public Now(Source source, Configuration configuration) {
         super(source, List.of(), configuration);
-        this.now = configuration.now() == null ? System.currentTimeMillis() : configuration.now().toInstant().toEpochMilli();
+        assert configuration.now() != null;
+        this.now = configuration.now().toInstant().toEpochMilli();
     }
 
     private Now(StreamInput in) throws IOException {

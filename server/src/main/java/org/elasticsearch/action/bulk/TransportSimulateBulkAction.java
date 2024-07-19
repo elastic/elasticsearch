@@ -195,7 +195,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                             .build();
-                        final IndexMetadata imd = IndexMetadata.builder(request.index()).settings(dummySettings).putMapping(mappingMetadata).build();
+                        final IndexMetadata imd = IndexMetadata.builder(request.index())
+                            .settings(dummySettings)
+                            .putMapping(mappingMetadata)
+                            .build();
                         indicesService.withTempIndexService(imd, indexService -> {
                             indexService.mapperService().updateMapping(null, imd);
                             return IndexShard.prepareIndex(

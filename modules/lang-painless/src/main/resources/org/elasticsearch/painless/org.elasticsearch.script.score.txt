@@ -13,7 +13,7 @@ class org.elasticsearch.script.ScoreScript @no_import {
 class org.elasticsearch.script.ScoreScript$Factory @no_import {
 }
 
-class org.elasticsearch.script.TermStatsReader {
+class org.elasticsearch.script.ScriptTermStats {
     long uniqueTermsCount()
     long matchedTermsCount()
     DoubleSummaryStatistics docFreq()

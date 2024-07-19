@@ -82,7 +82,7 @@ public abstract class ScoreScript extends DocBasedScript {
     private int shardId = -1;
     private String indexName = null;
 
-    private TermStatsReader termStatsReader = null;
+    private ScriptTermStats termStats = null;
 
     public ScoreScript(Map<String, Object> params, SearchLookup searchLookup, DocReader docReader) {
         // searchLookup parameter is ignored but part of the ScriptFactory contract. It is part of that contract because it's required
@@ -93,7 +93,6 @@ public abstract class ScoreScript extends DocBasedScript {
             assert params == null;
             this.params = null;
             this.docBase = 0;
-            this.termStatsReader = null;
         } else {
             params = new HashMap<>(params);
             params.putAll(docReader.docAsMap());
@@ -195,18 +194,18 @@ public abstract class ScoreScript extends DocBasedScript {
     /**
      * Starting a name with underscore, so that the user cannot access this function directly through a script.
      */
-    public void _setTermStats(TermStatsReader termStatsReader) {
-        this.termStatsReader = termStatsReader;
+    public void _setTermStats(ScriptTermStats termStats) {
+        this.termStats = termStats;
     }
 
     /**
      * Accessed as _termStatistics in the painless script.
      */
-    public TermStatsReader get_termStatistics() {
-        if (termStatsReader == null) {
+    public ScriptTermStats get_termStatistics() {
+        if (termStats == null) {
             throw new IllegalArgumentException("_termStatistics is not available");
         }
-        return termStatsReader;
+        return termStats;
     }
 
     /** A factory to construct {@link ScoreScript} instances. */

@@ -28,20 +28,20 @@ import java.util.function.Supplier;
 /**
  * Access the term statistics of the children query of a script_score query.
  */
-public class TermStatsReader {
+public class ScriptTermStats {
     private static final DoubleSummaryStatistics EMPTY_STATS = new DoubleSummaryStatistics(1, 0, 0, 0);
-    private final IndexSearcher searcher;
-    private final LeafReaderContext leafReaderContext;
     private final Supplier<Integer> docIdSupplier;
-    private final Map<Term, TermStates> termContexts = new HashMap<>();
-    private final Map<Term, PostingsEnum> postings = new HashMap<>();
     private final Set<Term> terms;
+    private final Reader termStatsReader;
 
-    public TermStatsReader(IndexSearcher searcher, Supplier<Integer> docIdSupplier, LeafReaderContext leafReaderContext, Set<Term> terms) {
-        this.searcher = searcher;
+    public ScriptTermStats(IndexSearcher searcher, LeafReaderContext leafReaderContext, Supplier<Integer> docIdSupplier, Set<Term> terms) {
+        this(new Reader(searcher, leafReaderContext), docIdSupplier, terms);
+    }
+
+    ScriptTermStats(Reader termStatsReader, Supplier<Integer> docIdSupplier, Set<Term> terms) {
         this.docIdSupplier = docIdSupplier;
-        this.leafReaderContext = leafReaderContext;
         this.terms = terms;
+        this.termStatsReader = termStatsReader;
     }
 
     /**
@@ -61,7 +61,7 @@ public class TermStatsReader {
     public long matchedTermsCount() {
         return terms.stream().filter(term -> {
             try {
-                PostingsEnum postingsEnum = postings(term);
+                PostingsEnum postingsEnum = termStatsReader.postings(term);
                 int docId = docIdSupplier.get();
                 return postingsEnum != null && postingsEnum.advance(docId) == docId && postingsEnum.freq() > 0;
             } catch (IOException e) {
@@ -79,7 +79,7 @@ public class TermStatsReader {
         DoubleSummaryStatistics docFreqStatistics = new DoubleSummaryStatistics();
 
         for (Term term : terms) {
-            TermStatistics termStats = termStatistics(term);
+            TermStatistics termStats = termStatsReader.termStatistics(term);
             docFreqStatistics.accept(termStats != null ? termStats.docFreq() : 0L);
         }
 
@@ -95,7 +95,7 @@ public class TermStatsReader {
         DoubleSummaryStatistics totalTermFreqStatistics = new DoubleSummaryStatistics();
 
         for (Term term : terms) {
-            TermStatistics termStats = termStatistics(term);
+            TermStatistics termStats = termStatsReader.termStatistics(term);
             totalTermFreqStatistics.accept(termStats != null ? termStats.totalTermFreq() : 0L);
         }
 
@@ -112,7 +112,7 @@ public class TermStatsReader {
 
         for (Term term : terms) {
             try {
-                PostingsEnum postingsEnum = postings(term);
+                PostingsEnum postingsEnum = termStatsReader.postings(term);
                 int docId = docIdSupplier.get();
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
                     termFreqStatistics.accept(0);
@@ -137,7 +137,7 @@ public class TermStatsReader {
 
         for (Term term : terms) {
             try {
-                PostingsEnum postingsEnum = postings(term);
+                PostingsEnum postingsEnum = termStatsReader.postings(term);
                 int docId = docIdSupplier.get();
                 if (postingsEnum == null || postingsEnum.advance(docId) != docId) {
                     continue;
@@ -153,51 +153,70 @@ public class TermStatsReader {
         return termPositionsStatistics.getCount() > 0 ? termPositionsStatistics : EMPTY_STATS;
     }
 
-    private TermStatistics termStatistics(Term term) {
-        try {
-            TermStates termStates = termStates(term);
+    /**
+     * Reader class encapsulating all the logic to read term statistics from the index.
+     */
+    static class Reader {
+        private final IndexSearcher searcher;
+        private final LeafReaderContext leafReaderContext;
+        private final Map<Term, TermStates> termContexts = new HashMap<>();
+        private final Map<Term, PostingsEnum> postings = new HashMap<>();
 
-            if (termStates != null && termStates.docFreq() > 0) {
-                return searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
-            }
-            return searcher.termStatistics(term, 0, 0);
-        } catch (IllegalArgumentException e) {
-            return null;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        private Reader(IndexSearcher searcher, LeafReaderContext leafReaderContext) {
+            this.searcher = searcher;
+            this.leafReaderContext = leafReaderContext;
         }
-    }
 
-    private PostingsEnum postings(Term term) {
-        return postings.computeIfAbsent(term, t -> {
+        PostingsEnum postings(Term term) {
+            return postings.computeIfAbsent(term, t -> {
+                try {
+                    TermStates termStates = termStates(term);
+
+                    if (termStates == null || termStates.docFreq() == 0) {
+                        return null;
+                    }
+
+                    TermState state = termStates.get(leafReaderContext);
+                    if (state == null) {
+                        return null;
+                    }
+
+                    TermsEnum termsEnum = leafReaderContext.reader().terms(term.field()).iterator();
+                    termsEnum.seekExact(term.bytes(), state);
+                    return termsEnum.postings(null, PostingsEnum.ALL);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        }
+
+        TermStatistics termStatistics(Term term) {
             try {
                 TermStates termStates = termStates(term);
 
-                if (termStates == null || termStates.docFreq() == 0) {
-                    return null;
+                if (termStates != null && termStates.docFreq() > 0) {
+                    // Using the searcher to get term statistics. If search_type is dfs, this is how the stats from the DFS phase are read.
+                    return searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
                 }
 
-                TermState state = termStates.get(leafReaderContext);
-                if (state == null) {
-                    return null;
-                }
-
-                TermsEnum termsEnum = leafReaderContext.reader().terms(term.field()).iterator();
-                termsEnum.seekExact(term.bytes(), state);
-                return termsEnum.postings(null, PostingsEnum.ALL);
+                // TermStates is null or docFreq is 0, but we still want try to load term stats using the searcher, so we can retrieve
+                // terms statistics from the DFS phase, even if the term is not present on this shard.
+                return searcher.termStatistics(term, 0, 0);
+            } catch (IllegalArgumentException e) {
+                return null;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        });
-    }
+        }
 
-    private TermStates termStates(Term term) {
-        return termContexts.computeIfAbsent(term, t -> {
-            try {
-                return TermStates.build(searcher, t, true);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
+        private TermStates termStates(Term term) {
+            return termContexts.computeIfAbsent(term, t -> {
+                try {
+                    return TermStates.build(searcher, t, true);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        }
     }
 }

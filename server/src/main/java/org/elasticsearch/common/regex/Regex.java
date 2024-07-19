@@ -48,6 +48,10 @@ public class Regex {
         return str.length() > 1 && str.indexOf('*') == str.length() - 1;
     }
 
+    public static boolean isDottedWildcard(String str) {
+        return isSuffixMatchPattern(str) && str.endsWith(".*");
+    }
+
     /** Return an {@link Automaton} that matches the given pattern. */
     public static Automaton simpleMatchToAutomaton(String pattern) {
         List<Automaton> automata = new ArrayList<>();
@@ -71,9 +75,12 @@ public class Regex {
 
         List<BytesRef> simpleStrings = new ArrayList<>();
         List<Automaton> automata = new ArrayList<>();
+        List<BytesRef> prefixes = new ArrayList<>();
         for (String pattern : patterns) {
             // Strings longer than 1000 characters aren't supported by makeStringUnion
-            if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
+            if (isDottedWildcard(pattern) && pattern.length() < 1000) {
+                prefixes.add(new BytesRef(pattern.substring(0, pattern.length() - 1)));
+            } else if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
                 automata.add(simpleMatchToAutomaton(pattern));
             } else {
                 simpleStrings.add(new BytesRef(pattern));
@@ -87,10 +94,17 @@ public class Regex {
             } else {
                 simpleStringsAutomaton = Automata.makeString(simpleStrings.get(0).utf8ToString());
             }
-            if (automata.isEmpty()) {
+            if (automata.isEmpty() && prefixes.isEmpty()) {
                 return simpleStringsAutomaton;
             }
             automata.add(simpleStringsAutomaton);
+        }
+        if (false == prefixes.isEmpty()) {
+            List<Automaton> prefixAutomaton = new ArrayList<>();
+            Collections.sort(prefixes);
+            prefixAutomaton.add(Automata.makeStringUnion(prefixes));
+            prefixAutomaton.add(Automata.makeAnyString());
+            automata.add(Operations.concatenate(prefixAutomaton));
         }
         return Operations.union(automata);
     }

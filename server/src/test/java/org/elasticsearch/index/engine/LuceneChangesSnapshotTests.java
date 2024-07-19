@@ -295,8 +295,9 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     public void testAccessStoredFieldsSequentially() throws Exception {
+        Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try (Store store = createStore();) {
+        try {
             int smallBatch = between(5, 9);
             long seqNo = 0;
             for (int i = 0; i < smallBatch; i++) {
@@ -376,6 +377,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 assertFalse(snapshot.useSequentialStoredFieldsReader());
             }
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -470,8 +472,9 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     public void testStats() throws Exception {
+        Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try (Store store = createStore()) {
+        try {
             int numOps = between(100, 5000);
             long startingSeqNo = randomLongBetween(0, Integer.MAX_VALUE);
             List<Engine.Operation> operations = generateHistoryOnReplica(
@@ -540,6 +543,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             // Verify count
             assertThat(engine.countChanges("test", fromSeqNo.getAsLong(), toSeqNo.getAsLong()), equalTo(numOps));
         } finally {
+            store.close();
             engine.close();
         }
     }

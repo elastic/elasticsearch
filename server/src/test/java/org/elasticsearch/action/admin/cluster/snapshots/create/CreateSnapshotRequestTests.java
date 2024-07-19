@@ -100,6 +100,10 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             original.masterNodeTimeout(TimeValue.timeValueMinutes(1));
         }
 
+        if (randomBoolean()) {
+            original.uuid(null);
+        }
+
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
         try (
             XContentParser parser = XContentType.JSON.xContent()

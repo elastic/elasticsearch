@@ -277,8 +277,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final String repositoryName = request.repository();
         final String snapshotName = IndexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
-        // TODO: create snapshot UUID in CreateSnapshotRequest and make this operation idempotent to cleanly deal with transport layer
-        // retries
         final String uuid = request.uuid() == null ? UUIDs.randomBase64UUID() : request.uuid();
         final SnapshotId snapshotId = new SnapshotId(snapshotName, uuid); // new UUID for the snapshot
         Repository repository = repositoriesService.repository(request.repository());

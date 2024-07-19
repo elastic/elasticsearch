@@ -100,7 +100,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(jobId, clusterService.state());
         String snapshotName = maybeMetadata.map(policyMetadata -> {
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
-            CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest(TimeValue.MAX_VALUE, UUIDs.randomBase64UUID());
+            CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest(TimeValue.MAX_VALUE);
             final SnapshotId snapshotId = new SnapshotId(request.snapshot(), request.uuid());
 
             submitUnbatchedTask(

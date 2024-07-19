@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,6 +82,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     @Nullable
     private Map<String, Object> userMetadata;
+
+    @Nullable
     private String uuid = null;
 
     public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
@@ -97,6 +100,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         this(masterNodeTimeout);
         this.snapshot = snapshot;
         this.repository = repository;
+        this.uuid = UUIDs.randomBase64UUID();
     }
 
     public CreateSnapshotRequest(StreamInput in) throws IOException {
@@ -373,10 +377,12 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * Set a uuid to identify snapshot.
      * If no uuid is specified, one will be created within SnapshotService
      */
-    public void uuid(String uuid) {
+    public CreateSnapshotRequest uuid(String uuid) {
         this.uuid = uuid;
+        return this;
     }
 
+    @Nullable
     public String uuid() {
         return this.uuid;
     }
@@ -441,6 +447,12 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                         throw new IllegalArgumentException("malformed metadata, should be an object");
                     }
                     userMetadata((Map<String, Object>) entry.getValue());
+                    break;
+                case "uuid":
+                    if (entry.getValue() instanceof String == false) {
+                        throw new IllegalArgumentException("malformed uuid, should be a string");
+                    }
+                    uuid((String) entry.getValue());
                     break;
             }
         }

@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -151,7 +152,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected final DocumentMapper createLogsModeDocumentMapper(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logs").build();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
         return createMapperService(settings, mappings).documentMapper();
     }
 

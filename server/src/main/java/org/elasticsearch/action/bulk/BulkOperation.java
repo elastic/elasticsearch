@@ -479,12 +479,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
             private void processFailure(BulkItemRequest bulkItemRequest, Exception cause) {
                 var errorType = ElasticsearchException.getExceptionName(ExceptionsHelper.unwrapCause(cause));
-                DataStream failureStoreCandidate = getRedirectTargetCandidate(bulkItemRequest.request(), getClusterState().metadata());
+                DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
+                DataStream failureStoreCandidate = getRedirectTargetCandidate(docWriteRequest, getClusterState().metadata());
                 // If the candidate is not null, the BulkItemRequest targets a data stream, but we'll still have to check if
                 // it has the failure store enabled.
                 if (failureStoreCandidate != null) {
-                    // If we can redirect to a failure store, we do so.
-                    if (failureStoreCandidate.isFailureStoreEnabled()) {
+                    // Do not redirect documents to a failure store that were already headed to one.
+                    var isFailureStoreDoc = docWriteRequest instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore();
+                    if (isFailureStoreDoc == false && failureStoreCandidate.isFailureStoreEnabled()) {
+                        // Redirect to failure store.
                         maybeMarkFailureStoreForRollover(failureStoreCandidate);
                         addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreCandidate.getName());
                         failureStoreMetrics.incrementFailureStore(
@@ -499,7 +502,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                             bulkItemRequest.index(),
                             errorType,
                             FailureStoreMetrics.ErrorLocation.SHARD,
-                            bulkItemRequest.request() instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore()
+                            isFailureStoreDoc
                         );
                     }
                 }
@@ -509,8 +512,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     /**
      * Tries to find a <i>candidate</i> redirect target for this write request. A candidate redirect target is a data stream that may or
-     * may not have the failure store enabled. Write requests that have already been redirected to a failure store will not be redirected
-     * again.
+     * may not have the failure store enabled.
      *
      * @param docWriteRequest the write request to check
      * @param metadata cluster state metadata for resolving index abstractions
@@ -519,10 +521,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private static DataStream getRedirectTargetCandidate(DocWriteRequest<?> docWriteRequest, Metadata metadata) {
         // Feature flag guard
         if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            return null;
-        }
-        // Do not resolve a failure store for documents that were already headed to one
-        if (docWriteRequest instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore()) {
             return null;
         }
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support

@@ -8,14 +8,20 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -176,6 +182,49 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             FailureStoreMetrics.ErrorLocation.SHARD
         );
         assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
+    }
+
+    /**
+     * Make sure the rejected counter gets incremented when there were shard-level failures while trying to redirect a document to the
+     * failure store.
+     */
+    public void testRejectionFromFailureStore() throws IOException {
+        putComposableIndexTemplate(true);
+        createDataStream();
+
+        // Initialize failure store.
+        var rolloverRequest = new RolloverRequest(dataStream, null);
+        rolloverRequest.setIndicesOptions(
+            IndicesOptions.builder(rolloverRequest.indicesOptions())
+                .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
+                .build()
+        );
+        var rolloverResponse = client().execute(RolloverAction.INSTANCE, rolloverRequest).actionGet();
+        var failureStoreIndex = rolloverResponse.getNewIndex();
+        // Add a write block to the failure store index, which causes shard-level "failures".
+        var addIndexBlockRequest = new AddIndexBlockRequest(IndexMetadata.APIBlock.WRITE, failureStoreIndex);
+        client().execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest).actionGet();
+
+        int nrOfSuccessfulDocs = randomIntBetween(5, 10);
+        indexDocs(dataStream, nrOfSuccessfulDocs, null);
+        int nrOfFailingDocs = randomIntBetween(5, 10);
+        indexDocs(dataStream, nrOfFailingDocs, "\"foo\"", null);
+
+        var measurements = collectTelemetry();
+        assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), nrOfSuccessfulDocs + nrOfFailingDocs, dataStream);
+        assertMeasurements(
+            measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE),
+            nrOfFailingDocs,
+            dataStream,
+            FailureStoreMetrics.ErrorLocation.SHARD
+        );
+        assertMeasurements(
+            measurements.get(FailureStoreMetrics.METRIC_REJECTED),
+            nrOfFailingDocs,
+            dataStream,
+            FailureStoreMetrics.ErrorLocation.SHARD,
+            true
+        );
     }
 
     /**

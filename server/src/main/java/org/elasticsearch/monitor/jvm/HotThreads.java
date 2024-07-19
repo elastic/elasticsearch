@@ -106,8 +106,8 @@ public class HotThreads {
     }
 
     /**
-     * Capture and log the current threads on the local node. Unlike hot threads this does nto sample and captures current state only.
-     * Useful for capturing stack traces for unexpectedly-slow operations in production. The resulting message might be large so it is
+     * Capture and log the current threads on the local node. Unlike hot threads this does not sample and captures current state only.
+     * Useful for capturing stack traces for unexpectedly-slow operations in production. The resulting message might be large, so it is
      * split per thread and logged as multiple entries.
      *
      * @param logger        The logger to use for the logging
@@ -122,7 +122,7 @@ public class HotThreads {
 
         try (var writer = new StringWriter()) {
             new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).ignoreIdleThreads(false).detect(writer, () -> {
-                logger.log(level, "{}: {}", prefix, writer.toString(), referenceDocs);
+                logger.log(level, "{}: {} \n (for details see {})", prefix, writer.toString(), referenceDocs);
                 writer.getBuffer().setLength(0);
             });
         } catch (Exception e) {

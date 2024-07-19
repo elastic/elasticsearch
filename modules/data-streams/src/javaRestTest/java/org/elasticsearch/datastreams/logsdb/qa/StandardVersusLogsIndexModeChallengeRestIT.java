@@ -99,7 +99,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void contenderSettings(Settings.Builder builder) {
-        builder.put("index.mode", "logs");
+        builder.put("index.mode", "logsdb");
         settings(builder);
     }
 

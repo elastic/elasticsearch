@@ -128,6 +128,21 @@ public class LogConfigurator {
         configureESLogging();
         configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
         initializeStatics();
+        // creates a permanent status logger that can watch for StatusLogger events and forward to a real logger
+        configureStatusLoggerForwarder();
+    }
+
+    private static void configureStatusLoggerForwarder() {
+        // the real logger is lazily retrieved here since logging won't yet be setup during clinit of this class
+        var logger = LogManager.getLogger("StatusLogger");
+        var listener = new StatusConsoleListener(Level.WARN) {
+            @Override
+            public void log(StatusData data) {
+                logger.log(data.getLevel(), data.getMessage(), data.getThrowable());
+                super.log(data);
+            }
+        };
+        StatusLogger.getLogger().registerListener(listener);
     }
 
     public static void configureESLogging() {

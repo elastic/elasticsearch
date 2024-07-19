@@ -548,7 +548,27 @@
     - match:  { tokens.1.token: foob }
     - match:  { tokens.2.token: fooba }
     - match:  { tokens.3.token: foobar }
+---
+"edge_ngram side deprecated":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'side parameter is deprecated since 8.16.0'
+      test_runner_features: warnings
 
+  - do:
+      warnings:
+        - "The [side] parameter is deprecated and will be removed. Use a [reverse] before and after the [edge_ngram] instead."
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              filter:
+                my_edge_ngram:
+                  type: edge_ngram
+                  min_gram: 3
+                  side: front
+                  max_gram: 6
 ---
 "kstem":
     - do:

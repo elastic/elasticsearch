@@ -96,7 +96,7 @@ public class FailureStoreDocumentConverter {
                 if (source.routing() != null) {
                     builder.field("routing", source.routing());
                 }
-                builder.field("index", source.index());
+                builder.field("index", targetIndexName);
                 // Unmapped source field
                 builder.startObject("source");
                 {

@@ -113,16 +113,15 @@ public class HotThreads {
      * @param logger        The logger to use for the logging
      * @param level         The log level to use for the logging.
      * @param prefix        The prefix to emit on each chunk of the logging.
-     * @param referenceDocs A link to the docs describing how to decode the logging.
      */
-    public static void logLocalCurrentThreads(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) {
+    public static void logLocalCurrentThreads(Logger logger, Level level, String prefix) {
         if (logger.isEnabled(level) == false) {
             return;
         }
 
         try (var writer = new StringWriter()) {
             new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).ignoreIdleThreads(false).detect(writer, () -> {
-                logger.log(level, "{}: {} \n (for details see {})", prefix, writer.toString(), referenceDocs);
+                logger.log(level, "{}: {}", prefix, writer.toString());
                 writer.getBuffer().setLength(0);
             });
         } catch (Exception e) {

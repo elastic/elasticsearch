@@ -343,6 +343,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source(ctx), "MATCH command currently requires a snapshot build");
+        }
         String queryString = visitString(ctx.string()).fold().toString();
         return input -> new QueryStringFilter(source(ctx), input, queryString);
     }

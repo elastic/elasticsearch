@@ -1634,10 +1634,10 @@ public abstract class EngineTestCase extends ESTestCase {
         try {
             future.get(30, TimeUnit.SECONDS);
         } catch (ExecutionException e) {
-            if (e.getCause()instanceof IOException ioException) {
+            if (e.getCause() instanceof IOException ioException) {
                 throw ioException;
             }
-            if (e.getCause()instanceof RuntimeException runtimeException) {
+            if (e.getCause() instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
             fail(e);

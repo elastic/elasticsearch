@@ -14,14 +14,15 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BytesCountingFilterInputStreamTests extends ESTestCase {
+public class CountingFilterInputStreamTests extends ESTestCase {
 
     public void testBytesCounting() throws IOException {
         final byte[] input = randomByteArrayOfLength(between(500, 1000));
-        final var in = new BytesCountingFilterInputStream(new ByteArrayInputStream(input));
+        final var in = new CountingFilterInputStream(new ByteArrayInputStream(input));
 
         assertThat(in.getBytesRead(), equalTo(0));
 
@@ -84,11 +85,13 @@ public class BytesCountingFilterInputStreamTests extends ESTestCase {
         assertThat(in.getBytesRead(), equalTo(input.length));
 
         // Read beyond available data has no effect
-        in.read();
+        assertThat(in.read(), equalTo(-1));
         final byte[] bytes = new byte[between(20, 30)];
-        in.read(bytes);
-        in.read(bytes, between(3, 5), between(5, 10));
-        in.skip(between(10, 20));
+        assertThat(in.read(bytes), equalTo(-1));
+        IntStream.range(0, bytes.length).forEach(i -> assertThat(bytes[i], equalTo((byte) 0)));
+        assertThat(in.read(bytes, between(3, 5), between(5, 10)), equalTo(-1));
+        IntStream.range(0, bytes.length).forEach(i -> assertThat(bytes[i], equalTo((byte) 0)));
+        assertThat(in.skip(between(10, 20)), equalTo(0L));
 
         assertThat(in.getBytesRead(), equalTo(input.length));
     }

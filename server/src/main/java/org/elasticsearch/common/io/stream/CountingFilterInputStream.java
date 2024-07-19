@@ -12,11 +12,11 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class BytesCountingFilterInputStream extends FilterInputStream {
+public class CountingFilterInputStream extends FilterInputStream {
 
     private int bytesRead = 0;
 
-    public BytesCountingFilterInputStream(InputStream in) {
+    public CountingFilterInputStream(InputStream in) {
         super(in);
     }
 

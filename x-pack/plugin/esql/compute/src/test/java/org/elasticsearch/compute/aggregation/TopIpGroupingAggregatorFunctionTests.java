@@ -18,9 +18,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
@@ -58,7 +56,7 @@ public class TopIpGroupingAggregatorFunctionTests extends GroupingAggregatorFunc
         Object[] values = input.stream().flatMap(b -> allBytesRefs(b, group)).sorted().limit(LIMIT).toArray(Object[]::new);
         if (values.length == 0) {
             assertThat(result.isNull(position), equalTo(true));
-        }else if (values.length == 1) {
+        } else if (values.length == 1) {
             assertThat(BlockUtils.toJavaObject(result, position), equalTo(values[0]));
         } else {
             assertThat((List<?>) BlockUtils.toJavaObject(result, position), contains(values));

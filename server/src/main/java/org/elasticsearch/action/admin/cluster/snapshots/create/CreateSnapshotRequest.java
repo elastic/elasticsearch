@@ -382,8 +382,11 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         return this;
     }
 
-    @Nullable
     public String uuid() {
+        // If request was constructed on node with transport version < PRE_REGISTER_SLM_STATS it will not have a uuid yet
+        if (this.uuid == null) {
+            this.uuid = UUIDs.randomBase64UUID();
+        }
         return this.uuid;
     }
 

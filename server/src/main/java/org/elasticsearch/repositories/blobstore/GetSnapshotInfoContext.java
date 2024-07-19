@@ -22,7 +22,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
 /**
- * Describes the context of fetching one or more {@link SnapshotInfo} via {@link Repository#getSnapshotInfo}.
+ * A context through which a consumer can act on one or more {@link SnapshotInfo} via {@link Repository#getSnapshotInfo}.
  */
 final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo> {
 

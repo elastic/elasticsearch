@@ -261,9 +261,7 @@ public enum DataType {
         if (left == right) {
             return true;
         } else {
-            return (left == NULL || right == NULL)
-                || (isString(left) && isString(right))
-                || (left.isNumeric() && right.isNumeric());
+            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
         }
     }
 

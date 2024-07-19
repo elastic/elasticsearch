@@ -13,11 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -60,23 +58,12 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
     private DefaultOperatorOnlyRegistry operatorOnlyRegistry;
     private OperatorPrivilegesService operatorPrivilegesService;
 
-    private ClusterService clusterService;
-    private FeatureService featureService;
-
     @Before
     public void init() {
         xPackLicenseState = mock(MockLicenseState.class);
         fileOperatorUsersStore = mock(FileOperatorUsersStore.class);
         operatorOnlyRegistry = mock(DefaultOperatorOnlyRegistry.class);
-        clusterService = mock(ClusterService.class);
-        featureService = mock(FeatureService.class);
-        operatorPrivilegesService = new DefaultOperatorPrivilegesService(
-            xPackLicenseState,
-            fileOperatorUsersStore,
-            operatorOnlyRegistry,
-            clusterService,
-            featureService
-        );
+        operatorPrivilegesService = new DefaultOperatorPrivilegesService(xPackLicenseState, fileOperatorUsersStore, operatorOnlyRegistry);
     }
 
     public void testWillMarkThreadContextForAllLicenses() {
@@ -292,11 +279,16 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         );
         assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
         assertThat(ex, throwableWithMessage("violation!"));
+        verify(restRequest, never()).markAsOperatorRequest();
         Mockito.clearInvocations(operatorOnlyRegistry);
+        Mockito.clearInvocations(restRequest);
 
         // is an operator
         threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
         verifyNoInteractions(operatorOnlyRegistry);
         assertTrue(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
+        verify(restRequest, times(1)).markAsOperatorRequest();
+        Mockito.clearInvocations(operatorOnlyRegistry);
+        Mockito.clearInvocations(restRequest);
     }
 }

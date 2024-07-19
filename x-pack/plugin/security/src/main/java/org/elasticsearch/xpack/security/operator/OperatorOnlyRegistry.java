@@ -23,23 +23,18 @@ public interface OperatorOnlyRegistry {
     OperatorPrivilegesViolation check(String action, TransportRequest request);
 
     /**
-     * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API.
+     * Checks to see if a given {@link RestHandler} is subject to full restrictions for the REST API.
      *
-     * Any REST API may be fully or partially restricted.
      * A fully restricted REST API mandates that the implementation of this method throw an
      * {@link org.elasticsearch.ElasticsearchStatusException} with an appropriate status code and error message.
      *
-     * A partially restricted REST API is available to non-operator users but either the request or response for it is restricted
+     * An API may also be partially restricted: available to all users but with request or response restrictions,
      * (e.g., certain fields are not allowed in the request).
-     *
-     * The implementation of this method should mark all {@link RestRequest}s for APIs that are *not* fully restricted as candidates
-     * for partial restriction. It's the responsibility of the downstream REST handler to apply the necessary partial restrictions
-     * (if any).
+     * Partial restrictions are handled by the REST handler itself, not by this method.
      *
      * @param restHandler The {@link RestHandler} to check for any full restrictions
-     * @param restRequest The {@link RestRequest} to mark all REST APIs that are not fully restricted as possible subjects to partial
-     *                    restrictions
-     * @throws ElasticsearchStatusException if the request should be denied in its entirety (fully restricted)
+     * @param restRequest The {@link RestRequest} to provide context for restriction failures
+     * @throws ElasticsearchStatusException if the request should be denied due to a full restriction
      */
     void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;
 

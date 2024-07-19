@@ -281,8 +281,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            SnapshotLifecycleMetadata snapMeta =
-                currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata()
+                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
 
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);

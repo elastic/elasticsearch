@@ -58,7 +58,7 @@ double e()
 "double|integer|long|unsigned_long mv_sum(number:double|integer|long|unsigned_long)"
 "keyword mv_zip(string1:keyword|text, string2:keyword|text, ?delim:keyword|text)"
 date now()
-"double|integer|long percentile(number:double|integer|long, percentile:double|integer|long)"
+"double percentile(number:double|integer|long, percentile:double|integer|long)"
 double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
 "keyword repeat(string:keyword|text, number:integer)"
@@ -301,7 +301,7 @@ mv_sort       |Sorts a multivalued field in lexicographical order.
 mv_sum        |Converts a multivalued field into a single valued field containing the sum of all of the values.
 mv_zip        |Combines the values from two multivalued fields with a delimiter that joins them together.
 now           |Returns current date and time.
-percentile    |The value at which a certain percentage of observed values occur.
+percentile    |Returns the value at which a certain percentage of observed values occur. For example, the 95th percentile is the value which is greater than 95% of the observed values and the 50th percentile is the `MEDIAN`.
 pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.
 pow           |Returns the value of `base` raised to the power of `exponent`.
 repeat        |Returns a string constructed by concatenating `string` with itself the specified `number` of times.
@@ -424,7 +424,7 @@ mv_sort       |"boolean|date|double|integer|ip|keyword|long|text|version"       
 mv_sum        |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 mv_zip        |keyword                                                                                                                     |[false, false, true]        |false           |false
 now           |date                                                                                                                        |null                        |false           |false
-percentile    |"double|integer|long"                                                                                                       |[false, false]              |false           |true
+percentile    |double                                                                                                                      |[false, false]              |false           |true
 pi            |double                                                                                                                      |null                        |false           |false
 pow           |double                                                                                                                      |[false, false]              |false           |false
 repeat        |keyword                                                                                                                     |[false, false]              |false           |false

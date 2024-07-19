@@ -123,7 +123,7 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean isLogsModeIndex() {
-        return mapperService != null && IndexMode.LOGS == mapperService.getIndexSettings().getMode();
+        return mapperService != null && IndexMode.LOGSDB == mapperService.getIndexSettings().getMode();
     }
 
 }

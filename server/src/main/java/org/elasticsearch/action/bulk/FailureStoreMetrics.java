@@ -43,9 +43,9 @@ public class FailureStoreMetrics {
     }
 
     /**
-     * This counter tracks the number of documents that we <i>tried</i> to index into a data stream. This includes dropped documents.
-     * This counter will only be incremented once for every incoming document (even when it gets redirected to the failure store and/or gets
-     * rejected).
+     * This counter tracks the number of documents that we <i>tried</i> to index into a data stream. This includes documents
+     * that were dropped by a pipeline. This counter will only be incremented once for every incoming document (even when it gets
+     * redirected to the failure store and/or gets rejected).
      * @param dataStream the name of the data stream
      */
     public void incrementTotal(String dataStream) {

@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.QueryStringFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -200,6 +201,8 @@ public class LocalExecutionPlanner {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
             return planFilter(filter, context);
+        } else if (node instanceof QueryStringFilterExec filter) {
+            return planQueryStringFilter(filter, context);
         } else if (node instanceof LimitExec limit) {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
@@ -613,6 +616,12 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
         return source.with(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout);
+    }
+
+    private PhysicalOperation planQueryStringFilter(QueryStringFilterExec queryStringFilter, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(queryStringFilter.child(), context);
+        // TODO: Do we need a QueryStringFilterOperator here? Can we apply query string filter directly on the Page?
+        return source;
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {

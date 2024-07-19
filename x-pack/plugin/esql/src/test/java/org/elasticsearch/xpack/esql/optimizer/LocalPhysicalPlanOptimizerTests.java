@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.QueryStringFilterExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -367,6 +368,31 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             | stats c = count(), call = count(*), c_literal = count(1)
             """, IS_SV_STATS);
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
+     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"\"last_name: Smith\"","fields":[]}}][_doc{f}#12], limit[1000], sort[] estimatedRowSize[324]
+     */
+    public void testMatchCommand() {
+        var plan = plannerOptimizer.plan("""
+            from test
+            | match "last_name: Smith"
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.queryStringQuery("last_name: Smith");
+        assertThat(query.query().toString(), is(expected.toString()));
     }
 
     // optimizer doesn't know yet how to break down different multi count

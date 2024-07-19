@@ -39,7 +39,9 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.QueryStringFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -85,6 +88,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -124,6 +128,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
+            esSourceRules.add(new PushQueryStringFiltersToSource());
             esSourceRules.add(new PushStatsToSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
         }
@@ -176,6 +181,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     //
     // 1. add the materialization right before usage inside the local plan
     // 2. materialize any missing fields needed further up the chain
+
     /**
      * @see org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer.ProjectAwayColumns
      */
@@ -316,6 +322,34 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     || operation instanceof WildcardLike;
             }
             return false;
+        }
+    }
+
+    public static class PushQueryStringFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        QueryStringFilterExec,
+        LocalPhysicalOptimizerContext> {
+
+        @Override
+        protected PhysicalPlan rule(QueryStringFilterExec queryStringFilterExec, LocalPhysicalOptimizerContext ctx) {
+            PhysicalPlan plan = queryStringFilterExec;
+            if (queryStringFilterExec.child() instanceof EsQueryExec queryExec) {
+                // TODO Check attributes that can be pushed and not
+                Query queryDSL = new QueryStringQuery(queryStringFilterExec.source(), queryStringFilterExec.queryString(), Map.of(), null);
+                QueryBuilder planQuery = queryDSL.asBuilder();
+                var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
+                plan = new EsQueryExec(
+                    queryExec.source(),
+                    queryExec.index(),
+                    queryExec.indexMode(),
+                    queryExec.output(),
+                    query,
+                    queryExec.limit(),
+                    queryExec.sorts(),
+                    queryExec.estimatedRowSize()
+                );
+            }
+
+            return plan;
         }
     }
 

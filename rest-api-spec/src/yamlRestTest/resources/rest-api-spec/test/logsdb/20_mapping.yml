@@ -21,7 +21,7 @@ stored _source mode is not supported:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
           mappings:
             _source:
               mode: stored
@@ -58,7 +58,7 @@ disabled _source is not supported:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
           mappings:
             _source:
               enabled: false
@@ -79,7 +79,7 @@ disabled _source is not supported:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
           mappings:
             _source:
               mode: disabled

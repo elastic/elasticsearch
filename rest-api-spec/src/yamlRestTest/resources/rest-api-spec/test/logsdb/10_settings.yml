@@ -130,7 +130,7 @@ missing hostname field:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -170,7 +170,7 @@ missing sort field:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               sort:
@@ -211,7 +211,7 @@ non-default sort settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -264,7 +264,7 @@ override sort order settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -312,7 +312,7 @@ override sort missing settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -360,7 +360,7 @@ override sort mode settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -409,7 +409,7 @@ override sort field using nested field type in sorting:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               sort:
@@ -455,7 +455,7 @@ override sort field using nested field type:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -496,7 +496,7 @@ routing path not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               routing_path: [ "host.name", "agent_id" ]
@@ -536,7 +536,7 @@ start time not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               time_series:
@@ -577,7 +577,7 @@ end time not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               time_series:

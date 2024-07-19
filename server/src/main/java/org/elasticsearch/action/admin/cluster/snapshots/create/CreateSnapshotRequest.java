@@ -448,12 +448,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     }
                     userMetadata((Map<String, Object>) entry.getValue());
                     break;
-                case "uuid":
-                    if (entry.getValue() instanceof String == false) {
-                        throw new IllegalArgumentException("malformed uuid, should be a string");
-                    }
-                    uuid((String) entry.getValue());
-                    break;
             }
         }
         indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
@@ -475,9 +469,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             indicesOptions.toXContent(builder, params);
         }
         builder.field("metadata", userMetadata);
-        if (uuid != null) {
-            builder.field("uuid", uuid);
-        }
         builder.endObject();
         return builder;
     }

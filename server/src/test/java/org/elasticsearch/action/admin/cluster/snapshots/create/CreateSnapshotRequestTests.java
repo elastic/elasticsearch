@@ -100,10 +100,6 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             original.masterNodeTimeout(TimeValue.timeValueMinutes(1));
         }
 
-        if (randomBoolean()) {
-            original.uuid(null);
-        }
-
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
         try (
             XContentParser parser = XContentType.JSON.xContent()
@@ -117,6 +113,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             );
             processed.waitForCompletion(original.waitForCompletion());
             processed.masterNodeTimeout(original.masterNodeTimeout());
+            processed.uuid(original.uuid());
             processed.source(map);
 
             assertEquals(original, processed);

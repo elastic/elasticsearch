@@ -5,7 +5,7 @@ stored _source mode is not supported:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [logs_index_mode]
+          capabilities: [logsdb_index_mode]
       reason: "Support for 'logs' index mode capability required"
 
   - skip:
@@ -42,7 +42,7 @@ disabled _source is not supported:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [logs_index_mode]
+          capabilities: [logsdb_index_mode]
       reason: "Support for 'logs' index mode capability required"
 
   - skip:

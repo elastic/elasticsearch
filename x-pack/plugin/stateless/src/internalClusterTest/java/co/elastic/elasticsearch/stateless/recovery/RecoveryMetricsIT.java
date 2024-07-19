@@ -346,10 +346,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat("No bytes read from indexing", metric.getLong(), equalTo(0L));
             assertMetricAttributes(metric, indexName, 0, true);
         }
-
-        // in non-RCO setup, cache warming goes directly through `BlobContainer` bypassing `CacheBlobReader`
-        // hence metrics above might not be emitted if all needed files were already fetched
-        // note that this metrics tracks copied bytes both for RCO and non-RCO environments
         {
             final List<Measurement> measurements = plugin.getLongCounterMeasurement(
                 SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC

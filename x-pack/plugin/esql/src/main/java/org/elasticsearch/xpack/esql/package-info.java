@@ -111,7 +111,7 @@
  * <h3>Core Classes</h3>
  * {@link org.elasticsearch.xpack.esql.core} - Core Utility Classes
  * <ul>
- *     <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - Manages state across a query</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - Connects all major components and contains the high-level code for query execution</li>
  *     <li>{@link org.elasticsearch.xpack.esql.core.type.DataType} - ES|QL is a typed language, and all the supported data types
  *     are listed in this collection.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.core.expression.Expression} - Expression is the basis for all functions in ES|QL,
@@ -123,7 +123,7 @@
  * </ul>
  *
  * <h3>Query Planner</h3>
- * <p>The query planner encompasses a huge chunk of serving a query.  Essentially, this covers everything from the output of the Antlr
+ * <p>The query planner encompasses the logic of how to serve a query. Essentially, this covers everything from the output of the Antlr
  * parser through to the actual computations and lucene operations.</p>
  * <p>Two key concepts in the planner layer:</p>
  * <ul>
@@ -148,14 +148,14 @@
  *     the query (i.e. not factoring in information about the backing indices).  The bulk of query transformations happen in this step.
  *     This has two important sub-phases:
  *     <ul>
- *         <li>The Substitution phase rewrites things to expand out shorthand in the syntax.  For example, an eval embedded in a
- *         stats gets replaced with an eval followed by a stats.  This phase also applies aggregation surrogates, such as replacing
- *         an average with a sum and a count.</li>
+ *         <li>The Substitution phase rewrites things to expand out shorthand in the syntax.  For example, a nested expression embedded in a
+ *         stats gets replaced with an eval followed by a stats, followed by another eval.  This phase also applies surrogates, such as replacing
+ *         an average with a sum divided by a count.</li>
  *         <li>"Operator Optimization" (NB: The word "operator" is extremely overloaded and referrers to many different things.) transform
  *         the tree in various different ways.  This includes folding (i.e. computing constant expressions at parse time), combining
  *         expressions, dropping redundant clauses, and some normalization such as putting literals on the right whenever possible.  These
- *         rules are run in a loop until none of the rules make any changes to the plan (there is also a safety shut off at 100
- *         iterations, although we expect to never hit that)</li>
+ *         rules are run in a loop until none of the rules make any changes to the plan (there is also a safety shut off after many
+ *         iterations, although hitting that is considered a bug)</li>
  *     </ul>
  *     </li>
  *     <li>{@link org.elasticsearch.xpack.esql.planner.Mapper} - Translates the logical plan into a physical plan.  This is where we start

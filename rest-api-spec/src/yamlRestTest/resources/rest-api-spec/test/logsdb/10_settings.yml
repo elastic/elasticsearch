@@ -5,8 +5,8 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [logs_index_mode]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [logsdb_index_mode]
+      reason: "Support for 'logsdb' index mode capability required"
 
 ---
 create logs index:
@@ -15,8 +15,8 @@ create logs index:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -171,7 +171,7 @@ missing sort field:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               sort:
@@ -202,8 +202,8 @@ non-default sort settings:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -212,7 +212,7 @@ non-default sort settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -255,8 +255,8 @@ override sort order settings:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -265,7 +265,7 @@ override sort order settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -303,8 +303,8 @@ override sort missing settings:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -313,7 +313,7 @@ override sort missing settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -351,8 +351,8 @@ override sort mode settings:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -361,7 +361,7 @@ override sort mode settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -400,8 +400,8 @@ override sort field using nested field type in sorting:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -410,7 +410,7 @@ override sort field using nested field type in sorting:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               sort:
@@ -447,8 +447,8 @@ override sort field using nested field type:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -456,7 +456,7 @@ override sort field using nested field type:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -487,8 +487,8 @@ routing path not allowed in logs mode:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -497,7 +497,7 @@ routing path not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               routing_path: [ "host.name", "agent_id" ]
@@ -527,8 +527,8 @@ start time not allowed in logs mode:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -537,7 +537,7 @@ start time not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               time_series:
@@ -568,8 +568,8 @@ end time not allowed in logs mode:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -578,7 +578,7 @@ end time not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               time_series:

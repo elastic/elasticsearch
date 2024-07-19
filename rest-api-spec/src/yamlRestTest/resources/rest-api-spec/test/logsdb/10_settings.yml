@@ -125,7 +125,6 @@ missing hostname field:
       reason: "Support for 'logs' index mode capability required"
 
   - do:
-      catch: bad_request
       indices.create:
         index: test-hostname-missing
         body:
@@ -147,9 +146,12 @@ missing hostname field:
               message:
                 type: text
 
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "unknown index sort field:[host.name]" }
+  - do:
+      indices.get_settings:
+        index: test-hostname-missing
+
+  - is_true: test-hostname-missing
+  - match: { test-hostname-missing.settings.index.mode: "logs" }
 
 ---
 missing sort field:

@@ -16,6 +16,7 @@ ROW column1 = value1[, ..., columnN = valueN]
 
 `columnX`::
 The column name.
+In case of duplicate column names, only the rightmost duplicate creates a column.
 
 `valueX`::
 The value for the column. Can be a literal, an expression, or a

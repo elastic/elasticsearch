@@ -28,6 +28,7 @@ import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
+import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
@@ -165,6 +166,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         final String connectionString = settings.getConnectString();
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
+            .credential(new DefaultAzureCredentialBuilder().build())
             .httpClient(httpClient)
             .retryOptions(retryOptions);
 

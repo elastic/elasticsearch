@@ -30,10 +30,6 @@ public class YamlIngestPipelineConfig extends IngestPipelineConfig {
     @Override
     public BytesReference loadConfig() {
         return new BytesArray(loadVersionedResourceUTF8(clazz, "/ingest-pipelines/" + id + ".yaml", version, versionProperty, variables));
-        //return null; // TODO
-
-        //orig:
-        // return new BytesArray(loadVersionedResourceUTF8("/ingest-pipelines/" + id + ".yaml", version, variables));
     }
 
 

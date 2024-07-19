@@ -54,7 +54,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of(
         "xpack.stack.template.deprecated",
         "true",
-        "xpack.stack.template.logs.index.mode",
+        "xpack.stack.template.logsdb.index.mode",
         "standard"
     );
 

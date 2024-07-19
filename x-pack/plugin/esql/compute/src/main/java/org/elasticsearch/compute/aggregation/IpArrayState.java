@@ -66,9 +66,10 @@ public final class IpArrayState extends AbstractArrayState implements GroupingAg
     }
 
     void set(int groupId, BytesRef ip) {
+        assert ip.length == IP_LENGTH;
         ensureCapacity(groupId);
         var ipIndex = getIndex(groupId);
-        values.set(ipIndex, ip.bytes, ip.offset, IP_LENGTH);
+        values.set(ipIndex, ip.bytes, ip.offset, ip.length);
         trackGroupId(groupId);
     }
 

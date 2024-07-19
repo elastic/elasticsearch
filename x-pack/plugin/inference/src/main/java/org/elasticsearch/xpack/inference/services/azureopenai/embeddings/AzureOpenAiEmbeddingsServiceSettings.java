@@ -248,6 +248,11 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

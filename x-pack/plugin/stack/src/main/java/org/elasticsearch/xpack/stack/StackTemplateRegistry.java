@@ -146,7 +146,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             ),
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                logsDbEnabled ? "/logs@mappings-logsdb.json" : "/logs@mappings.json",
+                "/logs@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES

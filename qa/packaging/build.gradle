@@ -36,13 +36,3 @@ tasks.named("test").configure { enabled = false }
 tasks.register('destructivePackagingTest') {
   dependsOn 'destructiveDistroTest'
 }
-
-tasks.named('resolveAllDependencies') {
-  // Don't try and resolve all distros but only the latest patch versions of each minor
-  def latestBugfixVersions = org.elasticsearch.gradle.internal.info.BuildParams.getBwcVersions().getIndexCompatible()
-      .groupBy { [it.major, it.minor] }
-      .collectEntries { key, value -> [key, value.max()] }
-      .values()
-
-  configs = configurations.matching { configName -> latestBugfixVersions.any { v -> configName.name.endsWith(v.toString()) } }
-}

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.QueryStringFilter;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.QueryStringFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -119,6 +121,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         MvExpandExec.class,
         OrderExec.class,
         ProjectExec.class,
+        QueryStringFilterExec.class,
         RowExec.class,
         ShowExec.class,
         TopNExec.class
@@ -153,6 +156,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         MvExpand.class,
         OrderBy.class,
         Project.class,
+        QueryStringFilter.class,
         TopN.class
     );
 

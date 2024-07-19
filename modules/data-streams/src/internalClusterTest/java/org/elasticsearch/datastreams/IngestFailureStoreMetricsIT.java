@@ -69,12 +69,12 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     private String pipeline;
 
     @Before
-    public void initialize() {
+    public void initializeRandomNames() {
         template = "template-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         dataStream = "data-stream-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         pipeline = "pipeline-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         logger.info(
-            "--> running [{}] with data stream [{}], template [{}] and pipeline [{}]",
+            "--> running [{}] with generated names data stream [{}], template [{}] and pipeline [{}]",
             getTestName(),
             dataStream,
             template,

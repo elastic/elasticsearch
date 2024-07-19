@@ -60,7 +60,7 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         if (left == null) {
             return right == null ? 0 : -1; // nulls last
         }
-        return right == null ? -1 : left.getMin().compareTo(right.getMin());
+        return right == null ? 1 : left.getMin().compareTo(right.getMin());
     };
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -68,7 +68,7 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         if (left == null) {
             return right == null ? 0 : 1; // nulls first
         }
-        return right == null ? 1 : right.getMax().compareTo(left.getMax());
+        return right == null ? -1 : right.getMax().compareTo(left.getMax());
     };
 
     /**

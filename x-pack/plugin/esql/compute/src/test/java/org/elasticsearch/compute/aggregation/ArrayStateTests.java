@@ -181,14 +181,14 @@ public class ArrayStateTests extends ESTestCase {
         };
     }
 
-    private void set(AbstractArrayState state, int groupdId, Object value) {
+    private void set(AbstractArrayState state, int groupId, Object value) {
         switch (type) {
-            case INTEGER -> ((IntArrayState) state).set(groupdId, (Integer) value);
-            case LONG -> ((LongArrayState) state).set(groupdId, (Long) value);
-            case FLOAT -> ((FloatArrayState) state).set(groupdId, (Float) value);
-            case DOUBLE -> ((DoubleArrayState) state).set(groupdId, (Double) value);
-            case BOOLEAN -> ((BooleanArrayState) state).set(groupdId, (Boolean) value);
-            case IP -> ((IpArrayState) state).set(groupdId, (BytesRef) value);
+            case INTEGER -> ((IntArrayState) state).set(groupId, (Integer) value);
+            case LONG -> ((LongArrayState) state).set(groupId, (Long) value);
+            case FLOAT -> ((FloatArrayState) state).set(groupId, (Float) value);
+            case DOUBLE -> ((DoubleArrayState) state).set(groupId, (Double) value);
+            case BOOLEAN -> ((BooleanArrayState) state).set(groupId, (Boolean) value);
+            case IP -> ((IpArrayState) state).set(groupId, (BytesRef) value);
             default -> throw new IllegalArgumentException();
         }
     }
@@ -200,7 +200,7 @@ public class ArrayStateTests extends ESTestCase {
             case FLOAT -> ((FloatArrayState) state).get(index);
             case DOUBLE -> ((DoubleArrayState) state).get(index);
             case BOOLEAN -> ((BooleanArrayState) state).get(index);
-            case IP -> ((IpArrayState) state).get(index);
+            case IP -> ((IpArrayState) state).get(index, new BytesRef());
             default -> throw new IllegalArgumentException();
         };
     }

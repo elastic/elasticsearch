@@ -80,7 +80,14 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     }
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
-    private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
+
+    /**
+     * HTTP header names
+     */
+    public static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
+    public static final String HEADER_NAME_ASYNC_ID = "Async-ID";
+    public static final String HEADER_NAME_ASYNC_RUNNING = "Async-running";
+
     private final RestChannel channel;
     private final RestRequest restRequest;
     private final MediaType mediaType;
@@ -139,6 +146,10 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     ChunkedRestResponseBodyPart.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
                     releasable
                 );
+                if (esqlResponse.asyncExecutionId().isPresent()) {
+                    restResponse.addHeader(HEADER_NAME_ASYNC_ID, esqlResponse.asyncExecutionId().get());
+                    restResponse.addHeader(HEADER_NAME_ASYNC_RUNNING, String.valueOf(esqlResponse.isRunning()));
+                }
             } else if (mediaType == ArrowFormat.INSTANCE) {
                 ArrowResponse arrowResponse = new ArrowResponse(
                     // Map here to avoid cyclic dependencies between the arrow subproject and its parent

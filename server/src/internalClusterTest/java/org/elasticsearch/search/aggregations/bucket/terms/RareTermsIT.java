@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
@@ -32,7 +33,10 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Test that index enough data to trigger the creation of Cuckoo filters.
  */
-
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/110790",
+    value = "org.elasticsearch.action.search:TRACE," + "org.elasticsearch.search.SearchService:TRACE"
+)
 public class RareTermsIT extends ESSingleNodeTestCase {
 
     private static final String index = "idx";

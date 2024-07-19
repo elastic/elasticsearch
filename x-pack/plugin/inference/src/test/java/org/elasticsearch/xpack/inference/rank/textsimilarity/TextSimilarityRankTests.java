@@ -18,6 +18,7 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
@@ -30,6 +31,10 @@ import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
 
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/110790",
+    value = "org.elasticsearch.action.search:TRACE," + "org.elasticsearch.search.SearchService:TRACE"
+)
 public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     /**

@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
@@ -37,6 +38,10 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/110790",
+    value = "org.elasticsearch.action.search:TRACE," + "org.elasticsearch.search.SearchService:TRACE"
+)
 public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
     public void testHDRHistogram() throws Exception {

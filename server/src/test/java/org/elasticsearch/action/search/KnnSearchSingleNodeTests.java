@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -30,6 +31,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/110790",
+    value = "org.elasticsearch.action.search:TRACE," + "org.elasticsearch.search.SearchService:TRACE"
+)
 public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
     private static final int VECTOR_DIMENSION = 10;
 

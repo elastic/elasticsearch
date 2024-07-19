@@ -35,10 +35,10 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   public AddDatetimesEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
       TemporalAmount temporalAmount, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.datetime = datetime;
     this.temporalAmount = temporalAmount;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

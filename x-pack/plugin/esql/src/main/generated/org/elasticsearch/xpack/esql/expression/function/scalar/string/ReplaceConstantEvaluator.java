@@ -37,11 +37,11 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
 
   public ReplaceConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       Pattern regex, EvalOperator.ExpressionEvaluator newStr, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.regex = regex;
     this.newStr = newStr;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

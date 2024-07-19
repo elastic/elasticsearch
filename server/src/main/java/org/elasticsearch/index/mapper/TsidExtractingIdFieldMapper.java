@@ -46,13 +46,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     private static final long SEED = 0;
 
     public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
-        final IndexableField timestampField = context.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampField == null) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
-            );
-        }
-        long timestamp = timestampField.numericValue().longValue();
+        final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
         String id;
         if (routingBuilder != null) {
             byte[] suffix = new byte[16];

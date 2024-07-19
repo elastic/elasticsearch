@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ccr.index.engine;
 
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -177,7 +177,7 @@ public class FollowingEngineTests extends ESTestCase {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
                     id,
-                    new Term("_id", id),
+                    BytesRef.deepCopyOf(new BytesRef(id)),
                     seqNo,
                     primaryTerm.get(),
                     randomNonNegativeLong(),
@@ -252,7 +252,8 @@ public class FollowingEngineTests extends ESTestCase {
             null,
             System::nanoTime,
             null,
-            true
+            true,
+            null
         );
     }
 
@@ -695,6 +696,9 @@ public class FollowingEngineTests extends ESTestCase {
                 break;
             case TIME_SERIES:
                 settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
+                break;
+            case LOGSDB:
+                settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");

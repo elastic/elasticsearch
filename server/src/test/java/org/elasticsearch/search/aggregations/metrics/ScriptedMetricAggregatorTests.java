@@ -65,6 +65,12 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         "reduceScript",
         Collections.emptyMap()
     );
+    private static final Script REDUCE_SCRIPT_COUNT_STATES = new Script(
+        ScriptType.INLINE,
+        MockScriptEngine.NAME,
+        "reduceScriptCountStates",
+        Collections.emptyMap()
+    );
 
     private static final Script INIT_SCRIPT_SCORE = new Script(
         ScriptType.INLINE,
@@ -169,6 +175,10 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         SCRIPTS.put("reduceScript", params -> {
             List<?> states = (List<?>) params.get("states");
             return states.stream().filter(a -> a instanceof Number).map(a -> (Number) a).mapToInt(Number::intValue).sum();
+        });
+        SCRIPTS.put("reduceScriptCountStates", params -> {
+            List<?> states = (List<?>) params.get("states");
+            return states.size();
         });
 
         SCRIPTS.put("initScriptScore", params -> {
@@ -308,7 +318,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
-                assertEquals(exception.getMessage(), "[combineScript] must not be null: [scriptedMetric]");
+                assertEquals(exception.getMessage(), "[combine_script] must not be null: [scriptedMetric]");
             }
         }
     }
@@ -327,7 +337,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
-                assertEquals(exception.getMessage(), "[reduceScript] must not be null: [scriptedMetric]");
+                assertEquals(exception.getMessage(), "[reduce_script] must not be null: [scriptedMetric]");
             }
         }
     }
@@ -350,6 +360,31 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(numDocs, scriptedMetric.aggregation());
+            }
+        }
+    }
+
+    public void testNoParallelization() throws IOException {
+        try (Directory directory = newDirectory()) {
+            int numDocs = randomInt(100);
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < numDocs; i++) {
+                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                aggregationBuilder.initScript(INIT_SCRIPT)
+                    .mapScript(MAP_SCRIPT)
+                    .combineScript(COMBINE_SCRIPT)
+                    .reduceScript(REDUCE_SCRIPT_COUNT_STATES);
+                ScriptedMetric scriptedMetric = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(aggregationBuilder).withSplitLeavesIntoSeperateAggregators(false)
+                );
+                assertEquals(AGG_NAME, scriptedMetric.getName());
+                assertNotNull(scriptedMetric.aggregation());
+                assertEquals(1, scriptedMetric.aggregation());
             }
         }
     }

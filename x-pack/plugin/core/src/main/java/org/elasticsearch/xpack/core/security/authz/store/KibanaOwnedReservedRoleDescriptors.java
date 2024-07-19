@@ -73,6 +73,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For Fleet package upgrade
                 "manage_pipeline",
                 "manage_ilm",
+                // For connectors telemetry
+                "monitor_connector",
                 // For the endpoint package that ships a transform
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,
@@ -136,6 +138,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
+
+                // Logstash telemetry queries of kibana task runner to access Logstash metric indices
+                RoleDescriptor.IndicesPrivileges.builder().indices("metrics-logstash.*").privileges("read").build(),
 
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),

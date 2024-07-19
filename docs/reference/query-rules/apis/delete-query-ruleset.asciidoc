@@ -2,8 +2,6 @@
 [[delete-query-ruleset]]
 === Delete query ruleset
 
-preview::[]
-
 ++++
 <titleabbrev>Delete query ruleset</titleabbrev>
 ++++

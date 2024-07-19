@@ -152,12 +152,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES = Map.ofEntries(
         entry(Names.GENERIC, ThreadPoolType.SCALING),
+        entry(Names.CLUSTER_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.GET, ThreadPoolType.FIXED),
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
         entry(Names.SEARCH_WORKER, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
+        entry(Names.AUTO_COMPLETE, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
         entry(Names.FLUSH, ThreadPoolType.SCALING),
         entry(Names.REFRESH, ThreadPoolType.SCALING),

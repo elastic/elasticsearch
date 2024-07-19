@@ -118,8 +118,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 client.prepareIndex("hosts").setSource("ip", h.getKey(), "os", h.getValue()).get();
             }
             client.admin().indices().prepareRefresh("hosts").get();
-            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("hosts", hostPolicy)).actionGet();
-            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("hosts")).actionGet();
+            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts", hostPolicy))
+                .actionGet();
+            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts"))
+                .actionGet();
             assertAcked(client.admin().indices().prepareDelete("hosts"));
         }
     }
@@ -137,8 +139,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 client.prepareIndex("vendors").setSource("os", v.getKey(), "vendor", v.getValue()).get();
             }
             client.admin().indices().prepareRefresh("vendors").get();
-            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("vendors", vendorPolicy)).actionGet();
-            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("vendors")).actionGet();
+            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors", vendorPolicy))
+                .actionGet();
+            client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors"))
+                .actionGet();
             assertAcked(client.admin().indices().prepareDelete("vendors"));
         }
     }
@@ -195,7 +199,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         for (String cluster : allClusters()) {
             cluster(cluster).wipe(Set.of());
             for (String policy : List.of("hosts", "vendors")) {
-                client(cluster).execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(policy));
+                client(cluster).execute(
+                    DeleteEnrichPolicyAction.INSTANCE,
+                    new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy)
+                );
             }
         }
     }

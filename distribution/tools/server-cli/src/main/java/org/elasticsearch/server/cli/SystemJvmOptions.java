@@ -69,12 +69,6 @@ final class SystemJvmOptions {
                  * parsing will break in an incompatible way for some date patterns and locales.
                  */
                 "-Djava.locale.providers=SPI,COMPAT",
-                /*
-                 * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary
-                 * while we explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
-                 */
-                "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
-                "--add-opens=org.apache.lucene.core/org.apache.lucene.store=org.elasticsearch.vec",
                 maybeEnableNativeAccess(),
                 maybeOverrideDockerCgroup(distroType),
                 maybeSetActiveProcessorCount(nodeSettings),
@@ -135,7 +129,7 @@ final class SystemJvmOptions {
 
     private static String maybeEnableNativeAccess() {
         if (Runtime.version().feature() >= 21) {
-            return "--enable-native-access=org.elasticsearch.nativeaccess";
+            return "--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core";
         }
         return "";
     }

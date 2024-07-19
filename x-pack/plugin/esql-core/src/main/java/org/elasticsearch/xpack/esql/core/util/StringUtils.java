@@ -354,6 +354,9 @@ public final class StringUtils {
             }
             return bi;
         }
+        if (bi.compareTo(BigInteger.valueOf(Long.MIN_VALUE)) < 0) {
+            throw new InvalidArgumentException("Magnitude of negative number [{}] is too large", string);
+        }
         // try to downsize to int if possible (since that's the most common type)
         if (bi.intValue() == bi.longValue()) { // ternary operator would always promote to Long
             return bi.intValueExact();
@@ -391,5 +394,27 @@ public final class StringUtils {
 
     public static boolean isQualified(String indexWildcard) {
         return indexWildcard.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+    }
+
+    public static boolean isInteger(String value) {
+        for (char c : value.trim().toCharArray()) {
+            if (Character.isDigit(c) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean isValidParamName(String value) {
+        // A valid name starts with a letter and contain only letter, digit or _
+        if (Character.isLetter(value.charAt(0)) == false) {
+            return false;
+        }
+        for (char c : value.trim().toCharArray()) {
+            if (Character.isLetterOrDigit(c) == false && c != '_') {
+                return false;
+            }
+        }
+        return true;
     }
 }

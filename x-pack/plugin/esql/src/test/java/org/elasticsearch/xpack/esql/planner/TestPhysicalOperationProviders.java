@@ -165,6 +165,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private final MappedFieldType.FieldExtractPreference extractPreference;
 
         TestFieldExtractOperator(String columnName, DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
+            assert columnNames.contains(columnName);
             this.columnName = columnName;
             this.dataType = dataType;
             this.extractPreference = extractPreference;

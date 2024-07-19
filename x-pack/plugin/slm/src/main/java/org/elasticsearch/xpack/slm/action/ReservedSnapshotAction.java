@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.slm.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
@@ -51,7 +54,13 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         List<Exception> exceptions = new ArrayList<>();
 
         for (var policy : policies) {
-            PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(policy.getId(), policy);
+            // timeouts don't matter here
+            PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS,
+                policy.getId(),
+                policy
+            );
             try {
                 validate(request);
                 SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
@@ -91,7 +100,11 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         toDelete.removeAll(entities);
 
         for (var policyToDelete : toDelete) {
-            var task = new TransportDeleteSnapshotLifecycleAction.DeleteSnapshotPolicyTask(policyToDelete);
+            // timeouts don't matter here
+            var task = new TransportDeleteSnapshotLifecycleAction.DeleteSnapshotPolicyTask(
+                new DeleteSnapshotLifecycleAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policyToDelete),
+                ActionListener.noop()
+            );
             state = task.execute(state);
         }
 

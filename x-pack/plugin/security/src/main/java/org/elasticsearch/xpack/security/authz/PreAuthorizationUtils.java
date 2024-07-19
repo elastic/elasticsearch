@@ -45,6 +45,7 @@ public final class PreAuthorizationUtils {
             SearchTransportService.QUERY_ACTION_NAME,
             SearchTransportService.QUERY_ID_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME,
+            SearchTransportService.RANK_FEATURE_SHARD_ACTION_NAME,
             SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
         )
     );

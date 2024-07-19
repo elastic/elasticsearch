@@ -252,7 +252,6 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         assertCacheState(FLS_INDEX, 2, 4);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109010")
     public void testRequestCacheForBothDLSandFLS() throws ExecutionException, InterruptedException {
         final Client powerClient = client();
         final Client limitedClient = limitedClient();
@@ -316,7 +315,6 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         assertCacheState(INDEX, 2, 5);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109011")
     public void testRequestCacheWithTemplateRoleQuery() {
         final Client client1 = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(DLS_TEMPLATE_ROLE_QUERY_USER_1, new SecureString(TEST_PASSWORD.toCharArray())))

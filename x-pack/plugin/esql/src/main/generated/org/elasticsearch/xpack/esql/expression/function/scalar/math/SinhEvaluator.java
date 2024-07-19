@@ -31,9 +31,9 @@ public final class SinhEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public SinhEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

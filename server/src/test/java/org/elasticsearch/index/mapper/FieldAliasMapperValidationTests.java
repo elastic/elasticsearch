@@ -159,7 +159,15 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
     private static FieldMapper createFieldMapper(String parent, String name) {
         return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.current()).build(
-            new MapperBuilderContext(parent)
+            new MapperBuilderContext(
+                parent,
+                false,
+                false,
+                false,
+                ObjectMapper.Defaults.DYNAMIC,
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
+            )
         );
     }
 
@@ -176,7 +184,9 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static NestedObjectMapper createNestedObjectMapper(String name) {
-        return new NestedObjectMapper.Builder(name, IndexVersion.current()).build(MapperBuilderContext.root(false, false));
+        return new NestedObjectMapper.Builder(name, IndexVersion.current(), query -> { throw new UnsupportedOperationException(); }).build(
+            MapperBuilderContext.root(false, false)
+        );
     }
 
     private static MappingLookup createMappingLookup(

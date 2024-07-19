@@ -43,7 +43,7 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
     protected void executeInitialPhase(
         Transport.Connection connection,
         InternalScrollSearchRequest internalRequest,
-        SearchActionListener<ScrollQueryFetchSearchResult> searchActionListener
+        ActionListener<ScrollQueryFetchSearchResult> searchActionListener
     ) {
         searchTransportService.sendExecuteScrollFetch(connection, internalRequest, task, searchActionListener);
     }

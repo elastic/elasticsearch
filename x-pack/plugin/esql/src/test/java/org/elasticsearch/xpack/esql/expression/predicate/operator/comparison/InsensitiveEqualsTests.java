@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class InsensitiveEqualsTests extends ESTestCase {
@@ -86,6 +86,6 @@ public class InsensitiveEqualsTests extends ESTestCase {
     }
 
     private static Literal l(Object value) {
-        return TestUtils.of(EMPTY, value);
+        return of(EMPTY, value);
     }
 }

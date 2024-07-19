@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -133,7 +133,7 @@ public final class Expressions {
     }
 
     public static boolean isNull(Expression e) {
-        return e.dataType() == DataTypes.NULL || (e.foldable() && e.fold() == null);
+        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {

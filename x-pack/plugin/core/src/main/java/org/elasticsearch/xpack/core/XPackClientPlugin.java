@@ -376,10 +376,16 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 new ParseField(TransformMetadata.TYPE),
                 parser -> TransformMetadata.LENIENT_PARSER.parse(parser, null).build()
             ),
+            // security
             new NamedXContentRegistry.Entry(
                 PersistentTaskParams.class,
                 new ParseField(SecurityMigrationTaskParams.TASK_NAME),
                 SecurityMigrationTaskParams::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(RoleMappingMetadata.TYPE),
+                RoleMappingMetadata::fromXContent
             )
         );
     }

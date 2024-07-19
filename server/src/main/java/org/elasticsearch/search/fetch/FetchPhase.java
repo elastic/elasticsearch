@@ -31,6 +31,8 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -56,7 +58,7 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context, int[] docIdsToLoad) {
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -75,7 +77,7 @@ public final class FetchPhase {
         Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -97,7 +99,7 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler) {
+    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
@@ -165,7 +167,8 @@ public final class FetchPhase {
                     doc,
                     ctx,
                     leafSourceLoader,
-                    leafIdLoader
+                    leafIdLoader,
+                    rankDocs == null ? null : rankDocs.get(doc)
                 );
                 boolean success = false;
                 try {
@@ -222,7 +225,8 @@ public final class FetchPhase {
         int docId,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
-        IdLoader.Leaf idLoader
+        IdLoader.Leaf idLoader,
+        RankDoc rankDoc
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
@@ -232,7 +236,8 @@ public final class FetchPhase {
                 docId,
                 subReaderContext,
                 sourceLoader,
-                idLoader
+                idLoader,
+                rankDoc
             );
         } else {
             return prepareNestedHitContext(
@@ -242,7 +247,8 @@ public final class FetchPhase {
                 docId,
                 nestedDocuments,
                 subReaderContext,
-                leafStoredFieldLoader
+                leafStoredFieldLoader,
+                rankDoc
             );
         }
     }
@@ -261,7 +267,8 @@ public final class FetchPhase {
         int docId,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
-        IdLoader.Leaf idLoader
+        IdLoader.Leaf idLoader,
+        RankDoc rankDoc
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
@@ -272,7 +279,7 @@ public final class FetchPhase {
             SearchHit hit = new SearchHit(docId);
             // TODO: can we use real pooled buffers here as well?
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
-            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
+            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source, rankDoc);
         } else {
             SearchHit hit = new SearchHit(docId, id);
             Source source;
@@ -288,7 +295,7 @@ public final class FetchPhase {
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             }
-            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source);
+            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source, rankDoc);
         }
     }
 
@@ -320,7 +327,8 @@ public final class FetchPhase {
         int topDocId,
         LeafNestedDocuments nestedInfo,
         LeafReaderContext subReaderContext,
-        LeafStoredFieldLoader childFieldLoader
+        LeafStoredFieldLoader childFieldLoader,
+        RankDoc rankDoc
     ) throws IOException {
 
         String rootId;
@@ -352,7 +360,7 @@ public final class FetchPhase {
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
     }
 
     interface Profiler {

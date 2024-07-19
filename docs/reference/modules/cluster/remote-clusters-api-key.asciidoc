@@ -63,6 +63,7 @@ information, refer to https://www.elastic.co/subscriptions.
 NOTE: If a remote cluster is part of an {ess} deployment, it has a valid certificate by default. 
 You can therefore skip steps related to certificates in these instructions.
 
+[[remote-clusters-security-api-key-remote-action]]
 ===== On the remote cluster
 
 // tag::remote-cluster-steps[]
@@ -155,6 +156,7 @@ to the indices you want to use for {ccs} or {ccr}. You can use the
 need it to connect to the remote cluster later.
 // end::remote-cluster-steps[]
 
+[[remote-clusters-security-api-key-local-actions]]
 ===== On the local cluster
 
 // tag::local-cluster-steps[]

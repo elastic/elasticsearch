@@ -135,6 +135,15 @@ public final class Sets {
         return union;
     }
 
+    @SafeVarargs
+    public static <T> Set<T> union(Set<T> first, Set<T>... others) {
+        Set<T> union = new HashSet<>(first);
+        for (Set<T> other : others) {
+            union.addAll(other);
+        }
+        return union;
+    }
+
     /**
      * The intersection of two sets. Namely, the resulting set contains all the elements that are in both sets.
      * Neither input is mutated by this operation, an entirely new set is returned.

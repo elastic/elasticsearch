@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -87,18 +88,15 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
     }
 
     private void runInference(String modelId, ActionListener<StepResponse> listener) {
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                inferenceRunner.run(modelId);
-                listener.onResponse(new StepResponse(isTaskStopping()));
-            } catch (Exception e) {
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, delegate -> {
+            inferenceRunner.run(modelId, ActionListener.wrap(aVoid -> delegate.onResponse(new StepResponse(isTaskStopping())), e -> {
                 if (task.isStopping()) {
-                    listener.onResponse(new StepResponse(false));
+                    delegate.onResponse(new StepResponse(false));
                 } else {
-                    listener.onFailure(e);
+                    delegate.onFailure(e);
                 }
-            }
-        });
+            }));
+        }));
     }
 
     private void searchIfTestDocsExist(ActionListener<Boolean> listener) {

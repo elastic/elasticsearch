@@ -8,10 +8,12 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -103,9 +105,11 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
                     DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
                         shardId.getIndexName(),
+                        config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
-                    documentParsingReporter.onIndexingCompleted(index.parsedDoc());
+                    ParsedDocument parsedDocument = index.parsedDoc();
+                    documentParsingReporter.onIndexingCompleted(parsedDocument);
 
                     return result;
                 }
@@ -120,19 +124,17 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         @Override
         public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
-
                 @Override
-                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
-                    return new TestDocumentSizeObserver();
+                public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
+                    return new TestDocumentSizeObserver(0L);
                 }
 
                 @Override
-                public DocumentSizeObserver newDocumentSizeObserver() {
-                    return new TestDocumentSizeObserver();
-                }
-
-                @Override
-                public DocumentSizeReporter newDocumentSizeReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
+                public DocumentSizeReporter newDocumentSizeReporter(
+                    String indexName,
+                    MapperService mapperService,
+                    DocumentSizeAccumulator documentSizeAccumulator
+                ) {
                     return new TestDocumentSizeReporter(indexName);
                 }
             };
@@ -149,8 +151,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
         @Override
         public void onIndexingCompleted(ParsedDocument parsedDocument) {
-            DocumentSizeObserver documentSizeObserver = parsedDocument.getDocumentSizeObserver();
-            COUNTER.addAndGet(documentSizeObserver.normalisedBytesParsed());
+            COUNTER.addAndGet(parsedDocument.getDocumentSizeObserver().normalisedBytesParsed());
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
         }
     }
@@ -158,10 +159,15 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
     public static class TestDocumentSizeObserver implements DocumentSizeObserver {
         long counter = 0;
 
+        public TestDocumentSizeObserver(long counter) {
+            this.counter = counter;
+        }
+
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
             hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
+
                 @Override
                 public Token nextToken() throws IOException {
                     counter++;
@@ -174,5 +180,6 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         public long normalisedBytesParsed() {
             return counter;
         }
+
     }
 }

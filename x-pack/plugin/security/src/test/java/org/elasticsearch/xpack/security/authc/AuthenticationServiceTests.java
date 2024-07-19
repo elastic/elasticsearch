@@ -332,7 +332,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         );
         tokenService = new TokenService(
             settings,
@@ -2507,6 +2508,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
         return new SecurityIndexManager.State(
             Instant.now(),
+            true,
             true,
             true,
             true,

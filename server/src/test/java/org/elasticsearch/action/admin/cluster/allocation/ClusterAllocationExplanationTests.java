@@ -149,7 +149,9 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             allOf(
                 // no point in asserting the precise wording of the message into this test, but we care that the note contains these bits:
                 containsString("No shard was specified in the explain API request"),
-                containsString("specify the target shard in the request")
+                containsString("specify the target shard in the request"),
+                containsString("https://www.elastic.co/guide/en/elasticsearch/reference"),
+                containsString("cluster-allocation-explain.html")
             )
         );
 
@@ -165,8 +167,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         DiscoveryNode node = assignedShard ? DiscoveryNodeUtils.builder("node-0").roles(emptySet()).build() : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {
-            MoveDecision moveDecision = MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 3, null)
-                .withRemainDecision(Decision.YES);
+            MoveDecision moveDecision = MoveDecision.rebalance(Decision.YES, Decision.YES, AllocationDecision.NO, null, 3, null);
             shardAllocationDecision = new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, moveDecision);
         } else {
             AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);

@@ -13,13 +13,16 @@ import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import com.sun.jna.Structure.ByReference;
 import com.sun.jna.WString;
+import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.win32.StdCallLibrary;
 
 import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.util.List;
+import java.util.function.IntConsumer;
 
 class JnaKernel32Library implements Kernel32Library {
     private static class JnaHandle implements Handle {
@@ -99,6 +102,38 @@ class JnaKernel32Library implements Kernel32Library {
     }
 
     /**
+     * Basic limit information for a job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
+     */
+    public static class JnaJobObjectBasicLimitInformation extends Structure implements ByReference, JobObjectBasicLimitInformation {
+        public byte[] _ignore1 = new byte[16];
+        public int LimitFlags;
+        public byte[] _ignore2 = new byte[20];
+        public int ActiveProcessLimit;
+        public byte[] _ignore3 = new byte[20];
+
+        public JnaJobObjectBasicLimitInformation() {
+            super(8);
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return List.of("_ignore1", "LimitFlags", "_ignore2", "ActiveProcessLimit", "_ignore3");
+        }
+
+        @Override
+        public void setLimitFlags(int v) {
+            LimitFlags = v;
+        }
+
+        @Override
+        public void setActiveProcessLimit(int v) {
+            ActiveProcessLimit = v;
+        }
+    }
+
+    /**
      * JNA adaptation of {@link ConsoleCtrlHandler}
      */
     public static class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
@@ -125,9 +160,25 @@ class JnaKernel32Library implements Kernel32Library {
 
         boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
 
+        int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
+
         int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
 
         boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
+
+        Pointer CreateJobObjectW(Pointer jobAttributes, String name);
+
+        boolean AssignProcessToJobObject(Pointer job, Pointer process);
+
+        boolean QueryInformationJobObject(
+            Pointer job,
+            int infoClass,
+            JnaJobObjectBasicLimitInformation info,
+            int infoLength,
+            Pointer returnLength
+        );
+
+        boolean SetInformationJobObject(Pointer job, int infoClass, JnaJobObjectBasicLimitInformation info, int infoLength);
     }
 
     private final NativeFunctions functions;
@@ -186,6 +237,15 @@ class JnaKernel32Library implements Kernel32Library {
     }
 
     @Override
+    public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
+        var wideFileName = new WString(lpFileName);
+        var fileSizeHigh = new IntByReference();
+        int ret = functions.GetCompressedFileSizeW(wideFileName, fileSizeHigh);
+        lpFileSizeHigh.accept(fileSizeHigh.getValue());
+        return ret;
+    }
+
+    @Override
     public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
         var wideFileName = new WString(lpszLongPath);
         return functions.GetShortPathNameW(wideFileName, lpszShortPath, cchBuffer);
@@ -196,5 +256,43 @@ class JnaKernel32Library implements Kernel32Library {
         assert consoleCtrlHandlerCallback == null;
         consoleCtrlHandlerCallback = new NativeHandlerCallback(handler);
         return functions.SetConsoleCtrlHandler(consoleCtrlHandlerCallback, true);
+    }
+
+    @Override
+    public Handle CreateJobObjectW() {
+        return new JnaHandle(functions.CreateJobObjectW(null, null));
+    }
+
+    @Override
+    public boolean AssignProcessToJobObject(Handle job, Handle process) {
+        assert job instanceof JnaHandle;
+        assert process instanceof JnaHandle;
+        var jnaJob = (JnaHandle) job;
+        var jnaProcess = (JnaHandle) process;
+        return functions.AssignProcessToJobObject(jnaJob.pointer, jnaProcess.pointer);
+    }
+
+    @Override
+    public JobObjectBasicLimitInformation newJobObjectBasicLimitInformation() {
+        return new JnaJobObjectBasicLimitInformation();
+    }
+
+    @Override
+    public boolean QueryInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info) {
+        assert job instanceof JnaHandle;
+        assert info instanceof JnaJobObjectBasicLimitInformation;
+        var jnaJob = (JnaHandle) job;
+        var jnaInfo = (JnaJobObjectBasicLimitInformation) info;
+        var ret = functions.QueryInformationJobObject(jnaJob.pointer, infoClass, jnaInfo, jnaInfo.size(), null);
+        return ret;
+    }
+
+    @Override
+    public boolean SetInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info) {
+        assert job instanceof JnaHandle;
+        assert info instanceof JnaJobObjectBasicLimitInformation;
+        var jnaJob = (JnaHandle) job;
+        var jnaInfo = (JnaJobObjectBasicLimitInformation) info;
+        return functions.SetInformationJobObject(jnaJob.pointer, infoClass, jnaInfo, jnaInfo.size());
     }
 }

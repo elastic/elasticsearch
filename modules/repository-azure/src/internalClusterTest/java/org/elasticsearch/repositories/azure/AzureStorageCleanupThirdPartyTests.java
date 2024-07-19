@@ -29,6 +29,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
@@ -113,7 +114,11 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(repoName)
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            repoName
+        )
             .setType("azure")
             .setSettings(
                 Settings.builder()
@@ -174,5 +179,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             blobContainer.delete(randomPurpose());
         }));
         future.get();
+    }
+
+    public void testReadFromPositionLargerThanBlobLength() {
+        testReadFromPositionLargerThanBlobLength(
+            e -> asInstanceOf(BlobStorageException.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED
+                .getStatus()
+        );
     }
 }

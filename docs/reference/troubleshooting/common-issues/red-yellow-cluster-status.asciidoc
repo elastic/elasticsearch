@@ -1,9 +1,24 @@
 [[red-yellow-cluster-status]]
-=== Red or yellow cluster status
+=== Red or yellow cluster health status
 
-A red or yellow cluster status indicates one or more shards are missing or
-unallocated. These unassigned shards increase your risk of data loss and can
-degrade cluster performance.
+A red or yellow cluster health status indicates one or more shards are not assigned to
+a node. 
+
+* **Red health status**: The cluster has some unassigned primary shards, which
+means that some operations such as searches and indexing may fail. 
+* **Yellow health status**: The cluster has no unassigned primary shards but some 
+unassigned replica shards. This increases your risk of data loss and can degrade 
+cluster performance.
+
+When your cluster has a red or yellow health status, it will continue to process
+searches and indexing where possible, but may delay certain management and
+cleanup activities until the cluster returns to green health status. For instance,
+some <<index-lifecycle-management,{ilm-init}>> actions require the index on which they
+operate to have a green health status.
+
+In many cases, your cluster will recover to green health status automatically. 
+If the cluster doesn't automatically recover, then you must <<fix-red-yellow-cluster-status,manually address>> 
+the remaining problems so management and cleanup activities can proceed.
 
 [discrete]
 [[diagnose-cluster-status]]

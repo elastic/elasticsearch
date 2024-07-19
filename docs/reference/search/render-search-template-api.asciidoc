@@ -22,9 +22,6 @@ PUT _scripts/my-search-template
       },
       "from": "{{from}}",
       "size": "{{size}}"
-    },
-    "params": {
-      "query_string": "My query string"
     }
   }
 }

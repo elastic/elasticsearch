@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -31,6 +34,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
  * </p>
  */
 public class Floor extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Floor", Floor::new);
+
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Round a number down to the nearest integer.",
@@ -51,9 +56,18 @@ public class Floor extends UnaryScalarFunction {
         super(source, n);
     }
 
+    private Floor(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        if (dataType().isInteger()) {
+        if (dataType().isWholeNumber()) {
             return toEvaluator.apply(field());
         }
         return new FloorDoubleEvaluator.Factory(source(), toEvaluator.apply(field()));

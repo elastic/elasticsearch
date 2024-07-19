@@ -31,9 +31,9 @@ public final class CbrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
 
   public CbrtDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

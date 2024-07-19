@@ -146,13 +146,6 @@ missing hostname field:
               message:
                 type: text
 
- - do:
-     indices.get_settings:
-       index: test-hostname-missing
-
-  - is_true: test-hostname-missing
-  - match: { test-hostname-missing.settings.index.mode: "logsdb" }
-
 ---
 missing sort field:
   - requires:

@@ -374,7 +374,7 @@ ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "m
 left:keyword | city:keyword | middle:keyword | right:keyword | airport:keyword | region:keyword | city_boundary:keyword
 ;
 
-shadowingInternal
+shadowingInternal-Ignore
 required_capability: inlinestats
 
 ROW city = "Zürich"
@@ -385,7 +385,7 @@ city:keyword | x:keyword
 Zürich       | Zürich
 ;
 
-byConstant-Ignored
+byConstant-Ignore
 required_capability: inlinestats
 
 FROM employees
@@ -402,4 +402,41 @@ emp_no:integer | languages:integer | max_lang:integer | y:integer
          10011 |                 5 |                5 | 1
          10012 |                 5 |                5 | 1
          10014 |                 5 |                5 | 1
+;
+
+aggConstant
+required_capability: inlinestats
+
+FROM employees
+| KEEP emp_no
+| INLINESTATS one = MAX(1) BY emp_no
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer | one:integer
+         10001 | 1
+         10002 | 1
+         10003 | 1
+         10004 | 1
+         10005 | 1
+;
+
+percentile
+required_capability: inlinestats
+
+FROM employees
+| KEEP emp_no, salary
+| INLINESTATS ninety_fifth_salary = PERCENTILE(salary, 95)
+| WHERE salary > ninety_fifth_salary
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer | salary:integer | ninety_fifth_salary:double
+         10007 |          74572 | 73584.95
+         10019 |          73717 | 73584.95
+         10027 |          73851 | 73584.95
+         10029 |          74999 | 73584.95
+         10045 |          74970 | 73584.95
 ;

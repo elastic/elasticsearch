@@ -91,17 +91,21 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: "test {stats.Count_or_null SYNC #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/110950
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/110978
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/111002
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/190_failure_store_redirection/Ensure failure is redirected to correct failure store after a reroute processor}
   issue: https://github.com/elastic/elasticsearch/issues/111041
+- class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
+  method: testKnnSearchAction
+  issue: https://github.com/elastic/elasticsearch/issues/111072
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
+  method: testKnnQuantizedFlatVectorsFormat
+  issue: https://github.com/elastic/elasticsearch/issues/111044
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
+  method: testPushedDownQueriesSingleValue
+  issue: https://github.com/elastic/elasticsearch/issues/111084
 
 # Examples:
 #

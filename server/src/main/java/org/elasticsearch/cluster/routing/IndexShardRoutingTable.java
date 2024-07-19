@@ -317,6 +317,7 @@ public class IndexShardRoutingTable {
         // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
         sortedShards.sort((left, right) -> {
+            // not using Comparator#nullsFirst and the like since this is on the hot path for searches over many shards
             final String leftId = left.currentNodeId();
             final String rightId = right.currentNodeId();
             if (leftId.equals(rightId)) {

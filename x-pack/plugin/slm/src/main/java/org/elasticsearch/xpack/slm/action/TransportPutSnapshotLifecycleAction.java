@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -121,7 +120,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         UpdateSnapshotPolicyTask(PutSnapshotLifecycleAction.Request request) {
             super(request, null);
             this.request = request;
-            this.filteredHeaders = Collections.emptyMap();
+            this.filteredHeaders = Map.of();
         }
 
         @Override

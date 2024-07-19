@@ -163,7 +163,6 @@ public class BwcSetupExtension {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
         return toolChainService.launcherFor(javaToolchainSpec -> {
             javaToolchainSpec.getLanguageVersion().value(value);
-            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
         }).map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
     }
 

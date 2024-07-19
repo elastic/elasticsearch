@@ -16,6 +16,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -476,6 +478,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == ZoneId.class) {
             // ZoneId is a sealed class (cannot be mocked) starting with Java 19
             return randomZone();
+        }
+        if (argClass == Configuration.class) {
+            return EsqlTestUtils.randomConfiguration();
         }
         try {
             return mock(argClass);

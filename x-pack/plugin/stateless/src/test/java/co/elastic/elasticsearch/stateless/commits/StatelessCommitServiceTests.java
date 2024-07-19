@@ -84,7 +84,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -745,6 +744,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testCommitsTrackingTakesIntoAccountSearchNodeUsage() throws Exception {
+        Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
@@ -779,15 +779,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevaluate this
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
+            testHarness.commitService.addConsumerForNewUploadedBcc(
+                testHarness.shardId,
+                uploadedBccInfo -> uploadedCommits.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration())
+            );
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
@@ -796,13 +794,22 @@ public class StatelessCommitServiceTests extends ESTestCase {
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
-                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()),
                     new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
                 );
             }
+            long lastInitialGeneration = initialCommits.get(initialCommits.size() - 1).getGeneration();
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastInitialGeneration);
+            waitUntilBCCIsUploaded(commitService, shardId, lastInitialGeneration);
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(
+                new PrimaryTermAndGeneration(primaryTerm, lastInitialGeneration),
+                new PrimaryTermAndGeneration(primaryTerm, lastInitialGeneration)
+            );
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
             markDeletedAndLocalUnused(List.of(mergedCommit), initialCommits, commitService, shardId);
 
@@ -810,12 +817,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // therefore we should retain all commits.
             assertThat(deletedCommits, empty());
 
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
-                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
-            );
+            PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(mergePTG, mergePTG);
 
-            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
+            var expectedDeletedCommits = uploadedCommits.stream()
+                .filter(ptg -> mergePTG.equals(ptg) == false)
+                .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
+                .collect(Collectors.toSet());
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
         }
     }
@@ -855,11 +863,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -871,8 +874,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var firstCommit = initialCommits.get(0);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
-                fakeSearchNode.respondWithUsedCommits(
-                    initialCommit.getGeneration(),
+                commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommit.getGeneration());
+                waitUntilBCCIsUploaded(commitService, shardId, initialCommit.getGeneration());
+                fakeSearchNode.respondWithUsedCommitsToUploadNotify(
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()),
                     new PrimaryTermAndGeneration(primaryTerm, firstCommit.getGeneration()),
                     new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
                 );
@@ -880,6 +885,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
             markDeletedAndLocalUnused(List.of(mergedCommit), initialCommits, commitService, shardId);
 
@@ -888,8 +895,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(deletedCommits, empty());
 
             // Now the search shard, report that it uses commit 0 and commit 10; therefore we should delete commits [1, 8]
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(
+                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()),
                 new PrimaryTermAndGeneration(primaryTerm, firstCommit.getGeneration()),
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
@@ -931,12 +938,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevalute the need for this
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -948,6 +949,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var firstCommit = initialCommits.get(0);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
+                commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommit.getGeneration());
+                waitUntilBCCIsUploaded(commitService, shardId, initialCommit.getGeneration());
             }
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
@@ -957,9 +960,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
             }
 
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, mergedCommit.getGeneration(), future);
-            future.actionGet();
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
             // Commits 0-9 are still used by the indexing shard
             // therefore we should retain them even if the indexing node/lucene has deleted them
@@ -977,11 +979,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
                 .collect(Collectors.toSet());
             // the external reader notification and thus delete can go on after the upload completed.
-            assertBusy(() -> { assertThat(deletedCommits, equalTo(expectedDeletedCommits)); });
+            assertBusy(() -> assertThat(deletedCommits, equalTo(expectedDeletedCommits)));
         }
     }
 
     public void testRetainedCommitsAreReleasedAfterANodeIsUnassigned() throws Exception {
+        Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
@@ -1016,15 +1019,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevaluate this
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
+            testHarness.commitService.addConsumerForNewUploadedBcc(
+                testHarness.shardId,
+                uploadedBccInfo -> uploadedCommits.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration())
+            );
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
@@ -1033,27 +1034,29 @@ public class StatelessCommitServiceTests extends ESTestCase {
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
-                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()),
                     new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
                 );
             }
+            PrimaryTermAndGeneration lastInitialCommit = new PrimaryTermAndGeneration(
+                primaryTerm,
+                initialCommits.get(initialCommits.size() - 1).getGeneration()
+            );
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastInitialCommit.generation());
+            waitUntilBCCIsUploaded(commitService, shardId, lastInitialCommit.generation());
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
             commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
             markDeletedAndLocalUnused(List.of(mergedCommit), initialCommits, commitService, shardId);
 
             assertThat(deletedCommits, empty());
 
             // The search node is still using commit 9 and the merged commit; therefore we should keep all commits around
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
-                new PrimaryTermAndGeneration(
-                    initialCommits.get(initialCommits.size() - 1).getPrimaryTerm(),
-                    initialCommits.get(initialCommits.size() - 1).getGeneration()
-                ),
-                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
-            );
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(mergePTG, lastInitialCommit, mergePTG);
 
             assertThat(deletedCommits, empty());
 
@@ -1075,7 +1078,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             commitService.clusterChanged(new ClusterChangedEvent("unassigned search shard", clusterStateWithUnassignedSearchShard, state));
 
-            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
+            var expectedDeletedCommits = uploadedCommits.stream()
+                .filter(ptg -> mergePTG.equals(ptg) == false)
+                .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
+                .collect(Collectors.toSet());
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
         }
     }
@@ -1115,12 +1121,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevaluate this
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -1131,18 +1131,22 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var initialCommits = testHarness.generateIndexCommits(2);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
+                commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommit.getGeneration());
+                waitUntilBCCIsUploaded(commitService, shardId, initialCommit.getGeneration());
             }
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
             markDeletedAndLocalUnused(List.of(mergedCommit), initialCommits, commitService, shardId);
 
             assertThat(deletedCommits, empty());
 
             // The search shard is using the latest commit, but there are concurrent in-flight notifications
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(
+                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()),
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
 
@@ -1152,7 +1156,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             for (StatelessCommitRef initialCommit : initialCommits) {
                 fakeSearchNode.respondWithUsedCommits(
-                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()),
                     new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
                 );
             }
@@ -1164,6 +1168,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testCommitsAreReleasedImmediatelyAfterDeletionWhenThereAreZeroReplicas() throws Exception {
+        Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
@@ -1207,15 +1212,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevaluate this
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
+            testHarness.commitService.addConsumerForNewUploadedBcc(
+                testHarness.shardId,
+                uploadedBccInfo -> uploadedCommits.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration())
+            );
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             stateRef.set(state);
@@ -1225,21 +1228,27 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 commitService.onCommitCreation(initialCommit);
             }
 
-            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
-            commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommits.get(initialCommits.size() - 1).getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, initialCommits.get(initialCommits.size() - 1).getGeneration());
 
-            PlainActionFuture<Void> mergedCommitUploadedFuture = new PlainActionFuture<>();
-            commitService.addListenerForUploadedGeneration(shardId, mergedCommit.getGeneration(), mergedCommitUploadedFuture);
-            mergedCommitUploadedFuture.actionGet();
+            var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
+            commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
             markDeletedAndLocalUnused(List.of(mergedCommit), initialCommits, commitService, shardId);
 
-            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
+            var expectedDeletedCommits = uploadedCommits.stream()
+                .filter(ptg -> mergePTG.equals(ptg) == false)
+                .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
+                .collect(Collectors.toSet());
             assertBusy(() -> assertThat(deletedCommits, is(equalTo(expectedDeletedCommits))));
         }
     }
 
     public void testCommitsAreSuccessfullyInitializedAfterRecovery() throws Exception {
+        Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
@@ -1268,15 +1277,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ) {
                 return commitCleaner;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevaluate this
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
+            testHarness.commitService.addConsumerForNewUploadedBcc(
+                testHarness.shardId,
+                uploadedBccInfo -> uploadedCommits.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration())
+            );
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
@@ -1285,10 +1292,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 fakeSearchNode.respondWithUsedCommits(
-                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()),
                     new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
                 );
             }
+
+            StatelessCommitRef recoveryCommit = initialCommits.get(initialCommits.size() - 1);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, recoveryCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, recoveryCommit.getGeneration());
 
             var indexingShardState = ObjectStoreService.readIndexingShardState(
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
@@ -1306,9 +1317,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
+            PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
             commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
-            StatelessCommitRef recoveryCommit = initialCommits.get(initialCommits.size() - 1);
             assert recoveryCommit.getGeneration() == indexingShardState.latestCommit().last().generation();
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
             commitService.getIndexEngineLocalReaderListenerForShard(shardId)
@@ -1318,12 +1331,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // therefore we should retain all commits.
             assertThat(deletedCommits, empty());
 
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(
+                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()),
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
 
-            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
+            var expectedDeletedCommits = uploadedCommits.stream()
+                .filter(ptg -> mergePTG.equals(ptg) == false)
+                .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
+                .collect(Collectors.toSet());
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
         }
     }
@@ -1386,11 +1402,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ) {
                 return commitCleaner;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -1401,17 +1412,21 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var initialCommits = testHarness.generateIndexCommits(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
-                fakeSearchNode.respondWithUsedCommits(
-                    initialCommit.getGeneration(),
+                commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommit.getGeneration());
+                waitUntilBCCIsUploaded(commitService, shardId, initialCommit.getGeneration());
+                fakeSearchNode.respondWithUsedCommitsToUploadNotify(
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()),
                     new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
                 );
             }
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(
+                new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration()),
                 new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration())
             );
 
@@ -1440,8 +1455,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
             StatelessCommitRef newCommit = testHarness.generateIndexCommits(1, true).get(0);
             StatelessCommitRef retainedBySearch = initialCommits.get(1);
             commitService.onCommitCreation(newCommit);
-            fakeSearchNode.respondWithUsedCommits(
-                newCommit.getGeneration(),
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, newCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, newCommit.getGeneration());
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(
+                new PrimaryTermAndGeneration(primaryTerm, newCommit.getGeneration()),
                 new PrimaryTermAndGeneration(primaryTerm, newCommit.getGeneration()),
                 new PrimaryTermAndGeneration(primaryTerm, retainedBySearch.getGeneration())
             );
@@ -1466,6 +1483,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testRegisterUnpromotableRecovery() throws Exception {
+        Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
         AtomicBoolean activateSearchNode = new AtomicBoolean();
@@ -1512,18 +1530,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ) {
                 return commitCleaner;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevaluate the need for this.
-                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1).build();
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
 
             ClusterState stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             stateRef.set(stateWithNoSearchShards);
+            testHarness.commitService.addConsumerForNewUploadedBcc(
+                testHarness.shardId,
+                uploadedBccInfo -> uploadedCommits.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration())
+            );
 
             var initialCommits = testHarness.generateIndexCommits(10);
             for (StatelessCommitRef initialCommit : initialCommits) {
@@ -1532,9 +1548,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var commit = initialCommits.get(initialCommits.size() - 1);
             commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), future);
-            future.actionGet();
+            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
@@ -1562,6 +1576,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
 
             markDeletedAndLocalUnused(List.of(mergedCommit), initialCommits, commitService, shardId);
 
@@ -1569,12 +1585,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // therefore we should retain all commits.
             assertThat(deletedCommits, empty());
 
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
-                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
-            );
+            PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(mergePTG, mergePTG);
 
-            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
+            var expectedDeletedCommits = uploadedCommits.stream()
+                .filter(ptg -> mergePTG.equals(ptg) == false)
+                .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
+                .collect(Collectors.toSet());
             assertBusy(
                 () -> assertThat(
                     Sets.difference(deletedCommits, expectedDeletedCommits).toString(),
@@ -1586,6 +1603,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testAllCommitsAreDeletedWhenIndexIsDeleted() throws Exception {
+        Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
@@ -1614,15 +1632,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ) {
                 return commitCleaner;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevaluate the need for this
-                return delayedOff(super.nodeSettings());
-            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
+            testHarness.commitService.addConsumerForNewUploadedBcc(
+                testHarness.shardId,
+                uploadedBccInfo -> uploadedCommits.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration())
+            );
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
@@ -1633,12 +1649,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
                 if (delayedNewCommitNotifications.contains(initialCommit) == false) {
-                    fakeSearchNode.respondWithUsedCommits(
-                        initialCommit.getGeneration(),
-                        new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
+                    PrimaryTermAndGeneration primaryTermAndGeneration = new PrimaryTermAndGeneration(
+                        primaryTerm,
+                        initialCommit.getGeneration()
                     );
+                    fakeSearchNode.respondWithUsedCommits(primaryTermAndGeneration, primaryTermAndGeneration);
                 }
             }
+
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, initialCommits.get(initialCommits.size() - 1).getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, initialCommits.get(initialCommits.size() - 1).getGeneration());
 
             // Wait for sending all new commit notification requests, to be able to respond to them.
             assertBusy(() -> assertThat(fakeSearchNode.generationPendingListeners.size(), equalTo(numberOfCommits)));
@@ -1648,24 +1668,29 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
 
             for (StatelessCommitRef initialCommit : delayedNewCommitNotifications) {
-                fakeSearchNode.respondWithUsedCommits(
-                    initialCommit.getGeneration(),
-                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
+                PrimaryTermAndGeneration primaryTermAndGeneration = new PrimaryTermAndGeneration(
+                    primaryTerm,
+                    initialCommit.getGeneration()
                 );
+                fakeSearchNode.respondWithUsedCommits(primaryTermAndGeneration, primaryTermAndGeneration);
             }
 
             // All commits must be deleted
-            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
-            assertBusy(() -> { assertThat(deletedCommits, is(expectedDeletedCommits)); });
+            var expectedDeletedCommits = uploadedCommits.stream()
+                .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
+                .collect(Collectors.toSet());
+            assertBusy(() -> assertThat(deletedCommits, is(expectedDeletedCommits)));
         }
     }
 
     public void testConcurrentIndexingSearchAndRecoveries() throws Exception {
+        Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                logger.info("deleting vbcc {}", staleCompoundCommit);
                 deletedCommits.add(staleCompoundCommit);
             }
         };
@@ -1689,16 +1714,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ) {
                 return commitCleaner;
             }
-
-            @Override
-            protected Settings nodeSettings() {
-                // todo: reevaluate the need for this.
-                return delayedOff(super.nodeSettings());
-            }
-
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
+            testHarness.commitService.addConsumerForNewUploadedBcc(testHarness.shardId, uploadedBccInfo -> {
+                logger.info("uploading vbcc {}", uploadedBccInfo.uploadedBcc().primaryTermAndGeneration());
+                uploadedCommits.add(uploadedBccInfo.uploadedBcc().primaryTermAndGeneration());
+            });
 
             var noSearchState = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             var searchState = clusterStateWithPrimaryAndSearchShards(shardId, 1);
@@ -1719,6 +1741,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             AtomicReference<PrimaryTermAndGeneration> latestCommit = new AtomicReference<>(
                 new PrimaryTermAndGeneration(initialLatestCommit.getPrimaryTerm(), initialLatestCommit.getGeneration())
             );
+            AtomicReference<PrimaryTermAndGeneration> latestUpload = new AtomicReference<>(null);
 
             Thread indexer = new Thread(() -> {
                 List<StatelessCommitRef> previous = initialCommits;
@@ -1730,10 +1753,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         newCommits.stream()
                             .map(commit -> new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration()))
                             .forEach(allCommits::add);
+                        long generation = newCommits.get(newCommits.size() - 1).getGeneration();
                         if (randomBoolean()) {
                             StatelessCommitRef randomCommit = randomFrom(newCommits);
                             latestCommit.set(new PrimaryTermAndGeneration(randomCommit.getPrimaryTerm(), randomCommit.getGeneration()));
                         }
+                        commitService.ensureMaxGenerationToUploadForFlush(shardId, generation);
+                        waitUntilBCCIsUploaded(commitService, shardId, generation);
+                        latestUpload.set(new PrimaryTermAndGeneration(primaryTerm, generation));
                         markDeletedAndLocalUnused(newCommits, previous, commitService, shardId);
                         previous = newCommits;
                         Thread.yield();
@@ -1741,8 +1768,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     }
                     var mergedCommit = testHarness.generateIndexCommits(1, true).get(0);
                     commitService.onCommitCreation(mergedCommit);
-                    latestCommit.set(new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()));
-                    fakeSearchNode.respondWithUsedCommits(mergedCommit.getGeneration(), latestCommit.get());
+                    PrimaryTermAndGeneration primaryTermAndGeneration = new PrimaryTermAndGeneration(
+                        mergedCommit.getPrimaryTerm(),
+                        mergedCommit.getGeneration()
+                    );
+                    latestCommit.set(primaryTermAndGeneration);
+                    logger.info("final merge vbcc {}", primaryTermAndGeneration);
+                    commitService.ensureMaxGenerationToUploadForFlush(shardId, mergedCommit.getGeneration());
+                    waitUntilBCCIsUploaded(commitService, shardId, mergedCommit.getGeneration());
+                    latestUpload.set(primaryTermAndGeneration);
+                    logger.info("responding with final commit used by search nodes {}", latestCommit.get());
+                    fakeSearchNode.respondWithUsedCommitsToUploadNotify(primaryTermAndGeneration, latestCommit.get());
 
                     markDeletedAndLocalUnused(List.of(mergedCommit), previous, commitService, shardId);
                 } catch (IOException e) {
@@ -1761,9 +1797,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     while (generationResponded < toGeneration) {
                         ++generationResponded;
                         // we generate commits with holes in the sequence, skip those.
-                        if (allCommits.contains(new PrimaryTermAndGeneration(primaryTerm, generationResponded))) {
-                            fakeSearchNode.respondWithUsedCommits(generationResponded, commits);
+                        PrimaryTermAndGeneration ptg = new PrimaryTermAndGeneration(primaryTerm, generationResponded);
+                        if (allCommits.contains(ptg)) {
+                            fakeSearchNode.respondWithUsedCommits(ptg, commits);
                         }
+                    }
+                    PrimaryTermAndGeneration uploaded = latestUpload.get();
+                    if (uploaded != null) {
+                        fakeSearchNode.respondWithUsedCommitsToUploadNotify(uploaded, commits.toArray(new PrimaryTermAndGeneration[0]));
                     }
                 }
 
@@ -1771,7 +1812,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 public void run() {
                     safeAwait(barrier);
                     for (long i = 0; i < 10 || indexingRoundsCompleted.get() < 10; ++i) {
-                        respond(latestCommit.get().generation());
+                        respond(latestCommit.get().primaryTerm());
                         var clusterState = changeClusterState(searchState);
                         PlainActionFuture<RegisterCommitResponse> future = new PlainActionFuture<>();
 
@@ -1816,8 +1857,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             searcher.join();
             running.set(false);
             indexer.join();
-            var expectedDeletedCommits = allCommits.stream()
-                .map(commit -> new StaleCompoundCommit(shardId, commit, primaryTerm))
+            PrimaryTermAndGeneration finalPTG = new PrimaryTermAndGeneration(
+                latestCommit.get().primaryTerm(),
+                latestCommit.get().generation()
+            );
+            var expectedDeletedCommits = uploadedCommits.stream()
+                .filter(pTG -> finalPTG.equals(pTG) == false)
+                .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
                 .collect(Collectors.toSet());
             assertBusy(
                 () -> assertThat(
@@ -1970,7 +2016,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
-                return delayedOff(super.nodeSettings());
+                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_DELAYED.getKey(), false).build();
             }
         }) {
             for (StatelessCommitRef commitRef : testHarness.generateIndexCommits(randomIntBetween(1, 4))) {
@@ -2163,15 +2209,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(deletedBCCs, is(empty()));
 
             var indexEngineLocalReaderListenerForShard = commitService.getIndexEngineLocalReaderListenerForShard(shardId);
+            PrimaryTermAndGeneration mergePrimaryTermAndGeneration = new PrimaryTermAndGeneration(
+                primaryTerm,
+                mergedCommit.getGeneration()
+            );
             indexEngineLocalReaderListenerForShard.onLocalReaderClosed(
                 bccsWithNonMergedCommits.get(bccsWithNonMergedCommits.size() - 1).generation(),
-                Set.of(new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration()))
+                Set.of(mergePrimaryTermAndGeneration)
             );
-            fakeSearchNode.respondWithUsedCommits(
-                mergedCommit.getGeneration(),
-                mergedCommit.getGeneration(),
-                Set.of(new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration()))
-            );
+            fakeSearchNode.respondWithUsedCommitsToUploadNotify(mergePrimaryTermAndGeneration, mergePrimaryTermAndGeneration);
 
             // We need assertBusy as we do an incRef for the BlobReference before we start the BCC upload
             // (in StatelessCommitService#createAndRunCommitUpload) and decRef once the BCC is uploaded,
@@ -2217,13 +2263,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             for (StatelessCommitRef commitRef : commits) {
                 commitService.onCommitCreation(commitRef);
                 commitService.ensureMaxGenerationToUploadForFlush(shardId, commitRef.getGeneration());
-
-                PlainActionFuture<Void> future = new PlainActionFuture<>();
-                commitService.addListenerForUploadedGeneration(shardId, commitRef.getGeneration(), future);
-                future.actionGet();
+                waitUntilBCCIsUploaded(commitService, shardId, commitRef.getGeneration());
 
                 // Wait until the new commit notification is sent
-                fakeSearchNode.getListenerForNewCommitNotification(commitRef.getGeneration()).get();
+                fakeSearchNode.getListenerForNewCommitUpload(
+                    new PrimaryTermAndGeneration(commitRef.getPrimaryTerm(), commitRef.getGeneration())
+                ).get();
 
                 if (randomBoolean()) {
                     // Call at least 3 times, ensuring that we do not decRef more than once and delete the blob accidentally
@@ -2315,66 +2360,98 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     private static class FakeSearchNode extends NoOpNodeClient {
-        private final Map<
-            NewCommitNotificationListenerKey,
-            PlainActionFuture<ActionListener<NewCommitNotificationResponse>>> generationPendingListeners = new HashMap<>();
-        private final Map<PrimaryTermAndGeneration, StatelessCompoundCommit> notifiedCommits = new HashMap<>();
+
+        record NotificationFuture(
+            PlainActionFuture<ActionListener<NewCommitNotificationResponse>> notification,
+            PlainActionFuture<ActionListener<NewCommitNotificationResponse>> upload
+        ) {}
+
+        private final Map<PrimaryTermAndGeneration, NotificationFuture> generationPendingListeners = ConcurrentCollections
+            .newConcurrentMap();
+        private final Map<PrimaryTermAndGeneration, StatelessCompoundCommit> notifiedCommits = ConcurrentCollections.newConcurrentMap();
 
         FakeSearchNode(ThreadPool threadPool) {
             super(threadPool);
         }
 
-        void respondWithUsedCommits(long generation, PrimaryTermAndGeneration... usedCommits) {
+        void respondWithUsedCommits(PrimaryTermAndGeneration primaryTermAndGeneration, PrimaryTermAndGeneration... usedCommits) {
             // Ensure that the fake search node has been notified with all the commits, so we're able to resolve their BCC dependencies
             // and use them to notify back the index node
-            getListenerForNewCommitNotification(generation).actionGet();
+            getListenerForNewCommitNotification(primaryTermAndGeneration).actionGet();
             for (PrimaryTermAndGeneration usedCommit : usedCommits) {
-                getListenerForNewCommitNotification(usedCommit.generation()).actionGet();
+                getListenerForNewCommitNotification(usedCommit).actionGet();
             }
-            Set<PrimaryTermAndGeneration> allOpenBCCs;
-            synchronized (this) {
-                allOpenBCCs = Arrays.stream(usedCommits).map(notifiedCommits::get).flatMap(statelessCompoundCommit -> {
+            Set<PrimaryTermAndGeneration> allOpenBCCs = Arrays.stream(usedCommits)
+                .map(notifiedCommits::get)
+                .flatMap(statelessCompoundCommit -> {
                     Objects.requireNonNull(statelessCompoundCommit);
                     return BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit).stream();
-                }).collect(Collectors.toSet());
-            }
-            respondWithUsedCommits(generation, allOpenBCCs);
+                })
+                .collect(Collectors.toSet());
+            respondWithUsedCommits(primaryTermAndGeneration, allOpenBCCs);
         }
 
-        void respondWithUsedCommits(long generation, Set<PrimaryTermAndGeneration> usedCommits) {
-            getListenerForNewCommitNotification(generation).actionGet().onResponse(new NewCommitNotificationResponse(usedCommits));
-        }
-
-        void respondWithUsedCommits(long generation, long uploadedBCC, Set<PrimaryTermAndGeneration> usedCommits) {
-            getListenerForNewCommitNotification(generation, uploadedBCC).actionGet()
+        void respondWithUsedCommits(PrimaryTermAndGeneration primaryTermAndGeneration, Set<PrimaryTermAndGeneration> usedCommits) {
+            getListenerForNewCommitNotification(primaryTermAndGeneration).actionGet()
                 .onResponse(new NewCommitNotificationResponse(usedCommits));
         }
 
-        private synchronized PlainActionFuture<ActionListener<NewCommitNotificationResponse>> getListenerForNewCommitNotification(
-            long generation
+        void respondWithUsedCommitsToUploadNotify(
+            PrimaryTermAndGeneration primaryTermAndGeneration,
+            PrimaryTermAndGeneration... usedCommits
         ) {
-            return getListenerForNewCommitNotification(generation, generation);
+            // Ensure that the fake search node has been notified with all the commits, so we're able to resolve their BCC dependencies
+            // and use them to notify back the index node
+            getListenerForNewCommitNotification(primaryTermAndGeneration).actionGet();
+            for (PrimaryTermAndGeneration usedCommit : usedCommits) {
+                getListenerForNewCommitNotification(usedCommit).actionGet();
+            }
+            Set<PrimaryTermAndGeneration> allOpenBCCs = Arrays.stream(usedCommits)
+                .map(notifiedCommits::get)
+                .flatMap(statelessCompoundCommit -> {
+                    Objects.requireNonNull(statelessCompoundCommit);
+                    return BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit).stream();
+                })
+                .collect(Collectors.toSet());
+            getListenerForNewCommitUpload(primaryTermAndGeneration).actionGet().onResponse(new NewCommitNotificationResponse(allOpenBCCs));
         }
 
-        private synchronized PlainActionFuture<ActionListener<NewCommitNotificationResponse>> getListenerForNewCommitNotification(
-            long generation,
-            long latestUploadedBatchedCompoundCommitTermAndGen
+        private PlainActionFuture<ActionListener<NewCommitNotificationResponse>> getListenerForNewCommitNotification(
+            PrimaryTermAndGeneration primaryTermAndGeneration
         ) {
-            PlainActionFuture<ActionListener<NewCommitNotificationResponse>> future = new PlainActionFuture<>();
+            return getNotificationFuture(primaryTermAndGeneration).notification;
+        }
+
+        private PlainActionFuture<ActionListener<NewCommitNotificationResponse>> getListenerForNewCommitUpload(
+            PrimaryTermAndGeneration primaryTermAndGeneration
+        ) {
+            return getNotificationFuture(primaryTermAndGeneration).upload;
+        }
+
+        private NotificationFuture getNotificationFuture(PrimaryTermAndGeneration primaryTermAndGeneration) {
             return generationPendingListeners.computeIfAbsent(
-                new NewCommitNotificationListenerKey(generation, latestUploadedBatchedCompoundCommitTermAndGen),
-                unused -> future
+                primaryTermAndGeneration,
+                unused -> new NotificationFuture(new PlainActionFuture<>(), new PlainActionFuture<>())
             );
         }
 
         synchronized void onNewNotification(NewCommitNotificationRequest request, ActionListener<NewCommitNotificationResponse> listener) {
-            notifiedCommits.put(request.getCompoundCommit().primaryTermAndGeneration(), request.getCompoundCommit());
-            getListenerForNewCommitNotification(
-                request.getGeneration(),
-                request.getLatestUploadedBatchedCompoundCommitTermAndGen() != null
-                    ? request.getLatestUploadedBatchedCompoundCommitTermAndGen().generation()
-                    : -1
-            ).onResponse(listener);
+            notifiedCommits.putIfAbsent(request.getCompoundCommit().primaryTermAndGeneration(), request.getCompoundCommit());
+            getNotificationFuture(request.getCompoundCommit().primaryTermAndGeneration()).notification.onResponse(listener);
+            if (request.isUploaded()) {
+                PrimaryTermAndGeneration bccPTG = new PrimaryTermAndGeneration(
+                    request.getCompoundCommit().primaryTerm(),
+                    request.getBatchedCompoundCommitGeneration()
+                );
+                ActionListener<NewCommitNotificationResponse> runOnce = ActionListener.notifyOnce(listener);
+                for (PrimaryTermAndGeneration commit : notifiedCommits.keySet()) {
+                    if (commit.onOrBefore(request.getCompoundCommit().primaryTermAndGeneration()) && commit.onOrAfter(bccPTG)) {
+                        // The commit notification listener is added for every commit uploaded. However, the actual notification is only
+                        // sent once. So limit to notifying back only once.
+                        getNotificationFuture(commit).upload.onResponse(runOnce);
+                    }
+                }
+            }
         }
 
         @Override
@@ -2386,8 +2463,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         ) {
             onNewNotification((NewCommitNotificationRequest) request, (ActionListener<NewCommitNotificationResponse>) listener);
         }
-
-        record NewCommitNotificationListenerKey(long commitGeneration, long latestUploadedBatchedCompoundCommitTermAndGen) {}
     }
 
     private static void waitUntilBCCIsUploaded(StatelessCommitService commitService, ShardId shardId, long bccGeneration) {
@@ -2560,7 +2635,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         for (StatelessCommitRef indexCommit : unusedCommits) {
             var referencedBCCs = openReaders.remove(indexCommit.getGeneration());
             assert referencedBCCs.isEmpty() == false;
-            boolean deleteFirst = randomBoolean();
 
             Set<PrimaryTermAndGeneration> openLocalBCCs = openReaders.values()
                 .stream()
@@ -2568,6 +2642,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .collect(Collectors.toSet());
             long bccHoldingCommit = referencedBCCs.stream().max(PrimaryTermAndGeneration::compareTo).get().generation();
 
+            boolean deleteFirst = randomBoolean();
             if (deleteFirst == false) {
                 indexEngineLocalReaderListenerForShard.onLocalReaderClosed(bccHoldingCommit, openLocalBCCs);
             }
@@ -2596,9 +2671,5 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
             testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> true);
         }
-    }
-
-    private static Settings delayedOff(Settings settings) {
-        return Settings.builder().put(settings).put(STATELESS_UPLOAD_DELAYED.getKey(), false).build();
     }
 }

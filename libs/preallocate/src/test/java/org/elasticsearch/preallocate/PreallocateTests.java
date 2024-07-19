@@ -18,13 +18,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PreallocateTests extends ESTestCase {
     public void testPreallocate() throws Exception {
+        assumeFalse("no preallocate on windows", System.getProperty("os.name").startsWith("Windows"));
         Path cacheFile = createTempFile();
         long size = 1024 * 1024; // 1 MB
         Preallocate.preallocate(cacheFile, size);
         OptionalLong foundSize = FileSystemNatives.allocatedSizeInBytes(cacheFile);
         assertTrue(foundSize.isPresent());
-        // Note that on Windows the fallback setLength is used. Although that creates a sparse
-        // file on Linux/MacOS, it full allocates the file on Windows
         assertThat(foundSize.getAsLong(), equalTo(size));
     }
 }

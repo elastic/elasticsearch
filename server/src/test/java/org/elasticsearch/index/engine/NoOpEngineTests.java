@@ -43,15 +43,15 @@ public class NoOpEngineTests extends EngineTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     public void testNoopEngine() throws IOException {
-        engine.close();
+        close(engine);
         final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         assertThat(engine.refreshNeeded(), equalTo(false));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
-        engine.close();
+        close(engine);
     }
 
     public void testTwoNoopEngines() throws IOException {
-        engine.close();
+        close(engine);
         // Ensure that we can't open two noop engines for the same store
         final EngineConfig engineConfig = noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir);
         NoOpEngine ignored = new NoOpEngine(engineConfig);
@@ -59,7 +59,7 @@ public class NoOpEngineTests extends EngineTestCase {
             UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> new NoOpEngine(engineConfig));
             assertThat(e.getCause(), instanceOf(LockObtainFailedException.class));
         } finally {
-            ignored.close();
+            close(ignored);
         }
     }
 
@@ -80,7 +80,7 @@ public class NoOpEngineTests extends EngineTestCase {
 
         long localCheckpoint = engine.getPersistedLocalCheckpoint();
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
-        engine.close();
+        close(engine);
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
         assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
@@ -90,11 +90,11 @@ public class NoOpEngineTests extends EngineTestCase {
                 assertThat(reader.numDocs(), equalTo(docs));
             }
         }
-        noOpEngine.close();
+        close(noOpEngine);
     }
 
     public void testNoOpEngineStats() throws Exception {
-        IOUtils.close(() -> engine.close(), store);
+        IOUtils.close(() -> close(engine), store);
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
@@ -139,7 +139,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 );
                 engine.flush(true, true);
             } finally {
-                engine.close();
+                close(engine);
             }
 
             final DocsStats expectedDocStats;
@@ -150,7 +150,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 expectedDocStats = engine.docStats();
                 expectedSegmentStats = engine.segmentsStats(includeFileSize, true);
             } finally {
-                engine.close();
+                close(engine);
             }
 
             NoOpEngine noOpEngine = new NoOpEngine(config);
@@ -167,7 +167,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 logger.error(config.getMergePolicy());
                 throw e;
             } finally {
-                noOpEngine.close();
+                close(noOpEngine);
             }
         }
     }
@@ -196,7 +196,7 @@ public class NoOpEngineTests extends EngineTestCase {
         // prevent translog from trimming so we can test trimUnreferencedFiles in NoOpEngine.
         final Translog.Snapshot snapshot = engine.getTranslog().newSnapshot();
         engine.flush(true, true);
-        engine.close();
+        close(engine);
 
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
         assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(totalTranslogOps));
@@ -205,6 +205,6 @@ public class NoOpEngineTests extends EngineTestCase {
         assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
         assertThat(noOpEngine.getTranslogStats().getTranslogSizeInBytes(), equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES));
         snapshot.close();
-        noOpEngine.close();
+        close(noOpEngine);
     }
 }

@@ -64,6 +64,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -356,7 +357,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
         } finally {
-            IOUtils.close(() -> replicaEngine.close(), storeReplica, () -> engine.close(), store, () -> terminate(threadPool));
+            IOUtils.close(() -> close(replicaEngine), storeReplica, () -> close(engine), store, () -> terminate(threadPool));
         }
     }
 
@@ -1633,10 +1634,10 @@ public abstract class EngineTestCase extends ESTestCase {
         try {
             future.get(30, TimeUnit.SECONDS);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof IOException ioException) {
+            if (e.getCause()instanceof IOException ioException) {
                 throw ioException;
             }
-            if (e.getCause() instanceof RuntimeException runtimeException) {
+            if (e.getCause()instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
             fail(e);
@@ -1650,5 +1651,17 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public static void ensureOpen(Engine engine) {
         engine.ensureOpen();
+    }
+
+    protected static void close(Engine engine) throws IOException {
+        var future = new PlainActionFuture<Void>();
+        engine.close(future);
+        FutureUtils.get(future);
+    }
+
+    protected static void flushAndClose(Engine engine) throws IOException {
+        var future = new PlainActionFuture<Void>();
+        engine.flushAndClose(future);
+        FutureUtils.get(future);
     }
 }

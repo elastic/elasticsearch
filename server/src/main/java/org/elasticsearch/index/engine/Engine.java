@@ -2031,7 +2031,14 @@ public abstract class Engine {
     /**
      * Flush the engine (committing segments to disk and truncating the translog) and close it.
      */
-    public void flushAndClose() throws IOException {
+    public void flushAndClose(ActionListener<Void> listener) throws IOException {
+        ActionListener.completeWith(listener, () -> {
+            flushAndClose();
+            return null;
+        });
+    }
+
+    private void flushAndClose() throws IOException {
         logger.trace("flushAndClose() maybe draining ops");
         if (isClosed.get() == false && drainForClose()) {
             logger.trace("flushAndClose drained ops");
@@ -2050,7 +2057,14 @@ public abstract class Engine {
         awaitPendingClose();
     }
 
-    public void close() throws IOException {
+    public void close(ActionListener<Void> listener) throws IOException {
+        ActionListener.completeWith(listener, () -> {
+            close();
+            return null;
+        });
+    }
+
+    private void close() throws IOException {
         logger.debug("close() maybe draining ops");
         if (isClosed.get() == false && drainForClose()) {
             logger.debug("close drained ops");
@@ -2161,9 +2175,9 @@ public abstract class Engine {
             // This is a (temporary) adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect
             // exceptions to be thrown directly, but Future#get adds an ExecutionException wrapper which we must remove to preserve the
             // expected exception semantics.
-            if (e.getCause() instanceof IOException ioException) {
+            if (e.getCause()instanceof IOException ioException) {
                 throw ioException;
-            } else if (e.getCause() instanceof RuntimeException runtimeException) {
+            } else if (e.getCause()instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             } else {
                 // the old code was "throws IOException" so we shouldn't see any other exception types here

@@ -11,12 +11,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -135,7 +137,7 @@ public class FollowingEngineTests extends ESTestCase {
                 ops.stream().mapToLong(op -> op.seqNo()).max().ifPresent(followingEngine::advanceMaxSeqNoOfUpdatesOrDeletes);
                 EngineTestCase.assertOpsOnReplica(ops, followingEngine, true, logger);
             } finally {
-                followingEngine.close();
+                close(followingEngine);
             }
         }
     }
@@ -155,7 +157,7 @@ public class FollowingEngineTests extends ESTestCase {
                 final Engine.Index indexToTest = indexForFollowing("id", seqNo, origin);
                 consumer.accept(followingEngine, indexToTest);
             } finally {
-                followingEngine.close();
+                close(followingEngine);
             }
         }
     }
@@ -197,7 +199,7 @@ public class FollowingEngineTests extends ESTestCase {
 
                 consumer.accept(followingEngine, delete);
             } finally {
-                followingEngine.close();
+                close(followingEngine);
             }
         }
     }
@@ -214,7 +216,7 @@ public class FollowingEngineTests extends ESTestCase {
                 int addedNoops = followingEngine.fillSeqNoGaps(primaryTerm.get());
                 assertThat(addedNoops, equalTo(0));
             } finally {
-                followingEngine.close();
+                close(followingEngine);
             }
         }
     }
@@ -571,7 +573,7 @@ public class FollowingEngineTests extends ESTestCase {
 
                 assertThat(followingEngine.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leaderMaxSeqNoOfUpdatesOnPrimary));
             } finally {
-                followingEngine.close();
+                close(followingEngine);
             }
         }
     }
@@ -638,13 +640,19 @@ public class FollowingEngineTests extends ESTestCase {
                     try {
                         wrappedTask.accept(leaderEngine, followingEngine);
                     } finally {
-                        followingEngine.close();
+                        close(followingEngine);
                     }
                 }
             } finally {
-                leaderEngine.close();
+                close(leaderEngine);
             }
         }
+    }
+
+    private static void close(Engine engine) throws IOException {
+        var future = new PlainActionFuture<Void>();
+        engine.close(future);
+        FutureUtils.get(future);
     }
 
     private void fetchOperations(AtomicBoolean stopped, AtomicLong lastFetchedSeqNo, InternalEngine leader, FollowingEngine follower)
@@ -824,7 +832,7 @@ public class FollowingEngineTests extends ESTestCase {
                     assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
             } finally {
-                followingEngine.close();
+                close(followingEngine);
             }
         }
     }
@@ -886,7 +894,7 @@ public class FollowingEngineTests extends ESTestCase {
                 rollTranslog.join();
                 EngineTestCase.assertMaxSeqNoInCommitUserData(engine);
             } finally {
-                engine.close();
+                close(engine);
             }
         }
     }

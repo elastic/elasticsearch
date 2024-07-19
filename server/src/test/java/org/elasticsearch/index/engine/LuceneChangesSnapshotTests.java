@@ -290,7 +290,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         isDone.set(true);
         for (Follower follower : followers) {
             follower.join();
-            IOUtils.close(() -> follower.engine.close(), follower.engine.store);
+            IOUtils.close(() -> close(follower.engine), follower.engine.store);
         }
     }
 
@@ -378,7 +378,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             }
         } finally {
             store.close();
-            engine.close();
+            close(engine);
         }
     }
 
@@ -544,7 +544,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             assertThat(engine.countChanges("test", fromSeqNo.getAsLong(), toSeqNo.getAsLong()), equalTo(numOps));
         } finally {
             store.close();
-            engine.close();
+            close(engine);
         }
     }
 }

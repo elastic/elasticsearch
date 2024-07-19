@@ -356,7 +356,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
         } finally {
-            IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
+            IOUtils.close(() -> replicaEngine.close(), storeReplica, () -> engine.close(), store, () -> terminate(threadPool));
         }
     }
 

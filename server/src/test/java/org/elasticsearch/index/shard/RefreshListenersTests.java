@@ -168,7 +168,7 @@ public class RefreshListenersTests extends ESTestCase {
 
     @After
     public void tearDownListeners() throws Exception {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> engine.close(), store);
         terminate(threadPool);
     }
 

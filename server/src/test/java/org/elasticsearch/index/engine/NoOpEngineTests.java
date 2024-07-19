@@ -54,9 +54,12 @@ public class NoOpEngineTests extends EngineTestCase {
         engine.close();
         // Ensure that we can't open two noop engines for the same store
         final EngineConfig engineConfig = noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir);
-        try (NoOpEngine ignored = new NoOpEngine(engineConfig)) {
+        NoOpEngine ignored = new NoOpEngine(engineConfig);
+        try {
             UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> new NoOpEngine(engineConfig));
             assertThat(e.getCause(), instanceOf(LockObtainFailedException.class));
+        } finally {
+            ignored.close();
         }
     }
 
@@ -91,7 +94,7 @@ public class NoOpEngineTests extends EngineTestCase {
     }
 
     public void testNoOpEngineStats() throws Exception {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> engine.close(), store);
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
@@ -105,7 +108,8 @@ public class NoOpEngineTests extends EngineTestCase {
             EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
             final int numDocs = scaledRandomIntBetween(10, 3000);
             int deletions = 0;
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 for (int i = 0; i < numDocs; i++) {
                     engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
                     if (rarely()) {
@@ -126,21 +130,31 @@ public class NoOpEngineTests extends EngineTestCase {
                     }
                 }
                 final long awaitedCheckpoint = numDocs + deletions - 1;
+                final var finalEngine = engine;
                 assertBusy(
-                    () -> assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(awaitedCheckpoint))
+                    () -> assertThat(
+                        finalEngine.getLocalCheckpointTracker().getProcessedCheckpoint(),
+                        greaterThanOrEqualTo(awaitedCheckpoint)
+                    )
                 );
                 engine.flush(true, true);
+            } finally {
+                engine.close();
             }
 
             final DocsStats expectedDocStats;
             boolean includeFileSize = randomBoolean();
             final SegmentsStats expectedSegmentStats;
-            try (InternalEngine engine = createEngine(config)) {
+            engine = createEngine(config);
+            try {
                 expectedDocStats = engine.docStats();
                 expectedSegmentStats = engine.segmentsStats(includeFileSize, true);
+            } finally {
+                engine.close();
             }
 
-            try (NoOpEngine noOpEngine = new NoOpEngine(config)) {
+            NoOpEngine noOpEngine = new NoOpEngine(config);
+            try {
                 assertEquals(expectedDocStats.getCount(), noOpEngine.docStats().getCount());
                 assertEquals(expectedDocStats.getDeleted(), noOpEngine.docStats().getDeleted());
                 assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats().getTotalSizeInBytes());
@@ -152,6 +166,8 @@ public class NoOpEngineTests extends EngineTestCase {
             } catch (AssertionError e) {
                 logger.error(config.getMergePolicy());
                 throw e;
+            } finally {
+                noOpEngine.close();
             }
         }
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 
 /**
  * Enriches the stream of data with the results of running a {@link Aggregate STATS}.
@@ -55,7 +57,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
 
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
-    private List<Attribute> output;
+    private List<Attribute> lazyOutput;
 
     public InlineStats(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
         super(source, child);
@@ -117,10 +119,19 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
 
     @Override
     public List<Attribute> output() {
-        if (this.output == null) {
-            this.output = mergeOutputAttributes(Expressions.asAttributes(aggregates), child().output());
+        if (this.lazyOutput == null) {
+            List<NamedExpression> addedFields = new ArrayList<>();
+            AttributeSet childOutput = child().outputSet();
+
+            for (NamedExpression agg: aggregates) {
+                if (childOutput.contains(agg) == false) {
+                    addedFields.add(agg);
+                }
+            }
+
+            this.lazyOutput = mergeOutputAttributes(addedFields, child().output());
         }
-        return output;
+        return lazyOutput;
     }
 
     @Override

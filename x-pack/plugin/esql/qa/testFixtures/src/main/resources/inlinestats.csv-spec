@@ -329,3 +329,77 @@ emp_no:integer | languages:integer | max_salary:integer
          10002 |                 5 | 66817
          10003 |                 4 | 74572
 ;
+
+shadowing
+required_capability: inlinestats
+
+ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
+| INLINESTATS env=VALUES(right) BY client_ip
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+left         | 172.21.0.5        | right         | right
+;
+
+shadowingLimit0
+required_capability: inlinestats
+
+ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
+| INLINESTATS env=VALUES(right) BY client_ip
+| LIMIT 0
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+;
+
+shadowingMulti
+required_capability: inlinestats
+
+ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
+| INLINESTATS airport=VALUES(left), region=VALUES(left), city_boundary=VALUES(left) BY city
+;
+
+left:keyword | city:keyword | middle:keyword | right:keyword | airport:keyword | region:keyword | city_boundary:keyword
+left         | Zürich       | middle         | right         |            left |           left | left
+;
+
+shadowingMultiLimit0
+required_capability: inlinestats
+
+ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
+| INLINESTATS airport=VALUES(left), region=VALUES(left), city_boundary=VALUES(left) BY city
+| LIMIT 0
+;
+
+left:keyword | city:keyword | middle:keyword | right:keyword | airport:keyword | region:keyword | city_boundary:keyword
+;
+
+shadowingInternal
+required_capability: inlinestats
+
+ROW city = "Zürich"
+| INLINESTATS x=VALUES(city), x=VALUES(city)
+;
+
+city:keyword | x:keyword
+Zürich       | Zürich
+;
+
+byConstant-Ignored
+required_capability: inlinestats
+
+FROM employees
+| KEEP emp_no, languages
+| INLINESTATS max_lang = MAX(languages) BY y=1 
+| WHERE max_lang == languages
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer | languages:integer | max_lang:integer | y:integer
+         10002 |                 5 |                5 | 1
+         10004 |                 5 |                5 | 1
+         10011 |                 5 |                5 | 1
+         10012 |                 5 |                5 | 1
+         10014 |                 5 |                5 | 1
+;

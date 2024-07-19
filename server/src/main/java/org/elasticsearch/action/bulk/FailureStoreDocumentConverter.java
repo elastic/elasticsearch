@@ -32,6 +32,8 @@ import static org.elasticsearch.ingest.CompoundProcessor.PROCESSOR_TYPE_EXCEPTIO
  */
 public class FailureStoreDocumentConverter {
 
+    private static final int STACKTRACE_PRINT_DEPTH = 2;
+
     private static final Set<String> INGEST_EXCEPTION_HEADERS = Set.of(
         PIPELINE_ORIGIN_EXCEPTION_HEADER,
         PROCESSOR_TAG_EXCEPTION_HEADER,
@@ -109,7 +111,7 @@ public class FailureStoreDocumentConverter {
             {
                 builder.field("type", ElasticsearchException.getExceptionName(unwrapped));
                 builder.field("message", unwrapped.getMessage());
-                builder.field("stack_trace", ExceptionsHelper.stackTrace(unwrapped));
+                builder.field("stack_trace", ExceptionsHelper.limitedStackTrace(unwrapped, STACKTRACE_PRINT_DEPTH));
                 // Try to find the IngestProcessorException somewhere in the stack trace. Since IngestProcessorException is package-private,
                 // we can't instantiate it in tests, so we'll have to check for the headers directly.
                 var ingestException = ExceptionsHelper.<ElasticsearchException>unwrapCausesAndSuppressed(

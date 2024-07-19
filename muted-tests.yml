@@ -112,6 +112,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/111002
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownCartesianPointIT
+  method: testPushedDownQueriesSingleValue
+  issue: https://github.com/elastic/elasticsearch/issues/110982
 
 # Examples:
 #

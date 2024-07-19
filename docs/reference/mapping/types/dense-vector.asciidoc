@@ -457,18 +457,7 @@ To better accommodate scaling and performance needs, updating the `type` setting
 flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
 ----
 
-The following special cases apply:
-
-* updating `type` from `hnsw` to `int8_hnsw` is possible when:
-** the `m` setting is updated to the same or larger value
-** the `confidence_interval` setting is either unspecified in the original mapping or it doesn't get changed
-* updating `type` from `int8_hnsw` to `int8_hnsw` is possible when:
-** the `m` setting is updated to the same or larger value
-** the `confidence_interval` setting is either unspecified in the original mapping or it doesn't get updated
-* updating `type` from `int4_hnsw` to `int4_hnsw` is possible when:
-** the `m` setting is updated to the same or larger value
-** the `confidence_interval` setting is left untouched
-
+ For all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`) the number of connections `m` must always increase. For scalar quantized formats  (`int8_flat`, `int4_flat`, `int8_hnsw`, `int4_hnsw`) the `confidence_interval` must always be consistent (once defined, it cannot change).
 
 Updating `type` in `index_options` will fail in all other scenarios.
 

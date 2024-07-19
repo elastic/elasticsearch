@@ -56,6 +56,7 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -68,7 +69,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * It provides all the methods that the {@link SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
-public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
+public class ShardSearchRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
     private final String clusterAlias;
     private final ShardId shardId;
     private final int shardRequestIndex;
@@ -571,6 +572,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     @SuppressWarnings("rawtypes")
     public Rewriteable<Rewriteable> getRewriteable() {
         return new RequestRewritable(this);
+    }
+
+    @Override
+    public Collection<ShardId> shards() {
+        return List.of(shardId);
     }
 
     @SuppressWarnings("rawtypes")

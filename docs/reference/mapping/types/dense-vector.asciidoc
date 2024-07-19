@@ -508,4 +508,4 @@ Vectors indexed before this change will keep using the `flat` type (raw float32 
 
 In order to have all the vectors updated to the new type, either reindexing or force merging should be used.
 
-For debugging purposes, it's possible to inspect how many segments (and docs) exist for each `type` used with the <<index-segments-api-request,Index Segments API>>.
+For debugging purposes, it's possible to inspect how many segments (and docs) exist for each `type` with the <<index-segments-api-request,Index Segments API>>.

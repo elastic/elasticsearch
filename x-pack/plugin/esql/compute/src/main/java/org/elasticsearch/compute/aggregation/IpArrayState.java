@@ -33,8 +33,6 @@ import org.elasticsearch.core.Releasables;
 public final class IpArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private static final int IP_LENGTH = 16;
 
-    private final BytesRef scratch = new BytesRef();
-
     private final byte[] init;
 
     private ByteArray values;
@@ -49,13 +47,13 @@ public final class IpArrayState extends AbstractArrayState implements GroupingAg
         this.values.set(0, this.init, 0, IP_LENGTH);
     }
 
-    BytesRef get(int groupId) {
+    BytesRef get(int groupId, BytesRef scratch) {
         var ipIndex = getIndex(groupId);
         values.get(ipIndex, IP_LENGTH, scratch);
         return scratch;
     }
 
-    BytesRef getOrDefault(int groupId) {
+    BytesRef getOrDefault(int groupId, BytesRef scratch) {
         var ipIndex = getIndex(groupId);
         if (ipIndex + IP_LENGTH <= values.size()) {
             values.get(ipIndex, IP_LENGTH, scratch);
@@ -75,11 +73,12 @@ public final class IpArrayState extends AbstractArrayState implements GroupingAg
     }
 
     Block toValuesBlock(IntVector selected, DriverContext driverContext) {
+        var scratch = new BytesRef();
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newBytesRefVectorBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);
-                    var value = get(group);
+                    var value = get(group, scratch);
                     builder.appendBytesRef(value);
                 }
                 return builder.build().asBlock();
@@ -89,7 +88,7 @@ public final class IpArrayState extends AbstractArrayState implements GroupingAg
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
-                    var value = get(group);
+                    var value = get(group, scratch);
                     builder.appendBytesRef(value);
                 } else {
                     builder.appendNull();
@@ -121,11 +120,12 @@ public final class IpArrayState extends AbstractArrayState implements GroupingAg
             var valuesBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
+            var scratch = new BytesRef();
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 int ipIndex = getIndex(group);
                 if (ipIndex < values.size()) {
-                    var value = get(group);
+                    var value = get(group, scratch);
                     valuesBuilder.appendBytesRef(value);
                 } else {
                     scratch.length = 0;

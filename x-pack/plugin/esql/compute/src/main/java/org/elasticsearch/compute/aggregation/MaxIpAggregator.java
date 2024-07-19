@@ -16,11 +16,16 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 @Aggregator({ @IntermediateState(name = "max", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator
 class MaxIpAggregator {
-    private static final BytesRef MIN_VALUE = new BytesRef(new byte[16]);
+    private static final BytesRef INIT_VALUE = new BytesRef(new byte[16]);
+
+    private static boolean isBetter(BytesRef value, BytesRef otherValue) {
+        return value.compareTo(otherValue) > 0;
+    }
 
     public static SingleState initSingle() {
         return new SingleState();
@@ -40,34 +45,64 @@ class MaxIpAggregator {
         return state.toBlock(driverContext);
     }
 
-    public static IpArrayState initGrouping(BigArrays bigArrays) {
-        return new IpArrayState(bigArrays, MIN_VALUE);
+    public static GroupingState initGrouping(BigArrays bigArrays) {
+        return new GroupingState(bigArrays);
     }
 
-    public static void combine(IpArrayState state, int groupId, BytesRef value) {
-        if (isBetter(value, state.getOrDefault(groupId))) {
-            state.set(groupId, value);
-        }
+    public static void combine(GroupingState state, int groupId, BytesRef value) {
+        state.add(groupId, value);
     }
 
-    public static void combineIntermediate(IpArrayState state, int groupId, BytesRef value, boolean seen) {
+    public static void combineIntermediate(GroupingState state, int groupId, BytesRef value, boolean seen) {
         if (seen) {
-            combine(state, groupId, value);
+            state.add(groupId, value);
         }
     }
 
-    public static void combineStates(IpArrayState current, int groupId, IpArrayState state, int otherGroupId) {
-        if (state.hasValue(otherGroupId)) {
-            combine(current, groupId, state.get(otherGroupId));
+    public static void combineStates(GroupingState state, int groupId, GroupingState otherState, int otherGroupId) {
+        state.combine(groupId, otherState, otherGroupId);
+    }
+
+    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
+        return state.toBlock(selected, driverContext);
+    }
+
+    public static class GroupingState implements Releasable {
+        private final BytesRef scratch = new BytesRef();
+        private final IpArrayState internalState;
+
+        private GroupingState(BigArrays bigArrays) {
+            this.internalState = new IpArrayState(bigArrays, INIT_VALUE);
         }
-    }
 
-    public static Block evaluateFinal(IpArrayState state, IntVector selected, DriverContext driverContext) {
-        return state.toValuesBlock(selected, driverContext);
-    }
+        public void add(int groupId, BytesRef value) {
+            if (isBetter(value, internalState.getOrDefault(groupId, scratch))) {
+                internalState.set(groupId, value);
+            }
+        }
 
-    private static boolean isBetter(BytesRef value, BytesRef otherValue) {
-        return value.compareTo(otherValue) > 0;
+        public void combine(int groupId, GroupingState otherState, int otherGroupId) {
+            if (otherState.internalState.hasValue(otherGroupId)) {
+                add(groupId, otherState.internalState.get(otherGroupId, otherState.scratch));
+            }
+        }
+
+        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+            internalState.toIntermediate(blocks, offset, selected, driverContext);
+        }
+
+        Block toBlock(IntVector selected, DriverContext driverContext) {
+            return internalState.toValuesBlock(selected, driverContext);
+        }
+
+        void enableGroupIdTracking(SeenGroupIds seen) {
+            internalState.enableGroupIdTracking(seen);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(internalState);
+        }
     }
 
     public static class SingleState implements Releasable {
@@ -75,7 +110,7 @@ class MaxIpAggregator {
         private boolean seen;
 
         private SingleState() {
-            this.internalState = BytesRef.deepCopyOf(MIN_VALUE);
+            this.internalState = BytesRef.deepCopyOf(INIT_VALUE);
             this.seen = false;
         }
 

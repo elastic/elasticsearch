@@ -114,6 +114,7 @@ using default timestamp field mapping:
               message:
                 type: text
 
+---
 missing hostname field:
   - requires:
       test_runner_features: [ capabilities ]

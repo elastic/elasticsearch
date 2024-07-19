@@ -50,6 +50,46 @@ public class InferenceRequestStatsTests extends AbstractBWCWireSerializationTest
             {"service":"service","task_type":"text_embedding","count":2,"model_id":"model_id"}"""));
     }
 
+    public void testMerge_SumsCounts() {
+        var stats1 = new InferenceRequestStats("service", TaskType.TEXT_EMBEDDING, "model_id", 1);
+        var stats2 = new InferenceRequestStats("service", TaskType.TEXT_EMBEDDING, "model_id", 2);
+
+        assertThat(
+            InferenceRequestStats.merge(stats1, stats2),
+            is(new InferenceRequestStats("service", TaskType.TEXT_EMBEDDING, "model_id", 3))
+        );
+    }
+
+    public void testMerge_ThrowsAssertionExceptionWhenFieldsAreDifferent() {
+        // service names don't match
+        {
+            var stats1 = new InferenceRequestStats("service1", TaskType.TEXT_EMBEDDING, "model_id", 1);
+            var stats2 = new InferenceRequestStats("service2", TaskType.TEXT_EMBEDDING, "model_id", 2);
+
+            var thrownException = expectThrows(AssertionError.class, () -> InferenceRequestStats.merge(stats1, stats2));
+
+            assertThat(thrownException.getMessage(), is("services do not match"));
+        }
+        // task types don't match
+        {
+            var stats1 = new InferenceRequestStats("service", TaskType.TEXT_EMBEDDING, "model_id", 1);
+            var stats2 = new InferenceRequestStats("service", TaskType.RERANK, "model_id", 2);
+
+            var thrownException = expectThrows(AssertionError.class, () -> InferenceRequestStats.merge(stats1, stats2));
+
+            assertThat(thrownException.getMessage(), is("task types do not match"));
+        }
+        // model ids don't match
+        {
+            var stats1 = new InferenceRequestStats("service", TaskType.TEXT_EMBEDDING, "model_id1", 1);
+            var stats2 = new InferenceRequestStats("service", TaskType.TEXT_EMBEDDING, "model_id2", 2);
+
+            var thrownException = expectThrows(AssertionError.class, () -> InferenceRequestStats.merge(stats1, stats2));
+
+            assertThat(thrownException.getMessage(), is("model ids do not match"));
+        }
+    }
+
     @Override
     protected InferenceRequestStats mutateInstanceForVersion(InferenceRequestStats instance, TransportVersion version) {
         return instance;

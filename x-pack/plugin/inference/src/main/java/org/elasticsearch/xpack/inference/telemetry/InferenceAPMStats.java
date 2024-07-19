@@ -11,37 +11,48 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 public class InferenceAPMStats extends InferenceStats {
 
-    private final LongCounter inferenceAPMRequestCounter;
+    private final LongCounter requestCounter;
 
-    public InferenceAPMStats(Model model, MeterRegistry meterRegistry) {
+    public InferenceAPMStats(Model model, LongCounter requestCounter) {
         super(model);
-        this.inferenceAPMRequestCounter = meterRegistry.registerLongCounter(
-            "es.inference.requests.count",
-            "Inference API request counts for a particular service, task type, model ID",
-            "operations"
-        );
+        this.requestCounter = Objects.requireNonNull(requestCounter);
     }
 
     @Override
     public void increment() {
         super.increment();
-        inferenceAPMRequestCounter.incrementBy(1, Map.of("service", service, "task_type", taskType.toString(), "model_id", modelId));
+        var attributes = new HashMap<String, Object>(Map.of("service", service, "task_type", taskType.toString()));
+
+        if (modelId != null) {
+            attributes.put("model_id", modelId);
+        }
+
+        requestCounter.incrementBy(1, attributes);
     }
 
     public static final class Factory {
-        private final MeterRegistry meterRegistry;
+        private final LongCounter requestCounter;
 
         public Factory(MeterRegistry meterRegistry) {
-            this.meterRegistry = Objects.requireNonNull(meterRegistry);
+            Objects.requireNonNull(meterRegistry);
+
+            // A meter with a specific name can only be registered once
+            this.requestCounter = meterRegistry.registerLongCounter(
+                // We get an error if the name doesn't end with a specific value, total is a valid option
+                "es.inference.requests.count.total",
+                "Inference API request counts for a particular service, task type, model ID",
+                "operations"
+            );
         }
 
         public InferenceAPMStats newInferenceRequestAPMCounter(Model model) {
-            return new InferenceAPMStats(model, meterRegistry);
+            return new InferenceAPMStats(model, requestCounter);
         }
     }
 }

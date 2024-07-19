@@ -21,8 +21,9 @@ import java.util.stream.Collectors;
  *
  * @param <Input> The input to derive the keys and values for the map
  * @param <Value> The type of the values stored in the map
+ * @param <SerializableType> The type that {@link Value} will convert to in order to serialize across nodes and in a response
  */
-public class StatsMap<Input, Value extends Stats> {
+public class StatsMap<Input, Value extends Stats<SerializableType>, SerializableType extends SerializableStats> {
 
     private final ConcurrentMap<String, Value> stats = new ConcurrentHashMap<>();
     private final Function<Input, String> keyCreator;
@@ -51,7 +52,7 @@ public class StatsMap<Input, Value extends Stats> {
      * be represented in the resulting serializable map.
      * @return a map that is more easily serializable
      */
-    public Map<String, SerializableStats> toSerializableMap() {
+    public Map<String, SerializableType> toSerializableMap() {
         return stats.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toSerializableForm()));
     }
 }

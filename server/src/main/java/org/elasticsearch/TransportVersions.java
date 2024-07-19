@@ -216,6 +216,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_UNUSED_RERANK_SETTINGS_REMOVED = def(8_706_00_0);
     public static final TransportVersion ENRICH_CACHE_STATS_SIZE_ADDED = def(8_707_00_0);
     public static final TransportVersion ENTERPRISE_GEOIP_DOWNLOADER = def(8_708_00_0);
+    public static final TransportVersion ML_INFERENCE_REQUEST_TELEMETRY_ADDED = def(8_709_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

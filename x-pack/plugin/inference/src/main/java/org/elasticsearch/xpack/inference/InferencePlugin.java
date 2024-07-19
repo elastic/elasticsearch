@@ -43,11 +43,13 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInternalInferenceUsageAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportGetInternalInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
@@ -84,8 +86,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.elasticsearch.xpack.inference.telemetry.InferenceAPMStats;
-import org.elasticsearch.xpack.inference.telemetry.StatsMap;
+import org.elasticsearch.xpack.inference.telemetry.InferenceRequestStatsMap;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -140,7 +141,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
-            new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class)
+            new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
+            new ActionHandler<>(GetInternalInferenceUsageAction.INSTANCE, TransportGetInternalInferenceUsageAction.class)
         );
     }
 
@@ -196,9 +198,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
-        var statsFactory = new InferenceAPMStats.Factory(services.telemetryProvider().getMeterRegistry());
-        var statsMap = new StatsMap<>(InferenceAPMStats::key, statsFactory::newInferenceRequestAPMCounter);
-
+        var statsMap = InferenceRequestStatsMap.of(services.telemetryProvider().getMeterRegistry());
         return List.of(modelRegistry, registry, httpClientManager, statsMap);
     }
 

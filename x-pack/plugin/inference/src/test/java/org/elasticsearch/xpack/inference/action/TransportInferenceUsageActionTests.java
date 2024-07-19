@@ -11,8 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -32,12 +34,15 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
+import org.elasticsearch.xpack.core.inference.InferenceRequestStats;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInternalInferenceUsageAction;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
@@ -74,7 +79,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         client.threadPool().shutdown();
     }
 
-    public void test() throws Exception {
+    public void testModelsResponse() throws Exception {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<GetInferenceModelAction.Response>) invocation.getArguments()[2];
@@ -92,6 +97,15 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
             );
             return Void.TYPE;
         }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetInternalInferenceUsageAction.Response>) invocation.getArguments()[2];
+
+            listener.onResponse(new GetInternalInferenceUsageAction.Response(ClusterName.DEFAULT, List.of(), List.of()));
+
+            return Void.TYPE;
+        }).when(client).execute(any(GetInternalInferenceUsageAction.class), any(), any());
 
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         action.masterOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
@@ -117,5 +131,86 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         assertThat(source.getValue("models.2.service"), is("openai"));
         assertThat(source.getValue("models.2.task_type"), is("TEXT_EMBEDDING"));
         assertThat(source.getValue("models.2.count"), is(3));
+    }
+
+    public void testInferenceRequestStats() throws Exception {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetInferenceModelAction.Response>) invocation.getArguments()[2];
+            listener.onResponse(
+                new GetInferenceModelAction.Response(
+                    List.of(new ModelConfigurations("model-001", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)))
+                )
+            );
+            return Void.TYPE;
+        }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetInternalInferenceUsageAction.Response>) invocation.getArguments()[2];
+
+            // Count for openai:text_embedding:model1 is 3 total for the whole list
+            var nodeResponses = List.of(
+                new GetInternalInferenceUsageAction.NodeResponse(
+                    DiscoveryNodeUtils.create("id1"),
+                    Map.of("openai:text_embedding:model1", new InferenceRequestStats("openai", TaskType.TEXT_EMBEDDING, "model1", 1))
+                ),
+                new GetInternalInferenceUsageAction.NodeResponse(
+                    DiscoveryNodeUtils.create("z"),
+                    // this should be ordered last in the resulting list
+                    Map.of("z_service:text_embedding:model1", new InferenceRequestStats("z_service", TaskType.TEXT_EMBEDDING, "model1", 1))
+                ),
+                new GetInternalInferenceUsageAction.NodeResponse(
+                    DiscoveryNodeUtils.create("id2"),
+                    Map.of("openai:text_embedding:model1", new InferenceRequestStats("openai", TaskType.TEXT_EMBEDDING, "model1", 1))
+                ),
+                new GetInternalInferenceUsageAction.NodeResponse(
+                    DiscoveryNodeUtils.create("id3"),
+                    Map.of(
+                        "cohere:text_embedding:model1",
+                        new InferenceRequestStats("cohere", TaskType.TEXT_EMBEDDING, "model1", 1),
+                        "openai:text_embedding:model1",
+                        new InferenceRequestStats("openai", TaskType.TEXT_EMBEDDING, "model1", 1)
+                    )
+                ),
+                new GetInternalInferenceUsageAction.NodeResponse(
+                    DiscoveryNodeUtils.create("id4"),
+                    // this should be ordered first in the resulting list
+                    Map.of("a_service:text_embedding:model1", new InferenceRequestStats("a_service", TaskType.TEXT_EMBEDDING, "model1", 1))
+                )
+            );
+
+            listener.onResponse(new GetInternalInferenceUsageAction.Response(ClusterName.DEFAULT, nodeResponses, List.of()));
+
+            return Void.TYPE;
+        }).when(client).execute(any(GetInternalInferenceUsageAction.class), any(), any());
+
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        action.masterOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        future.get().getUsage().writeTo(out);
+        XPackFeatureSet.Usage usage = new InferenceFeatureSetUsage(out.bytes().streamInput());
+
+        assertThat(usage.name(), is(XPackField.INFERENCE));
+        assertTrue(usage.enabled());
+        assertTrue(usage.available());
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentSource source = new XContentSource(builder);
+
+        assertThat(source.getAsMap().get("models"), is(List.of(Map.of("service", "openai", "task_type", "TEXT_EMBEDDING", "count", 1))));
+        assertThat(
+            source.getAsMap().get("requests"),
+            is(
+                List.of(
+                    Map.of("service", "a_service", "task_type", TaskType.TEXT_EMBEDDING.toString(), "model_id", "model1", "count", 1),
+                    Map.of("service", "cohere", "task_type", TaskType.TEXT_EMBEDDING.toString(), "model_id", "model1", "count", 1),
+                    Map.of("service", "openai", "task_type", TaskType.TEXT_EMBEDDING.toString(), "model_id", "model1", "count", 3),
+                    Map.of("service", "z_service", "task_type", TaskType.TEXT_EMBEDDING.toString(), "model_id", "model1", "count", 1)
+                )
+            )
+        );
     }
 }

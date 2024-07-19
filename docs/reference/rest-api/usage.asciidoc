@@ -200,7 +200,8 @@ GET /_xpack/usage
   "inference": {
     "available" : true,
     "enabled" : true,
-    "models" : []
+    "models" : [],
+    "requests" : []
   },
   "logstash" : {
     "available" : true,

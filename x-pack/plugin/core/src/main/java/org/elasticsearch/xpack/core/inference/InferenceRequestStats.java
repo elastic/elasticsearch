@@ -18,6 +18,20 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class InferenceRequestStats implements SerializableStats {
+
+    public static InferenceRequestStats merge(InferenceRequestStats stats1, InferenceRequestStats stats2) {
+        assert stats1.modelStats.service().equals(stats2.modelStats.service()) : "services do not match";
+        assert stats1.modelStats.taskType().equals(stats2.modelStats.taskType()) : "task types do not match";
+        assert stats1.modelId.equals(stats2.modelId) : "model ids do not match";
+
+        return new InferenceRequestStats(
+            stats1.modelStats().service(),
+            stats1.modelStats().taskType(),
+            stats1.modelId(),
+            stats1.modelStats().count() + stats2.modelStats().count()
+        );
+    }
+
     private final InferenceFeatureSetUsage.ModelStats modelStats;
     private final String modelId;
 
@@ -35,6 +49,15 @@ public class InferenceRequestStats implements SerializableStats {
         this.modelId = in.readOptionalString();
     }
 
+    public InferenceFeatureSetUsage.ModelStats modelStats() {
+        return modelStats;
+    }
+
+    public String modelId() {
+        return modelId;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("service", modelStats.service());

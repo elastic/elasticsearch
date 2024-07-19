@@ -21,22 +21,28 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.telemetry.InferenceRequestStatsMap;
+
+import java.util.Objects;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
+    private final InferenceRequestStatsMap statsMap;
 
     @Inject
     public TransportInferenceAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
-        InferenceServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry,
+        InferenceRequestStatsMap statsMap
     ) {
         super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.modelRegistry = modelRegistry;
-        this.serviceRegistry = serviceRegistry;
+        this.modelRegistry = Objects.requireNonNull(modelRegistry);
+        this.serviceRegistry = Objects.requireNonNull(serviceRegistry);
+        this.statsMap = Objects.requireNonNull(statsMap);
     }
 
     @Override
@@ -76,6 +82,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     unparsedModel.settings(),
                     unparsedModel.secrets()
                 );
+            statsMap.increment(model);
             inferOnService(model, request, service.get(), delegate);
         });
 

@@ -287,7 +287,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
             if (policyMetadata == null) {
-                logger.warn("failed to pre-register snapshot [{}] in policy [{}]: policy not found", snapshotId.getName(), policyName);
+                logger.debug("failed to pre-register snapshot [{}] in policy [{}]: policy not found", snapshotId.getName(), policyName);
                 return currentState;
             }
 

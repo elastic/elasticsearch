@@ -41,7 +41,7 @@ public class NodesStatsRequestParametersTests extends ESTestCase {
 
     // future-proof of accidental enum ordering change or extension
     public void testEnsureMetricOrdinalsOrder() throws IOException {
-        final var ordinalsOrder = new Metric[] {
+        final var enumOrder = new Metric[] {
             Metric.OS,
             Metric.PROCESS,
             Metric.JVM,
@@ -59,14 +59,14 @@ public class NodesStatsRequestParametersTests extends ESTestCase {
             Metric.REPOSITORIES,
             Metric.ALLOCATIONS };
 
-        assertArrayEquals("metrics order changed", Metric.values(), ordinalsOrder);
+        assertArrayEquals("metrics order changed", Metric.values(), enumOrder);
 
-        for (var ordinal = 0; ordinal < ordinalsOrder.length; ordinal++) {
+        for (var ordinal = 0; ordinal < enumOrder.length; ordinal++) {
             var out = new BytesRefStreamOutput();
             out.writeVInt(ordinal);
             var in = new ByteArrayStreamInput(out.get().bytes);
             var metric = in.readEnum(Metric.class);
-            assertEquals(ordinalsOrder[ordinal], metric);
+            assertEquals(enumOrder[ordinal], metric);
         }
     }
 

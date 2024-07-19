@@ -48,9 +48,31 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
 
+    /**
+     * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
+     * {@link #OPERATOR_REQUEST} if you need to toggle behavior for serverless, for example to enforce partial API restrictions
+     * (prevent request fields, omit response fields) for an API.
+     *
+     * Requests not made in serverless mode, will *not* have this parameter set.
+     *
+     * Given a request instance, you can use {@link #isServerlessRequest()} to determine if the parameter is set or not.
+     */
     public static final String SERVERLESS_REQUEST = "serverlessRequest";
+    /**
+     * Internal marker request parameter to indicate that a request was made by an operator user.
+     *
+     * Requests made by regular users (users without operator privileges), will *not* have this parameter set.
+     *
+     * Given a request instance, you can use {@link #isOperatorRequest()} to determine if the parameter is set or not.
+     */
     public static final String OPERATOR_REQUEST = "operatorRequest";
 
+    /**
+     * Internal request parameters used as markers to indicate various operations modes such as serverless mode, or operator mode.
+     * These can never be set directly by end-users. Instead, they are set internally by Elasticsearch and must be supported by all
+     * request handlers.
+     */
+    public static final Set<String> INTERNAL_MARKER_REQUEST_PARAMETERS = Set.of(SERVERLESS_REQUEST, OPERATOR_REQUEST);
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 

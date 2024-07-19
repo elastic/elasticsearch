@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
+import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -160,13 +160,15 @@ public class RestUtilsTests extends ESTestCase {
     }
 
     public void testReservedParameters() {
-        Map<String, String> params = new HashMap<>();
-        String uri = "something?" + SERVERLESS_REQUEST + "=value";
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params)
-        );
-        assertEquals(exception.getMessage(), "parameter [" + SERVERLESS_REQUEST + "] is reserved and may not be set");
+        for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
+            Map<String, String> params = new HashMap<>();
+            String uri = "something?" + reservedParam + "=value";
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params)
+            );
+            assertEquals(exception.getMessage(), "parameter [" + reservedParam + "] is reserved and may not be set");
+        }
     }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {

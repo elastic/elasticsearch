@@ -23,8 +23,7 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-import static org.elasticsearch.rest.RestRequest.OPERATOR_REQUEST;
-import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
+import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
 
 public class RestUtils {
 
@@ -86,11 +85,10 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
-        if (SERVERLESS_REQUEST.equalsIgnoreCase(name)) {
-            throw new IllegalArgumentException("parameter [" + SERVERLESS_REQUEST + "] is reserved and may not be set");
-        }
-        if (OPERATOR_REQUEST.equalsIgnoreCase(name)) {
-            throw new IllegalArgumentException("parameter [" + OPERATOR_REQUEST + "] is reserved and may not be set");
+        for (var reservedParameter : INTERNAL_MARKER_REQUEST_PARAMETERS) {
+            if (reservedParameter.equalsIgnoreCase(name)) {
+                throw new IllegalArgumentException("parameter [" + name + "] is reserved and may not be set");
+            }
         }
         params.put(name, value);
     }

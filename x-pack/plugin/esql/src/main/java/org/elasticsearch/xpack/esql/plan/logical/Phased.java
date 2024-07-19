@@ -118,7 +118,7 @@ public interface Phased {
      * phase of the plan.
      */
     static LogicalPlan applyResultsFromFirstPhase(LogicalPlan plan, List<Attribute> schema, List<Page> result) {
-        if (false ==plan.analyzed()) {
+        if (false == plan.analyzed()) {
             throw new IllegalArgumentException("plan must be analyzed");
         }
         Holder<Boolean> seen = new Holder<>(false);

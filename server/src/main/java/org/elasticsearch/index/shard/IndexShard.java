@@ -1742,7 +1742,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                             // Also closing refreshListeners to prevent us from accumulating any more listeners
                             IOUtils.close(
-                                () -> engine.close(),
+                                engine != null ? () -> engine.close() : null,
                                 globalCheckpointListeners,
                                 refreshListeners,
                                 pendingReplicationActions,
@@ -4254,11 +4254,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         }
                     }
                     Engine finalNewEngine = newEngine;
-                    IOUtils.close(super::close, () -> {
-                        if (finalNewEngine != null) {
-                            finalNewEngine.close();
-                        }
-                    });
+                    IOUtils.close(super::close, finalNewEngine != null ? () -> finalNewEngine.close() : null);
                 }
             };
             currentEngineReference.getAndSet(readOnlyEngine).close();

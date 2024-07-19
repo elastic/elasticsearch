@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.YamlTemplateRegistry;
 
 /**
@@ -38,6 +39,6 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
 
     @Override
     protected String getOrigin() {
-        return "apm";
+        return ClientHelper.APM_ORIGIN;
     }
 }

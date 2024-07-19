@@ -63,6 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -197,11 +198,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         String snapshotA = executePolicy(masterNode, policyName);
         logger.info("Created snapshot A: " + snapshotA);
 
-        // wait until snapshotA is preregistered before starting snapshotB
+        // wait until snapshotA is preregistered and in progress before starting snapshotB
+        assertBusy(() -> assertSnapshotRunning(policyName, snapshotA));
         assertBusy(() -> assertPreRegistered(List.of(snapshotA), policyName), 1, TimeUnit.MINUTES);
 
         String snapshotB = executePolicy(masterNode, policyName);
-        logger.info("Created snapshot B: " + snapshotA);
+        logger.info("Created snapshot B: " + snapshotB);
 
         // wait until both snapshots are preregistered before allowing snapshotA to continue
         assertBusy(() -> assertPreRegistered(List.of(snapshotA, snapshotB), policyName), 1, TimeUnit.MINUTES);
@@ -283,9 +285,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         // wait for snapshot to complete and network disruption to stop
         assertTrue(latch.await(1, TimeUnit.MINUTES));
 
-        // restart master so failure stat is lost
-        // TODO this relies on a race condition.
-        // The node restart must happen before stats are stored in cluster state, but this is not guaranteed.
+        // Restart master so failure stat is lost. this relies on a race condition as node shutdown must happen before stats are stored in
+        // cluster state, but this is not guaranteed. If the following assert fails consider this race condition as a possible culprit.
         internalCluster().restartNode(masterNode);
 
         assertBusy(() -> {
@@ -296,9 +297,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
         ensureGreen();
 
-        /*
-         * Now execute again, and succeed. The failure from the previous run will now be recorded.
-         */
+        // Now execute again, and succeed. The failure from the previous run will now be recorded.
         final String snapshotName2 = executePolicy(masterNode, policyName);
         assertNotEquals(snapshotName, snapshotName2);
         logger.info("Created snapshot: " + snapshotName2);
@@ -347,9 +346,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         // wait for snapshot to complete and network disruption to stop
         assertTrue(latch.await(1, TimeUnit.MINUTES));
 
-        // restart master so failure stat is lost
-        // TODO this relies on a race condition.
-        // The node restart must happen before stats are stored in cluster state, but this is not guaranteed.
+        // Restart master so failure stat is lost. this relies on a race condition as node shutdown must happen before stats are stored in
+        // cluster state, but this is not guaranteed. If the following assert fails consider this race condition as a possible culprit.
         internalCluster().restartNode(masterNode);
 
         assertBusy(() -> {
@@ -360,9 +358,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
         ensureGreen();
 
-        /*
-         * Now execute again, but don't fail the stat upload. The failure from the previous run will now be recorded.
-         */
+        // Now execute again, but don't fail the stat upload. The failure from the previous run will now be recorded.
         CountDownLatch latch2 = new CountDownLatch(1);
         internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch2));
 
@@ -521,6 +517,15 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertEquals(taken, stats.getSnapshotTakenCount());
             assertEquals(failed, stats.getSnapshotFailedCount());
         }
+    }
+
+    private void assertSnapshotRunning(String policyId, String snapshot) {
+        final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        ClusterState state = clusterStateResponse.getState();
+        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+        Set<SnapshotId> snapshotIds = SnapshotLifecycleTask.currentlyRunningSnapshots(policyId, state);
+        Set<String> snapshotNames = snapshotIds.stream().map(SnapshotId::getName).collect(Collectors.toSet());
+        assertTrue(snapshotNames.contains(snapshot));
     }
 
     private void assertPreRegistered(List<String> expected, String policyName) {

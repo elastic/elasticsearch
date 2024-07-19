@@ -307,18 +307,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             var testCase = supplier.supplier().get();
 
             var newData = testCase.getData().stream().map(typedData -> {
-                if (typedData.data() instanceof BytesRef bytesRef) {
-                    var offset = randomIntBetween(0, 10);
-                    var extraLength = randomIntBetween(0, 10);
-                    var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
-
-                    System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
-
-                    var newBytesRef = new BytesRef(newBytesArray, offset, bytesRef.length);
-
-                    return typedData.withData(newBytesRef);
+                if (typedData.isMultiRow()) {
+                    return typedData.withData(
+                        typedData.multiRowData().stream().map(AbstractFunctionTestCase::tryRandomizeBytesRefOffset).toList()
+                    );
                 }
-                return typedData;
+
+                return typedData.withData(tryRandomizeBytesRefOffset(typedData.data()));
             }).toList();
 
             return new TestCaseSupplier.TestCase(
@@ -332,6 +327,33 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 testCase.foldingExceptionMessage()
             );
         })).toList();
+    }
+
+    private static Object tryRandomizeBytesRefOffset(Object value) {
+        if (value instanceof BytesRef bytesRef) {
+            return randomizeBytesRefOffset(bytesRef);
+        }
+
+        if (value instanceof List<?> list) {
+            return list.stream().map(element -> {
+                if (element instanceof BytesRef bytesRef) {
+                    return randomizeBytesRefOffset(bytesRef);
+                }
+                return element;
+            }).toList();
+        }
+
+        return value;
+    }
+
+    private static BytesRef randomizeBytesRefOffset(BytesRef bytesRef) {
+        var offset = randomIntBetween(0, 10);
+        var extraLength = randomIntBetween(0, 10);
+        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+
+        return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 
     public void testSerializationOfSimple() {
@@ -491,7 +513,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             renderDescription(description.description(), info.detailedDescription(), info.note());
             boolean hasExamples = renderExamples(info);
-            renderFullLayout(name, hasExamples);
+            boolean hasAppendix = renderAppendix(info.appendix());
+            renderFullLayout(name, hasExamples, hasAppendix);
             renderKibanaInlineDocs(name, info);
             List<EsqlFunctionRegistry.ArgSignature> args = description.args();
             if (name.equals("case")) {
@@ -620,7 +643,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return true;
     }
 
-    private static void renderFullLayout(String name, boolean hasExamples) throws IOException {
+    private static boolean renderAppendix(String appendix) throws IOException {
+        if (appendix.isEmpty()) {
+            return false;
+        }
+
+        String rendered = DOCS_WARNING + appendix + "\n";
+
+        LogManager.getLogger(getTestClass()).info("Writing appendix for [{}]:\n{}", functionName(), rendered);
+        writeToTempDir("appendix", rendered, "asciidoc");
+        return true;
+    }
+
+    private static void renderFullLayout(String name, boolean hasExamples, boolean hasAppendix) throws IOException {
         String rendered = DOCS_WARNING + """
             [discrete]
             [[esql-$NAME$]]
@@ -637,6 +672,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             """.replace("$NAME$", name).replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT));
         if (hasExamples) {
             rendered += "include::../examples/" + name + ".asciidoc[]\n";
+        }
+        if (hasAppendix) {
+            rendered += "include::../appendix/" + name + ".asciidoc[]\n";
         }
         LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("layout", rendered, "asciidoc");

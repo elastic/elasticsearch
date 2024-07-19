@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -224,6 +225,11 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
         return MIN_SUPPORTED_TRANSPORT_VERSION;
+    }
+
+    @Override
+    public License.OperationMode getMinLicenseSupported() {
+        return License.OperationMode.ENTERPRISE;
     }
 
     @Override

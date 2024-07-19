@@ -371,7 +371,7 @@ public class FrozenEngineTests extends EngineTestCase {
                         }
                     }
                 } finally {
-                    engine.close();
+                    frozenEngine.close();
                 }
             } finally {
                 engine.close();

@@ -313,8 +313,9 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testVerboseSegments() throws Exception {
+        Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try (Store store = createStore();) {
+        try  {
             List<Segment> segments = engine.segments();
             assertThat(segments.isEmpty(), equalTo(true));
 
@@ -335,13 +336,15 @@ public class InternalEngineTests extends EngineTestCase {
             segments = engine.segments();
             assertThat(segments.size(), equalTo(3));
         } finally {
+            store.close();
             engine.close();
         }
     }
 
     public void testSegmentsWithMergeFlag() throws Exception {
+        Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy());
-        try (Store store = createStore()) {
+        try  {
             ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
             Engine.Index index = indexForDoc(doc);
             engine.index(index);
@@ -392,14 +395,16 @@ public class InternalEngineTests extends EngineTestCase {
                 assertEquals(gen2, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
         } finally {
+            store.close();
             engine.close();
         }
     }
 
     public void testSegmentsWithIndexSort() throws Exception {
         Sort indexSort = new Sort(new SortedSetSortField("field", false));
+        Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, null, indexSort, null);
-        try (Store store = createStore();) {
+        try {
             List<Segment> segments = engine.segments();
             assertThat(segments.isEmpty(), equalTo(true));
 
@@ -424,13 +429,15 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
             assertThat(segments.get(2).getSegmentSort(), equalTo(indexSort));
         } finally {
+            store.close();
             engine.close();
         }
     }
 
     public void testSegmentsStatsIncludingFileSizes() throws Exception {
+        Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try (Store store = createStore()) {
+        try  {
             assertThat(engine.segmentsStats(true, false).getFiles().size(), equalTo(0));
 
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
@@ -459,16 +466,18 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(stats2.getFiles().get(extension).getMax(), greaterThan((0L)));
             }
         } finally {
+            store.close();
             engine.close();
         }
     }
 
     public void testSegments() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        Store store = createStore();
         InternalEngine engine = createEngine(
             config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)
         );
-        try (Store store = createStore();) {
+        try {
             assertThat(engine.segments(), empty());
             int numDocsFirstSegment = randomIntBetween(5, 50);
             Set<String> liveDocsFirstSegment = new HashSet<>();
@@ -519,6 +528,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(1).getDeletedDocs(), equalTo(deletes)); // delete tombstones
             assertThat(segments.get(1).committed, equalTo(committed));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -528,6 +538,7 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong localCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicLong globalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
+        Store store = createStore();
         InternalEngine engine = createEngine(store, createTempDir(), (maxSeq, localCP) -> new LocalCheckpointTracker(maxSeq, localCP) {
             @Override
             public long getMaxSeqNo() {
@@ -539,7 +550,7 @@ public class InternalEngineTests extends EngineTestCase {
                 return localCheckpoint.get();
             }
         });
-        try (Store store = createStore();) {
+        try {
             CommitStats stats1 = engine.commitStats();
             assertThat(stats1.getGeneration(), greaterThan(0L));
             assertThat(stats1.getId(), notNullValue());
@@ -576,6 +587,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(stats2.getUserData(), hasKey(SequenceNumbers.MAX_SEQ_NO));
             assertThat(Long.parseLong(stats2.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo.get()));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -1638,10 +1650,11 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final Set<String> liveDocs = new HashSet<>();
 
+        Store store = createStore();
         InternalEngine engine = createEngine(
             config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
         );
-        try (Store store = createStore();) {
+        try {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
@@ -1655,6 +1668,7 @@ public class InternalEngineTests extends EngineTestCase {
                 liveDocs.add(doc.id());
             }
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -1669,10 +1683,11 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final Set<String> liveDocs = new HashSet<>();
 
+        Store store = createStore();
         InternalEngine engine = createEngine(
             config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
         );
-        try (Store store = createStore();) {
+        try {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
@@ -1731,6 +1746,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
             assertThat(readAllOperationsInLucene(engine), hasSize(liveDocs.size()));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -1747,10 +1763,11 @@ public class InternalEngineTests extends EngineTestCase {
         final Set<String> liveDocs = new HashSet<>();
         final Set<String> liveDocsWithSource = new HashSet<>();
 
+        Store store = createStore();
         InternalEngine engine = createEngine(
             config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
         );
-        try (Store store = createStore();) {
+        try  {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
@@ -1840,6 +1857,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
             assertThat(readAllOperationsInLucene(engine), hasSize(liveDocsWithSource.size()));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -2849,8 +2867,9 @@ public class InternalEngineTests extends EngineTestCase {
     // and ensuring that the commit points contain the correct sequence number data
     public void testConcurrentWritesAndCommits() throws Exception {
         List<Engine.IndexCommitRef> commits = new ArrayList<>();
+        Store store = createStore();
         InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
-        try (Store store = createStore();) {
+        try {
             final int numIndexingThreads = scaledRandomIntBetween(2, 4);
             final int numDocsPerThread = randomIntBetween(500, 1000);
             final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
@@ -2938,6 +2957,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             IOUtils.close(commits);
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -3016,8 +3036,9 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testEnableGcDeletes() throws Exception {
+        Store store = createStore();
         Engine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
-        try (Store store = createStore();) {
+        try {
             engine.config().setEnableGcDeletes(false);
 
             MapperService mapperService = createMapperService();
@@ -3139,6 +3160,7 @@ public class InternalEngineTests extends EngineTestCase {
             getResult = engine.get(newGet(true, doc), mappingLookup, documentParser, randomSearcherWrapper());
             assertThat(getResult.exists(), equalTo(false));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -4455,8 +4477,9 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             globalCheckpoint::get
         );
+        Store store = createStore(newFSDirectory(storeDir));
         Engine engine = createEngine(configSupplier.apply(store));
-        try (Store store = createStore(newFSDirectory(storeDir))) {
+        try {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
             final ParsedDocument doc = testParsedDocument(
                 "1",
@@ -4468,10 +4491,12 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(appendOnlyPrimary(doc, true, timestamp1));
             assertEquals(timestamp1, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
         } finally {
+            store.close();
             engine.close();
         }
+        store = createStore(newFSDirectory(storeDir));
         engine = new InternalEngine(configSupplier.apply(store));
-        try (Store store = createStore(newFSDirectory(storeDir))) {
+        try {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
             recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
             assertEquals(timestamp1, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
@@ -4487,9 +4512,11 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(1); // make sure flush cleans up commits for later.
             engine.flush();
         } finally {
+            store.close();
             engine.close();
         }
-        try (Store store = createStore(newFSDirectory(storeDir))) {
+        store = createStore(newFSDirectory(storeDir));
+        try {
             if (randomBoolean() || true) {
                 final String translogUUID = Translog.createEmptyTranslog(
                     translogDir,
@@ -4505,6 +4532,8 @@ public class InternalEngineTests extends EngineTestCase {
             } finally {
                 engine.close();
             }
+        } finally {
+            store.close();
         }
     }
 
@@ -4757,8 +4786,9 @@ public class InternalEngineTests extends EngineTestCase {
         }
         Randomness.shuffle(operations);
         Map<String, Engine.Operation> latestOps = new HashMap<>(); // id -> latest seq_no
+        Store store = createStore();
         InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
-        try (Store store = createStore();) {
+        try {
             CheckedRunnable<IOException> lookupAndCheck = () -> {
                 try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
                     Map<String, Long> liveOps = latestOps.entrySet()
@@ -4806,6 +4836,9 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.refresh("test");
             lookupAndCheck.run();
+        }finally {
+            store.close();
+            engine.close();
         }
     }
 
@@ -5367,7 +5400,7 @@ public class InternalEngineTests extends EngineTestCase {
             } finally {
                 engine.close();
             }
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(super.engine);
         }
     }
 
@@ -5474,10 +5507,11 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testRefreshScopedSearcher() throws IOException {
+        Store store = createStore();
         InternalEngine engine =
             // disable merges to make sure that the reader doesn't change unexpectedly during the test
             createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try (Store store = createStore();) {
+        try {
             engine.refresh("warm_up");
             try (
                 Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
@@ -5545,6 +5579,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -5831,10 +5866,11 @@ public class InternalEngineTests extends EngineTestCase {
         store.close();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
+        Store store = createStore();
         InternalEngine engine = createEngine(
             config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
         );
-        try (Store store = createStore();) {
+        try {
             final int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
                 index(engine, docId);
@@ -5862,6 +5898,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(DirectoryReader.listCommits(store.directory()), contains(commits.get(commits.size() - 1)));
             assertThat(engine.getTranslog().totalOperations(), equalTo(0));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -6051,8 +6088,9 @@ public class InternalEngineTests extends EngineTestCase {
         final int iters = randomIntBetween(1, 1);
         for (int i = 0; i < iters; i++) {
             // this is a reproduction of https://github.com/elastic/elasticsearch/issues/28714
+            Store store = createStore();
             InternalEngine engine = createEngine(store, createTempDir());
-            try (Store store = createStore()) {
+            try {
                 final IndexSettings indexSettings = engine.config().getIndexSettings();
                 final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
                     .settings(
@@ -6168,6 +6206,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 thread.join();
             } finally {
+                store.close();
                 engine.close();
             }
         }
@@ -6187,8 +6226,9 @@ public class InternalEngineTests extends EngineTestCase {
             )
             .build();
         indexSettings.updateIndexMetadata(indexMetadata);
+        Store store = createStore();
         InternalEngine engine = createEngine(store, createTempDir());
-        try (Store store = createStore()) {
+        try {
             engine.config().setEnableGcDeletes(false);
             for (int i = 0, docs = scaledRandomIntBetween(0, 10); i < docs; i++) {
                 index(engine, i);
@@ -6235,6 +6275,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
             assertThat(tombstonesInVersionMap(engine).values(), empty());
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -6341,8 +6382,9 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         Set<Long> expectedSeqNos = new HashSet<>();
+        Store store = createStore();
         Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP, null));
-        try (Store store = createStore();) {
+        try {
             for (Engine.Operation op : operations) {
                 if (op instanceof Engine.Index) {
                     Engine.IndexResult indexResult = engine.index((Engine.Index) op);
@@ -6367,6 +6409,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(actualOps.stream().map(o -> o.seqNo()).toList(), containsInAnyOrder(expectedSeqNos.toArray()));
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -6503,6 +6546,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testLuceneSnapshotRefreshesOnlyOnce() throws Exception {
         final long maxSeqNo = randomLongBetween(10, 50);
         final AtomicLong refreshCounter = new AtomicLong();
+        Store store = createStore();
         InternalEngine engine = createEngine(
             config(defaultSettings, store, createTempDir(), newMergePolicy(), null, new ReferenceManager.RefreshListener() {
                 @Override
@@ -6516,7 +6560,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }, null, () -> SequenceNumbers.NO_OPS_PERFORMED, new NoneCircuitBreakerService())
         );
-        try (Store store = createStore();) {
+        try {
             for (long seqNo = 0; seqNo <= maxSeqNo; seqNo++) {
                 final ParsedDocument doc = testParsedDocument(
                     "id_" + seqNo,
@@ -6568,6 +6612,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(refreshCounter.get(), equalTo(initialRefreshCount + 1L));
             assertThat(engine.lastRefreshedCheckpoint(), equalTo(maxSeqNo));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -6579,25 +6624,29 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testNoOpOnClosingEngine() throws Exception {
         engine.close();
+        Store store = createStore();
         InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-        try (Store store = createStore();) {
+        try {
             engine.close();
             expectThrows(
                 AlreadyClosedException.class,
                 () -> engine.noOp(new Engine.NoOp(2, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), "reason"))
             );
         } finally {
+            store.close();
             engine.close();
         }
     }
 
     public void testSoftDeleteOnClosingEngine() throws Exception {
         engine.close();
+        Store store = createStore();
         InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-        try (Store store = createStore();) {
+        try {
             engine.close();
             expectThrows(AlreadyClosedException.class, () -> engine.delete(replicaDeleteForDoc("test", 42, 7, System.nanoTime())));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -6874,8 +6923,9 @@ public class InternalEngineTests extends EngineTestCase {
         )) {
             Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+            Store store = createStore(indexSettings, newDirectory());
             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-            try (Store store = createStore(indexSettings, newDirectory());) {
+            try  {
                 ParsedDocument doc = testParsedDocument(
                     "1",
                     null,
@@ -6890,6 +6940,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertEquals(createdVersion.luceneVersion().major, leafReader.getMetaData().getCreatedVersionMajor());
                 }
             } finally {
+                store.close();
                 engine.close();
             }
         }
@@ -7110,8 +7161,9 @@ public class InternalEngineTests extends EngineTestCase {
                 return addDocument(col.iterator().next());
             }
         };
+        Store store = createStore();
         InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory);
-        try (Store store = createStore();) {
+        try {
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
             Engine.Operation.Origin origin = randomFrom(REPLICA, LOCAL_RESET, PEER_RECOVERY);
             Engine.Index index = new Engine.Index(
@@ -7133,6 +7185,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(engine.isClosed.get());
             assertNotNull(engine.failedEngine.get());
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -7173,6 +7226,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testNoOpFailure() throws IOException {
         engine.close();
+        Store store = createStore();
         Engine engine = createEngine((dir, iwc) -> new IndexWriter(dir, iwc) {
 
             @Override
@@ -7181,7 +7235,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
         }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-        try (Store store = createStore()) {
+        try {
             final Engine.NoOp op = new Engine.NoOp(0, 0, PRIMARY, System.currentTimeMillis(), "test");
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.noOp(op));
             assertThat(e.getMessage(), equalTo("fatal"));
@@ -7190,6 +7244,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
             assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -7205,11 +7260,12 @@ public class InternalEngineTests extends EngineTestCase {
     private void runTestDeleteFailure(final CheckedBiConsumer<InternalEngine, Engine.Delete, IOException> consumer) throws IOException {
         engine.close();
         final AtomicReference<ThrowingIndexWriter> iw = new AtomicReference<>();
+        Store store = createStore();
         InternalEngine engine = createEngine((dir, iwc) -> {
             iw.set(new ThrowingIndexWriter(dir, iwc));
             return iw.get();
         }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-        try (Store store = createStore();) {
+        try {
             engine.index(new Engine.Index(Uid.encodeId("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
             final Engine.Delete op = new Engine.Delete("0", Uid.encodeId("0"), primaryTerm.get());
             consumer.accept(engine, op);
@@ -7221,6 +7277,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
             assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
         } finally {
+            store.close();
             engine.close();
         }
     }
@@ -7693,6 +7750,7 @@ public class InternalEngineTests extends EngineTestCase {
         };
 
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        Store store = createStore();
         InternalEngine engine = createEngine(
             config(
                 defaultSettings,
@@ -7708,7 +7766,7 @@ public class InternalEngineTests extends EngineTestCase {
                 indexCommitListener
             )
         );
-        try (Store store = createStore();) {
+        try {
             assertCommitGenerations(acquiredCommits, List.of(2L));
             assertCommitGenerations(deletedCommits, List.of());
 
@@ -7765,15 +7823,18 @@ public class InternalEngineTests extends EngineTestCase {
 
             final long primaryTerm = engine.config().getPrimaryTermSupplier().getAsLong();
             assertThat(acquiredPrimaryTerms.stream().allMatch(value -> value == primaryTerm), is(true));
+        } finally {
+            store.close();
+            engine.close();
         }
     }
 
     public void testRefreshResult() throws IOException {
-
+        Store store = createStore();
         InternalEngine engine =
             // disable merges to make sure that the reader doesn't change unexpectedly during the test
             createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try (Store store = createStore();) {
+        try {
             var refresh1Result = engine.refresh("warm_up");
             assertTrue(refresh1Result.refreshed());
             assertNotEquals("when refreshed, generation must be set", refresh1Result.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
@@ -7789,13 +7850,15 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(refresh3Result.refreshed());
             assertThat(refresh3Result.generation(), greaterThan(refresh2Result.generation()));
         } finally {
+            store.close();
             engine.close();
         }
     }
 
     public void testConcurrentRefreshResult() throws Exception {
+        Store store = createStore();
         InternalEngine engine = createEngine(store, createTempDir());
-        try (Store store = createStore();) {
+        try {
             AtomicBoolean stopped = new AtomicBoolean();
             CountDownLatch latch = new CountDownLatch(1);
             Thread refreshThread = new Thread(() -> {
@@ -7820,13 +7883,15 @@ public class InternalEngineTests extends EngineTestCase {
                 refreshThread.join();
             }
         } finally {
+            store.close();
             engine.close();
         }
     }
 
     public void testFlushListener() throws Exception {
+        Store store = createStore();
         InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try (Store store = createStore();) {
+        try {
             Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc("a", null)));
             PlainActionFuture<Long> future1 = new PlainActionFuture<>();
             engine.addFlushListener(result1.getTranslogLocation(), future1);
@@ -7842,6 +7907,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
 
         } finally {
+            store.close();
             engine.close();
         }
     }

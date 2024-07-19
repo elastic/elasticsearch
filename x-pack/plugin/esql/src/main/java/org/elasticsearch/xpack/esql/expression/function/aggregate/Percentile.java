@@ -47,7 +47,7 @@ public class Percentile extends NumericAggregate {
             + "observed values and the 50th percentile is the `MEDIAN`.",
         appendix = """
             [discrete]
-            [[esql-agg-percentile-approximate]]
+            [[esql-percentile-approximate]]
             ==== `PERCENTILE` is (usually) approximate
 
             include::../../../aggregations/metrics/percentile-aggregation.asciidoc[tag=approximate]

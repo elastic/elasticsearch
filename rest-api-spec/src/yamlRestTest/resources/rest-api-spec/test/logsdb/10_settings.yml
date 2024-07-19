@@ -5,8 +5,8 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [logs_index_mode]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [logsdb_index_mode]
+      reason: "Support for 'logsdb' index mode capability required"
 
 ---
 create logs index:
@@ -15,8 +15,8 @@ create logs index:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -24,7 +24,7 @@ create logs index:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -75,7 +75,7 @@ create logs index:
         index: test
 
   - is_true: test
-  - match: { test.settings.index.mode: "logs" }
+  - match: { test.settings.index.mode: "logsdb" }
 
   - do:
       indices.get_mapping:
@@ -89,8 +89,8 @@ using default timestamp field mapping:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -98,7 +98,7 @@ using default timestamp field mapping:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -121,17 +121,16 @@ missing hostname field:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
-      catch: bad_request
       indices.create:
         index: test-hostname-missing
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -147,9 +146,12 @@ missing hostname field:
               message:
                 type: text
 
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "unknown index sort field:[host.name]" }
+  - do:
+      indices.get_settings:
+        index: test-hostname-missing
+
+  - is_true: test-hostname-missing
+  - match: { test-hostname-missing.settings.index.mode: "logsdb" }
 
 ---
 missing sort field:
@@ -158,8 +160,8 @@ missing sort field:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -168,7 +170,7 @@ missing sort field:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               sort:
@@ -199,8 +201,8 @@ non-default sort settings:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -209,7 +211,7 @@ non-default sort settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -235,7 +237,7 @@ non-default sort settings:
         index: test-sort
 
   - is_true: test-sort
-  - match: { test-sort.settings.index.mode: "logs" }
+  - match: { test-sort.settings.index.mode: "logsdb" }
   - match: { test-sort.settings.index.sort.field.0: "agent_id" }
   - match: { test-sort.settings.index.sort.field.1: "@timestamp" }
   - match: { test-sort.settings.index.sort.order.0: "asc" }
@@ -252,8 +254,8 @@ override sort order settings:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -262,7 +264,7 @@ override sort order settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -287,7 +289,7 @@ override sort order settings:
         index: test-sort-order
 
   - is_true: test-sort-order
-  - match: { test-sort-order.settings.index.mode: "logs" }
+  - match: { test-sort-order.settings.index.mode: "logsdb" }
   - match: { test-sort-order.settings.index.sort.field.0: null }
   - match: { test-sort-order.settings.index.sort.field.1: null }
   - match: { test-sort-order.settings.index.sort.order.0: "asc" }
@@ -300,8 +302,8 @@ override sort missing settings:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -310,7 +312,7 @@ override sort missing settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -335,7 +337,7 @@ override sort missing settings:
         index: test-sort-missing
 
   - is_true: test-sort-missing
-  - match: { test-sort-missing.settings.index.mode: "logs" }
+  - match: { test-sort-missing.settings.index.mode: "logsdb" }
   - match: { test-sort-missing.settings.index.sort.field.0: null }
   - match: { test-sort-missing.settings.index.sort.field.1: null }
   - match: { test-sort-missing.settings.index.sort.missing.0: "_last" }
@@ -348,8 +350,8 @@ override sort mode settings:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -358,7 +360,7 @@ override sort mode settings:
           settings:
 
             index:
-              mode: logs
+              mode: logsdb
               number_of_shards: 2
               number_of_replicas: 0
               sort:
@@ -383,7 +385,7 @@ override sort mode settings:
         index: test-sort-mode
 
   - is_true: test-sort-mode
-  - match: { test-sort-mode.settings.index.mode: "logs" }
+  - match: { test-sort-mode.settings.index.mode: "logsdb" }
   - match: { test-sort-mode.settings.index.sort.field.0: null }
   - match: { test-sort-mode.settings.index.sort.field.1: null }
   - match: { test-sort-mode.settings.index.sort.mode.0: "max" }
@@ -397,8 +399,8 @@ override sort field using nested field type in sorting:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -407,7 +409,7 @@ override sort field using nested field type in sorting:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               sort:
@@ -444,8 +446,8 @@ override sort field using nested field type:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       indices.create:
@@ -453,7 +455,7 @@ override sort field using nested field type:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -484,8 +486,8 @@ routing path not allowed in logs mode:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -494,7 +496,7 @@ routing path not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               routing_path: [ "host.name", "agent_id" ]
@@ -524,8 +526,8 @@ start time not allowed in logs mode:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -534,7 +536,7 @@ start time not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               time_series:
@@ -565,8 +567,8 @@ end time not allowed in logs mode:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ logs_index_mode ]
-      reason: "Support for 'logs' index mode capability required"
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
 
   - do:
       catch: bad_request
@@ -575,7 +577,7 @@ end time not allowed in logs mode:
         body:
           settings:
             index:
-              mode: logs
+              mode: logsdb
               number_of_replicas: 0
               number_of_shards: 2
               time_series:

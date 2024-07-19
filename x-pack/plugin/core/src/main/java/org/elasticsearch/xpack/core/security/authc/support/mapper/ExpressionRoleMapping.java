@@ -91,12 +91,12 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             .flatMap(m -> {
                 Set<String> roleNames = m.getRoleNames(scriptService, model);
                 logger.trace(
-                    () -> format("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]", m.getName(), model, roleNames)
+                    () -> format("Applying role-mapping [%s] to user-model [%s] produced role-names [%s]", m.getName(), model, roleNames)
                 );
                 return roleNames.stream();
             })
             .collect(Collectors.toSet());
-        logger.debug(() -> format("Mapping user [{}] to roles [{}]", user, roles));
+        logger.debug(() -> format("Mapping user [%s] to roles [%s]", user, roles));
         return roles;
     }
 

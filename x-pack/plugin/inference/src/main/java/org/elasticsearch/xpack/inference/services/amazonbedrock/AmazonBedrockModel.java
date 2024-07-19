@@ -68,7 +68,7 @@ public abstract class AmazonBedrockModel extends Model {
 
     private void setPropertiesFromServiceSettings(AmazonBedrockServiceSettings serviceSettings) {
         this.region = serviceSettings.region();
-        this.model = serviceSettings.model();
+        this.model = serviceSettings.modelId();
         this.provider = serviceSettings.provider();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
     }

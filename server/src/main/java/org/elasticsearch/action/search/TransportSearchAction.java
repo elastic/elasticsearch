@@ -48,6 +48,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
@@ -100,10 +101,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -198,9 +197,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String[] indices,
         IndicesOptions indicesOptions
     ) {
-        Map<String, OriginalIndices> res = new HashMap<>();
+        Map<String, OriginalIndices> res = Maps.newMapWithExpectedSize(indices.length);
+        var blocks = clusterState.blocks();
+        // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
+        boolean hasBlocks = blocks.global().isEmpty() == false || blocks.indices().isEmpty() == false;
         for (String index : indices) {
-            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+            if (hasBlocks) {
+                blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+            }
 
             String[] aliases = indexNameExpressionResolver.indexAliases(
                 clusterState,
@@ -210,23 +214,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 true,
                 indicesAndAliases
             );
-            BooleanSupplier hasDataStreamRef = () -> {
-                IndexAbstraction ret = clusterState.getMetadata().getIndicesLookup().get(index);
-                if (ret == null || ret.getParentDataStream() == null) {
-                    return false;
-                }
-                return indicesAndAliases.contains(ret.getParentDataStream().getName());
-            };
-            List<String> finalIndices = new ArrayList<>();
-            if (aliases == null || aliases.length == 0 || indicesAndAliases.contains(index) || hasDataStreamRef.getAsBoolean()) {
-                finalIndices.add(index);
+            String[] finalIndices = Strings.EMPTY_ARRAY;
+            if (aliases == null
+                || aliases.length == 0
+                || indicesAndAliases.contains(index)
+                || hasDataStreamRef(clusterState, indicesAndAliases, index)) {
+                finalIndices = new String[] { index };
             }
             if (aliases != null) {
-                finalIndices.addAll(Arrays.asList(aliases));
+                finalIndices = finalIndices.length == 0 ? aliases : ArrayUtils.concat(finalIndices, aliases);
             }
-            res.put(index, new OriginalIndices(finalIndices.toArray(String[]::new), indicesOptions));
+            res.put(index, new OriginalIndices(finalIndices, indicesOptions));
         }
-        return Collections.unmodifiableMap(res);
+        return res;
+    }
+
+    private static boolean hasDataStreamRef(ClusterState clusterState, Set<String> indicesAndAliases, String index) {
+        IndexAbstraction ret = clusterState.getMetadata().getIndicesLookup().get(index);
+        if (ret == null || ret.getParentDataStream() == null) {
+            return false;
+        }
+        return indicesAndAliases.contains(ret.getParentDataStream().getName());
     }
 
     Map<String, AliasFilter> buildIndexAliasFilters(ClusterState clusterState, Set<String> indicesAndAliases, Index[] concreteIndices) {
@@ -1257,21 +1265,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         int numShards,
         int defaultPreFilterShardSize
     ) {
+        if (searchRequest.searchType() != QUERY_THEN_FETCH) {
+            // we can't do this for DFS it needs to fan out to all shards all the time
+            return false;
+        }
         SearchSourceBuilder source = searchRequest.source();
         Integer preFilterShardSize = searchRequest.getPreFilterShardSize();
-        if (preFilterShardSize == null && (hasReadOnlyIndices(indices, clusterState) || hasPrimaryFieldSort(source))) {
-            preFilterShardSize = 1;
-        } else if (preFilterShardSize == null) {
-            preFilterShardSize = defaultPreFilterShardSize;
+        if (preFilterShardSize == null) {
+            if (hasReadOnlyIndices(indices, clusterState) || hasPrimaryFieldSort(source)) {
+                preFilterShardSize = 1;
+            } else {
+                preFilterShardSize = defaultPreFilterShardSize;
+            }
         }
-        return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
-            && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))
-            && preFilterShardSize < numShards;
+        return preFilterShardSize < numShards && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source));
     }
 
     private static boolean hasReadOnlyIndices(String[] indices, ClusterState clusterState) {
+        var blocks = clusterState.blocks();
+        if (blocks.global().isEmpty() && blocks.indices().isEmpty()) {
+            // short circuit optimization because block check below is relatively expensive for many indices
+            return false;
+        }
         for (String index : indices) {
-            ClusterBlockException writeBlock = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, index);
+            ClusterBlockException writeBlock = blocks.indexBlockedException(ClusterBlockLevel.WRITE, index);
             if (writeBlock != null) {
                 return true;
             }
@@ -1279,12 +1296,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return false;
     }
 
+    // package private for testing
     static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(
         List<SearchShardIterator> localShardIterators,
         List<SearchShardIterator> remoteShardIterators
     ) {
-        List<SearchShardIterator> shards = new ArrayList<>(remoteShardIterators);
-        shards.addAll(localShardIterators);
+        final List<SearchShardIterator> shards;
+        if (remoteShardIterators.isEmpty()) {
+            shards = localShardIterators;
+        } else {
+            shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
+        }
         return GroupShardsIterator.sortAndCreate(shards);
     }
 
@@ -1717,10 +1739,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteIndices,
             searchRequest.indicesOptions()
         );
-        return StreamSupport.stream(shardRoutings.spliterator(), false).map(it -> {
-            OriginalIndices finalIndices = originalIndices.get(it.shardId().getIndex().getName());
+        SearchShardIterator[] list = new SearchShardIterator[shardRoutings.size()];
+        int i = 0;
+        for (ShardIterator shardRouting : shardRoutings) {
+            final ShardId shardId = shardRouting.shardId();
+            OriginalIndices finalIndices = originalIndices.get(shardId.getIndex().getName());
             assert finalIndices != null;
-            return new SearchShardIterator(clusterAlias, it.shardId(), it.getShardRoutings(), finalIndices);
-        }).toList();
+            list[i++] = new SearchShardIterator(clusterAlias, shardId, shardRouting.getShardRoutings(), finalIndices);
+        }
+        // the returned list must support in-place sorting, so this is the most memory efficient we can do here
+        return Arrays.asList(list);
     }
 }

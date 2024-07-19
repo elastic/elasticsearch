@@ -287,7 +287,7 @@ public class AmazonBedrockService extends SenderService {
 
         AmazonBedrockEmbeddingsServiceSettings settingsToUse = new AmazonBedrockEmbeddingsServiceSettings(
             serviceSettings.region(),
-            serviceSettings.model(),
+            serviceSettings.modelId(),
             serviceSettings.provider(),
             embeddingSize,
             serviceSettings.dimensionsSetByUser(),

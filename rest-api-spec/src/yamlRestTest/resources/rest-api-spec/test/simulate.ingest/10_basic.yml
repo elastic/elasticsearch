@@ -258,6 +258,111 @@ setup:
   - not_exists: docs.1.doc.error
 
 ---
+"Test mapping validation from templates":
+
+  - skip:
+      features: headers
+
+  - requires:
+      cluster_features: ["simulate.mapping.validation"]
+      reason: "ingest simulate index mapping validation added in 8.16"
+
+  - do:
+      indices.put_template:
+        name: v1_template
+        body:
+          index_patterns: v1_strict_nonexistent*
+          mappings:
+            dynamic: strict
+            properties:
+              foo:
+                type: text
+
+  - do:
+      indices.put_index_template:
+        name: v2_template
+        body:
+          index_patterns: v2_strict_nonexistent*
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "v1_strict_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "v1_strict_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - not_exists: docs.1.doc.error
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "v2_strict_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "v2_strict_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - not_exists: docs.1.doc.error
+
+---
 "Test index templates with pipelines":
 
   - skip:

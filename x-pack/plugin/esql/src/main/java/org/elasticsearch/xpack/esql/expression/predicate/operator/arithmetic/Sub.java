@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmeti
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -114,9 +115,9 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
         return unsignedLongSubtractExact(lhs, rhs);
     }
 
-    @Evaluator(extraName = "Doubles")
+    @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        return lhs - rhs;
+        return NumericUtils.asFiniteNumber(lhs - rhs);
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })

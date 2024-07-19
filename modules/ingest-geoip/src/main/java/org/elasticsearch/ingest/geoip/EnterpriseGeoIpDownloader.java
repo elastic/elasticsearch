@@ -78,7 +78,6 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     static String downloadUrl(final String name, final String suffix) {
         String endpointPattern = DEFAULT_MAXMIND_ENDPOINT;
-        assert endpointPattern.contains("maxmind.com") == false : "Do not use maxmind.com"; // TODO do not merge this!
         if (endpointPattern.contains("%")) {
             throw new IllegalArgumentException("Invalid endpoint [" + endpointPattern + "]");
         }

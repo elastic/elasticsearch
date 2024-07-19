@@ -820,7 +820,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     public void testBackgroundMergeCommitAfterRelocationHasStartedDoesNotSendANewCommitNotification() throws Exception {
         var nodeSettings = Settings.builder()
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 12)
             // Ensure that merges are flushed immediately
             .put(SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.ZERO)

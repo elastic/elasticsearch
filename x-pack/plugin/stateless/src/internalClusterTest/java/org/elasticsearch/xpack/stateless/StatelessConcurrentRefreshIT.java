@@ -50,8 +50,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 5)
+        return super.nodeSettings().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 5)
             // tests in this suite expect a precise number of commits
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }

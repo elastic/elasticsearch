@@ -644,7 +644,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
-        if (request.isRequireAlias() && (metadata.hasAlias(request.index()) == false)) {
+        if (request.isRequireAlias() && (metadata.projectMetadata.hasAlias(request.index()) == false)) {
             Exception exception = new IndexNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + request.index() + "] is not an alias",
                 request.index()

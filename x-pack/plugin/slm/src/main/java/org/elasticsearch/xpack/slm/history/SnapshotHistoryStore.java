@@ -62,7 +62,7 @@ public class SnapshotHistoryStore {
         }
         logger.trace("about to index snapshot history item in data stream [{}]: [{}]", SLM_HISTORY_DATA_STREAM, item);
         Metadata metadata = clusterService.state().getMetadata();
-        if (metadata.dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false
+        if (metadata.projectMetadata.dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false
             && metadata.templatesV2().containsKey(SLM_TEMPLATE_NAME) == false) {
             logger.error(
                 () -> format(

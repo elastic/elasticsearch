@@ -907,7 +907,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
 
-        DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
         Index result = dataStream.selectTimeSeriesWriteIndex(currentTime, clusterState.getMetadata());
         assertThat(result, equalTo(dataStream.getIndices().get(1)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())));
@@ -941,7 +941,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
             );
-            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
             assertThat(dataStream, notNullValue());
             assertThat(dataStream.getIndices(), hasSize(2));
             assertThat(
@@ -1027,7 +1027,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
             );
-            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
 
             {
                 // IndexMetadata not found case:

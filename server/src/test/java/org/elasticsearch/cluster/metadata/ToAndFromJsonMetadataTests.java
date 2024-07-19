@@ -202,12 +202,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         );
 
         // data streams
-        assertNotNull(parsedMetadata.dataStreams().get("data-stream1"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream1").getName(), is("data-stream1"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
-        assertNotNull(parsedMetadata.dataStreams().get("data-stream2"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
+        assertNotNull(parsedMetadata.projectMetadata.dataStreams().get("data-stream1"));
+        assertThat(parsedMetadata.projectMetadata.dataStreams().get("data-stream1").getName(), is("data-stream1"));
+        assertThat(parsedMetadata.projectMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
+        assertNotNull(parsedMetadata.projectMetadata.dataStreams().get("data-stream2"));
+        assertThat(parsedMetadata.projectMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
+        assertThat(parsedMetadata.projectMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
 
         // reserved 'operator' metadata
         assertEquals(reservedStateMetadata, parsedMetadata.reservedStateMetadata().get(reservedStateMetadata.namespace()));

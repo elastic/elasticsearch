@@ -191,7 +191,7 @@ public class MetadataIndexAliasesService {
                 ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).build();
                 // even though changes happened, they resulted in 0 actual changes to metadata
                 // i.e. remove and add the same alias to the same index
-                if (updatedState.metadata().equalsAliases(currentState.metadata()) == false) {
+                if (updatedState.metadata().projectMetadata.equalsAliases(currentState.metadata().projectMetadata) == false) {
                     return updatedState;
                 }
             }

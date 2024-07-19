@@ -104,7 +104,7 @@ public class MetadataCreateDataStreamService {
                     // When we're manually creating a data stream (i.e. not an auto creation), we don't need to initialize the failure store
                     // because we don't need to redirect any failures in the same request.
                     ClusterState clusterState = createDataStream(request, currentState, delegate.reroute(), false);
-                    DataStream createdDataStream = clusterState.metadata().dataStreams().get(request.name);
+                    DataStream createdDataStream = clusterState.metadata().projectMetadata.dataStreams().get(request.name);
                     firstBackingIndexRef.set(createdDataStream.getIndices().get(0).getName());
                     if (createdDataStream.getFailureIndices().getIndices().isEmpty() == false) {
                         firstFailureStoreRef.set(createdDataStream.getFailureIndices().getIndices().get(0).getName());
@@ -246,7 +246,7 @@ public class MetadataCreateDataStreamService {
         Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);
         Objects.requireNonNull(backingIndices);
-        if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {
+        if (currentState.metadata().projectMetadata.dataStreams().containsKey(dataStreamName)) {
             throw new ResourceAlreadyExistsException("data_stream [" + dataStreamName + "] already exists");
         }
 

@@ -8,9 +8,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -20,6 +26,7 @@ import org.elasticsearch.index.IndexVersion;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -29,11 +36,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.Metadata.ALL;
 
 public class ProjectMetadata implements Iterable<IndexMetadata> {
 
@@ -116,6 +127,244 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         assert Set.of(visibleClosedIndices)
             .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.CLOSE));
         return true;
+    }
+
+    /**
+     * Given an index and lifecycle state, returns a metadata where the lifecycle state will be
+     * associated with the given index.
+     *
+     * The passed-in index must already be present in the cluster state, this method cannot
+     * be used to add an index.
+     *
+     * @param index A non-null index
+     * @param lifecycleState A non-null lifecycle execution state
+     * @return a <code>Metadata</code> instance where the index has the provided lifecycle state
+     */
+    public ProjectMetadata withLifecycleState(Index index, LifecycleExecutionState lifecycleState) {
+        Objects.requireNonNull(index, "index must not be null");
+        Objects.requireNonNull(lifecycleState, "lifecycleState must not be null");
+
+        IndexMetadata indexMetadata = getIndexSafe(index);
+        if (lifecycleState.equals(indexMetadata.getLifecycleExecutionState())) {
+            return this;
+        }
+
+        // build a new index metadata with the version incremented and the new lifecycle state
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+        indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
+        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap());
+
+        // drop it into the indices
+        ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        builder.put(index.getName(), indexMetadataBuilder.build());
+
+        // construct a new ProjectMetadata object directly rather than using ProjectMetadata.builder(this).[...].build().
+        // the ProjectMetadata.Builder validation needs to handle the general case where anything at all could
+        // have changed, and hence it is expensive -- since we are changing so little about the metadata
+        // (and at a leaf in the object tree), we can bypass that validation for efficiency's sake
+        return new ProjectMetadata(
+            builder.build(),
+            aliasedIndices,
+            templates,
+            customs,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion
+        );
+    }
+
+    public ProjectMetadata withIndexSettingsUpdates(Map<Index, Settings> updates) {
+        Objects.requireNonNull(updates, "no indices to update settings for");
+
+        ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        updates.forEach((index, settings) -> {
+            IndexMetadata previous = builder.remove(index.getName());
+            assert previous != null : index;
+            builder.put(
+                index.getName(),
+                IndexMetadata.builder(previous).settingsVersion(previous.getSettingsVersion() + 1L).settings(settings).build()
+            );
+        });
+        return new ProjectMetadata(
+            builder.build(),
+            aliasedIndices,
+            templates,
+            customs,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion
+        );
+    }
+
+    /**
+     * Creates a copy of this instance updated with the given {@link IndexMetadata} that must only contain changes to primary terms
+     * and in-sync allocation ids relative to the existing entries. This method is only used by
+     * {@link org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater#applyChanges(Metadata, RoutingTable, TransportVersion)}.
+     * @param updates map of index name to {@link IndexMetadata}.
+     * @return updated metadata instance
+     */
+    public ProjectMetadata withAllocationAndTermUpdatesOnly(Map<String, IndexMetadata> updates) {
+        if (updates.isEmpty()) {
+            return this;
+        }
+        var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
+        updatedIndicesBuilder.putAllFromMap(updates);
+        return new ProjectMetadata(
+            updatedIndicesBuilder.build(),
+            aliasedIndices,
+            templates,
+            customs,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion
+        );
+    }
+
+    /**
+     * Creates a copy of this instance with the given {@code index} added.
+     * @param index index to add
+     * @return copy with added index
+     */
+    public ProjectMetadata withAddedIndex(IndexMetadata index) {
+        String indexName = index.getIndex().getName();
+        ensureNoNameCollision(indexName);
+        Map<String, AliasMetadata> aliases = index.getAliases();
+        ImmutableOpenMap<String, Set<Index>> updatedAliases = aliasesAfterAddingIndex(index, aliases);
+        String[] updatedVisibleIndices;
+        if (index.isHidden()) {
+            updatedVisibleIndices = visibleIndices;
+        } else {
+            updatedVisibleIndices = ArrayUtils.append(visibleIndices, indexName);
+        }
+
+        String[] updatedAllIndices = ArrayUtils.append(allIndices, indexName);
+        String[] updatedOpenIndices;
+        String[] updatedClosedIndices;
+        String[] updatedVisibleOpenIndices;
+        String[] updatedVisibleClosedIndices;
+        switch (index.getState()) {
+            case OPEN -> {
+                updatedOpenIndices = ArrayUtils.append(allOpenIndices, indexName);
+                if (index.isHidden() == false) {
+                    updatedVisibleOpenIndices = ArrayUtils.append(visibleOpenIndices, indexName);
+                } else {
+                    updatedVisibleOpenIndices = visibleOpenIndices;
+                }
+                updatedVisibleClosedIndices = visibleClosedIndices;
+                updatedClosedIndices = allClosedIndices;
+            }
+            case CLOSE -> {
+                updatedOpenIndices = allOpenIndices;
+                updatedClosedIndices = ArrayUtils.append(allClosedIndices, indexName);
+                updatedVisibleOpenIndices = visibleOpenIndices;
+                if (index.isHidden() == false) {
+                    updatedVisibleClosedIndices = ArrayUtils.append(visibleClosedIndices, indexName);
+                } else {
+                    updatedVisibleClosedIndices = visibleClosedIndices;
+                }
+            }
+            default -> throw new AssertionError("impossible, index is either open or closed");
+        }
+
+        MappingMetadata mappingMetadata = index.mapping();
+        Map<String, MappingMetadata> updatedMappingsByHash;
+        if (mappingMetadata == null) {
+            updatedMappingsByHash = mappingsByHash;
+        } else {
+            MappingMetadata existingMapping = mappingsByHash.get(mappingMetadata.getSha256());
+            if (existingMapping != null) {
+                index = index.withMappingMetadata(existingMapping);
+                updatedMappingsByHash = mappingsByHash;
+            } else {
+                updatedMappingsByHash = Maps.copyMapWithAddedEntry(mappingsByHash, mappingMetadata.getSha256(), mappingMetadata);
+            }
+        }
+
+        ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        builder.put(indexName, index);
+        ImmutableOpenMap<String, IndexMetadata> indicesMap = builder.build();
+        for (var entry : updatedAliases.entrySet()) {
+            List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
+            ProjectMetadata.Builder.validateAlias(entry.getKey(), aliasIndices);
+        }
+        return new ProjectMetadata(
+            indicesMap,
+            updatedAliases,
+            templates,
+            customs,
+            totalNumberOfShards + index.getTotalNumberOfShards(),
+            totalOpenIndexShards + (index.getState() == IndexMetadata.State.OPEN ? index.getTotalNumberOfShards() : 0),
+            updatedAllIndices,
+            updatedVisibleIndices,
+            updatedOpenIndices,
+            updatedVisibleOpenIndices,
+            updatedClosedIndices,
+            updatedVisibleClosedIndices,
+            null,
+            updatedMappingsByHash,
+            IndexVersion.min(index.getCompatibilityVersion(), oldestIndexVersion)
+        );
+    }
+
+    private ImmutableOpenMap<String, Set<Index>> aliasesAfterAddingIndex(IndexMetadata index, Map<String, AliasMetadata> aliases) {
+        if (aliases.isEmpty()) {
+            return aliasedIndices;
+        }
+        String indexName = index.getIndex().getName();
+        ImmutableOpenMap.Builder<String, Set<Index>> aliasesBuilder = ImmutableOpenMap.builder(aliasedIndices);
+        for (String alias : aliases.keySet()) {
+            ensureNoNameCollision(alias);
+            if (aliasedIndices.containsKey(indexName)) {
+                throw new IllegalArgumentException("alias with name [" + indexName + "] already exists");
+            }
+            Set<Index> found = aliasesBuilder.get(alias);
+            Set<Index> updated;
+            if (found == null) {
+                updated = Set.of(index.getIndex());
+            } else {
+                final Set<Index> tmp = new HashSet<>(found);
+                tmp.add(index.getIndex());
+                updated = Set.copyOf(tmp);
+            }
+            aliasesBuilder.put(alias, updated);
+        }
+        return aliasesBuilder.build();
+    }
+
+    private void ensureNoNameCollision(String indexName) {
+        if (indices.containsKey(indexName)) {
+            throw new IllegalArgumentException("index with name [" + indexName + "] already exists");
+        }
+        if (dataStreams().containsKey(indexName)) {
+            throw new IllegalArgumentException("data stream with name [" + indexName + "] already exists");
+        }
+        if (dataStreamAliases().containsKey(indexName)) {
+            throw new IllegalStateException("data stream alias and indices alias have the same name (" + indexName + ")");
+        }
     }
 
     /**
@@ -207,6 +456,46 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
     }
 
     /**
+     * Returns whether an alias exists with provided alias name.
+     *
+     * @param aliasName The provided alias name
+     * @return whether an alias exists with provided alias name
+     */
+    public boolean hasAlias(String aliasName) {
+        return aliasedIndices.containsKey(aliasName) || dataStreamAliases().containsKey(aliasName);
+    }
+
+    /**
+     * Finds the specific index aliases that point to the requested concrete indices directly
+     * or that match with the indices via wildcards.
+     *
+     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned.
+     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
+     * aliases then the result will <b>not</b> include the index's key.
+     */
+    public Map<String, List<AliasMetadata>> findAllAliases(String[] concreteIndices) {
+        return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
+     * that point to the specified concrete indices (directly or matching indices via wildcards).
+     *
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned
+     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
+     * aliases then the result will <b>not</b> include the index's key.
+     */
+    public Map<String, List<AliasMetadata>> findAliases(String[] aliases, String[] concreteIndices) {
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
+
+        Function<String, List<AliasMetadata>> getter = index -> List.copyOf(indices.get(index).getAliases().values());
+        findAliasInfo(aliases, concreteIndices, getter, mapBuilder::put);
+
+        return mapBuilder.build();
+    }
+
+    /**
      * Returns all the indices that the alias with the provided alias name refers to.
      * These are aliased indices. Not that, this only return indices that have been aliased
      * and not indices that are behind a data stream or data stream alias.
@@ -224,6 +513,29 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
      */
     public Set<String> aliasedIndices() {
         return aliasedIndices.keySet();
+    }
+
+    public boolean equalsAliases(ProjectMetadata other) {
+        for (IndexMetadata otherIndex : other.indices().values()) {
+            IndexMetadata thisIndex = index(otherIndex.getIndex());
+            if (thisIndex == null || otherIndex.getAliases().equals(thisIndex.getAliases()) == false) {
+                return false;
+            }
+        }
+
+        var thisAliases = dataStreamAliases();
+        var otherAliases = other.dataStreamAliases();
+        if (otherAliases.size() != thisAliases.size()) {
+            return false;
+        }
+        for (DataStreamAlias otherAlias : otherAliases.values()) {
+            DataStreamAlias thisAlias = thisAliases.get(otherAlias.getName());
+            if (thisAlias == null || thisAlias.equals(otherAlias) == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public Map<String, IndexMetadata> indices() {
@@ -424,6 +736,107 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
 
     public ImmutableOpenMap<String, Metadata.ProjectCustom> customs() {
         return customs;
+    }
+
+    public Map<String, DataStream> dataStreams() {
+        return custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).dataStreams();
+    }
+
+    public Map<String, DataStreamAlias> dataStreamAliases() {
+        return custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
+    }
+
+    /**
+     * Return a map of DataStreamAlias objects by DataStream name
+     */
+    public Map<String, List<DataStreamAlias>> dataStreamAliasesByDataStream() {
+        return dataStreamAliases().values()
+            .stream()
+            .flatMap(dsa -> dsa.getDataStreams().stream().map(ds -> Map.entry(ds, dsa)))
+            .collect(Collectors.groupingBy(Map.Entry::getKey, Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
+    }
+
+    /**
+     * Finds the specific data stream aliases that match with the specified aliases directly or partially via wildcards, and
+     * that point to the specified data streams (directly or matching data streams via wildcards).
+     *
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param dataStreams The data streams that the aliases must point to in order to be returned
+     * @return A map of data stream name to the list of DataStreamAlias objects that match. If a data stream does not have matching
+     * aliases then the result will <b>not</b> include the data stream's key.
+     */
+    public Map<String, List<DataStreamAlias>> findDataStreamAliases(final String[] aliases, final String[] dataStreams) {
+        ImmutableOpenMap.Builder<String, List<DataStreamAlias>> mapBuilder = ImmutableOpenMap.builder();
+        Map<String, List<DataStreamAlias>> dataStreamAliases = dataStreamAliasesByDataStream();
+
+        findAliasInfo(aliases, dataStreams, dataStream -> dataStreamAliases.getOrDefault(dataStream, List.of()), mapBuilder::put);
+
+        return mapBuilder.build();
+    }
+
+    /**
+     * Find the aliases that point to the specified data streams or indices. Called from findAliases or findDataStreamAliases.
+     *
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param possibleMatches The data streams or indices that the aliases must point to in order to be returned
+     * @param getter A function that is used to get the alises for a given data stream or index
+     * @param setter A function that is used to keep track of the found aliases
+     */
+    private <T extends AliasInfo> void findAliasInfo(
+        String[] aliases,
+        String[] possibleMatches,
+        Function<String, List<T>> getter,
+        BiConsumer<String, List<T>> setter
+    ) {
+        assert aliases != null;
+        assert possibleMatches != null;
+        if (possibleMatches.length == 0) {
+            return;
+        }
+
+        // create patterns to use to search for targets
+        String[] patterns = new String[aliases.length];
+        boolean[] include = new boolean[aliases.length];
+        for (int i = 0; i < aliases.length; i++) {
+            String alias = aliases[i];
+            if (alias.charAt(0) == '-') {
+                patterns[i] = alias.substring(1);
+                include[i] = false;
+            } else {
+                patterns[i] = alias;
+                include[i] = true;
+            }
+        }
+
+        boolean matchAllAliases = patterns.length == 0;
+
+        for (String index : possibleMatches) {
+            List<T> filteredValues = new ArrayList<>();
+
+            List<T> entities = getter.apply(index);
+            for (T aliasInfo : entities) {
+                boolean matched = matchAllAliases;
+                String alias = aliasInfo.getAlias();
+                for (int i = 0; i < patterns.length; i++) {
+                    if (include[i]) {
+                        if (matched == false) {
+                            String pattern = patterns[i];
+                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
+                        }
+                    } else if (matched) {
+                        matched = Regex.simpleMatch(patterns[i], alias) == false;
+                    }
+                }
+                if (matched) {
+                    filteredValues.add(aliasInfo);
+                }
+            }
+            if (filteredValues.isEmpty() == false) {
+                // Make the list order deterministic
+                CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasInfo::getAlias));
+                setter.accept(index, Collections.unmodifiableList(filteredValues));
+            }
+        }
     }
 
     public static ProjectMetadata.Builder builder() {

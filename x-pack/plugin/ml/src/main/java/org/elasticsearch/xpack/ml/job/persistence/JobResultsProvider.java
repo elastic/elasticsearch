@@ -308,7 +308,7 @@ public class JobResultsProvider {
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
-        if (state.getMetadata().hasAlias(tempIndexName)) {
+        if (state.getMetadata().projectMetadata.hasAlias(tempIndexName)) {
             String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this

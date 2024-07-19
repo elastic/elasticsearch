@@ -78,7 +78,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
         }
         IndexAbstraction sourceIndexAbstraction = state.metadata().projectMetadata.getIndicesLookup().get(sourceBackingIndex);
         if (sourceIndexAbstraction == null) {
-            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = state.metadata().projectMetadata.dataStreams().get(dataStreamName);
             // index was deleted in the meantime, so let's check if we can make sure the downsample index ends up in the
             // data stream (if not already there)
             if (dataStream != null
@@ -112,7 +112,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                     + "exist in the same cluster state metadata";
             // the source index exists so let's start by deleting it
             state = MetadataDeleteIndexService.deleteIndices(state, Set.of(sourceIndexMeta.getIndex()), settings);
-            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = state.metadata().projectMetadata.dataStreams().get(dataStreamName);
             if (sourceParentDataStream != null) {
                 assert sourceParentDataStream.getName().equals(dataStreamName)
                     : "the backing index must be part of the provided data "

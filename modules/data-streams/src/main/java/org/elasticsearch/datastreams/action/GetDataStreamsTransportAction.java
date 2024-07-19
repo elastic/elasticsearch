@@ -255,7 +255,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         GetDataStreamAction.Request request
     ) {
         List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, clusterState, request.getNames(), request.indicesOptions());
-        Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
+        Map<String, DataStream> dataStreams = clusterState.metadata().projectMetadata.dataStreams();
 
         return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).toList();
     }

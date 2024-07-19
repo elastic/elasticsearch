@@ -95,7 +95,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         var result = rolloverOver(state, "logs-myapp", time);
         state = result.clusterState();
 
-        DataStream dataStream = state.getMetadata().dataStreams().get("logs-myapp");
+        DataStream dataStream = state.getMetadata().projectMetadata.dataStreams().get("logs-myapp");
         backingIndex = state.getMetadata().projectMetadata.index(dataStream.getIndices().get(1));
         assertThat(backingIndex, notNullValue());
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T08:59:36.000Z"));
@@ -166,7 +166,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         var result = rolloverOver(state, "logs-myapp", time);
         state = result.clusterState();
 
-        DataStream dataStream = state.getMetadata().dataStreams().get("logs-myapp");
+        DataStream dataStream = state.getMetadata().projectMetadata.dataStreams().get("logs-myapp");
         backingIndex = state.getMetadata().projectMetadata.index(dataStream.getIndices().get(1));
         assertThat(backingIndex, notNullValue());
         assertThat(backingIndex.getSettings().get("index.time_series.start_time"), equalTo("2022-03-15T08:59:36.000Z"));

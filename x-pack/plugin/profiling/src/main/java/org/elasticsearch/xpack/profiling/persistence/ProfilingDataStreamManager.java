@@ -217,7 +217,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
 
         @Override
         public IndexMetadata indexMetadata(ClusterState state) {
-            Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+            Map<String, DataStream> dataStreams = state.metadata().projectMetadata.dataStreams();
             if (dataStreams == null) {
                 return null;
             }

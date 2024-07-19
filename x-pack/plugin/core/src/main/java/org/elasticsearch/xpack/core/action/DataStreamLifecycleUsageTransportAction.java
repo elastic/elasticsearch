@@ -53,7 +53,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
+        final Collection<DataStream> dataStreams = state.metadata().projectMetadata.dataStreams().values();
         Tuple<Long, LongSummaryStatistics> stats = calculateStats(dataStreams);
 
         long minRetention = stats.v2().getCount() == 0 ? 0 : stats.v2().getMin();

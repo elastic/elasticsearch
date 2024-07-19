@@ -153,7 +153,7 @@ public class LocalAllocateDangledIndices {
                         if (currentState.metadata().projectMetadata.hasIndex(indexMetadata.getIndex().getName())) {
                             continue;
                         }
-                        if (currentState.metadata().hasAlias(indexMetadata.getIndex().getName())) {
+                        if (currentState.metadata().projectMetadata.hasAlias(indexMetadata.getIndex().getName())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
                                 indexMetadata.getIndex(),

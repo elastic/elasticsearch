@@ -96,7 +96,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     ClusterState updateTimeSeriesTemporalRange(ClusterState current, Instant now) {
         Metadata.Builder mBuilder = null;
-        for (DataStream dataStream : current.metadata().dataStreams().values()) {
+        for (DataStream dataStream : current.metadata().projectMetadata.dataStreams().values()) {
             if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
                 continue;
             }

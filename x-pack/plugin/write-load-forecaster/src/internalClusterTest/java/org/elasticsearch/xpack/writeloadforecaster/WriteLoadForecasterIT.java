@@ -68,7 +68,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         final Metadata metadata = clusterState.getMetadata();
-        final DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        final DataStream dataStream = metadata.projectMetadata.dataStreams().get(dataStreamName);
         final IndexMetadata writeIndexMetadata = metadata.projectMetadata.getIndexSafe(dataStream.getWriteIndex());
 
         final OptionalDouble indexMetadataForecastedWriteLoad = writeIndexMetadata.getForecastedWriteLoad();
@@ -96,7 +96,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         setUpDataStreamWriteDocsAndRollover(dataStreamName);
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        final DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
         final IndexMetadata writeIndexMetadata = clusterState.metadata().projectMetadata.getIndexSafe(dataStream.getWriteIndex());
 
         assertThat(writeIndexMetadata.getForecastedWriteLoad().isPresent(), is(equalTo(false)));
@@ -114,7 +114,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         final Metadata metadata = clusterState.metadata();
-        final DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        final DataStream dataStream = metadata.projectMetadata.dataStreams().get(dataStreamName);
         final IndexMetadata writeIndexMetadata = metadata.projectMetadata.getIndexSafe(dataStream.getWriteIndex());
 
         final OptionalDouble indexMetadataForecastedWriteLoad = writeIndexMetadata.getForecastedWriteLoad();
@@ -172,7 +172,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 }
 
                 final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-                final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+                final DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
                 final String writeIndex = dataStream.getWriteIndex().getName();
                 final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(writeIndex).get();
                 for (IndexShardStats indexShardStats : indicesStatsResponse.getIndex(writeIndex).getIndexShards().values()) {

@@ -265,7 +265,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.isInitializeFailureStore()
                     );
 
-                    final var dataStream = clusterState.metadata().dataStreams().get(request.index());
+                    final var dataStream = clusterState.metadata().projectMetadata.dataStreams().get(request.index());
                     final var backingIndexName = dataStream.getIndices().get(0).getName();
                     final var indexNames = dataStream.getFailureIndices().getIndices().isEmpty()
                         ? List.of(backingIndexName)

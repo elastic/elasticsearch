@@ -355,7 +355,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
     public void testRemoveBrokenBackingIndexReference() {
         var dataStreamName = "my-logs";
         var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
-        var original = state.getMetadata().dataStreams().get(dataStreamName);
+        var original = state.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
         var broken = original.copy()
             .setBackingIndices(
                 original.getBackingIndices()
@@ -372,8 +372,11 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             this::getMapperService,
             Settings.EMPTY
         );
-        assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
-        assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices().get(0), equalTo(original.getIndices().get(1)));
+        assertThat(result.getMetadata().projectMetadata.dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        assertThat(
+            result.getMetadata().projectMetadata.dataStreams().get(dataStreamName).getIndices().get(0),
+            equalTo(original.getIndices().get(1))
+        );
     }
 
     public void testRemoveBackingIndexThatDoesntExist() {
@@ -405,7 +408,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         {
             // Remove lifecycle
             ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), null);
-            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            DataStream updatedDataStream = after.metadata().projectMetadata.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), nullValue());
             before = after;
@@ -414,7 +417,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         {
             // Set lifecycle
             ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
-            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            DataStream updatedDataStream = after.metadata().projectMetadata.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
         }

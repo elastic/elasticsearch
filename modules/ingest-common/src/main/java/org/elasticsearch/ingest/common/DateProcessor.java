@@ -46,7 +46,7 @@ public final class DateProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final List<String> formats;
-    private final List<BiFunction<String, String, Function<String, ZonedDateTime>>> dateParsers;
+    private final List<BiFunction<ZoneId, Locale, Function<String, ZonedDateTime>>> dateParsers;
     private final String outputFormat;
 
     DateProcessor(
@@ -84,7 +84,7 @@ public final class DateProcessor extends AbstractProcessor {
             dateParsers.add(
                 (documentTimezone, documentLocale) -> Cache.INSTANCE.getOrCompute(
                     new Cache.Key(format, documentTimezone, documentLocale),
-                    () -> dateFormat.getFunction(format, newDateTimeZone(documentTimezone), newLocale(documentLocale))
+                    () -> dateFormat.getFunction(format, documentTimezone, documentLocale)
                 )
             );
         }
@@ -109,12 +109,21 @@ public final class DateProcessor extends AbstractProcessor {
             value = obj.toString();
         }
 
+        // run (potential) mustache application just a single time for this document in order to
+        // extract the timezone and locale to use for date parsing
+        final ZoneId documentTimezone;
+        final Locale documentLocale;
+        final Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        try {
+            documentTimezone = newDateTimeZone(timezone == null ? null : timezone.newInstance(sourceAndMetadata).execute());
+            documentLocale = newLocale(locale == null ? null : locale.newInstance(sourceAndMetadata).execute());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("unable to parse date [" + value + "]", e);
+        }
+
         ZonedDateTime dateTime = null;
         Exception lastException = null;
-        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
-        var documentTimezone = timezone == null ? null : timezone.newInstance(sourceAndMetadata).execute();
-        var documentLocale = locale == null ? null : locale.newInstance(sourceAndMetadata).execute();
-        for (BiFunction<String, String, Function<String, ZonedDateTime>> dateParser : dateParsers) {
+        for (BiFunction<ZoneId, Locale, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
                 dateTime = dateParser.apply(documentTimezone, documentLocale).apply(value);
                 break;
@@ -257,6 +266,6 @@ public final class DateProcessor extends AbstractProcessor {
             return fn;
         }
 
-        record Key(String format, String zoneId, String locale) {}
+        record Key(String format, ZoneId zoneId, Locale locale) {}
     }
 }

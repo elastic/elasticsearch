@@ -584,7 +584,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 var configured = cacheService.maybeFetchFullEntry(
                     cacheKey,
                     size(500),
-                    (ch, chPos, streamFactory, relPos, len, update, completion) -> { throw new AssertionError("Should never reach here"); },
+                    (ch, chPos, streamFactory, relPos, len, update, completion) -> completeWith(completion, () -> {
+                        throw new AssertionError("Should never reach here");
+                    }),
                     bulkExecutor,
                     ActionListener.noop()
                 );
@@ -1032,10 +1034,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     cacheKey,
                     randomIntBetween(0, 10),
                     randomLongBetween(1L, regionSize),
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(
-                        completed,
-                        () -> { throw new AssertionError("should not be executed"); }
-                    ),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
+                        throw new AssertionError("should not be executed");
+                    }),
                     bulkExecutor,
                     future
                 );
@@ -1199,10 +1200,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     randomIntBetween(0, 10),
                     ByteRange.of(0L, blobLength),
                     blobLength,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(
-                        completed,
-                        () -> { throw new AssertionError("should not be executed"); }
-                    ),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
+                        throw new AssertionError("should not be executed");
+                    }),
                     bulkExecutor,
                     future
                 );

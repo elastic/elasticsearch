@@ -83,7 +83,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 /**
  * <p>This class is part of the planner</p>
- * <p></p>Global optimizations based strictly on the structure of the query (i.e. not factoring in information about the backing indices).
+ * <p>Global optimizations based strictly on the structure of the query (i.e. not factoring in information about the backing indices).
  * The bulk of query transformations happen in this step. </p>
  *
  * <p>Global optimizations based strictly on the structure of the query (i.e. not factoring in information about the backing indices).  The

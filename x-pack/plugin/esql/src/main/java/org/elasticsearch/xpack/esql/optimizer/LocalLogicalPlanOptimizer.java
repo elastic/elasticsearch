@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
 import static org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.TransformDirection.UP;
 
 /**
- * <p></p>This class is part of the planner. Data node level logical optimizations.  At this point we have access to
+ * <p>This class is part of the planner. Data node level logical optimizations.  At this point we have access to
  * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index. </p>
  *
  * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()}

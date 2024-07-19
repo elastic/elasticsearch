@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PART
 /**
  * <p>This class is part of the planner</p>
  *
- * <p></p>Translates the logical plan into a physical plan.  This is where we start to decide what will be executed on the data nodes and what
+ * <p>Translates the logical plan into a physical plan.  This is where we start to decide what will be executed on the data nodes and what
  * will be executed on the coordinator nodes.  This step creates {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} instances,
  * which represent logical plan fragments to be sent to the data nodes and {@link org.elasticsearch.xpack.esql.plan.physical.ExchangeExec}
  * instances, which represent data being sent back from the data nodes to the coordinating node.</p>

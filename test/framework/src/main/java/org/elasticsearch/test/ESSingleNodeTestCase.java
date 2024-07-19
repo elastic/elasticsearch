@@ -50,6 +50,7 @@ import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -82,6 +83,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * A test that keep a singleton node started for all tests that can be used to get
  * references to Guice injectors in unit tests.
  */
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/110790",
+    value = "org.elasticsearch.action.search:TRACE," + "org.elasticsearch.search.SearchService:TRACE"
+)
 public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;

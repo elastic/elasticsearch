@@ -238,7 +238,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     ? new UnsupportedAttribute(source, name, uef)
                     : new FieldAttribute(source, parent, name, t);
                 // primitive branch
-                if (DataType.isObjectOrNested(type)) {
+                if (DataType.isObjectOrNested(type) == false) {
                     list.add(attribute);
                 }
                 // allow compound object even if they are unknown (but not NESTED)
@@ -859,7 +859,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
                 String nameCandidate = a.name();
-                if (DataType.isObjectOrNested(a.dataType())) {
+                if (DataType.isObjectOrNested(a.dataType()) == false) {
                     names.add(nameCandidate);
                 }
             }

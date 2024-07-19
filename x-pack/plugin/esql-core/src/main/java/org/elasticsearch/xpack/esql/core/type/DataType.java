@@ -222,7 +222,7 @@ public enum DataType {
     }
 
     public static boolean isObjectOrNested(DataType t) {
-        return t != OBJECT && t != NESTED;
+        return t == OBJECT || t == NESTED;
     }
 
     public static boolean isNull(DataType t) {

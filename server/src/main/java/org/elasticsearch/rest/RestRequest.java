@@ -640,24 +640,35 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return restApiVersion.isPresent();
     }
 
+    /**
+     * See {@link #SERVERLESS_REQUEST}
+     */
     public void markAsServerlessRequest() {
         setParamTrueOnceAndConsume(SERVERLESS_REQUEST);
     }
 
+    /**
+     * See {@link #SERVERLESS_REQUEST}
+     */
     public boolean isServerlessRequest() {
         return paramAsBoolean(SERVERLESS_REQUEST, false);
     }
 
+    /**
+     * See {@link #OPERATOR_REQUEST}
+     */
     public void markAsOperatorRequest() {
         setParamTrueOnceAndConsume(OPERATOR_REQUEST);
     }
 
+    /**
+     * See {@link #OPERATOR_REQUEST}
+     */
     public boolean isOperatorRequest() {
         return paramAsBoolean(OPERATOR_REQUEST, false);
     }
 
     private void setParamTrueOnceAndConsume(String param) {
-        // TODO race-conditions?
         if (params.containsKey(param)) {
             throw new IllegalArgumentException("The parameter [" + param + "] is already defined.");
         }

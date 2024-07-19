@@ -482,6 +482,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             if (apiProtections.isEnabled()) {
+                // API protections are only enabled in serverless; therefore we can use this as an indicator to mark the
+                // request as a serverless mode request here, so downstream handlers can use the marker
                 request.markAsServerlessRequest();
                 logger.trace("Marked request for uri [{}] as serverless request", request.uri());
             }

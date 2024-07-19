@@ -179,7 +179,7 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));
         assertOK(createDataStream(client, "logs-custom-dev"));
         final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
-        assertThat(indexMode, equalTo(IndexMode.LOGS.getName()));
+        assertThat(indexMode, equalTo(IndexMode.LOGSDB.getName()));
     }
 
     public void testBulkIndexing() throws IOException {

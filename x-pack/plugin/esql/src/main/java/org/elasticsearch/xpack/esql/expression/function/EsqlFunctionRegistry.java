@@ -84,10 +84,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRiemannZetaWeightedSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRiemannZeta;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
@@ -293,7 +293,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split"),
-                def(MvRiemannZeta.class, MvRiemannZeta::new, "mv_riemann_zeta") } };
+                def(MvRiemannZetaWeightedSum.class, MvRiemannZetaWeightedSum::new, "mv_riemann_zeta_weighted_sum") } };
     }
 
     @Override

@@ -315,7 +315,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testVerboseSegments() throws Exception {
         Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try  {
+        try {
             List<Segment> segments = engine.segments();
             assertThat(segments.isEmpty(), equalTo(true));
 
@@ -344,7 +344,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testSegmentsWithMergeFlag() throws Exception {
         Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy());
-        try  {
+        try {
             ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
             Engine.Index index = indexForDoc(doc);
             engine.index(index);
@@ -437,7 +437,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testSegmentsStatsIncludingFileSizes() throws Exception {
         Store store = createStore();
         Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try  {
+        try {
             assertThat(engine.segmentsStats(true, false).getFiles().size(), equalTo(0));
 
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
@@ -1767,7 +1767,7 @@ public class InternalEngineTests extends EngineTestCase {
         InternalEngine engine = createEngine(
             config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
         );
-        try  {
+        try {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
@@ -4836,7 +4836,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.refresh("test");
             lookupAndCheck.run();
-        }finally {
+        } finally {
             store.close();
             engine.close();
         }
@@ -6925,7 +6925,7 @@ public class InternalEngineTests extends EngineTestCase {
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
             Store store = createStore(indexSettings, newDirectory());
             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-            try  {
+            try {
                 ParsedDocument doc = testParsedDocument(
                     "1",
                     null,

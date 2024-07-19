@@ -13,6 +13,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -78,7 +79,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                SearchActionListener<QuerySearchResult> listener
+                ActionListener<QuerySearchResult> listener
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -180,7 +181,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                SearchActionListener<QuerySearchResult> listener
+                ActionListener<QuerySearchResult> listener
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -267,7 +268,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                SearchActionListener<QuerySearchResult> listener
+                ActionListener<QuerySearchResult> listener
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(

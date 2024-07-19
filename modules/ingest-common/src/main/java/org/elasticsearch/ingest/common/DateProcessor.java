@@ -81,12 +81,12 @@ public final class DateProcessor extends AbstractProcessor {
 
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
-            dateParsers.add((documentTimezone, documentLocale) -> {
-                return Cache.INSTANCE.getOrCompute(
+            dateParsers.add(
+                (documentTimezone, documentLocale) -> Cache.INSTANCE.getOrCompute(
                     new Cache.Key(format, documentTimezone, documentLocale),
                     () -> dateFormat.getFunction(format, newDateTimeZone(documentTimezone), newLocale(documentLocale))
-                );
-            });
+                )
+            );
         }
         this.outputFormat = outputFormat;
         formatter = DateFormatter.forPattern(this.outputFormat);

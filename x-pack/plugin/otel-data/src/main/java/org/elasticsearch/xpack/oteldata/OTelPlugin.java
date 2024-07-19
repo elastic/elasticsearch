@@ -34,7 +34,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
     // This setting will be ignored if the plugin is disabled.
     static final Setting<Boolean> OTEL_DATA_REGISTRY_ENABLED = Setting.boolSetting(
         "xpack.otel_data.registry.enabled",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

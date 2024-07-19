@@ -295,5 +295,5 @@ lookupCommand
     ;
 
 matchCommand
-    : MATCH queryString=QUOTED_STRING
+    : MATCH string
     ;

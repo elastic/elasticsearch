@@ -965,16 +965,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMatch() {
-        String queryString = "\"field: value\"";
+        String queryString = "field: value";
         assertEquals(
             new QueryStringFilter(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 queryString
             ),
-            processingCommand("match " + queryString)
+            processingCommand("match \"" + queryString + "\"")
         );
-
 
         expectError("from a | match an unquoted string", "mismatched input 'an' expecting QUOTED_STRING");
     }

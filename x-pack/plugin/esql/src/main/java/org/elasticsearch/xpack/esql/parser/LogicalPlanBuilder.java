@@ -343,7 +343,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx) {
-        String queryString = ctx.queryString.getText();
+        String queryString = visitString(ctx.string()).fold().toString();
         return input -> new QueryStringFilter(source(ctx), input, queryString);
     }
 

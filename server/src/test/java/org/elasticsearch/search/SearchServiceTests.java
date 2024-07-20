@@ -2842,8 +2842,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
                         () -> assertEquals(
-                            "The number of slices should be 1 as FETCH does not support parallel collection.",
-                            1,
+                            "The number of slices should be 0 as FETCH does not support parallel collection.",
+                            0,
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2857,8 +2857,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     searcher.search(termQuery, new TotalHitCountCollectorManager());
                     assertBusy(
                         () -> assertEquals(
-                            "The number of slices should be 1 as NONE does not support parallel collection.",
-                            1,
+                            "The number of slices should be 0 as NONE does not support parallel collection.",
+                            0,
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );
@@ -2880,8 +2880,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         searcher.search(termQuery, new TotalHitCountCollectorManager());
                         assertBusy(
                             () -> assertEquals(
-                                "The number of slices should be 1 when QUERY parallel collection is disabled.",
-                                1,
+                                "The number of slices should be 0 when QUERY parallel collection is disabled.",
+                                0,
                                 executor.getCompletedTaskCount() - priorExecutorTaskCount
                             )
                         );

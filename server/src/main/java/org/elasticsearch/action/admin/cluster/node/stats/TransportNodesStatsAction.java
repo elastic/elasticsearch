@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -39,7 +40,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsRequest,
@@ -86,9 +86,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         List<FailedNodeException> failures,
         ActionListener<NodesStatsResponse> listener
     ) {
-        Set<String> metrics = request.getNodesStatsRequestParameters().requestedMetrics();
-        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)
-            || NodesStatsRequestParameters.Metric.FS.containedIn(metrics)) {
+        var metrics = request.getNodesStatsRequestParameters().requestedMetrics();
+        if (metrics.contains(Metric.FS) || metrics.contains(Metric.ALLOCATIONS)) {
             client.execute(
                 TransportGetAllocationStatsAction.TYPE,
                 new TransportGetAllocationStatsAction.Request(
@@ -132,26 +131,27 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     protected NodeStats nodeOperation(NodeStatsRequest request, Task task) {
         assert task instanceof CancellableTask;
 
-        final NodesStatsRequestParameters nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
-        Set<String> metrics = nodesStatsRequestParameters.requestedMetrics();
+        final var nodesStatsRequestParameters = request.getNodesStatsRequestParameters();
+        final var metrics = nodesStatsRequestParameters.requestedMetrics();
+
         return nodeService.stats(
             nodesStatsRequestParameters.indices(),
             nodesStatsRequestParameters.includeShardsStats(),
-            NodesStatsRequestParameters.Metric.OS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.PROCESS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.JVM.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.THREAD_POOL.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.FS.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.TRANSPORT.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.HTTP.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.BREAKER.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.SCRIPT.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.DISCOVERY.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.INGEST.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequestParameters.Metric.REPOSITORIES.containedIn(metrics)
+            metrics.contains(Metric.OS),
+            metrics.contains(Metric.PROCESS),
+            metrics.contains(Metric.JVM),
+            metrics.contains(Metric.THREAD_POOL),
+            metrics.contains(Metric.FS),
+            metrics.contains(Metric.TRANSPORT),
+            metrics.contains(Metric.HTTP),
+            metrics.contains(Metric.BREAKER),
+            metrics.contains(Metric.SCRIPT),
+            metrics.contains(Metric.DISCOVERY),
+            metrics.contains(Metric.INGEST),
+            metrics.contains(Metric.ADAPTIVE_SELECTION),
+            metrics.contains(Metric.SCRIPT_CACHE),
+            metrics.contains(Metric.INDEXING_PRESSURE),
+            metrics.contains(Metric.REPOSITORIES)
         );
     }
 

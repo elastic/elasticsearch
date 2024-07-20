@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,6 +32,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -126,23 +128,25 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
     @Override
     protected void masterOperation(
-        Task ignoredTask,
+        Task task,
         StartTransformAction.Request request,
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) {
         TransformNodes.warnIfNoTransformNodes(state);
 
-        final SetOnce<TransformTaskParams> transformTaskParamsHolder = new SetOnce<>();
-        final SetOnce<TransformConfig> transformConfigHolder = new SetOnce<>();
+        var transformTaskParamsHolder = new SetOnce<TransformTaskParams>();
+        var transformConfigHolder = new SetOnce<TransformConfig>();
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        var parentClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         // <5> Wait for the allocated task's state to STARTED
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
-            .wrap(task -> {
+            .wrap(t -> {
                 TransformTaskParams transformTask = transformTaskParamsHolder.get();
                 assert transformTask != null;
                 waitForTransformTaskStarted(
-                    task.getId(),
+                    t.getId(),
                     transformTask,
                     request.ackTimeout(),
                     ActionListener.wrap(taskStarted -> listener.onResponse(new StartTransformAction.Response(true)), listener::onFailure)
@@ -196,7 +200,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 return;
             }
             TransformIndex.createDestinationIndex(
-                client,
+                parentClient,
                 auditor,
                 indexNameExpressionResolver,
                 state,
@@ -257,7 +261,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 )
             );
             ClientHelper.executeAsyncWithOrigin(
-                client,
+                parentClient,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
                 new ValidateTransformAction.Request(config, false, request.ackTimeout()),

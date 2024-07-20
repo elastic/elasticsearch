@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+
+import java.io.IOException;
 
 public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
 
@@ -18,9 +20,13 @@ public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
         super(source, left, right);
     }
 
+    protected InsensitiveBinaryComparison(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
 }

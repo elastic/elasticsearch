@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -44,8 +46,8 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 
 /**
- * Performs global (coordinator) optimization of the physical plan.
- * Local (data-node) optimizations occur later by operating just on a plan fragment (subplan).
+ * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
+ * occur later by operating just on a plan {@link FragmentExec} (subplan).
  */
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
     private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
@@ -116,6 +118,12 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     }
                     if (p instanceof MvExpandExec mvee) {
                         attributes.remove(mvee.expanded());
+                    }
+                    if (p instanceof HashJoinExec join) {
+                        attributes.removeAll(join.addedFields());
+                        for (Attribute rhs : join.rightFields()) {
+                            attributes.remove(rhs);
+                        }
                     }
                     if (p instanceof EnrichExec ee) {
                         for (NamedExpression enrichField : ee.enrichFields()) {

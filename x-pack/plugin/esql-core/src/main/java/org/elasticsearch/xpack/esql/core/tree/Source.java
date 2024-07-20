@@ -34,6 +34,11 @@ public final class Source implements Writeable {
     }
 
     public static <S extends StreamInput & PlanStreamInput> Source readFrom(S in) throws IOException {
+        /*
+         * The funny typing dance with `<S extends...>` is required we're in esql-core
+         * here and the real PlanStreamInput is in esql-proper. And we need PlanStreamInput
+         * to send the query one time.
+         */
         if (in.readBoolean() == false) {
             return EMPTY;
         }

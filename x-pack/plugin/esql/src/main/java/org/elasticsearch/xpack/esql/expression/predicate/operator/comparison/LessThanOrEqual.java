@@ -7,55 +7,48 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
 import java.time.ZoneId;
 import java.util.Map;
 
 public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
-    private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataTypes.INTEGER, LessThanOrEqualIntsEvaluator.Factory::new),
-        Map.entry(DataTypes.DOUBLE, LessThanOrEqualDoublesEvaluator.Factory::new),
-        Map.entry(DataTypes.LONG, LessThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.UNSIGNED_LONG, LessThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.DATETIME, LessThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.KEYWORD, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.TEXT, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.VERSION, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.IP, LessThanOrEqualKeywordsEvaluator.Factory::new)
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "LessThanOrEqual",
+        EsqlBinaryComparison::readFrom
     );
 
-    @FunctionInfo(
-        returnType = { "boolean" },
-        description = "Returns true if the value on the left is less than  or equals to the value on the right."
-    )
-    public LessThanOrEqual(
-        Source source,
-        @Param(
-            name = "lhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-            description = "An expression."
-        ) Expression left,
-        @Param(
-            name = "rhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-            description = "An expression."
-        ) Expression right
-    ) {
+    private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
+        Map.entry(DataType.INTEGER, LessThanOrEqualIntsEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE, LessThanOrEqualDoublesEvaluator.Factory::new),
+        Map.entry(DataType.LONG, LessThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.UNSIGNED_LONG, LessThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATETIME, LessThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, LessThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, LessThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, LessThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.IP, LessThanOrEqualKeywordsEvaluator.Factory::new)
+    );
+
+    public LessThanOrEqual(Source source, Expression left, Expression right) {
         this(source, left, right, null);
     }
 
     public LessThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonOperation.LTE, zoneId, evaluatorMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

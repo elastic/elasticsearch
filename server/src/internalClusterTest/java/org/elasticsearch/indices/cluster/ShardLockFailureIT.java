@@ -11,6 +11,7 @@ package org.elasticsearch.indices.cluster;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -27,8 +28,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class ShardLockFailureIT extends ESIntegTestCase {
 
@@ -61,7 +60,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
                         .routingTable()
                         .shardRoutingTable(shardId)
                         .allShards()
-                        .noneMatch(sr -> sr.unassigned() && sr.unassignedInfo().getNumFailedAllocations() > 0)
+                        .noneMatch(sr -> sr.unassigned() && sr.unassignedInfo().failedAllocations() > 0)
                 );
             } catch (IndexNotFoundException e) {
                 // ok
@@ -165,7 +164,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             assertEquals(1, clusterHealthResponse.getUnassignedShards());
         }
 
-        assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true));
+        ClusterRerouteUtils.rerouteRetryFailed(client());
         ensureGreen(indexName);
     }
 }

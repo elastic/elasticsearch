@@ -32,9 +32,8 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
-    requires org.elasticsearch.vec;
+    requires org.elasticsearch.simdvec;
 
-    requires com.sun.jna;
     requires hppc;
     requires HdrHistogram;
     requires jopt.simple;
@@ -189,7 +188,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.compress;
     exports org.elasticsearch.common.document;
     exports org.elasticsearch.common.file;
-    exports org.elasticsearch.common.filesystem;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
     exports org.elasticsearch.common.inject;
@@ -362,6 +360,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rank.context;
+    exports org.elasticsearch.search.rank.feature;
+    exports org.elasticsearch.search.rank.rerank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.retriever;
     exports org.elasticsearch.search.runtime;
@@ -421,6 +421,7 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.features.FeatureSpecification
         with
+            org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.FeatureInfrastructureFeatures,
             org.elasticsearch.health.HealthFeatures,
             org.elasticsearch.cluster.service.TransportFeatures,
@@ -429,7 +430,11 @@ module org.elasticsearch.server {
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
-            org.elasticsearch.search.retriever.RetrieversFeatures;
+            org.elasticsearch.ingest.IngestGeoIpFeatures,
+            org.elasticsearch.search.SearchFeatures,
+            org.elasticsearch.script.ScriptFeatures,
+            org.elasticsearch.search.retriever.RetrieversFeatures,
+            org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -445,7 +450,10 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
+
     provides org.apache.lucene.codecs.Codec with Elasticsearch814Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
@@ -456,4 +464,5 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
+
 }

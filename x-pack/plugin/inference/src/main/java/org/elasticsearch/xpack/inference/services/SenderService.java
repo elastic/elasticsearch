@@ -31,7 +31,7 @@ public abstract class SenderService implements InferenceService {
 
     public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         Objects.requireNonNull(factory);
-        sender = factory.createSender(name());
+        sender = factory.createSender();
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 

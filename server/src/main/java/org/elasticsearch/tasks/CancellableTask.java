@@ -109,6 +109,11 @@ public class CancellableTask extends Task {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return "CancellableTask{" + super.toString() + ", reason='" + reason + '\'' + ", isCancelled=" + isCancelled + '}';
+    }
+
     private TaskCancelledException getTaskCancelledException() {
         assert Thread.holdsLock(this);
         assert isCancelled;

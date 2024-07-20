@@ -8,10 +8,12 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -88,18 +90,21 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingProvider() {
                 @Override
-                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
-                    providedFixedSize.set(normalisedBytesParsed);
-                    return new TestDocumentSizeObserver(normalisedBytesParsed);
-                }
-
-                @Override
-                public DocumentSizeObserver newDocumentSizeObserver() {
+                public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
+                    if (request instanceof IndexRequest indexRequest && indexRequest.getNormalisedBytesParsed() > 0) {
+                        long normalisedBytesParsed = indexRequest.getNormalisedBytesParsed();
+                        providedFixedSize.set(normalisedBytesParsed);
+                        return new TestDocumentSizeObserver(normalisedBytesParsed);
+                    }
                     return new TestDocumentSizeObserver(0L);
                 }
 
                 @Override
-                public DocumentSizeReporter newDocumentSizeReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
+                public DocumentSizeReporter newDocumentSizeReporter(
+                    String indexName,
+                    MapperService mapperService,
+                    DocumentSizeAccumulator documentSizeAccumulator
+                ) {
                     return DocumentSizeReporter.EMPTY_INSTANCE;
                 }
             };
@@ -132,6 +137,7 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         public long normalisedBytesParsed() {
             return mapCounter;
         }
+
     }
 
 }

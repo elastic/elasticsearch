@@ -34,10 +34,10 @@ public final class ToLowerEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public ToLowerEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.locale = locale;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

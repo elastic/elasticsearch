@@ -109,20 +109,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private final String requestName;
 
-        NodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-        }
-
         public NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(requestName);
         }
 
         @Override
@@ -142,7 +131,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     abstract class TestNodesAction extends AbstractTestNodesAction<NodesRequest, NodeRequest> {
 
         TestNodesAction(String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-            super(actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, NodeRequest::new);
         }
 
         @Override
@@ -752,10 +741,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         reachabilityChecker.checkReachable();
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();
@@ -828,10 +815,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.checkReachable();
         }
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();

@@ -43,6 +43,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        .setting("xpack.ml.enabled", "false")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
         .user("user1", "x-pack-test-password", "user1", false)
@@ -51,6 +52,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .build();
 
     @Override
@@ -133,6 +135,27 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    public void testInsufficientPrivilege() {
+        Exception error = expectThrows(Exception.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"));
+        logger.info("error", error);
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+    }
+
+    public void testLimitedPrivilege() throws Exception {
+        Response resp = runESQLCommand("metadata1_read2", """
+            FROM index-user1,index-user2 METADATA _index
+            | STATS sum=sum(value), index=VALUES(_index)
+            """);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(72.0, "index-user2"))));
+
     }
 
     public void testDocumentLevelSecurity() throws Exception {

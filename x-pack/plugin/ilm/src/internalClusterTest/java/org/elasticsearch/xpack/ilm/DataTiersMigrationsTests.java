@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -222,10 +221,9 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
     }
 
     private void assertReplicaIsUnassigned() {
-        ClusterAllocationExplainRequest explainReplicaShard = new ClusterAllocationExplainRequest().setIndex(managedIndex)
-            .setPrimary(false)
-            .setShard(0);
-        ClusterAllocationExplainResponse response = clusterAdmin().allocationExplain(explainReplicaShard).actionGet();
-        assertThat(response.getExplanation().getShardState(), is(ShardRoutingState.UNASSIGNED));
+        assertThat(
+            ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), managedIndex, 0, false).getShardState(),
+            is(ShardRoutingState.UNASSIGNED)
+        );
     }
 }

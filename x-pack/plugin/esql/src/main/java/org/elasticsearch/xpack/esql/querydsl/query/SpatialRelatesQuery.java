@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 
 public class SpatialRelatesQuery extends Query {
     private final String field;
@@ -63,7 +63,7 @@ public class SpatialRelatesQuery extends Query {
 
     @Override
     protected String innerToString() {
-        throw new IllegalArgumentException("SpatialRelatesQuery.innerToString() not implemented");
+        return "field:" + field + ", dataType:" + dataType + ", queryRelation:" + queryRelation + ", shape:" + shape;
     }
 
     @Override

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -17,8 +16,8 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.AzureAndOpenAiErrorResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.AzureAndOpenAiExternalResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 
@@ -41,24 +40,23 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
     }
 
     @Override
-    public Runnable create(
-        String query,
-        List<String> input,
+    public void execute(
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
-        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         AzureAiStudioEmbeddingsRequest request = new AzureAiStudioEmbeddingsRequest(truncator, truncatedInput, model);
-        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new AzureAndOpenAiExternalResponseHandler(
+        return new AzureMistralOpenAiExternalResponseHandler(
             "azure ai studio text embedding",
             new AzureAiStudioEmbeddingsResponseEntity(),
-            AzureAndOpenAiErrorResponseEntity::fromResponse
+            ErrorMessageResponseEntity::fromResponse
         );
     }
 

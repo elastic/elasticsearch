@@ -1,6 +1,0 @@
-pr: 109048
-summary: Guard against a null scorer in painless execute
-area: Infra/Scripting
-type: bug
-issues:
- - 43541

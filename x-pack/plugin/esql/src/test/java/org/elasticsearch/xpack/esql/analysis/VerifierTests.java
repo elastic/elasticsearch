@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
@@ -20,7 +21,9 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -308,7 +311,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnsignedLongTypeMixInComparisons() {
-        List<String> types = DataTypes.types()
+        List<String> types = DataType.types()
             .stream()
             .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
@@ -346,7 +349,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnsignedLongTypeMixInArithmetics() {
-        List<String> types = DataTypes.types()
+        List<String> types = DataType.types()
             .stream()
             .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
@@ -490,7 +493,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM tests | STATS min(network.bytes_in)", tsdb),
             equalTo(
-                "1:20: argument of [min(network.bytes_in)] must be [datetime or numeric except unsigned_long or counter types],"
+                "1:20: argument of [min(network.bytes_in)] must be"
+                    + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
                     + " found value [min(network.bytes_in)] type [counter_long]"
             )
         );
@@ -498,7 +502,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM tests | STATS max(network.bytes_in)", tsdb),
             equalTo(
-                "1:20: argument of [max(network.bytes_in)] must be [datetime or numeric except unsigned_long or counter types],"
+                "1:20: argument of [max(network.bytes_in)] must be"
+                    + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
                     + " found value [max(network.bytes_in)] type [counter_long]"
             )
         );
@@ -546,6 +551,83 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNotAllowRateOutsideMetrics() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assertThat(
+            error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
+            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("METRICS tests | STATS sum(rate(network.bytes_in))", tsdb),
+            equalTo("1:27: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("FROM tests | STATS rate(network.bytes_in)", tsdb),
+            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
+            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside METRICS command")
+        );
+    }
+
+    public void testRateNotEnclosedInAggregate() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assertThat(
+            error("METRICS tests rate(network.bytes_in)", tsdb),
+            equalTo(
+                "1:15: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+            )
+        );
+        assertThat(
+            error("METRICS tests avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            equalTo(
+                "1:44: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+            )
+        );
+        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+             [max(avg(rate(network.bytes_in)))]
+            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+             and inside another aggregate"""));
+        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+             [max(avg(rate(network.bytes_in)))]
+            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+             and inside another aggregate"""));
+    }
+
+    public void testWeightedAvg() {
+        assertEquals(
+            "1:35: SECOND argument of [weighted_avg(v, null)] cannot be null or 0, received [null]",
+            error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)")
+        );
+        assertEquals(
+            "1:27: SECOND argument of [weighted_avg(salary, null)] cannot be null or 0, received [null]",
+            error("from test | stats w_avg = weighted_avg(salary, null)")
+        );
+        assertEquals(
+            "1:45: SECOND argument of [weighted_avg(v, w)] cannot be null or 0, received [null]",
+            error("row v = [1, 2, 3], w = null | stats w_avg = weighted_avg(v, w)")
+        );
+        assertEquals(
+            "1:44: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
+            error("from test | eval w = null |  stats w_avg = weighted_avg(salary, w)")
+        );
+        assertEquals(
+            "1:51: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
+            error("from test | eval w = null + null |  stats w_avg = weighted_avg(salary, w)")
+        );
+        assertEquals(
+            "1:35: SECOND argument of [weighted_avg(v, 0)] cannot be null or 0, received [0]",
+            error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, 0)")
+        );
+        assertEquals(
+            "1:27: SECOND argument of [weighted_avg(salary, 0.0)] cannot be null or 0, received [0.0]",
+            error("from test | stats w_avg = weighted_avg(salary, 0.0)")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }
@@ -555,21 +637,21 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
-        List<TypedParamValue> parameters = new ArrayList<>();
+        List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(new TypedParamValue("null", null));
+                parameters.add(new QueryParam(null, null, NULL));
             } else if (param instanceof String) {
-                parameters.add(new TypedParamValue("keyword", param));
+                parameters.add(new QueryParam(null, param, KEYWORD));
             } else if (param instanceof Number) {
-                parameters.add(new TypedParamValue("param", param));
+                parameters.add(new QueryParam(null, param, DataType.fromJava(param)));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> analyzer.analyze(parser.createStatement(query, parameters))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
         );
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));

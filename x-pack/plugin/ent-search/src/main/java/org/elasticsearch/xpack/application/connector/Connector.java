@@ -213,7 +213,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
     public static final ParseField DESCRIPTION_FIELD = new ParseField("description");
     public static final ParseField ERROR_FIELD = new ParseField("error");
-    static final ParseField FEATURES_FIELD = new ParseField("features");
+    public static final ParseField FEATURES_FIELD = new ParseField("features");
     public static final ParseField FILTERING_FIELD = new ParseField("filtering");
     public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
     public static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
@@ -224,7 +224,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
     public static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
     public static final ParseField STATUS_FIELD = new ParseField("status");
-    static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
+    public static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
 
     @SuppressWarnings("unchecked")
@@ -377,25 +377,61 @@ public class Connector implements NamedWriteable, ToXContentObject {
         if (connectorId != null) {
             builder.field(ID_FIELD.getPreferredName(), connectorId);
         }
-        builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
-        builder.field(API_KEY_SECRET_ID_FIELD.getPreferredName(), apiKeySecretId);
-        builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
-        builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
-        builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
-        builder.field(ERROR_FIELD.getPreferredName(), error);
-        builder.field(FEATURES_FIELD.getPreferredName(), features);
-        builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
-        builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
+        if (apiKeyId != null) {
+            builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
+        }
+        if (apiKeySecretId != null) {
+            builder.field(API_KEY_SECRET_ID_FIELD.getPreferredName(), apiKeySecretId);
+        }
+        if (configuration != null) {
+            builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
+        }
+        if (customScheduling != null) {
+            builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
+        }
+        if (description != null) {
+            builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
+        }
+        if (error != null) {
+            builder.field(ERROR_FIELD.getPreferredName(), error);
+        }
+        if (features != null) {
+            builder.field(FEATURES_FIELD.getPreferredName(), features);
+        }
+        if (filtering != null) {
+            builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
+        }
+        if (indexName != null) {
+            builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
+        }
         builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
-        builder.field(LANGUAGE_FIELD.getPreferredName(), language);
-        builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
-        syncInfo.toXContent(builder, params);
-        builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
-        builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
-        builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
-        builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
-        builder.field(STATUS_FIELD.getPreferredName(), status.toString());
+        if (language != null) {
+            builder.field(LANGUAGE_FIELD.getPreferredName(), language);
+        }
+        if (lastSeen != null) {
+            builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+        }
+        if (syncInfo != null) {
+            syncInfo.toXContent(builder, params);
+        }
+        if (name != null) {
+            builder.field(NAME_FIELD.getPreferredName(), name);
+        }
+        if (pipeline != null) {
+            builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
+        }
+        if (scheduling != null) {
+            builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
+        }
+        if (serviceType != null) {
+            builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
+        }
+        if (syncCursor != null) {
+            builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
+        }
+        if (status != null) {
+            builder.field(STATUS_FIELD.getPreferredName(), status.toString());
+        }
         builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
     }
 

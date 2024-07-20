@@ -79,7 +79,7 @@ public class EnrichCacheTests extends ESTestCase {
             new SearchSourceBuilder().query(new MatchQueryBuilder("match_field", "2"))
         );
         // Emulated search response (content doesn't matter, since it isn't used, it just a cache entry)
-        List<Map<?, ?>> searchResponse = List.of(Map.of("test", "entry"));
+        EnrichCache.CacheValue searchResponse = new EnrichCache.CacheValue(List.of(Map.of("test", "entry")), 1L);
 
         EnrichCache enrichCache = new EnrichCache(3);
         enrichCache.setMetadata(metadata);
@@ -91,6 +91,7 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.hits(), equalTo(0L));
         assertThat(cacheStats.misses(), equalTo(0L));
         assertThat(cacheStats.evictions(), equalTo(0L));
+        assertThat(cacheStats.cacheSizeInBytes(), equalTo(3L));
 
         assertThat(enrichCache.get(searchRequest1), notNullValue());
         assertThat(enrichCache.get(searchRequest2), notNullValue());
@@ -101,6 +102,7 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.hits(), equalTo(3L));
         assertThat(cacheStats.misses(), equalTo(1L));
         assertThat(cacheStats.evictions(), equalTo(0L));
+        assertThat(cacheStats.cacheSizeInBytes(), equalTo(3L));
 
         enrichCache.put(searchRequest4, searchResponse);
         cacheStats = enrichCache.getStats("_id");
@@ -108,6 +110,7 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.hits(), equalTo(3L));
         assertThat(cacheStats.misses(), equalTo(1L));
         assertThat(cacheStats.evictions(), equalTo(1L));
+        assertThat(cacheStats.cacheSizeInBytes(), equalTo(3L));
 
         // Simulate enrich policy execution, which should make current cache entries unused.
         metadata = Metadata.builder()
@@ -149,6 +152,7 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.hits(), equalTo(6L));
         assertThat(cacheStats.misses(), equalTo(6L));
         assertThat(cacheStats.evictions(), equalTo(4L));
+        assertThat(cacheStats.cacheSizeInBytes(), equalTo(3L));
     }
 
     public void testComputeIfAbsent() throws InterruptedException {
@@ -331,7 +335,7 @@ public class EnrichCacheTests extends ESTestCase {
             new SearchSourceBuilder().query(new MatchQueryBuilder("test", "query"))
         );
         // Emulated search response (content doesn't matter, since it isn't used, it just a cache entry)
-        List<Map<?, ?>> searchResponse = List.of(Map.of("test", "entry"));
+        EnrichCache.CacheValue searchResponse = new EnrichCache.CacheValue(List.of(Map.of("test", "entry")), 1L);
 
         EnrichCache enrichCache = new EnrichCache(1);
         enrichCache.setMetadata(metadata);

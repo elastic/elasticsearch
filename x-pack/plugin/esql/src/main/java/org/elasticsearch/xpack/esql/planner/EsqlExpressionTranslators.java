@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRe
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
@@ -50,16 +50,19 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.or;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
@@ -68,6 +71,7 @@ public final class EsqlExpressionTranslators {
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
+        new InComparisons(),
         // Ranges is redundant until we start combining binary comparisons (see CombineBinaryComparisons in ql's OptimizerRules)
         // or introduce a BETWEEN keyword.
         new ExpressionTranslators.Ranges(),
@@ -76,7 +80,6 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
-        new ExpressionTranslators.InComparisons(),
         new ExpressionTranslators.StringQueries(),
         new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
@@ -203,8 +206,10 @@ public final class EsqlExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (DataTypes.isDateTime(attribute.dataType())) {
+            if (DataType.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
+                value = dateTimeToString((Long) value);
+                format = DEFAULT_DATE_TIME_FORMATTER.pattern();
             }
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);
@@ -295,34 +300,34 @@ public final class EsqlExpressionTranslators {
                 // Unsigned longs may be represented as BigInteger.
                 decimalValue = new BigDecimal(bigIntValue);
             } else {
-                decimalValue = valueDataType.isRational() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
+                decimalValue = valueDataType.isRationalNumber() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
             }
 
             // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
             BigDecimal minValue;
             BigDecimal maxValue;
-            if (numericFieldDataType == DataTypes.BYTE) {
+            if (numericFieldDataType == DataType.BYTE) {
                 minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.SHORT) {
+            } else if (numericFieldDataType == DataType.SHORT) {
                 minValue = BigDecimal.valueOf(Short.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.INTEGER) {
+            } else if (numericFieldDataType == DataType.INTEGER) {
                 minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.LONG) {
+            } else if (numericFieldDataType == DataType.LONG) {
                 minValue = BigDecimal.valueOf(Long.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Long.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.UNSIGNED_LONG) {
+            } else if (numericFieldDataType == DataType.UNSIGNED_LONG) {
                 minValue = BigDecimal.ZERO;
                 maxValue = UNSIGNED_LONG_MAX;
-            } else if (numericFieldDataType == DataTypes.HALF_FLOAT) {
+            } else if (numericFieldDataType == DataType.HALF_FLOAT) {
                 minValue = HALF_FLOAT_MAX.negate();
                 maxValue = HALF_FLOAT_MAX;
-            } else if (numericFieldDataType == DataTypes.FLOAT) {
+            } else if (numericFieldDataType == DataType.FLOAT) {
                 minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.DOUBLE || numericFieldDataType == DataTypes.SCALED_FLOAT) {
+            } else if (numericFieldDataType == DataType.DOUBLE || numericFieldDataType == DataType.SCALED_FLOAT) {
                 // Scaled floats are represented as doubles in ESQL.
                 minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Double.MAX_VALUE);
@@ -400,6 +405,60 @@ public final class EsqlExpressionTranslators {
             } catch (IllegalArgumentException e) {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
             }
+        }
+    }
+
+    public static class InComparisons extends ExpressionTranslator<In> {
+
+        @Override
+        protected Query asQuery(In in, TranslatorHandler handler) {
+            return doTranslate(in, handler);
+        }
+
+        public static Query doTranslate(In in, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
+        }
+
+        private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
+            return DataType.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        }
+
+        private static Query translate(In in, TranslatorHandler handler) {
+            TypedAttribute attribute = checkIsPushableAttribute(in.value());
+
+            Set<Object> terms = new LinkedHashSet<>();
+            List<Query> queries = new ArrayList<>();
+
+            for (Expression rhs : in.list()) {
+                if (DataType.isNull(rhs.dataType()) == false) {
+                    if (needsTypeSpecificValueHandling(attribute.dataType())) {
+                        // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
+                        Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
+
+                        if (query instanceof TermQuery) {
+                            terms.add(((TermQuery) query).value());
+                        } else {
+                            queries.add(query);
+                        }
+                    } else {
+                        terms.add(valueOf(rhs));
+                    }
+                }
+            }
+
+            if (terms.isEmpty() == false) {
+                String fieldName = pushableAttributeName(attribute);
+                queries.add(new TermsQuery(in.source(), fieldName, terms));
+            }
+
+            return queries.stream().reduce((q1, q2) -> or(in.source(), q1, q2)).get();
+        }
+
+        public static Object valueOf(Expression e) {
+            if (e.foldable()) {
+                return e.fold();
+            }
+            throw new QlIllegalArgumentException("Cannot determine value for {}", e);
         }
     }
 }

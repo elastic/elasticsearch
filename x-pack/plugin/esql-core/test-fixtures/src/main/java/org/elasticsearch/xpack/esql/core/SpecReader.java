@@ -79,7 +79,7 @@ public final class SpecReader {
                         Object result = parser.parse(line);
                         // only if the parser is ready, add the object - otherwise keep on serving it lines
                         if (result != null) {
-                            testCases.add(new Object[] { fileName, groupName, testName, Integer.valueOf(lineNumber), result });
+                            testCases.add(makeTestCase(fileName, groupName, testName, lineNumber, result));
                             testName = null;
                         }
                     }
@@ -101,5 +101,14 @@ public final class SpecReader {
 
     public static boolean shouldSkipLine(String line) {
         return line.isEmpty() || line.startsWith("//") || line.startsWith("#");
+    }
+
+    private static Object[] makeTestCase(String fileName, String groupName, String testName, int lineNumber, Object result) {
+        var testNameParts = testName.split("#", 2);
+
+        testName = testNameParts[0];
+        var instructions = testNameParts.length == 2 ? testNameParts[1] : "";
+
+        return new Object[] { fileName, groupName, testName, lineNumber, result, instructions };
     }
 }

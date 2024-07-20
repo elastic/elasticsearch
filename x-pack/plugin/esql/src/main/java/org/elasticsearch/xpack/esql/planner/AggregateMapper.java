@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
@@ -21,18 +22,21 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 
 import java.lang.invoke.MethodHandle;
@@ -44,9 +48,22 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 
+/**
+ * Static class used to convert aggregate expressions to the named expressions that represent their intermediate state.
+ * <p>
+ *     At class load time, the mapper is populated with all supported aggregate functions and their intermediate state.
+ * </p>
+ * <p>
+ *     Reflection is used to call the {@code intermediateStateDesc()}` static method of the aggregate functions,
+ *     but the function classes are found based on the exising information within this class.
+ * </p>
+ * <p>
+ *     This class must be updated when aggregations are created or updated, by adding the new aggs or types to the corresponding methods.
+ * </p>
+ */
 final class AggregateMapper {
 
     private static final List<String> NUMERIC = List.of("Int", "Long", "Double");
@@ -62,7 +79,13 @@ final class AggregateMapper {
         Percentile.class,
         SpatialCentroid.class,
         Sum.class,
-        Values.class
+        Values.class,
+        Top.class,
+        Rate.class,
+
+        // internal function
+        FromPartial.class,
+        ToPartial.class
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
@@ -136,6 +159,8 @@ final class AggregateMapper {
         List<String> extraConfigs = List.of("");
         if (NumericAggregate.class.isAssignableFrom(clazz)) {
             types = NUMERIC;
+        } else if (Max.class.isAssignableFrom(clazz) || Min.class.isAssignableFrom(clazz)) {
+            types = List.of("Boolean", "Int", "Long", "Double", "Ip");
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
         } else if (SpatialAggregateFunction.class.isAssignableFrom(clazz)) {
@@ -144,9 +169,17 @@ final class AggregateMapper {
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
-        } else {
-            assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
+        } else if (Top.class.isAssignableFrom(clazz)) {
+            types = List.of("Boolean", "Int", "Long", "Double");
+        } else if (Rate.class.isAssignableFrom(clazz)) {
+            types = List.of("Int", "Long", "Double");
+        } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {
+            types = List.of(""); // no type
+        } else if (CountDistinct.class.isAssignableFrom(clazz)) {
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
+        } else {
+            assert false : "unknown aggregate type " + clazz;
+            throw new IllegalArgumentException("unknown aggregate type " + clazz);
         }
         return combinations(types, extraConfigs).map(combo -> new Tuple<>(clazz, combo));
     }
@@ -156,10 +189,15 @@ final class AggregateMapper {
     }
 
     private static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, Tuple<String, String>> tuple) {
-        return Stream.of(
-            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
-            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
-        );
+        if (tuple.v1().isAssignableFrom(Rate.class)) {
+            // rate doesn't support non-grouping aggregations
+            return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true));
+        } else {
+            return Stream.of(
+                new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
+                new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
+            );
+        }
     }
 
     private static AggDef aggDefOrNull(Expression aggregate, boolean grouping) {
@@ -221,19 +259,27 @@ final class AggregateMapper {
 
     /** Maps intermediate state description to named expressions.  */
     private static Stream<NamedExpression> isToNE(List<IntermediateStateDesc> intermediateStateDescs) {
-        return intermediateStateDescs.stream().map(is -> new ReferenceAttribute(Source.EMPTY, is.name(), toDataType(is.type())));
+        return intermediateStateDescs.stream().map(is -> {
+            final DataType dataType;
+            if (Strings.isEmpty(is.dataType())) {
+                dataType = toDataType(is.type());
+            } else {
+                dataType = DataType.fromEs(is.dataType());
+            }
+            return new ReferenceAttribute(Source.EMPTY, is.name(), dataType);
+        });
     }
 
     /** Returns the data type for the engines element type. */
     // defaults to aggstate, but we'll eventually be able to remove this
     private static DataType toDataType(ElementType elementType) {
         return switch (elementType) {
-            case BOOLEAN -> DataTypes.BOOLEAN;
-            case BYTES_REF -> DataTypes.KEYWORD;
-            case INT -> DataTypes.INTEGER;
-            case LONG -> DataTypes.LONG;
-            case DOUBLE -> DataTypes.DOUBLE;
-            default -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
+            case BOOLEAN -> DataType.BOOLEAN;
+            case BYTES_REF -> DataType.KEYWORD;
+            case INT -> DataType.INTEGER;
+            case LONG -> DataType.LONG;
+            case DOUBLE -> DataType.DOUBLE;
+            case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
         };
     }
 
@@ -242,18 +288,24 @@ final class AggregateMapper {
         if (aggClass == Count.class) {
             return "";  // no type distinction
         }
-        if (type.equals(DataTypes.BOOLEAN)) {
+        if (aggClass == ToPartial.class || aggClass == FromPartial.class) {
+            return "";
+        }
+        if ((aggClass == Max.class || aggClass == Min.class) && type.equals(DataType.IP)) {
+            return "Ip";
+        }
+        if (type.equals(DataType.BOOLEAN)) {
             return "Boolean";
-        } else if (type.equals(DataTypes.INTEGER)) {
+        } else if (type.equals(DataType.INTEGER) || type.equals(DataType.COUNTER_INTEGER)) {
             return "Int";
-        } else if (type.equals(DataTypes.LONG) || type.equals(DataTypes.DATETIME)) {
+        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME) || type.equals(DataType.COUNTER_LONG)) {
             return "Long";
-        } else if (type.equals(DataTypes.DOUBLE)) {
+        } else if (type.equals(DataType.DOUBLE) || type.equals(DataType.COUNTER_DOUBLE)) {
             return "Double";
-        } else if (type.equals(DataTypes.KEYWORD)
-            || type.equals(DataTypes.IP)
-            || type.equals(DataTypes.VERSION)
-            || type.equals(DataTypes.TEXT)) {
+        } else if (type.equals(DataType.KEYWORD)
+            || type.equals(DataType.IP)
+            || type.equals(DataType.VERSION)
+            || type.equals(DataType.TEXT)) {
                 return "BytesRef";
             } else if (type.equals(GEO_POINT)) {
                 return "GeoPoint";

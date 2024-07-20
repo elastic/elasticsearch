@@ -13,8 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class AddTests extends AbstractFunctionTestCase {
+public class AddTests extends AbstractScalarFunctionTestCase {
     public AddTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -74,6 +73,38 @@ public class AddTests extends AbstractFunctionTestCase {
             )
         );
 
+        // Double overflows
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                )
+            )
+        );
+
         // Unsigned Long cases
         // TODO: These should be integrated into the type cross product above, but are currently broken
         // see https://github.com/elastic/elasticsearch/issues/102935
@@ -83,7 +114,7 @@ public class AddTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> (((BigInteger) l).add((BigInteger) r)),
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 List.of(),
@@ -96,7 +127,7 @@ public class AddTests extends AbstractFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 (lhs, rhs) -> ((Period) lhs).plus((Period) rhs),
-                DataTypes.DATE_PERIOD,
+                DataType.DATE_PERIOD,
                 TestCaseSupplier.datePeriodCases(),
                 TestCaseSupplier.datePeriodCases(),
                 startsWith("LiteralsEvaluator[lit="),  // lhs and rhs have to be literals, so we fold into a literal
@@ -107,7 +138,7 @@ public class AddTests extends AbstractFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 (lhs, rhs) -> ((Duration) lhs).plus((Duration) rhs),
-                DataTypes.TIME_DURATION,
+                DataType.TIME_DURATION,
                 TestCaseSupplier.timeDurationCases(),
                 TestCaseSupplier.timeDurationCases(),
                 startsWith("LiteralsEvaluator[lit="), // lhs and rhs have to be literals, so we fold into a literal
@@ -137,7 +168,7 @@ public class AddTests extends AbstractFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 result,
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.datePeriodCases(),
                 startsWith("AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
@@ -148,7 +179,7 @@ public class AddTests extends AbstractFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 result,
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.timeDurationCases(),
                 startsWith("AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
@@ -159,22 +190,22 @@ public class AddTests extends AbstractFunctionTestCase {
         suppliers.addAll(TestCaseSupplier.dateCases().stream().<TestCaseSupplier>mapMulti((tds, consumer) -> {
             consumer.accept(
                 new TestCaseSupplier(
-                    List.of(DataTypes.DATETIME, DataTypes.NULL),
+                    List.of(DataType.DATETIME, DataType.NULL),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(tds.get(), TestCaseSupplier.TypedData.NULL),
                         "LiteralsEvaluator[lit=null]",
-                        DataTypes.DATETIME,
+                        DataType.DATETIME,
                         nullValue()
                     )
                 )
             );
             consumer.accept(
                 new TestCaseSupplier(
-                    List.of(DataTypes.NULL, DataTypes.DATETIME),
+                    List.of(DataType.NULL, DataType.DATETIME),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.NULL, tds.get()),
                         "LiteralsEvaluator[lit=null]",
-                        DataTypes.DATETIME,
+                        DataType.DATETIME,
                         nullValue()
                     )
                 )
@@ -198,11 +229,11 @@ public class AddTests extends AbstractFunctionTestCase {
             int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataTypes.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs")
                 ),
                 "AddIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
@@ -210,7 +241,7 @@ public class AddTests extends AbstractFunctionTestCase {
         // exact math arithmetic exceptions
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 () -> randomIntBetween(1, Integer.MAX_VALUE),
                 () -> Integer.MAX_VALUE,
                 "AddIntsEvaluator"
@@ -218,7 +249,7 @@ public class AddTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 () -> randomIntBetween(Integer.MIN_VALUE, -1),
                 () -> Integer.MIN_VALUE,
                 "AddIntsEvaluator"
@@ -226,7 +257,7 @@ public class AddTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.LONG,
+                DataType.LONG,
                 () -> randomLongBetween(1L, Long.MAX_VALUE),
                 () -> Long.MAX_VALUE,
                 "AddLongsEvaluator"
@@ -234,7 +265,7 @@ public class AddTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.LONG,
+                DataType.LONG,
                 () -> randomLongBetween(Long.MIN_VALUE, -1L),
                 () -> Long.MIN_VALUE,
                 "AddLongsEvaluator"
@@ -242,7 +273,7 @@ public class AddTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 () -> asLongUnsigned(randomBigInteger()),
                 () -> asLongUnsigned(UNSIGNED_LONG_MAX),
                 "AddUnsignedLongsEvaluator"

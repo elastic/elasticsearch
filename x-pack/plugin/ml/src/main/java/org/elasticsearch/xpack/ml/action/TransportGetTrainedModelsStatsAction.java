@@ -74,7 +74,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsByResource;
+import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsByResource;
 
 public class TransportGetTrainedModelsStatsAction extends TransportAction<
     GetTrainedModelsStatsAction.Request,
@@ -406,7 +406,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
     static NodesStatsRequest nodeStatsRequest(ClusterState state, TaskId parentTaskId) {
         String[] ingestNodes = state.nodes().getIngestNodes().keySet().toArray(String[]::new);
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
-            .addMetric(NodesStatsRequestParameters.Metric.INGEST.metricName());
+            .addMetric(NodesStatsRequestParameters.Metric.INGEST);
         nodesStatsRequest.setIncludeShardsStats(false);
         nodesStatsRequest.setParentTask(parentTaskId);
         return nodesStatsRequest;

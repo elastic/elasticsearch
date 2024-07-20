@@ -37,11 +37,11 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   public DateParseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

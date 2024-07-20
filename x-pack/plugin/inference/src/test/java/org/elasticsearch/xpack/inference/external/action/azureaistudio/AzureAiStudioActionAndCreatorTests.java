@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.API_KEY_HEADER;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
@@ -92,7 +93,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             TruncatorTests.createTruncator()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingsTokenResponseJson));
@@ -141,7 +142,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             TruncatorTests.createTruncator()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testCompletionTokenResponseJson));

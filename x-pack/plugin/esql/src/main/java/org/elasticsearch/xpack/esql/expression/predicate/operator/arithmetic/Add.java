@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
+import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Period;
@@ -27,24 +29,9 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAd
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 
 public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
 
-    @FunctionInfo(
-        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" },
-        description = "Returns the sum of two values."
-    )
-    public Add(
-        Source source,
-        @Param(
-            name = "lhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
-        ) Expression left,
-        @Param(
-            name = "rhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
-        ) Expression right
-    ) {
+    public Add(Source source, Expression left, Expression right) {
         super(
             source,
             left,
@@ -53,9 +40,26 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddIntsEvaluator.Factory::new,
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new AddDoublesEvaluator.Factory(source, lhs, rhs),
+            AddDoublesEvaluator.Factory::new,
             AddDatetimesEvaluator.Factory::new
         );
+    }
+
+    private Add(StreamInput in) throws IOException {
+        super(
+            in,
+            ADD,
+            AddIntsEvaluator.Factory::new,
+            AddLongsEvaluator.Factory::new,
+            AddUnsignedLongsEvaluator.Factory::new,
+            AddDoublesEvaluator.Factory::new,
+            AddDatetimesEvaluator.Factory::new
+        );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -98,9 +102,9 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
         return unsignedLongAddExact(lhs, rhs);
     }
 
-    @Evaluator(extraName = "Doubles")
+    @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        return lhs + rhs;
+        return NumericUtils.asFiniteNumber(lhs + rhs);
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })

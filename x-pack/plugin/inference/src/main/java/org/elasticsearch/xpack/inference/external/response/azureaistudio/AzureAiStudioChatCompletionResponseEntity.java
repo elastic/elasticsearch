@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.response.azureaistudio;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -49,7 +48,7 @@ public class AzureAiStudioChatCompletionResponseEntity extends BaseResponseEntit
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
             while (token != null && token != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {

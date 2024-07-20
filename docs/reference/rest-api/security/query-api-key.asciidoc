@@ -177,7 +177,7 @@ The query supports a subset of query types, including
 <<query-dsl-match-query,`match`>>, <<query-dsl-ids-query,`ids`>>,
 <<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>,
 <<query-dsl-exists-query,`exists`>>, <<query-dsl-range-query,`range`>>,
-and <<query-dsl-simple-query-string-query,`simple query string`>>
+and <<query-dsl-simple-query-string-query,`simple query string`>>.
 +
 You can query the following public values associated with an API key.
 +

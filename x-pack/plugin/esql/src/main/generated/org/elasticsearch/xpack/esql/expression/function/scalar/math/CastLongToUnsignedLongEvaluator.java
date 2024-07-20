@@ -30,9 +30,9 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
 
   public CastLongToUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,9 +67,9 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   }
 
   public LongVector eval(int positionCount, LongVector vVector) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Cast.castLongToUnsignedLong(vVector.getLong(p)));
+        result.appendLong(p, Cast.castLongToUnsignedLong(vVector.getLong(p)));
       }
       return result.build();
     }

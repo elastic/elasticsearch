@@ -15,12 +15,12 @@ import java.io.InputStream;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NESTED;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -103,16 +103,6 @@ public class TypesTests extends ESTestCase {
         assertThat(field, is(instanceOf(DateEsField.class)));
     }
 
-    public void testDateNanosField() {
-        Map<String, EsField> mapping = loadMapping("mapping-date_nanos.json");
-
-        assertThat(mapping.size(), is(1));
-        EsField field = mapping.get("date_nanos");
-        assertThat(field.getDataType(), is(DATETIME));
-        assertThat(field.isAggregatable(), is(true));
-        assertThat(field, is(instanceOf(DateEsField.class)));
-    }
-
     public void testDocValueField() {
         Map<String, EsField> mapping = loadMapping("mapping-docvalues.json");
 
@@ -128,7 +118,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(2));
         EsField field = mapping.get("manager");
-        assertThat(DataTypes.isPrimitive(field.getDataType()), is(false));
+        assertThat(DataType.isPrimitive(field.getDataType()), is(false));
         assertThat(field.getDataType(), is(OBJECT));
         Map<String, EsField> children = field.getProperties();
         assertThat(children.size(), is(2));
@@ -143,7 +133,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("text");
-        assertThat(DataTypes.isPrimitive(field.getDataType()), is(true));
+        assertThat(DataType.isPrimitive(field.getDataType()), is(true));
         assertThat(field.getDataType(), is(TEXT));
         Map<String, EsField> fields = field.getProperties();
         assertThat(fields.size(), is(4));
@@ -157,7 +147,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("text");
-        assertThat(DataTypes.isPrimitive(field.getDataType()), is(true));
+        assertThat(DataType.isPrimitive(field.getDataType()), is(true));
         assertThat(field, instanceOf(TextEsField.class));
         Map<String, EsField> fields = field.getProperties();
         assertThat(fields.size(), is(4));
@@ -171,7 +161,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("dep");
-        assertThat(DataTypes.isPrimitive(field.getDataType()), is(false));
+        assertThat(DataType.isPrimitive(field.getDataType()), is(false));
         assertThat(field.getDataType(), is(NESTED));
         Map<String, EsField> children = field.getProperties();
         assertThat(children.size(), is(4));

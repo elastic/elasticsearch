@@ -24,10 +24,13 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.OpenAiCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
@@ -41,8 +44,10 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -80,7 +85,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -234,7 +239,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -272,21 +277,15 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is("OpenAI completions only accepts 1 input"));
+            assertThat(thrownException.getMessage(), is("OpenAI chat completions only accepts 1 input"));
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
         }
     }
 
-    private OpenAiChatCompletionAction createAction(
-        String url,
-        String org,
-        String apiKey,
-        String modelName,
-        @Nullable String user,
-        Sender sender
-    ) {
+    private ExecutableAction createAction(String url, String org, String apiKey, String modelName, @Nullable String user, Sender sender) {
         var model = createChatCompletionModel(url, org, apiKey, modelName, user);
-
-        return new OpenAiChatCompletionAction(sender, model, createWithEmptySettings(threadPool));
+        var requestCreator = OpenAiCompletionRequestManager.of(model, threadPool);
+        var errorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "OpenAI chat completions");
+        return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, "OpenAI chat completions");
     }
 }

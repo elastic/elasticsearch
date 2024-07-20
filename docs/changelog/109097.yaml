@@ -1,6 +1,0 @@
-pr: 109097
-summary: "[Connector API] Fix bug with with wrong target index for access control\
-  \ sync"
-area: Application
-type: bug
-issues: []

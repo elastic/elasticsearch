@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.NodeStatsLevel;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -66,7 +67,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
 
     public void testAllRequestWithOtherMetrics() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
-        final String metric = randomSubsetOf(1, RestNodesStatsAction.METRICS.keySet()).get(0);
+        final String metric = randomFrom(Metric.ALL_NAMES);
         params.put("metric", "_all," + metric);
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
@@ -110,7 +111,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
 
     public void testIndexMetricsRequestWithoutIndicesMetric() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
-        final Set<String> metrics = new HashSet<>(RestNodesStatsAction.METRICS.keySet());
+        final Set<String> metrics = new HashSet<>(Metric.ALL_NAMES);
         metrics.remove("indices");
         params.put("metric", randomSubsetOf(1, metrics).get(0));
         final String indexMetric = randomSubsetOf(1, RestNodesStatsAction.FLAGS.keySet()).get(0);

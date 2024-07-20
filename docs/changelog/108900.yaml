@@ -1,6 +1,0 @@
-pr: 108900
-summary: Treat 404 as empty register in `AzureBlobStore`
-area: Snapshot/Restore
-type: bug
-issues:
- - 108504

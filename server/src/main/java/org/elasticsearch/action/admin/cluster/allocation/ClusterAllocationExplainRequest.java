@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -48,8 +49,8 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     /**
      * Create a new allocation explain request to explain any unassigned shard in the cluster.
      */
-    public ClusterAllocationExplainRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public ClusterAllocationExplainRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
         this.index = null;
         this.shard = null;
         this.primary = null;
@@ -70,11 +71,10 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      * Create a new allocation explain request. If {@code primary} is false, the first unassigned replica
      * will be picked for explanation. If no replicas are unassigned, the first assigned replica will
      * be explained.
-     *
-     * Package private for testing.
      */
-    ClusterAllocationExplainRequest(String index, int shard, boolean primary, @Nullable String currentNode) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    // Package private for testing.
+    ClusterAllocationExplainRequest(TimeValue masterNodeTimeout, String index, int shard, boolean primary, @Nullable String currentNode) {
+        super(masterNodeTimeout);
         this.index = index;
         this.shard = shard;
         this.primary = primary;
@@ -231,7 +231,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         return sb.toString();
     }
 
-    public static ClusterAllocationExplainRequest parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new ClusterAllocationExplainRequest(), null);
+    public static ClusterAllocationExplainRequest parse(ClusterAllocationExplainRequest request, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, request, null);
     }
 }

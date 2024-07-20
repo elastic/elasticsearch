@@ -7,11 +7,7 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -71,12 +67,6 @@ public interface EvaluatorMapper {
 
             @Override
             public void close() {}
-        }).get(
-            new DriverContext(
-                BigArrays.NON_RECYCLING_INSTANCE,
-                // TODO maybe this should have a small fixed limit?
-                new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-            )
-        ).eval(new Page(1)), 0);
+        }).get(DriverContext.getLocalDriver()).eval(new Page(1)), 0);
     }
 }

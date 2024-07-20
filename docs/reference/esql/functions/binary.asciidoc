@@ -3,24 +3,144 @@
 === Binary operators
 
 [[esql-binary-operators-equality]]
-include::layout/equals.asciidoc[]
+==== Equality
+[.text-center]
+image::esql/functions/signature/equals.svg[Embedded,opts=inline]
 
-include::layout/not_equals.asciidoc[]
+Check if two fields are equal. If either field is <<esql-multivalued-fields,multivalued>> then
+the result is `null`.
 
-include::layout/less_than.asciidoc[]
+NOTE: This is pushed to the underlying search index if one side of the comparison is constant
+      and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>.
 
-include::layout/less_than_or_equal.asciidoc[]
+Supported types:
 
-include::layout/greater_than.asciidoc[]
+include::types/equals.asciidoc[]
 
-include::layout/greater_than_or_equal.asciidoc[]
+==== Inequality `!=`
+[.text-center]
+image::esql/functions/signature/not_equals.svg[Embedded,opts=inline]
 
-include::layout/add.asciidoc[]
+Check if two fields are unequal. If either field is <<esql-multivalued-fields,multivalued>> then
+the result is `null`.
 
-include::layout/sub.asciidoc[]
+NOTE: This is pushed to the underlying search index if one side of the comparison is constant
+      and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>.
 
-include::layout/mul.asciidoc[]
+Supported types:
 
-include::layout/div.asciidoc[]
+include::types/not_equals.asciidoc[]
 
-include::layout/mod.asciidoc[]
+==== Less than `<`
+[.text-center]
+image::esql/functions/signature/less_than.svg[Embedded,opts=inline]
+
+Check if one field is less than another. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+NOTE: This is pushed to the underlying search index if one side of the comparison is constant
+      and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>.
+
+Supported types:
+
+include::types/less_than.asciidoc[]
+
+==== Less than or equal to `<=`
+[.text-center]
+image::esql/functions/signature/less_than_or_equal.svg[Embedded,opts=inline]
+
+Check if one field is less than or equal to another. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+NOTE: This is pushed to the underlying search index if one side of the comparison is constant
+      and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>.
+
+Supported types:
+
+include::types/less_than_or_equal.asciidoc[]
+
+==== Greater than `>`
+[.text-center]
+image::esql/functions/signature/greater_than.svg[Embedded,opts=inline]
+
+Check if one field is greater than another. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+NOTE: This is pushed to the underlying search index if one side of the comparison is constant
+      and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>.
+
+Supported types:
+
+include::types/greater_than.asciidoc[]
+
+==== Greater than or equal to `>=`
+[.text-center]
+image::esql/functions/signature/greater_than_or_equal.svg[Embedded,opts=inline]
+
+Check if one field is greater than or equal to another. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+NOTE: This is pushed to the underlying search index if one side of the comparison is constant
+      and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>.
+
+Supported types:
+
+include::types/greater_than_or_equal.asciidoc[]
+
+==== Add `+`
+[.text-center]
+image::esql/functions/signature/add.svg[Embedded,opts=inline]
+
+Add two numbers together. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+Supported types:
+
+include::types/add.asciidoc[]
+
+==== Subtract `-`
+[.text-center]
+image::esql/functions/signature/sub.svg[Embedded,opts=inline]
+
+Subtract one number from another. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+Supported types:
+
+include::types/sub.asciidoc[]
+
+==== Multiply `*`
+[.text-center]
+image::esql/functions/signature/mul.svg[Embedded,opts=inline]
+
+Multiply two numbers together. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+Supported types:
+
+include::types/mul.asciidoc[]
+
+==== Divide `/`
+[.text-center]
+image::esql/functions/signature/div.svg[Embedded,opts=inline]
+
+Divide one number by another. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+NOTE: Division of two integer types will yield an integer result, rounding towards 0.
+      If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
+
+Supported types:
+
+include::types/div.asciidoc[]
+
+==== Modulus `%`
+[.text-center]
+image::esql/functions/signature/mod.svg[Embedded,opts=inline]
+
+Divide one number by another and return the remainder. If either field is <<esql-multivalued-fields,multivalued>>
+then the result is `null`.
+
+Supported types:
+
+include::types/mod.asciidoc[]

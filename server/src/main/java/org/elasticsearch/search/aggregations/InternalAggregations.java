@@ -34,7 +34,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
@@ -71,20 +70,10 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * The list of {@link InternalAggregation}s.
      */
     public List<InternalAggregation> asList() {
-        return unmodifiableList(aggregations);
+        return aggregations;
     }
 
-    /**
-     * Returns the {@link InternalAggregation}s keyed by aggregation name.
-     */
-    public Map<String, InternalAggregation> asMap() {
-        return getAsMap();
-    }
-
-    /**
-     * Returns the {@link InternalAggregation}s keyed by aggregation name.
-     */
-    public Map<String, InternalAggregation> getAsMap() {
+    private Map<String, InternalAggregation> asMap() {
         if (aggregationsAsMap == null) {
             Map<String, InternalAggregation> newAggregationsAsMap = Maps.newMapWithExpectedSize(aggregations.size());
             for (InternalAggregation aggregation : aggregations) {
@@ -237,11 +226,34 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
-            reducedInternalAggs = reducedInternalAggs.stream()
-                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
-                .collect(Collectors.toCollection(ArrayList::new));
+            List<InternalAggregation> internalAggregations = null;
+            for (int i = 0; i < reducedInternalAggs.size(); i++) {
+                InternalAggregation agg = reducedInternalAggs.get(i);
+                InternalAggregation internalAggregation = agg.reducePipelines(
+                    agg,
+                    context,
+                    context.pipelineTreeRoot().subTree(agg.getName())
+                );
+                if (internalAggregation.equals(agg) == false) {
+                    if (internalAggregations == null) {
+                        internalAggregations = new ArrayList<>(reducedInternalAggs);
+                    }
+                    internalAggregations.set(i, internalAggregation);
+                }
+            }
 
-            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
+            var pipelineAggregators = context.pipelineTreeRoot().aggregators();
+            if (pipelineAggregators.isEmpty()) {
+                if (internalAggregations == null) {
+                    return reduced;
+                }
+                return from(internalAggregations);
+            }
+            if (internalAggregations != null) {
+                reducedInternalAggs = internalAggregations;
+            }
+            reducedInternalAggs = new ArrayList<>(reducedInternalAggs);
+            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
                 InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
@@ -263,7 +275,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         // handle special case when there is just one aggregation
         if (aggregationsList.size() == 1) {
-            final List<InternalAggregation> internalAggregations = aggregationsList.iterator().next().asList();
+            final List<InternalAggregation> internalAggregations = aggregationsList.get(0).asList();
             final List<InternalAggregation> reduced = new ArrayList<>(internalAggregations.size());
             for (InternalAggregation aggregation : internalAggregations) {
                 if (aggregation.mustReduceOnSingleInternalAgg()) {

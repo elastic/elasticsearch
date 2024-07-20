@@ -1,5 +1,0 @@
-pr: 107902
-summary: Update several references to `TransportVersion.toString` to use `toReleaseVersion`
-area: Infra/Core
-type: bug
-issues: []

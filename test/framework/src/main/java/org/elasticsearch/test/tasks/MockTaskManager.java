@@ -39,6 +39,12 @@ public class MockTaskManager extends TaskManager {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> SPY_TASK_MANAGER_SETTING = Setting.boolSetting(
+        "tests.spy.taskmanager.enabled",
+        false,
+        Property.NodeScope
+    );
+
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {

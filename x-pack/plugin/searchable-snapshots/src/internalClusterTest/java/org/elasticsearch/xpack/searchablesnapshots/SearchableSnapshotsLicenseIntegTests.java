@@ -64,6 +64,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName,
             repoName,
             snapshotName,
@@ -92,6 +93,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
 
     public void testMountRequiresLicense() {
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName + "-extra",
             repoName,
             snapshotName,

@@ -20,6 +20,10 @@ class MemorySegmentUtil {
         return segment.getString(offset);
     }
 
+    static void setString(MemorySegment segment, long offset, String value) {
+        segment.setString(offset, value);
+    }
+
     static MemorySegment allocateString(Arena arena, String s) {
         return arena.allocateFrom(s);
     }

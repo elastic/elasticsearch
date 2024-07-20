@@ -129,6 +129,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {stats.MaxOfIpGrouping SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/111136
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {stats.MinOfIpGrouping SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111137
 
 # Examples:
 #

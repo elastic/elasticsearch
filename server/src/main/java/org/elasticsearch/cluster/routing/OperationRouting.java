@@ -23,7 +23,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -248,18 +247,15 @@ public class OperationRouting {
             if (preference.charAt(0) == '_') {
                 preferenceType = Preference.parse(preference);
                 return switch (preferenceType) {
-                    case PREFER_NODES -> {
-                        final Set<String> nodesIds = Arrays.stream(
-                            preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
-                        ).collect(Collectors.toSet());
-                        yield indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
-                    }
+                    case PREFER_NODES -> indexShard.preferNodeActiveInitializingShardsIt(
+                        Sets.newHashSet(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
+                    );
                     case LOCAL -> indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
                     case ONLY_LOCAL -> indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
-                    case ONLY_NODES -> {
-                        String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
-                        yield indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
-                    }
+                    case ONLY_NODES -> indexShard.onlyNodeSelectorActiveInitializingShardsIt(
+                        preference.substring(Preference.ONLY_NODES.type().length() + 1).split(","),
+                        nodes
+                    );
                     case SHARDS -> throw new IllegalArgumentException("unexpected preference [" + Preference.SHARDS + "]");
                 };
             }

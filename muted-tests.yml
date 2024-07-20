@@ -120,6 +120,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {stats.MinOfIpGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/111125
+- class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
+  method: testGetPrivilegesUsesCache
+  issue: https://github.com/elastic/elasticsearch/issues/110788
 
 # Examples:
 #

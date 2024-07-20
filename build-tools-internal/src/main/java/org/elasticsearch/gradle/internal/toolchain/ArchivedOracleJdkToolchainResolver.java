@@ -23,9 +23,12 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Resolves released Oracle JDKs that are EOL.
+ */
 public abstract class ArchivedOracleJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
-    private static final Map<Integer, String> ARCHIVED_BASE_VERSIONS = Maps.of(20, "20.0.2", 19, "19.0.2", 18, "18.0.2.1", 17, "17.0.7");
+    private static final Map<Integer, String> ARCHIVED_BASE_VERSIONS = Maps.of(20, "20.0.2", 19, "19.0.2", 18, "18.0.2.1");
 
     @Override
     public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {

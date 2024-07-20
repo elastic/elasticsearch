@@ -17,6 +17,9 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
+ */
 public class PreAnalyzer {
 
     public static class PreAnalysis {

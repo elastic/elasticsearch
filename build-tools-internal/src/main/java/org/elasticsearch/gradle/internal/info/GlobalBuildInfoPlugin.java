@@ -51,6 +51,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -97,24 +98,25 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
-        File runtimeJavaHome = findRuntimeJavaHome();
-        boolean isRuntimeJavaHomeSet = Jvm.current().getJavaHome().equals(runtimeJavaHome) == false;
+        Optional<File> selectedRuntimeJavaHome = findRuntimeJavaHome();
+        File actualRuntimeJavaHome = selectedRuntimeJavaHome.orElse(Jvm.current().getJavaHome());
+        boolean isRuntimeJavaHomeSet = selectedRuntimeJavaHome.isPresent();
 
         GitInfo gitInfo = GitInfo.gitInfo(project.getRootDir());
 
         BuildParams.init(params -> {
             params.reset();
-            params.setRuntimeJavaHome(runtimeJavaHome);
+            params.setRuntimeJavaHome(actualRuntimeJavaHome);
             params.setJavaToolChainSpec(resolveToolchainSpecFromEnv());
             params.setRuntimeJavaVersion(
                 determineJavaVersion(
                     "runtime java.home",
-                    runtimeJavaHome,
+                    actualRuntimeJavaHome,
                     isRuntimeJavaHomeSet ? minimumRuntimeVersion : Jvm.current().getJavaVersion()
                 )
             );
             params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeSet);
-            JvmInstallationMetadata runtimeJdkMetaData = metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome));
+            JvmInstallationMetadata runtimeJdkMetaData = metadataDetector.getMetadata(getJavaInstallation(actualRuntimeJavaHome));
             params.setRuntimeJavaDetails(formatJavaVendorDetails(runtimeJdkMetaData));
             params.setJavaVersions(getAvailableJavaVersions());
             params.setMinimumCompilerVersion(minimumCompilerVersion);
@@ -298,19 +300,19 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private File findRuntimeJavaHome() {
+    private Optional<File> findRuntimeJavaHome() {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
-            return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
+            return Optional.of(resolveJavaHomeFromToolChainService(runtimeJavaProperty));
         }
         String env = System.getenv("RUNTIME_JAVA_HOME");
         if (env != null) {
-            return new File(env);
+            return Optional.of(new File(env));
         }
         // fall back to tool chain if set.
         env = System.getenv("JAVA_TOOLCHAIN_HOME");
-        return env == null ? Jvm.current().getJavaHome() : new File(env);
+        return env == null ? Optional.empty() : Optional.of(new File(env));
     }
 
     @NotNull
@@ -348,7 +350,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
         Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(javaToolchainSpec -> {
             javaToolchainSpec.getLanguageVersion().value(value);
-            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
         });
         return javaLauncherProvider.get().getMetadata().getInstallationPath().getAsFile();
     }

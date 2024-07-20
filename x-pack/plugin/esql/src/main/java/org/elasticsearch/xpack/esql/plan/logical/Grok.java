@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,7 +33,7 @@ public class Grok extends RegexExtract {
 
     public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
 
-        private List<Alias> extractedFields() {
+        public List<Alias> extractedFields() {
             return grok.captureConfig()
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))

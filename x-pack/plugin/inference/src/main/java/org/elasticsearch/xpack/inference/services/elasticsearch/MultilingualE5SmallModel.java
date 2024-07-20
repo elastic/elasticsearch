@@ -10,15 +10,11 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
-import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
-import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
-
-public class MultilingualE5SmallModel extends Model implements ElasticsearchModel {
+public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
 
     public MultilingualE5SmallModel(
         String inferenceEntityId,
@@ -26,30 +22,12 @@ public class MultilingualE5SmallModel extends Model implements ElasticsearchMode
         String service,
         MultilingualE5SmallInternalServiceSettings serviceSettings
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings));
+        super(inferenceEntityId, taskType, service, serviceSettings);
     }
 
     @Override
     public MultilingualE5SmallInternalServiceSettings getServiceSettings() {
         return (MultilingualE5SmallInternalServiceSettings) super.getServiceSettings();
-    }
-
-    @Override
-    public String getModelId() {
-        return getServiceSettings().getModelId();
-    }
-
-    @Override
-    public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
-        var startRequest = new StartTrainedModelDeploymentAction.Request(
-            this.getServiceSettings().getModelId(),
-            this.getInferenceEntityId()
-        );
-        startRequest.setNumberOfAllocations(this.getServiceSettings().getNumAllocations());
-        startRequest.setThreadsPerAllocation(this.getServiceSettings().getNumThreads());
-        startRequest.setWaitForState(STARTED);
-
-        return startRequest;
     }
 
     @Override

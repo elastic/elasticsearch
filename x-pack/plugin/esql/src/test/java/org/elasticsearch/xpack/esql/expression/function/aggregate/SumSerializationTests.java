@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class SumSerializationTests extends AbstractExpressionSerializationTests<Sum> {
     @Override
@@ -22,11 +20,6 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
     @Override
     protected Sum mutateInstance(Sum instance) throws IOException {
         return new Sum(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return AggregateFunction.getNamedWriteables();
     }
 
     @Override

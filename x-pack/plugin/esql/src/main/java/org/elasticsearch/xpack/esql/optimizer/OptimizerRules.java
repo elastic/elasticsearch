@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -36,7 +38,10 @@ import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 
-import static org.elasticsearch.xpack.esql.core.common.Failure.fail;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 class OptimizerRules {
 
@@ -49,8 +54,23 @@ class OptimizerRules {
             AttributeSet input = p.inputSet();
             AttributeSet generated = generates(p);
             AttributeSet missing = refs.subtract(input).subtract(generated);
-            if (missing.size() > 0) {
+            if (missing.isEmpty() == false) {
                 failures.add(fail(p, "Plan [{}] optimized incorrectly due to missing references {}", p.nodeString(), missing));
+            }
+
+            Set<String> outputAttributeNames = new HashSet<>();
+            Set<NameId> outputAttributeIds = new HashSet<>();
+            for (Attribute outputAttr : p.output()) {
+                if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
+                    failures.add(
+                        fail(
+                            p,
+                            "Plan [{}] optimized incorrectly due to duplicate output attribute {}",
+                            p.nodeString(),
+                            outputAttr.toString()
+                        )
+                    );
+                }
             }
         }
 

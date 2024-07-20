@@ -5,4 +5,12 @@ coming[8.15.0]
 
 Also see <<breaking-changes-8.15,Breaking changes in 8.15>>.
 
+[[known-issues-8.15.0]]
+[float]
+=== Known issues
 
+* The `pytorch_inference` process used to run Machine Learning models can consume large amounts of memory.
+In environments where the available memory is limited, the OS Out of Memory Killer will kill the `pytorch_inference`
+process to reclaim memory. This can cause inference requests to fail.
+Elasticsearch will automatically restart the `pytorch_inference` process
+after it is killed up to four times in 24 hours. (issue: {es-issue}110530[#110530])

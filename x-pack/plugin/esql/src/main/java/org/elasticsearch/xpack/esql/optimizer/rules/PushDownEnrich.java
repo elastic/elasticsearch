@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
     @Override

@@ -191,6 +191,15 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an int as four bytes, least significant bytes first.
+     */
+    public void writeIntLE(int i) throws IOException {
+        final byte[] buffer = scratch.get();
+        ByteUtils.writeIntLE(i, buffer, 0);
+        writeBytes(buffer, 0, 4);
+    }
+
+    /**
      * Writes an int in a variable-length format.  Writes between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized
@@ -240,6 +249,15 @@ public abstract class StreamOutput extends OutputStream {
     public void writeLong(long i) throws IOException {
         final byte[] buffer = scratch.get();
         ByteUtils.writeLongBE(i, buffer, 0);
+        writeBytes(buffer, 0, 8);
+    }
+
+    /**
+     * Writes a long as eight bytes.
+     */
+    public void writeLongLE(long i) throws IOException {
+        final byte[] buffer = scratch.get();
+        ByteUtils.writeLongLE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
 
@@ -440,6 +458,10 @@ public abstract class StreamOutput extends OutputStream {
 
     public void writeDouble(double v) throws IOException {
         writeLong(Double.doubleToLongBits(v));
+    }
+
+    public void writeDoubleLE(double v) throws IOException {
+        writeLongLE(Double.doubleToLongBits(v));
     }
 
     public void writeOptionalDouble(@Nullable Double v) throws IOException {
@@ -1113,7 +1135,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an enum with type E based on its ordinal value
+     * Writes an enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding test
+     * which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
@@ -1121,7 +1144,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an optional enum with type E based on its ordinal value
+     * Writes an optional enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a
+     * corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeOptionalEnum(@Nullable E enumValue) throws IOException {
         if (enumValue == null) {
@@ -1134,7 +1158,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an EnumSet with type E that by serialized it based on it's ordinal value
+     * Writes a set of enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding
+     * test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {
         writeVInt(enumSet.size());

@@ -1210,8 +1210,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             startRecoveryRequest.metadataSnapshot().commitUserData().entrySet()
         );
-        assertThat(commitInfoAfterLocalRecovery.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
-        assertThat(commitInfoAfterLocalRecovery.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfoAfterLocalRecovery.localCheckpoint(), equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfoAfterLocalRecovery.maxSeqNo(), equalTo(lastSyncedGlobalCheckpoint));
         assertThat(startRecoveryRequest.startingSeqNo(), equalTo(lastSyncedGlobalCheckpoint + 1));
         ensureGreen(indexName);
         assertThat((long) localRecoveredOps.get(), equalTo(lastSyncedGlobalCheckpoint - localCheckpointOfSafeCommit));
@@ -2011,8 +2011,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             safeIndexCommit.getUserData().entrySet()
         );
-        final long commitLocalCheckpoint = commitInfo.localCheckpoint;
-        final long maxSeqNo = commitInfo.maxSeqNo;
+        final long commitLocalCheckpoint = commitInfo.localCheckpoint();
+        final long maxSeqNo = commitInfo.maxSeqNo();
         final LocalCheckpointTracker localCheckpointTracker = new LocalCheckpointTracker(maxSeqNo, commitLocalCheckpoint);
 
         // In certain scenarios it is possible that the local checkpoint captured during commit lags behind,

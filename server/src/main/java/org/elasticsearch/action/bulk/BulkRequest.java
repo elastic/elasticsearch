@@ -88,8 +88,7 @@ public class BulkRequest extends ActionRequest
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
         for (DocWriteRequest<?> request : requests) {
-            Objects.requireNonNull(request.index(), "'request index' must not be null");
-            indices.add(request.index());
+            indices.add(Objects.requireNonNull(request.index(), "'request index' must not be null"));
         }
     }
 

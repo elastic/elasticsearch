@@ -11,11 +11,11 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
@@ -345,7 +346,7 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testForwardBulkWithSystemWritePoolDisabled() throws Exception {
         // Create a node with master only role and a node with ingest role
         final String masterOnlyNode = internalCluster().startMasterOnlyNode();
-        final String ingestNode = internalCluster().startNode();  // What roles does a default node have ?
+        final String ingestNode = internalCluster().startNode();
 
         ensureStableCluster(2);
 
@@ -370,33 +371,33 @@ public class IngestRestartIT extends ESIntegTestCase {
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "x", 1);
             bulkRequest.add(indexRequest);
         }
+        assertThat(numRequests, equalTo(bulkRequest.requests().size()));
 
         // Block system_write thread pool on the ingest node
         final ThreadPool ingestNodeThreadPool = internalCluster().getInstance(ThreadPool.class, ingestNode);
         final var blockingLatch = new CountDownLatch(1);
-        // Can we use ThreadPoolStats instead of blocking the threadpool ?
         try {
             blockSystemWriteThreadPool(blockingLatch, ingestNodeThreadPool);
             // Send bulk request to master only node, so it will forward it to the ingest node.
-            response = client(masterOnlyNode).bulk(bulkRequest).actionGet();
+            response = safeGet(client(masterOnlyNode).bulk(bulkRequest));
         } finally {
             blockingLatch.countDown();
         }
 
-        // Make sure the requests are processed (even though we blocked system_write thread pool
-        // above.
+        // Make sure the requests are processed (even though we blocked system_write thread pool above).
         assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
         assertFalse(response.hasFailures());
 
+        MultiGetResponse docListResponse = safeGet(
+            client().prepareMultiGet().addIds("index", IntStream.range(0, numRequests).mapToObj(String::valueOf).toList()).execute()
+        );
+
+        assertThat(docListResponse.getResponses().length, equalTo(numRequests));
         Map<String, Object> document;
-        for (int i = 0; i < bulkRequest.requests().size(); i++) {
-            document = client().prepareGet("index", Integer.toString(i)).get().getSource();
+        for (int i = 0; i < numRequests; i++) {
+            document = docListResponse.getResponses()[i].getResponse().getSourceAsMap();
             assertThat(document.get("y"), equalTo(0));
         }
-
-        // cleanup
-        AcknowledgedResponse deletePipelineResponse = clusterAdmin().prepareDeletePipeline("_id").get();
-        assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
     private void blockSystemWriteThreadPool(CountDownLatch blockingLatch, ThreadPool threadPool) {

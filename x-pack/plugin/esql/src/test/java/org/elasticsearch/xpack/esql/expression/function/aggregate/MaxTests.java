@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,7 +43,8 @@ public class MaxTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
-            MultiRowTestCaseSupplier.booleanCases(1, 1000)
+            MultiRowTestCaseSupplier.booleanCases(1, 1000),
+            MultiRowTestCaseSupplier.ipCases(1, 1000)
         ).flatMap(List::stream).map(MaxTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
@@ -91,6 +95,26 @@ public class MaxTests extends AbstractAggregationTestCase {
                         equalTo(true)
                     )
                 ),
+                new TestCaseSupplier(
+                    List.of(DataType.IP),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(
+                                List.of(
+                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))),
+                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))),
+                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::"))),
+                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::")))
+                                ),
+                                DataType.IP,
+                                "field"
+                            )
+                        ),
+                        "Max[field=Attribute[channel=0]]",
+                        DataType.IP,
+                        equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::"))))
+                    )
+                ),
 
                 // Folding
                 new TestCaseSupplier(
@@ -136,6 +160,21 @@ public class MaxTests extends AbstractAggregationTestCase {
                         "Max[field=Attribute[channel=0]]",
                         DataType.BOOLEAN,
                         equalTo(true)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.IP),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(
+                                List.of(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")))),
+                                DataType.IP,
+                                "field"
+                            )
+                        ),
+                        "Max[field=Attribute[channel=0]]",
+                        DataType.IP,
+                        equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
                 )
             )

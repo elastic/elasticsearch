@@ -80,6 +80,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -394,7 +395,7 @@ public class IndicesService extends AbstractLifecycleComponent
         ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, daemonThreadFactory(settings, "indices_shutdown"));
 
         // Copy indices because we modify it asynchronously in the body of the loop
-        final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
+        final Set<Index> indices = this.indices.values().stream().map(AbstractIndexComponent::index).collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final Index index : indices) {
             indicesStopExecutor.execute(
@@ -1703,15 +1704,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
-        /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
-         * of dependencies we pass in a function that can perform the parsing. */
-        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
-            try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentHelper.xContentType(bytes))
-            ) {
-                return parseTopLevelQuery(parser);
-            }
-        };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
         if (aliases == null) {
             return AliasFilter.EMPTY;
@@ -1721,13 +1713,14 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
+            final var dsAliases = metadata.dataStreamAliases();
             String dataStreamName = dataStream.getName();
             List<QueryBuilder> filters = Arrays.stream(aliases)
-                .map(name -> metadata.dataStreamAliases().get(name))
-                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
-                .map(dataStreamAlias -> {
+                .map(name -> dsAliases.get(name).getFilter(dataStreamName))
+                .filter(Objects::nonNull)
+                .map(filter -> {
                     try {
-                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
+                        return parseFilter(filter.uncompressed());
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -1748,7 +1741,13 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         } else {
             IndexMetadata indexMetadata = metadata.index(index);
-            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(this::parseFilter, indexMetadata, aliases), aliases);
+        }
+    }
+
+    private QueryBuilder parseFilter(BytesReference bytes) throws IOException {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentHelper.xContentType(bytes))) {
+            return parseTopLevelQuery(parser);
         }
     }
 

@@ -215,10 +215,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 indicesAndAliases
             );
             String[] finalIndices = Strings.EMPTY_ARRAY;
-            if (aliases == null
-                || aliases.length == 0
-                || indicesAndAliases.contains(index)
-                || hasDataStreamRef(clusterState, indicesAndAliases, index)) {
+            if (aliases == null || indicesAndAliases.contains(index) || hasDataStreamRef(clusterState, indicesAndAliases, index)) {
                 finalIndices = new String[] { index };
             }
             if (aliases != null) {
@@ -238,10 +235,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Map<String, AliasFilter> buildIndexAliasFilters(ClusterState clusterState, Set<String> indicesAndAliases, Index[] concreteIndices) {
+        var blocks = clusterState.blocks();
+        boolean hasBlocks = blocks.global().isEmpty() == false || blocks.indices().isEmpty() == false;
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
-            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
-            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
+            final String indexName = index.getName();
+            if (hasBlocks) {
+                blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, indexName);
+            }
+            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, indexName, indicesAndAliases);
             assert aliasFilter != null;
             aliasFilterMap.put(index.getUUID(), aliasFilter);
         }

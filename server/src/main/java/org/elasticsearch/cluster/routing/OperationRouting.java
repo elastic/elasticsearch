@@ -247,22 +247,21 @@ public class OperationRouting {
             }
             if (preference.charAt(0) == '_') {
                 preferenceType = Preference.parse(preference);
-                switch (preferenceType) {
-                    case PREFER_NODES:
+                return switch (preferenceType) {
+                    case PREFER_NODES -> {
                         final Set<String> nodesIds = Arrays.stream(
                             preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
                         ).collect(Collectors.toSet());
-                        return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
-                    case LOCAL:
-                        return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
-                    case ONLY_LOCAL:
-                        return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
-                    case ONLY_NODES:
+                        yield indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
+                    }
+                    case LOCAL -> indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
+                    case ONLY_LOCAL -> indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
+                    case ONLY_NODES -> {
                         String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
-                        return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
-                    default:
-                        throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
-                }
+                        yield indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
+                    }
+                    case SHARDS -> throw new IllegalArgumentException("unexpected preference [" + Preference.SHARDS + "]");
+                };
             }
         }
         // if not, then use it as the index

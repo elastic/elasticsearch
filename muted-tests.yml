@@ -117,6 +117,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/110982
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {stats.MinOfIpGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/111125
 
 # Examples:
 #

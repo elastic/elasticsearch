@@ -126,6 +126,9 @@ tests:
 - class: org.elasticsearch.cluster.PrevalidateShardPathIT
   method: testCheckShards
   issue: https://github.com/elastic/elasticsearch/issues/111134
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {stats.MaxOfIpGrouping SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111136
 
 # Examples:
 #

@@ -29,6 +29,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -390,5 +392,40 @@ public class DateProcessorTests extends ESTestCase {
 
         verify(supplier1, times(3)).get();
         verify(supplier2, times(2)).get();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMustacheTemplateExecutesAtMostTwiceWithMultipleFormats() {
+        final TemplateScript.Factory timezone = mock(TemplateScript.Factory.class);
+        final TemplateScript.Factory locale = mock(TemplateScript.Factory.class);
+        final TemplateScript compiledScript = mock(TemplateScript.class);
+        when(timezone.newInstance(any())).thenReturn(compiledScript);
+        when(locale.newInstance(any())).thenReturn(compiledScript);
+        when(compiledScript.execute()).thenReturn(null);
+
+        final List<String> matchFormats = List.of(
+            "yyyy dd MM",
+            "dd/MM/yyyy",
+            "dd-MM-yyyy",
+            "uuuu-dd-MM",
+            "uuuu-MM-dd",
+            "TAI64N",
+            "epoch_millis"
+        );
+        DateProcessor dateProcessor = new DateProcessor(
+            randomAlphaOfLength(10),
+            null,
+            timezone,
+            locale,
+            "date_as_string",
+            matchFormats,
+            "date_as_date"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "2010 12 06");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        verify(compiledScript, atMost(2)).execute();
     }
 }

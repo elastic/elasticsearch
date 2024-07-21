@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
@@ -59,13 +58,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -491,10 +488,6 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(join.child(), context);
-        if (join.matchFields().isEmpty()) {
-            return planHashJoinAsEval(source, join, context);
-        }
-
         int positionsChannel = source.layout.numberOfChannels();
 
         Layout.Builder layoutBuilder = source.layout.builder();
@@ -552,41 +545,6 @@ public class LocalExecutionPlanner {
         IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
         IntStream.range(positionsChannel + 1, positionsChannel + 1 + join.addedFields().size()).boxed().forEach(projection::add);
         return source.with(new ProjectOperatorFactory(projection), layout);
-    }
-
-    /**
-     * Convert a {@link HashJoinExec} into an {@link EvalOperatorFactory eval}.
-     * This is mostly useful when we're merging a table without any lookup fields
-     * and only works for single-row {@link LocalRelation}s.
-     */
-    private PhysicalOperation planHashJoinAsEval(PhysicalOperation source, HashJoinExec join, LocalExecutionPlannerContext context) {
-        Block[] blocks = join.joinData().supplier().get();
-        try {
-            for (int b = 0; b < join.joinData().output().size(); b++) {
-                if (blocks[b].getPositionCount() != 1) {
-                    throw new IllegalArgumentException("EVAL-based HashJoins only work for single-row tables");
-                }
-                Attribute target = join.joinData().output().get(b);
-                Literal lit = new Literal(target.source(), BlockUtils.toJavaObject(blocks[b], 0), target.dataType());
-                ExpressionEvaluator.Factory evaluatorSupplier = EvalMapper.toEvaluator(lit, source.layout);
-                Layout.Builder layout = source.layout.builder();
-                layout.append(
-                    new ReferenceAttribute(
-                        target.source(),
-                        target.name(),
-                        target.dataType(),
-                        null,
-                        target.nullable(),
-                        target.id(),
-                        target.synthetic()
-                    )
-                );
-                source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
-            }
-        } finally {
-            Releasables.closeExpectNoException(blocks);
-        }
-        return source;
     }
 
     private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {

@@ -13,13 +13,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -38,7 +40,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 
 /**
  * Enriches the stream of data with the results of running a {@link Aggregate STATS}.
@@ -123,7 +124,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
             List<NamedExpression> addedFields = new ArrayList<>();
             AttributeSet childOutput = child().outputSet();
 
-            for (NamedExpression agg: aggregates) {
+            for (NamedExpression agg : aggregates) {
                 if (childOutput.contains(agg) == false) {
                     addedFields.add(agg);
                 }
@@ -162,6 +163,30 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
 
     @Override
     public LogicalPlan nextPhase(List<Attribute> schema, List<Page> firstPhaseResult) {
+        if (groupings.isEmpty()) {
+            return ungroupedNextPhase(schema, firstPhaseResult);
+        }
+        return groupedNextPhase(schema, firstPhaseResult);
+    }
+
+    private LogicalPlan ungroupedNextPhase(List<Attribute> schema, List<Page> firstPhaseResult) {
+        if (firstPhaseResult.size() != 1) {
+            throw new IllegalArgumentException("expected single row");
+        }
+        Page p = firstPhaseResult.get(0);
+        if (p.getPositionCount() != 1) {
+            throw new IllegalArgumentException("expected single row");
+        }
+        List<Alias> values = new ArrayList<>(schema.size());
+        for (int i = 0; i < schema.size(); i++) {
+            Attribute s = schema.get(i);
+            Object value = BlockUtils.toJavaObject(p.getBlock(i), 0);
+            values.add(new Alias(source(), s.name(), null, new Literal(source(), value, s.dataType()), aggregates.get(i).id()));
+        }
+        return new Eval(source(), child(), values);
+    }
+
+    private LogicalPlan groupedNextPhase(List<Attribute> schema, List<Page> firstPhaseResult) {
         LocalRelation local = firstPhaseResultsToLocalRelation(schema, firstPhaseResult);
         List<Attribute> groupingAttributes = new ArrayList<>(groupings.size());
         for (Expression g : groupings) {

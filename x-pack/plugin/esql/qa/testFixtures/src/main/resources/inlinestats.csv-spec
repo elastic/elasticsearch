@@ -287,6 +287,27 @@ abbrev:keyword | scalerank:keyword
            ACA |              four
 ;
 
+afterEnrich
+required_capability: inlinestats
+required_capability: enrich_load
+
+FROM airports
+| KEEP abbrev, city
+| WHERE abbrev NOT IN ("ADJ", "ATQ") // Skip airports in regions with right-to-left text which the test file isn't good with
+| ENRICH city_names ON city WITH region
+| WHERE MV_COUNT(region) == 1
+| INLINESTATS COUNT(*) BY region
+| SORT abbrev ASC
+| WHERE `COUNT(*)` > 1
+| LIMIT 3
+;
+
+abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long 
+           ALA |       Almaty |     Жетісу ауданы | 2
+           BXJ |       Almaty |     Жетісу ауданы | 2
+           FUK |      Fukuoka |             中央区 | 2
+;
+
 beforeStats
 required_capability: inlinestats
 
@@ -329,6 +350,46 @@ emp_no:integer | languages:integer | max_salary:integer
          10002 |                 5 | 66817
          10003 |                 4 | 74572
 ;
+
+beforeEnrich
+required_capability: inlinestats
+required_capability: enrich_load
+
+FROM airports
+| KEEP abbrev, type, city
+| INLINESTATS COUNT(*) BY type
+| ENRICH city_names ON city WITH region
+| WHERE MV_COUNT(region) == 1
+| SORT abbrev ASC
+| LIMIT 3
+;
+
+abbrev:keyword | type:keyword |    city:keyword    | "COUNT(*)":long | region:text
+           ABJ |          mid |            Abidjan |             499 | Abidjan
+           ABV |        major |              Abuja |             385 | Municipal Area Council
+           ACA |        major | Acapulco de Juárez |             385 | Acapulco de Juárez
+;
+
+beforeAndAfterEnrich
+required_capability: inlinestats
+required_capability: enrich_load
+
+FROM airports
+| KEEP abbrev, type, city
+| INLINESTATS COUNT(*) BY type
+| ENRICH city_names ON city WITH region
+| WHERE MV_COUNT(region) == 1
+| INLINESTATS count_region=COUNT(*) BY region 
+| SORT abbrev ASC
+| LIMIT 3
+;
+
+abbrev:keyword | type:keyword |    city:keyword    | "COUNT(*)":long | region:text            | count_region:long
+           ABJ |          mid |            Abidjan |             499 | Abidjan                | 1
+           ABV |        major |              Abuja |             385 | Municipal Area Council | 1
+           ACA |        major | Acapulco de Juárez |             385 | Acapulco de Juárez     | 1
+;
+
 
 shadowing
 required_capability: inlinestats

@@ -396,11 +396,9 @@ public class DateProcessorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMustacheTemplateExecutesAtMostTwiceWithMultipleFormats() {
-        final TemplateScript.Factory timezone = mock(TemplateScript.Factory.class);
-        final TemplateScript.Factory locale = mock(TemplateScript.Factory.class);
+        final TemplateScript.Factory factory = mock(TemplateScript.Factory.class);
         final TemplateScript compiledScript = mock(TemplateScript.class);
-        when(timezone.newInstance(any())).thenReturn(compiledScript);
-        when(locale.newInstance(any())).thenReturn(compiledScript);
+        when(factory.newInstance(any())).thenReturn(compiledScript);
         when(compiledScript.execute()).thenReturn(null);
 
         final List<String> matchFormats = List.of(
@@ -415,8 +413,8 @@ public class DateProcessorTests extends ESTestCase {
         DateProcessor dateProcessor = new DateProcessor(
             randomAlphaOfLength(10),
             null,
-            timezone,
-            locale,
+            factory,
+            factory,
             "date_as_string",
             matchFormats,
             "date_as_date"

@@ -58,9 +58,6 @@ tests:
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
-- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
-  method: testLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/110244
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/95384
@@ -91,9 +88,6 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
-  method: testLoadAllStatusAllInOnePage
-  issue: https://github.com/elastic/elasticsearch/issues/111048
 - class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
   method: testKnnSearchAction
   issue: https://github.com/elastic/elasticsearch/issues/111072

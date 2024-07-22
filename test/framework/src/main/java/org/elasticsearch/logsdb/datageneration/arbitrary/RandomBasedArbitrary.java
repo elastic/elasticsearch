@@ -24,6 +24,12 @@ public class RandomBasedArbitrary implements Arbitrary {
     }
 
     @Override
+    public boolean generateNestedObject() {
+        // Using a static 1% change, this is just a chosen value that can be tweaked.
+        return randomDouble() <= 0.01;
+    }
+
+    @Override
     public int childFieldCount(int lowerBound, int upperBound) {
         return randomIntBetween(lowerBound, upperBound);
     }

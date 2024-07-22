@@ -45,9 +45,11 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL;
+import static org.elasticsearch.cluster.metadata.Metadata.UNKNOWN_CLUSTER_UUID;
 
 public class ProjectMetadata implements Iterable<IndexMetadata> {
 
+    final ProjectId projectId;
     final ImmutableOpenMap<String, IndexMetadata> indices;
     final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
@@ -69,6 +71,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
     final IndexVersion oldestIndexVersion;
 
     public ProjectMetadata(
+        ProjectId projectId,
         ImmutableOpenMap<String, IndexMetadata> indices,
         ImmutableOpenMap<String, Set<Index>> aliasedIndices,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
@@ -85,6 +88,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         Map<String, MappingMetadata> mappingsByHash,
         IndexVersion oldestIndexVersion
     ) {
+        this.projectId = projectId;
         this.indices = indices;
         this.aliasedIndices = aliasedIndices;
         this.templates = templates;
@@ -163,6 +167,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         // have changed, and hence it is expensive -- since we are changing so little about the metadata
         // (and at a leaf in the object tree), we can bypass that validation for efficiency's sake
         return new ProjectMetadata(
+            projectId,
             builder.build(),
             aliasedIndices,
             templates,
@@ -194,6 +199,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
             );
         });
         return new ProjectMetadata(
+            projectId,
             builder.build(),
             aliasedIndices,
             templates,
@@ -226,6 +232,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
         updatedIndicesBuilder.putAllFromMap(updates);
         return new ProjectMetadata(
+            projectId,
             updatedIndicesBuilder.build(),
             aliasedIndices,
             templates,
@@ -312,6 +319,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
             ProjectMetadata.Builder.validateAlias(entry.getKey(), aliasIndices);
         }
         return new ProjectMetadata(
+            projectId,
             indicesMap,
             updatedAliases,
             templates,
@@ -840,7 +848,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
     }
 
     public static ProjectMetadata.Builder builder() {
-        return new ProjectMetadata.Builder(Map.of(), 0);
+        return new ProjectMetadata.Builder(Map.of(), 0, UNKNOWN_CLUSTER_UUID);
     }
 
     public static ProjectMetadata.Builder builder(ProjectMetadata projectMetadata) {
@@ -849,6 +857,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
 
     public static class Builder {
 
+        private final ProjectId projectId;
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
@@ -864,6 +873,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         private boolean checkForUnusedMappings = true;
 
         Builder(ProjectMetadata projectMetadata) {
+            this.projectId = projectMetadata.projectId;
             this.indices = ImmutableOpenMap.builder(projectMetadata.indices);
             this.aliasedIndices = ImmutableOpenMap.builder(projectMetadata.aliasedIndices);
             this.templates = ImmutableOpenMap.builder(projectMetadata.templates);
@@ -873,7 +883,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
             this.checkForUnusedMappings = false;
         }
 
-        Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
+        Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint, String clusterUUID) {
+            projectId = ProjectId.fromClusterUUID(clusterUUID);
             indices = ImmutableOpenMap.builder(indexCountHint);
             aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
@@ -1398,6 +1409,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(String[]::new);
 
             return new ProjectMetadata(
+                projectId,
                 indicesMap,
                 aliasedIndices,
                 templates.build(),
@@ -1693,6 +1705,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
             }
 
             return true;
+        }
+    }
+
+    public record ProjectId(String id) {
+        static ProjectId fromClusterUUID(String clusterUUID) {
+            return new ProjectId(clusterUUID);
         }
     }
 }

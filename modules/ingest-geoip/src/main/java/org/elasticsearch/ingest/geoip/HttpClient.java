@@ -135,7 +135,6 @@ class HttpClient {
     }
 
     private static HttpURLConnection createConnection(final PasswordAuthentication auth, final String url) throws IOException {
-        assert url.contains("maxmind.com") == false : "Do not use maxmind.com"; // TODO do not merge this!
         final HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         if (auth != NO_AUTH) {
             conn.setAuthenticator(new Authenticator() {

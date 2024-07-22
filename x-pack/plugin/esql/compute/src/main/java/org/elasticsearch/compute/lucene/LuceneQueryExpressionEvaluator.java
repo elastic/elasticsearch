@@ -58,8 +58,9 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         try {
             if (docs.singleSegmentNonDecreasing()) {
                 return evalSingleSegmentNonDecreasing(docs).asBlock();
+            } else {
+                return evalSlow(docs).asBlock();
             }
-            throw new UnsupportedOperationException("TODO");
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -76,6 +77,41 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         }
         return segmentState.scoreSparse(docs.docs());
     }
+
+    private BooleanVector evalSlow(DocVector docs) throws IOException {
+        int[] map = docs.shardSegmentDocMapForwards();
+        // Clear any state flags from the previous run
+        for (ShardState shardState: perShardState) {
+            if (shardState == null) {
+                continue;
+            }
+            for (SegmentState segmentState : shardState.perSegmentState) {
+                if (segmentState == null) {
+                    continue;
+                }
+                segmentState.initializedForCurrentBlock = false;
+            }
+        }
+        try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount())) {
+            for (int i = 0; i < docs.getPositionCount(); i++) {
+                ShardState shardState = shardState(docs.shards().getInt(docs.shards().getInt(map[i])));
+                SegmentState segmentState = shardState.segmentState(docs.segments().getInt(map[i]));
+                if (segmentState.initializedForCurrentBlock == false) {
+                    segmentState.initScorer(docs.docs().getInt(map[i]));
+                }
+                if (segmentState.noMatch) {
+                    builder.appendBoolean(false);
+                } else {
+                    segmentState.scoreSingleDocWithScorer(builder, docs.docs().getInt(map[i]));
+                }
+            }
+            try (BooleanVector outOfOrder = builder.build()) {
+                return outOfOrder.filter(docs.shardSegmentDocMapBackwards());
+            }
+        }
+    }
+
+
 
     @Override
     public void close() {
@@ -95,7 +131,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     private class ShardState {
         private final Weight weight;
         private final IndexSearcher searcher;
-        private SegmentState[] segmentStates = EMPTY_SEGMENT_STATES;
+        private SegmentState[] perSegmentState = EMPTY_SEGMENT_STATES;
 
         ShardState(ShardConfig config) throws IOException {
             weight = config.searcher.createWeight(config.query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
@@ -103,13 +139,13 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         }
 
         SegmentState segmentState(int segment) throws IOException {
-            if (segment >= segmentStates.length) {
-                segmentStates = ArrayUtil.grow(segmentStates, segment + 1);
-            } else if (segmentStates[segment] != null) {
-                return segmentStates[segment];
+            if (segment >= perSegmentState.length) {
+                perSegmentState = ArrayUtil.grow(perSegmentState, segment + 1);
+            } else if (perSegmentState[segment] != null) {
+                return perSegmentState[segment];
             }
-            segmentStates[segment] = new SegmentState(weight, searcher.getLeafContexts().get(segment));
-            return segmentStates[segment];
+            perSegmentState[segment] = new SegmentState(weight, searcher.getLeafContexts().get(segment));
+            return perSegmentState[segment];
         }
     }
 
@@ -133,6 +169,8 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
          * the {@link Weight} tells us there aren't any matches.
          */
         private boolean noMatch;
+
+        private boolean initializedForCurrentBlock;
 
         private SegmentState(Weight weight, LeafReaderContext ctx) {
             this.weight = weight;
@@ -179,16 +217,29 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             }
             try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount())) {
                 for (int i = 0; i < docs.getPositionCount(); i++) {
-                    int doc = docs.getInt(i);
-                    if (scorer.iterator().docID() == doc) {
-                        builder.appendBoolean(true);
-                    } else if (scorer.iterator().docID() > doc) {
-                        builder.appendBoolean(false);
-                    } else {
-                        builder.appendBoolean(scorer.iterator().advance(doc) == doc);
-                    }
+                    scoreSingleDocWithScorer(builder, docs.getInt(i));
                 }
                 return builder.build();
+            }
+        }
+
+        private void initScorer(int minDocId) throws IOException {
+            if (scorer == null || scorer.iterator().docID() > minDocId) {
+                // The previous block might have been beyond this one, reset the scorer and try again.
+                scorer = weight.scorer(ctx);
+                if (scorer == null) {
+                    noMatch = true;
+                }
+            }
+        }
+
+        private void scoreSingleDocWithScorer(BooleanVector.Builder builder, int doc) throws IOException {
+            if (scorer.iterator().docID() == doc) {
+                builder.appendBoolean(true);
+            } else if (scorer.iterator().docID() > doc) {
+                builder.appendBoolean(false);
+            } else {
+                builder.appendBoolean(scorer.iterator().advance(doc) == doc);
             }
         }
     }

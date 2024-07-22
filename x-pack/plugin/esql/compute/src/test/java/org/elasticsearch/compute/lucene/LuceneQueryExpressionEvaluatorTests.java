@@ -34,7 +34,9 @@ import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
+import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
@@ -104,7 +106,18 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
     public void testTermQuery() throws IOException {
         Set<String> values = values();
         String term = values.iterator().next();
-        List<Page> results = runQuery(values, new TermQuery(new Term(FIELD, term)));
+        List<Page> results = runQuery(values, new TermQuery(new Term(FIELD, term)), false);
+        assertTermQuery(term, results);
+    }
+
+    public void testTermQueryShuffled() throws IOException {
+        Set<String> values = values();
+        String term = values.iterator().next();
+        List<Page> results = runQuery(values, new TermQuery(new Term(FIELD, term)), true);
+        assertTermQuery(term, results);
+    }
+
+    private void assertTermQuery(String term, List<Page> results) {
         int matchCount = 0;
         for (Page page : results) {
             BytesRefVector terms = page.<BytesRefBlock>getBlock(1).asVector();
@@ -121,6 +134,14 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
     }
 
     public void testTermsQuery() throws IOException {
+        testTermsQuery(false);
+    }
+
+    public void testTermsQueryShuffled() throws IOException {
+        testTermsQuery(true);
+    }
+
+    private void testTermsQuery(boolean shuffleDocs) throws IOException {
         Set<String> values = values();
         Iterator<String> itr = values.iterator();
         TreeSet<String> matching = new TreeSet<>();
@@ -131,8 +152,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             matching.add(v);
             matchingBytes.add(new BytesRef(v));
         }
-        System.err.println("FDADFAF " + matching.size());
-        List<Page> results = runQuery(values, new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_REWRITE, FIELD, matchingBytes));
+        List<Page> results = runQuery(values, new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_REWRITE, FIELD, matchingBytes), shuffleDocs);
         int matchCount = 0;
         for (Page page : results) {
             BytesRefVector terms = page.<BytesRefBlock>getBlock(1).asVector();
@@ -148,7 +168,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         assertThat(matchCount, equalTo(expectedMatchCount));
     }
 
-    private List<Page> runQuery(Set<String> values, Query query) throws IOException {
+    private List<Page> runQuery(Set<String> values, Query query, boolean shuffleDocs) throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         return withReader(values, reader -> {
@@ -163,25 +183,32 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
                 0
             );
 
-            ValuesSourceReaderOperator valuesReader = new ValuesSourceReaderOperator(
-                blockFactory,
-                List.of(
-                    new ValuesSourceReaderOperator.FieldInfo(
-                        FIELD,
-                        ElementType.BYTES_REF,
-                        unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
-                    )
-                ),
-                List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
-                    throw new UnsupportedOperationException();
-                })),
-                0
+            List<Operator> operators = new ArrayList<>();
+            if (shuffleDocs) {
+                operators.add(new ShuffleDocsOperator(blockFactory));
+            }
+            operators.add(
+                new ValuesSourceReaderOperator(
+                    blockFactory,
+                    List.of(
+                        new ValuesSourceReaderOperator.FieldInfo(
+                            FIELD,
+                            ElementType.BYTES_REF,
+                            unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
+                        )
+                    ),
+                    List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                        throw new UnsupportedOperationException();
+                    })),
+                    0
+                )
             );
+            operators.add(new EvalOperator(blockFactory, luceneQueryEvaluator));
             List<Page> results = new ArrayList<>();
             Driver driver = new Driver(
                 driverContext,
                 luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
-                List.of(valuesReader, new EvalOperator(blockFactory, luceneQueryEvaluator)),
+                operators,
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
             );

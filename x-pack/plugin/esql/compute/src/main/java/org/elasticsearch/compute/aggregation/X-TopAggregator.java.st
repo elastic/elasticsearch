@@ -32,7 +32,7 @@ import org.elasticsearch.search.sort.SortOrder;
 /**
  * Aggregates the top N field values for $type$.
  * <p>
- *     This class is generated. Do not edit it.
+ *     This class is generated. Edit `X-TopAggregator.java.st` to edit this file.
  * </p>
  */
 @Aggregator({ @IntermediateState(name = "top", type = "$TYPE$_BLOCK") })

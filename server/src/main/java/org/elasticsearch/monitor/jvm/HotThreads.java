@@ -120,7 +120,7 @@ public class HotThreads {
         }
 
         try (var writer = new StringWriter()) {
-            new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).ignoreIdleThreads(false).detect(writer, () -> {
+            new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).detect(writer, () -> {
                 logger.log(level, "{}: {}", prefix, writer.toString());
                 writer.getBuffer().setLength(0);
             });

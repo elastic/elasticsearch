@@ -1,0 +1,69 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+---
+"Test pushing simple trace":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-02-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"traces","type":"default"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}},"name":"foo","trace_id":"7bba9f33312b3dbb8b2c2c62bb7abe2d","span_id":"086e83747d0e381e","kind":"SERVER","status":{"status_code":"2xx"}}'
+  - is_false: errors
+  - do:
+      search:
+        index: traces-generic.otel-default
+  - length: { hits.hits: 1 }
+
+---
+"Reject invalid top level field":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"invalid_top_level_field": "foo", "@timestamp":"2024-02-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"traces","type":"default"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}},"name":"foo","trace_id":"7bba9f33312b3dbb8b2c2c62bb7abe2d","span_id":"086e83747d0e381e","kind":"SERVER","status":{"status_code":"2xx"}}'
+  - is_true: errors
+  - do:
+      search:
+        index: traces-generic.otel-default
+  - length: { hits.hits: 0 }
+---
+"Query resource attributes as top level":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-02-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"traces","type":"default"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}},"name":"foo","trace_id":"7bba9f33312b3dbb8b2c2c62bb7abe2d","span_id":"086e83747d0e381e","kind":"SERVER","status":{"status_code":"2xx"}}'
+  - is_false: errors
+  - do:
+      search:
+        index: traces-generic.otel-default
+        body:
+          fields: ["service.name", "telemetry.sdk.language", "telemetry.sdk.name" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields: {"service.name": ["OtelSample"], "telemetry.sdk.language": ["dotnet"], "telemetry.sdk.name": ["opentelemetry"] }}
+
+---
+"Query attributes as top level":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-02-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"traces","type":"default"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}},"attributes":{"db.type":"mssql","db.name":"foo","db.operation":"SELECT","db.statement":"SELECT * FROM wuser_table"},"name":"foo","trace_id":"7bba9f33312b3dbb8b2c2c62bb7abe2d","span_id":"086e83747d0e381e","kind":"SERVER","status":{"status_code":"2xx"}}'
+  - is_false: errors
+  - do:
+      search:
+        index: traces-generic.otel-default
+        body:
+          fields: ["db.type", "db.name", "db.operation", "db.statement"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields: {"db.type": ["mssql"], "db.name": ["foo"], "db.operation": ["SELECT"], "db.statement": ["SELECT * FROM wuser_table"] }}

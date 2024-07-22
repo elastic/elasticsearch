@@ -1,0 +1,24 @@
+
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test push service overview metric":
+  - skip:
+     awaits_fix: "TODO: metrics-otel@template uses TSDB, so @timestamp needs to be up-to-date. Q: How to do that in this syntax?"
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"metrics"},"processor":{"event":"metric"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"},"dropped_attributes_count":0}}'
+  - is_false: errors
+
+  - do:
+      search:
+        index: metrics-generic.otel-default
+  - length: { hits.hits: 1 }

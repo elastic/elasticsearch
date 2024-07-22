@@ -24,12 +24,11 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
-import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
+import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
@@ -100,7 +99,7 @@ import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
-import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
+import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -138,27 +137,19 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        protected SearchDirectory createSearchDirectory(
+        protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(
             StatelessSharedBlobCacheService cacheService,
-            CacheBlobReaderService cacheBlobReaderService,
-            MutableObjectStoreUploadTracker objectStoreUploadTracker,
             ShardId shardId
         ) {
-            return new TrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, snapshotBlocker);
+            return new TrackingIndexBlobStoreCacheDirectory(cacheService, shardId, snapshotBlocker);
         }
 
-        private static class TrackingSearchDirectory extends SearchDirectory {
+        private static class TrackingIndexBlobStoreCacheDirectory extends IndexBlobStoreCacheDirectory {
 
             public final Semaphore blocker;
 
-            TrackingSearchDirectory(
-                StatelessSharedBlobCacheService cacheService,
-                CacheBlobReaderService cacheBlobReaderService,
-                MutableObjectStoreUploadTracker objectStoreUploadTracker,
-                ShardId shardId,
-                Semaphore blocker
-            ) {
-                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            TrackingIndexBlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId, Semaphore blocker) {
+                super(cacheService, shardId);
                 this.blocker = blocker;
             }
 
@@ -291,8 +282,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
             // Evict everything from the indexing node's cache
             logger.info("Evicting cache");
-            SearchDirectory indexShardSearchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
-            getCacheService(indexShardSearchDirectory).forceEvict((key) -> true);
+            BlobStoreCacheDirectory indexShardBlobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(
+                indexShard.store().directory()
+            );
+            getCacheService(indexShardBlobStoreCacheDirectory).forceEvict((key) -> true);
 
             logger.info("Unblocking snapshot");
             plugin.unblockSnapshots();

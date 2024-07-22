@@ -20,7 +20,8 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
+import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
@@ -76,7 +77,7 @@ public class IndexShardCacheWarmer {
             final var blobStore = objectStoreService.blobStore();
             final ShardId shardId = indexShard.shardId();
             final var shardBasePath = objectStoreService.shardBasePath(shardId);
-            SearchDirectory.unwrapDirectory(store.directory())
+            BlobStoreCacheDirectory.unwrapDirectory(store.directory())
                 .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
             final BlobContainer existingBlobContainer = blobStore.blobContainer(shardBasePath);
             final BatchedCompoundCommit batchedCompoundCommit = ObjectStoreService.readIndexingShardState(
@@ -84,10 +85,11 @@ public class IndexShardCacheWarmer {
                 indexShard.getOperationPrimaryTerm()
             ).latestCommit();
             if (batchedCompoundCommit != null) {
+                assert indexShard.routingEntry().isPromotableToPrimary();
                 StatelessCompoundCommit last = batchedCompoundCommit.last();
                 // We read from the directory as part of warming, so we need to update
                 // the cache directory commit
-                SearchDirectory.unwrapDirectory(store.directory()).updateCommit(last);
+                IndexDirectory.unwrapDirectory(store.directory()).updateMetadataForPreWarming(last);
                 warmingService.warmCacheForShardRecovery(description, indexShard, last);
                 return true;
             }

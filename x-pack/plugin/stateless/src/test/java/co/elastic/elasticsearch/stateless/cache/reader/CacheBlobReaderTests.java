@@ -27,8 +27,8 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
@@ -79,7 +79,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
-import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
+import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.hamcrest.Matchers.empty;
@@ -125,8 +125,6 @@ public class CacheBlobReaderTests extends ESTestCase {
             long minimumVbccSize
         ) throws IOException {
             super(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm);
-            final var indexBlobContainer = indexingDirectory.getSearchDirectory().getBlobContainer(primaryTerm);
-            searchDirectory.setBlobContainer((term) -> indexBlobContainer);
 
             var commits = generateIndexCommits(randomIntBetween(1, 3), randomBoolean());
             virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
@@ -182,7 +180,7 @@ public class CacheBlobReaderTests extends ESTestCase {
 
                 // Upload vBCC to blob store
                 SetOnce<BatchedCompoundCommit> bcc = new SetOnce<>();
-                var indexBlobContainer = indexingDirectory.getSearchDirectory().getBlobContainer(getPrimaryTerm());
+                var indexBlobContainer = indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(getPrimaryTerm());
                 indexBlobContainer.writeMetadataBlob(
                     OperationPurpose.INDICES,
                     virtualBatchedCompoundCommit.getBlobName(),
@@ -194,7 +192,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 );
                 virtualBatchedCompoundCommit.decRef();
 
-                SearchDirectoryTestUtils.updateLastUploadedTermAndGen(
+                BlobStoreCacheDirectoryTestUtils.updateLastUploadedTermAndGen(
                     searchDirectory,
                     virtualBatchedCompoundCommit.getPrimaryTermAndGeneration(),
                     virtualBatchedCompoundCommit.lastCompoundCommit().primaryTermAndGeneration(),
@@ -298,7 +296,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     randomIOContext(),
                     cacheBlobReaderService.getCacheBlobReader(
                         shardId,
-                        (term) -> indexingDirectory.getSearchDirectory().getBlobContainer(term),
+                        (term) -> indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(term),
                         virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()),
                         bccTermAndGen -> new ObjectStoreUploadTracker.UploadInfo() {
                             @Override

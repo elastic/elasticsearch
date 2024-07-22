@@ -27,7 +27,7 @@ import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -479,9 +479,9 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
-        SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(this.store.directory());
-        Optional<String> nodeEphemeralId = searchDirectory.getCurrentMetadataNodeEphemeralId();
-        long translogRecoveryStartFile = searchDirectory.getTranslogRecoveryStartFile();
+        IndexDirectory indexDirectory = IndexDirectory.unwrapDirectory(this.store.directory());
+        Optional<String> nodeEphemeralId = indexDirectory.getRecoveryCommitMetadataNodeEphemeralId();
+        long translogRecoveryStartFile = indexDirectory.getTranslogRecoveryStartFile();
 
         if (nodeEphemeralId.isPresent()) {
             logger.debug("new translog snapshot seqnos [{}]-[{}] and node ephemeral id [{}]", fromSeqNo, toSeqNo, nodeEphemeralId.get());

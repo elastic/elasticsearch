@@ -236,7 +236,6 @@ public class ObjectStoreServiceTests extends ESTestCase {
             );
 
             final var dir = SearchDirectory.unwrapDirectory(testHarness.searchStore.directory());
-            dir.setBlobContainer(primaryTerm -> testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm));
             BatchedCompoundCommit commit = ObjectStoreService.readSearchShardState(
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
                 1

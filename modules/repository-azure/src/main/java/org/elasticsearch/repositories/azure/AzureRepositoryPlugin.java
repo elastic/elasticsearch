@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.core.implementation.jackson.XmlMapperFactory;
 import com.azure.core.util.serializer.JacksonAdapter;
 
 import org.apache.lucene.util.SetOnce;
@@ -46,7 +45,6 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         // Trigger static initialization with the plugin class loader
         // so we have access to the proper xml parser
         JacksonAdapter.createDefaultSerializerAdapter();
-        XmlMapperFactory.INSTANCE.createXmlMapper();
     }
 
     // protected for testing

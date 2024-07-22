@@ -33,7 +33,8 @@ import java.io.UncheckedIOException;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
- * the compute engine's normal execution. It's much faster to push these to the
+ * the compute engine's normal execution, yielding matches/does not match into
+ * a {@link BooleanVector}. It's much faster to push these to the
  * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
  * this evaluator is here to save the day.
  */
@@ -81,7 +82,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     private BooleanVector evalSlow(DocVector docs) throws IOException {
         int[] map = docs.shardSegmentDocMapForwards();
         // Clear any state flags from the previous run
-        for (ShardState shardState: perShardState) {
+        for (ShardState shardState : perShardState) {
             if (shardState == null) {
                 continue;
             }
@@ -110,8 +111,6 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             }
         }
     }
-
-
 
     @Override
     public void close() {

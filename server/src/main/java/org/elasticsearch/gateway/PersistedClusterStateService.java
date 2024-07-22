@@ -1023,7 +1023,17 @@ public class PersistedClusterStateService {
 
             if (previouslyWrittenMetadata == metadata) {
                 // breakout early if nothing changed
-                return new WriterStats(false, false, metadata.getMappingsByHash().size(), 0, 0, metadata.getProject().size(), 0, 0, 0);
+                return new WriterStats(
+                    false,
+                    false,
+                    metadata.projectMetadata.getMappingsByHash().size(),
+                    0,
+                    0,
+                    metadata.getProject().size(),
+                    0,
+                    0,
+                    0
+                );
             }
             final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previouslyWrittenMetadata, metadata) == false;
             if (updateGlobalMeta) {
@@ -1037,8 +1047,8 @@ public class PersistedClusterStateService {
             int numMappingsAdded = 0;
             int numMappingsRemoved = 0;
             int numMappingsUnchanged = 0;
-            final var previousMappingHashes = new HashSet<>(previouslyWrittenMetadata.getMappingsByHash().keySet());
-            for (final var entry : metadata.getMappingsByHash().entrySet()) {
+            final var previousMappingHashes = new HashSet<>(previouslyWrittenMetadata.projectMetadata.getMappingsByHash().keySet());
+            for (final var entry : metadata.projectMetadata.getMappingsByHash().entrySet()) {
                 if (previousMappingHashes.remove(entry.getKey()) == false) {
                     addMappingDocuments(entry.getKey(), entry.getValue());
                     numMappingsAdded++;
@@ -1201,7 +1211,7 @@ public class PersistedClusterStateService {
         private WriterStats addMetadata(Metadata metadata) throws IOException {
             addGlobalMetadataDocuments(metadata);
 
-            for (final var entry : metadata.getMappingsByHash().entrySet()) {
+            for (final var entry : metadata.projectMetadata.getMappingsByHash().entrySet()) {
                 addMappingDocuments(entry.getKey(), entry.getValue());
             }
 
@@ -1219,7 +1229,7 @@ public class PersistedClusterStateService {
                 true,
                 true,
                 0,
-                metadata.getMappingsByHash().size(),
+                metadata.projectMetadata.getMappingsByHash().size(),
                 0,
                 0,
                 metadata.projectMetadata.indices().size(),

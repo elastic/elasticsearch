@@ -348,7 +348,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return metadata.projectMetadata.indices()
                 .values()
                 .stream()
-                .filter(metadata::isIndexManagedByILM)
+                .filter(metadata.getProject()::isIndexManagedByILM)
                 .filter(md -> isStagnated(rules, now, md))
                 .toList();
         }

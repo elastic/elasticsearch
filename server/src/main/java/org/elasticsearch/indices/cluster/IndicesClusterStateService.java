@@ -391,7 +391,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // First, though, verify the precondition for applying this case by
                 // asserting that either this index is already in the graveyard, or the
                 // previous cluster state is not initialized/recovered.
-                assert state.metadata().indexGraveyard().containsIndex(index)
+                assert state.metadata().projectMetadata.indexGraveyard().containsIndex(index)
                     || previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
                 indexServiceClosedListener = SubscribableListener.newSucceeded(null);
                 final IndexMetadata metadata = indicesService.verifyIndexIsDeleted(index, event.state());

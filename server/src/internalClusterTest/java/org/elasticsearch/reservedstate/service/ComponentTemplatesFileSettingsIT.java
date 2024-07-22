@@ -406,7 +406,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
             new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
         ).actionGet();
 
-        Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().templatesV2();
+        Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().projectMetadata.templatesV2();
 
         assertThat(
             allTemplates.keySet().stream().collect(Collectors.toSet()),

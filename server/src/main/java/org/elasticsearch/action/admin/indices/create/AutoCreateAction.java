@@ -399,6 +399,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
     static ComposableIndexTemplate resolveTemplate(CreateIndexRequest request, Metadata metadata) {
         String v2Template = MetadataIndexTemplateService.findV2Template(metadata, request.index(), false);
-        return v2Template != null ? metadata.templatesV2().get(v2Template) : null;
+        return v2Template != null ? metadata.projectMetadata.templatesV2().get(v2Template) : null;
     }
 }

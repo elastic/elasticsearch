@@ -60,7 +60,7 @@ public class DanglingIndicesState {
         try {
             final List<IndexMetadata> indexMetadataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             final Map<Index, IndexMetadata> danglingIndices = new HashMap<>();
-            final IndexGraveyard graveyard = metadata.indexGraveyard();
+            final IndexGraveyard graveyard = metadata.projectMetadata.indexGraveyard();
 
             for (IndexMetadata indexMetadata : indexMetadataList) {
                 Index index = indexMetadata.getIndex();

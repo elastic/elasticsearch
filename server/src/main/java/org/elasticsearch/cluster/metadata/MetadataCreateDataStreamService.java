@@ -330,10 +330,10 @@ public class MetadataCreateDataStreamService {
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
+        final IndexMode indexMode = metadata.projectMetadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
         final DataStreamLifecycle lifecycle = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
-            : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
+            : MetadataIndexTemplateService.resolveLifecycle(template, metadata.projectMetadata.componentTemplates());
         List<Index> failureIndices = failureStoreIndex == null ? List.of() : List.of(failureStoreIndex.getIndex());
         DataStream newDataStream = new DataStream(
             dataStreamName,
@@ -471,7 +471,7 @@ public class MetadataCreateDataStreamService {
         if (v2Template == null) {
             throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
         }
-        ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(v2Template);
+        ComposableIndexTemplate composableIndexTemplate = metadata.projectMetadata.templatesV2().get(v2Template);
         if (composableIndexTemplate.getDataStreamTemplate() == null) {
             throw new IllegalArgumentException(
                 "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"

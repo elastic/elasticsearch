@@ -84,10 +84,10 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
                 final Path tempdir = createTempDir();
                 Metadata.FORMAT.write(loadedMetadata, tempdir);
                 final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
-                assertThat(reloadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
+                assertThat(reloadedMetadata.projectMetadata.indexGraveyard(), equalTo(latestMetadata.projectMetadata.indexGraveyard()));
             }
         } else {
-            assertThat(loadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
+            assertThat(loadedMetadata.projectMetadata.indexGraveyard(), equalTo(latestMetadata.projectMetadata.indexGraveyard()));
         }
     }
 

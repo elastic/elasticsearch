@@ -252,7 +252,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
             final Step.StepKey nextStep = indexAndStepKey.getValue();
             final IndexMetadata indexMeta = metadata.projectMetadata.index(indexName);
             if (indexMeta != null) {
-                if (newState.metadata().isIndexManagedByILM(indexMeta)) {
+                if (newState.metadata().projectMetadata.isIndexManagedByILM(indexMeta)) {
                     if (nextStep != null && nextStep != TerminalPolicyStep.KEY) {
                         logger.trace(
                             "[{}] index has been spawed from a different index's ({}) "

@@ -374,6 +374,6 @@ public final class MlIndexAndAlias {
     }
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {
-        return state.getMetadata().templatesV2().containsKey(templateName);
+        return state.getMetadata().getProject().templatesV2().containsKey(templateName);
     }
 }

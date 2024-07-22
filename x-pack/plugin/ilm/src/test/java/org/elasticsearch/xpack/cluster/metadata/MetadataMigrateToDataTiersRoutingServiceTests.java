@@ -1234,7 +1234,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         );
         assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
         // the composable template still exists, however it was migrated to not use the custom require.data routing setting
-        assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(notNullValue()));
+        assertThat(migratedEntitiesTuple.v1().metadata().projectMetadata.templatesV2().get(composableTemplateName), is(notNullValue()));
     }
 
     public void testMigrationSetsEnforceTierPreferenceToTrue() {
@@ -1500,7 +1500,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
         );
 
-        Map<String, ComposableIndexTemplate> migratedTemplates = mb.build().templatesV2();
+        Map<String, ComposableIndexTemplate> migratedTemplates = mb.build().projectMetadata.templatesV2();
         assertThat(migratedTemplates.get("template-with-require-routing").template().settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-include-routing").template().settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-require-and-include-routing").template().settings().size(), is(1));
@@ -1601,7 +1601,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
         );
 
-        Map<String, ComponentTemplate> migratedTemplates = mb.build().componentTemplates();
+        Map<String, ComponentTemplate> migratedTemplates = mb.build().projectMetadata.componentTemplates();
         assertThat(migratedTemplates.get("template-with-require-routing").template().settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-include-routing").template().settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-require-and-include-routing").template().settings().size(), is(1));

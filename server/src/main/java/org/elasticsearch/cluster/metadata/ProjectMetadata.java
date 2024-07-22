@@ -18,10 +18,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.plugins.FieldPredicate;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,8 +37,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -46,6 +54,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL;
 import static org.elasticsearch.cluster.metadata.Metadata.UNKNOWN_CLUSTER_UUID;
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public class ProjectMetadata implements Iterable<IndexMetadata> {
 
@@ -422,6 +431,13 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
     }
 
     /**
+     * The collection of index deletions in the cluster.
+     */
+    public IndexGraveyard indexGraveyard() {
+        return custom(IndexGraveyard.TYPE);
+    }
+
+    /**
      * Returns the {@link IndexMetadata} for this index.
      * @throws IndexNotFoundException if no metadata for this index is found
      */
@@ -544,6 +560,118 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         }
 
         return true;
+    }
+
+    /**
+     * Finds all mappings for concrete indices. Only fields that match the provided field
+     * filter will be returned (default is a predicate that always returns true, which can be
+     * overridden via plugins)
+     *
+     * @see MapperPlugin#getFieldFilter()
+     *
+     * @param onNextIndex a hook that gets notified for each index that's processed
+     */
+    public Map<String, MappingMetadata> findMappings(
+        String[] concreteIndices,
+        Function<String, ? extends Predicate<String>> fieldFilter,
+        Runnable onNextIndex
+    ) {
+        assert Transports.assertNotTransportThread("decompressing mappings is too expensive for a transport thread");
+
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return ImmutableOpenMap.of();
+        }
+
+        ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        Stream.of(concreteIndices).filter(indices::containsKey).forEach(index -> {
+            onNextIndex.run();
+            IndexMetadata indexMetadata = indices.get(index);
+            Predicate<String> fieldPredicate = fieldFilter.apply(index);
+            indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));
+        });
+        return indexMapBuilder.build();
+    }
+
+    public Map<String, MappingMetadata> getMappingsByHash() {
+        return mappingsByHash;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static MappingMetadata filterFields(MappingMetadata mappingMetadata, Predicate<String> fieldPredicate) {
+        if (mappingMetadata == null) {
+            return MappingMetadata.EMPTY_MAPPINGS;
+        }
+        if (fieldPredicate == FieldPredicate.ACCEPT_ALL) {
+            return mappingMetadata;
+        }
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetadata.source().compressedReference(), true).v2();
+        Map<String, Object> mapping;
+        if (sourceAsMap.size() == 1 && sourceAsMap.containsKey(mappingMetadata.type())) {
+            mapping = (Map<String, Object>) sourceAsMap.get(mappingMetadata.type());
+        } else {
+            mapping = sourceAsMap;
+        }
+
+        Map<String, Object> properties = (Map<String, Object>) mapping.get("properties");
+        if (properties == null || properties.isEmpty()) {
+            return mappingMetadata;
+        }
+
+        filterFields("", properties, fieldPredicate);
+
+        return new MappingMetadata(mappingMetadata.type(), sourceAsMap);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
+        assert fieldPredicate != FieldPredicate.ACCEPT_ALL;
+        Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
+        while (entryIterator.hasNext()) {
+            Map.Entry<String, Object> entry = entryIterator.next();
+            String newPath = mergePaths(currentPath, entry.getKey());
+            Object value = entry.getValue();
+            boolean mayRemove = true;
+            boolean isMultiField = false;
+            if (value instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) value;
+                Map<String, Object> properties = (Map<String, Object>) map.get("properties");
+                if (properties != null) {
+                    mayRemove = filterFields(newPath, properties, fieldPredicate);
+                } else {
+                    Map<String, Object> subFields = (Map<String, Object>) map.get("fields");
+                    if (subFields != null) {
+                        isMultiField = true;
+                        if (mayRemove = filterFields(newPath, subFields, fieldPredicate)) {
+                            map.remove("fields");
+                        }
+                    }
+                }
+            } else {
+                throw new IllegalStateException("cannot filter mappings, found unknown element of type [" + value.getClass() + "]");
+            }
+
+            // only remove a field if it has no sub-fields left and it has to be excluded
+            if (fieldPredicate.test(newPath) == false) {
+                if (mayRemove) {
+                    entryIterator.remove();
+                } else if (isMultiField) {
+                    // multi fields that should be excluded but hold subfields that don't have to be excluded are converted to objects
+                    Map<String, Object> map = (Map<String, Object>) value;
+                    Map<String, Object> subFields = (Map<String, Object>) map.get("fields");
+                    assert subFields.isEmpty() == false;
+                    map.put("properties", subFields);
+                    map.remove("fields");
+                    map.remove("type");
+                }
+            }
+        }
+        // return true if the ancestor may be removed, as it has no sub-fields left
+        return fields.isEmpty();
+    }
+
+    private static String mergePaths(String path, String field) {
+        return path.isEmpty() ? field : path + "." + field;
     }
 
     public Map<String, IndexMetadata> indices() {
@@ -765,6 +893,24 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
     }
 
     /**
+     * Finds the parent data streams, if any, for the specified concrete indices.
+     */
+    public Map<String, DataStream> findDataStreams(String... concreteIndices) {
+        assert concreteIndices != null;
+        final ImmutableOpenMap.Builder<String, DataStream> builder = ImmutableOpenMap.builder();
+        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
+        for (String indexName : concreteIndices) {
+            IndexAbstraction index = lookup.get(indexName);
+            assert index != null;
+            assert index.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
+            if (index.getParentDataStream() != null) {
+                builder.put(indexName, index.getParentDataStream());
+            }
+        }
+        return builder.build();
+    }
+
+    /**
      * Finds the specific data stream aliases that match with the specified aliases directly or partially via wildcards, and
      * that point to the specified data streams (directly or matching data streams via wildcards).
      *
@@ -845,6 +991,67 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
                 setter.accept(index, Collections.unmodifiableList(filteredValues));
             }
         }
+    }
+
+    public Map<String, ComponentTemplate> componentTemplates() {
+        return Optional.ofNullable((ComponentTemplateMetadata) custom(ComponentTemplateMetadata.TYPE))
+            .map(ComponentTemplateMetadata::componentTemplates)
+            .orElse(Collections.emptyMap());
+    }
+
+    public Map<String, ComposableIndexTemplate> templatesV2() {
+        return Optional.ofNullable((ComposableIndexTemplateMetadata) custom(ComposableIndexTemplateMetadata.TYPE))
+            .map(ComposableIndexTemplateMetadata::indexTemplates)
+            .orElse(Collections.emptyMap());
+    }
+
+    public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
+        if (indexTemplate.getDataStreamTemplate() == null) {
+            return false;
+        }
+
+        var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
+        // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
+        var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
+        var indexMode = rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // No need to check for the existence of index.routing_path here, because index.mode=time_series can't be specified without it.
+            // Setting validation takes care of this.
+            // Also no need to validate that the fields defined in index.routing_path are keyword fields with time_series_dimension
+            // attribute enabled. This is validated elsewhere (DocumentMapper).
+            return true;
+        }
+
+        // in a followup change: check the existence of keyword fields of type keyword and time_series_dimension attribute enabled in
+        // the template. In this case the index.routing_path setting can be generated from the mapping.
+
+        return false;
+    }
+
+    /**
+     * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
+     * data stream that's potentially managed by data stream lifecycle and the value of the
+     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     */
+    public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
+        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
+            // no ILM policy configured so short circuit this to *not* managed by ILM
+            return false;
+        }
+
+        IndexAbstraction indexAbstraction = getIndicesLookup().get(indexMetadata.getIndex().getName());
+        if (indexAbstraction == null) {
+            // index doesn't exist anymore
+            return false;
+        }
+
+        DataStream parentDataStream = indexAbstraction.getParentDataStream();
+        if (parentDataStream != null && parentDataStream.getLifecycle() != null && parentDataStream.getLifecycle().isEnabled()) {
+            // index has both ILM and data stream lifecycle configured so let's check which is preferred
+            return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+        }
+
+        return true;
     }
 
     public static ProjectMetadata.Builder builder() {

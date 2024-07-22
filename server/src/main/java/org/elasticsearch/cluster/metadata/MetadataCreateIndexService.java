@@ -634,7 +634,7 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        ComposableIndexTemplate template = currentState.getMetadata().templatesV2().get(templateName);
+        ComposableIndexTemplate template = currentState.getMetadata().projectMetadata.templatesV2().get(templateName);
         final boolean isDataStream = template.getDataStreamTemplate() != null;
         if (isDataStream && request.dataStreamName() == null) {
             throw new IllegalArgumentException(
@@ -971,7 +971,7 @@ public class MetadataCreateIndexService {
 
             final boolean timeSeriesTemplate = Optional.of(request)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
-                .map(metadata::isTimeSeriesTemplate)
+                .map(metadata.getProject()::isTimeSeriesTemplate)
                 .orElse(false);
 
             // Loop through all the explicit index setting providers, adding them to the

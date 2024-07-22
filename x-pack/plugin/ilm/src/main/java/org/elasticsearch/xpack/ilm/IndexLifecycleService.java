@@ -186,7 +186,7 @@ public class IndexLifecycleService
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
             for (IndexMetadata idxMeta : clusterState.metadata().projectMetadata.indices().values()) {
-                if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
+                if (clusterState.metadata().projectMetadata.isIndexManagedByILM(idxMeta)) {
                     String policyName = idxMeta.getLifecyclePolicyName();
                     final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
@@ -399,7 +399,7 @@ public class IndexLifecycleService
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
         for (IndexMetadata idxMeta : clusterState.metadata().projectMetadata.indices().values()) {
-            if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
+            if (clusterState.metadata().projectMetadata.isIndexManagedByILM(idxMeta)) {
                 String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);

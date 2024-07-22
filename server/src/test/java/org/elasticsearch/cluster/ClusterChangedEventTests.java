@@ -616,8 +616,8 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertThat(new HashSet<>(addsFromEvent), equalTo(addedIndices.stream().map(Index::getName).collect(Collectors.toSet())));
         assertThat(new HashSet<>(delsFromEvent), equalTo(new HashSet<>(delIndices)));
         assertThat(event.metadataChanged(), equalTo(changeClusterUUID || addedIndices.size() > 0 || delIndices.size() > 0));
-        final IndexGraveyard newGraveyard = event.state().metadata().indexGraveyard();
-        final IndexGraveyard oldGraveyard = event.previousState().metadata().indexGraveyard();
+        final IndexGraveyard newGraveyard = event.state().metadata().projectMetadata.indexGraveyard();
+        final IndexGraveyard oldGraveyard = event.previousState().metadata().projectMetadata.indexGraveyard();
         assertThat(((IndexGraveyard.IndexGraveyardDiff) newGraveyard.diff(oldGraveyard)).getAdded().size(), equalTo(delIndices.size()));
         return newState;
     }

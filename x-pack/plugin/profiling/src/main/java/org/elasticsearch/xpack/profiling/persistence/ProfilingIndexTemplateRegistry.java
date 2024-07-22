@@ -312,13 +312,13 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      */
     public static boolean isAllResourcesCreated(ClusterState state, Settings settings) {
         for (String name : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
-            ComponentTemplate componentTemplate = state.metadata().componentTemplates().get(name);
+            ComponentTemplate componentTemplate = state.metadata().projectMetadata.componentTemplates().get(name);
             if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
         for (String name : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
-            ComposableIndexTemplate composableIndexTemplate = state.metadata().templatesV2().get(name);
+            ComposableIndexTemplate composableIndexTemplate = state.metadata().projectMetadata.templatesV2().get(name);
             if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }

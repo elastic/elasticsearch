@@ -123,7 +123,7 @@ public class LifecyclePolicyUtils {
             }
         }).collect(Collectors.toList());
 
-        final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream().filter(templateName -> {
+        final List<String> composableTemplates = state.metadata().projectMetadata.templatesV2().keySet().stream().filter(templateName -> {
             Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
             return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
         }).collect(Collectors.toList());

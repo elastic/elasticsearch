@@ -413,7 +413,7 @@ public class MetadataRolloverService {
                         dataStream.rollover(
                             indexMetadata.getIndex(),
                             newGeneration,
-                            metadata.isTimeSeriesTemplate(templateV2),
+                            metadata.projectMetadata.isTimeSeriesTemplate(templateV2),
                             dataStreamAutoShardingEvent
                         )
                     );

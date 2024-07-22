@@ -682,7 +682,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         List<String> migratedComposableTemplates = new ArrayList<>();
 
-        for (Map.Entry<String, ComposableIndexTemplate> templateEntry : clusterState.metadata().templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> templateEntry : clusterState.metadata().projectMetadata.templatesV2().entrySet()) {
             ComposableIndexTemplate composableTemplate = templateEntry.getValue();
             if (composableTemplate.template() != null && composableTemplate.template().settings() != null) {
                 Settings settings = composableTemplate.template().settings();
@@ -729,7 +729,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         List<String> migratedComponentTemplates = new ArrayList<>();
 
-        for (Map.Entry<String, ComponentTemplate> componentEntry : clusterState.metadata().componentTemplates().entrySet()) {
+        for (Map.Entry<String, ComponentTemplate> componentEntry : clusterState.metadata().projectMetadata.componentTemplates()
+            .entrySet()) {
             ComponentTemplate componentTemplate = componentEntry.getValue();
             if (componentTemplate.template() != null && componentTemplate.template().settings() != null) {
                 Settings settings = componentTemplate.template().settings();
@@ -773,7 +774,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         Settings.Builder newSettingsBuilder = Settings.builder().put(currentIndexSettings);
         String indexName = indexMetadata.getIndex().getName();
 
-        boolean isDataStream = currentState.metadata().findDataStreams(indexName).isEmpty() == false;
+        boolean isDataStream = currentState.metadata().getProject().findDataStreams(indexName).isEmpty() == false;
         String convertedTierPreference = isDataStream ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
         if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
             if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexMetadata.getSettings())) {

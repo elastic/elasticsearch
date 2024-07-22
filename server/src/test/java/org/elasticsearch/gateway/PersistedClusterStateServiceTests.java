@@ -1604,7 +1604,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 )
                 .build();
 
-            String hash = clusterState.metadata().getMappingsByHash().keySet().iterator().next();
+            String hash = clusterState.metadata().projectMetadata.getMappingsByHash().keySet().iterator().next();
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 writer.writeFullStateAndCommit(0L, clusterState);
@@ -1659,7 +1659,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 )
                 .build();
 
-            String hash = clusterState.metadata().getMappingsByHash().keySet().iterator().next();
+            String hash = clusterState.metadata().projectMetadata.getMappingsByHash().keySet().iterator().next();
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 writer.writeFullStateAndCommit(0L, clusterState);
@@ -1724,13 +1724,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     );
                 }
                 clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(1));
+                assertThat(clusterState.metadata().projectMetadata.getMappingsByHash().size(), equalTo(1));
                 writer.writeFullStateAndCommit(0L, clusterState);
 
                 // verify that the on-disk state reflects 1 mapping
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
                 assertThat(hashes.size(), equalTo(1));
-                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+                assertThat(clusterState.metadata().projectMetadata.getMappingsByHash().keySet(), equalTo(hashes));
 
                 previousState = clusterState;
                 metadata = Metadata.builder(previousState.metadata());
@@ -1755,13 +1755,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
                 }
                 clusterState = ClusterState.builder(previousState).metadata(metadata).build();
-                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(2));
+                assertThat(clusterState.metadata().projectMetadata.getMappingsByHash().size(), equalTo(2));
                 writer.writeIncrementalStateAndCommit(0L, previousState, clusterState);
 
                 // verify that the on-disk state reflects 2 mappings
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
                 assertThat(hashes.size(), equalTo(2));
-                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+                assertThat(clusterState.metadata().projectMetadata.getMappingsByHash().keySet(), equalTo(hashes));
 
                 previousState = clusterState;
                 metadata = Metadata.builder(previousState.metadata());
@@ -1771,13 +1771,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
                 }
                 clusterState = ClusterState.builder(previousState).metadata(metadata).build();
-                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(1));
+                assertThat(clusterState.metadata().projectMetadata.getMappingsByHash().size(), equalTo(1));
                 writer.writeIncrementalStateAndCommit(0L, previousState, clusterState);
 
                 // verify that the on-disk reflects 1 mapping
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
                 assertThat(hashes.size(), equalTo(1));
-                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+                assertThat(clusterState.metadata().projectMetadata.getMappingsByHash().keySet(), equalTo(hashes));
             }
         }
     }

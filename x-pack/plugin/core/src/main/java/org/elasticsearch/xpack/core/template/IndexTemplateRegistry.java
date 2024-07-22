@@ -313,7 +313,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                ComponentTemplate currentTemplate = state.metadata().componentTemplates().get(templateName);
+                ComponentTemplate currentTemplate = state.metadata().projectMetadata.componentTemplates().get(templateName);
                 if (templateDependenciesSatisfied(state, newTemplate.getValue()) == false) {
                     creationCheck.set(false);
                     logger.trace(
@@ -386,7 +386,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                ComposableIndexTemplate currentTemplate = state.metadata().templatesV2().get(templateName);
+                ComposableIndexTemplate currentTemplate = state.metadata().projectMetadata.templatesV2().get(templateName);
                 boolean componentTemplatesAvailable = componentTemplatesInstalled(state, newTemplate.getValue());
                 if (componentTemplatesAvailable == false) {
                     creationCheck.set(false);
@@ -440,10 +440,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         if (applyRolloverAfterTemplateV2Upgrade() == false) {
             // component templates and index templates can be updated independently, we only need to know that the required component
             // templates are available
-            return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
+            return state.metadata().projectMetadata.componentTemplates()
+                .keySet()
+                .containsAll(indexTemplate.getRequiredComponentTemplates());
         }
         Map<String, ComponentTemplate> componentTemplateConfigs = getComponentTemplateConfigs();
-        Map<String, ComponentTemplate> installedTemplates = state.metadata().componentTemplates();
+        Map<String, ComponentTemplate> installedTemplates = state.metadata().projectMetadata.componentTemplates();
         for (String templateName : indexTemplate.getRequiredComponentTemplates()) {
             ComponentTemplate installedTemplate = installedTemplates.get(templateName);
             // if a required component templates is not installed - the current cluster state cannot allow this index template yet

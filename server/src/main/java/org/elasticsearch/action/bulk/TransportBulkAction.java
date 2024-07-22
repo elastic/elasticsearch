@@ -609,7 +609,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         String template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
         if (template != null) {
             // Check if this is a data stream template or if it is just a normal index.
-            ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
+            ComposableIndexTemplate composableIndexTemplate = metadata.projectMetadata.templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
                 return Optional.of(composableIndexTemplate.getDataStreamTemplate().hasFailureStore());

@@ -16,3 +16,8 @@ grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
+
+grant codeBase "${codebase.azure-core}" {
+   // for loading Jackson reflectively
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};

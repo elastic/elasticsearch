@@ -4498,21 +4498,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         ) };
 
     /**
-    * The following plan
-    *
     * Eval[[x{r}#2 * 5[INTEGER] AS y]]
     * \_Project[[x{r}#2, y{r}#3, y{r}#3 AS z]]
     * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
     *
-    * should become
+    * To push down the Eval, we must not shadow the reference y{r}#3, so we rename.
     *
     * Project[[x{r}#2, y{r}#3 AS z, $$y$temp_name${r}#6 AS y]]
     * \_Eval[[x{r}#2 * 5[INTEGER] AS $$y$temp_name$]]
     * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
     *
-    * and similarly for dissect, grok and enrich.
+    * And similarly for dissect, grok and enrich.
     */
-    public void testPushShadowingGeneratingPlanPastProject() {
+    public void testPushShadowingGeneratingPlanPastProjectWithRename() {
         Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, 1, INTEGER));
         Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER));
         LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
@@ -4552,6 +4550,52 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ReferenceAttribute yTempRenamed = as(yAlias.child(), ReferenceAttribute.class);
             assertThat(yTempRenamed.name(), startsWith("$$y$temp_name$"));
             assertThat(Integer.parseInt(yTempRenamed.name().substring("$$y$temp_name$".length())), equalTo(suffix));
+        }
+    }
+
+    /**
+     * Eval[[x{r}#2 * 5[INTEGER] AS y]]
+     * \_Project[[y{r}#3, x{r}#2]]
+     * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     *
+     * We can freely push down the Eval without renaming, but need to update the Project's references.
+     *
+     * Project[[x{r}#2, y{r}#6 AS y]]
+     * \_Eval[[x{r}#2 * 5[INTEGER] AS y]]
+     * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+     *
+     * And similarly for dissect, grok and enrich.
+     */
+    public void testPushShadowingGeneratingPlanPastProject() {
+        Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, 1, INTEGER));
+        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER));
+        LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
+        LogicalPlan initialProject = new Project(
+            EMPTY,
+            initialRow,
+            List.of(y.toAttribute(), x.toAttribute())
+        );
+
+        for (PushdownShadowingGeneratingPlanTestCase testCase : PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES) {
+            LogicalPlan initialPlan = testCase.applyLogicalPlan.apply(initialProject, x.toAttribute());
+            @SuppressWarnings("unchecked")
+            List<Attribute> initialGeneratedExprs = ((GeneratingPlan) initialPlan).generatedAttributes();
+            LogicalPlan optimizedPlan = testCase.rule.apply(initialPlan);
+
+            Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan);
+            assertFalse(inconsistencies.hasFailures());
+
+            Project project = as(optimizedPlan, Project.class);
+            LogicalPlan pushedDownGeneratingPlan = project.child();
+
+            List<? extends NamedExpression> projections = project.projections();
+            @SuppressWarnings("unchecked")
+            List<Attribute> newGeneratedExprs = ((GeneratingPlan) pushedDownGeneratingPlan).generatedAttributes();
+            assertEquals(initialGeneratedExprs, newGeneratedExprs);
+
+            assertThat(Expressions.names(projections), contains("x", "y"));
+            Attribute newY = as(projections.get(1), ReferenceAttribute.class);
+            assertTrue(newY.semanticEquals(initialGeneratedExprs.get(0)));
         }
     }
 

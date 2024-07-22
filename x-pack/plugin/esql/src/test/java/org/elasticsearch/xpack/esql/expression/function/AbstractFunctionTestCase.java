@@ -80,6 +80,8 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -92,28 +94,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
     public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type.typeName()) {
-            case "boolean" -> randomBoolean();
-            case "byte" -> randomByte();
-            case "short" -> randomShort();
-            case "integer", "counter_integer" -> randomInt();
-            case "unsigned_long", "long", "counter_long" -> randomLong();
-            case "date_period" -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
-            case "datetime" -> randomMillisUpToYear9999();
-            case "double", "scaled_float", "counter_double" -> randomDouble();
-            case "float" -> randomFloat();
-            case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
-            case "keyword" -> new BytesRef(randomAlphaOfLength(5));
-            case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case "text" -> new BytesRef(randomAlphaOfLength(50));
-            case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.asWkb(GeometryTestUtils.randomPoint());
-            case "cartesian_point" -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
-            case "geo_shape" -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
-            case "cartesian_shape" -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
-            case "null" -> null;
-            case "_source" -> {
+        return new Literal(Source.EMPTY, switch (type) {
+            case BOOLEAN -> randomBoolean();
+            case BYTE -> randomByte();
+            case SHORT -> randomShort();
+            case INTEGER, COUNTER_INTEGER -> randomInt();
+            case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
+            case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
+            case DATETIME -> randomMillisUpToYear9999();
+            case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
+            case FLOAT -> randomFloat();
+            case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
+            case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
+            case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+            case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
+            case TEXT -> new BytesRef(randomAlphaOfLength(50));
+            case VERSION -> randomVersion().toBytesRef();
+            case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
+            case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
+            case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
+            case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
+            case NULL -> null;
+            case SOURCE -> {
                 try {
                     yield BytesReference.bytes(
                         JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomAlphaOfLength(10)).endObject()
@@ -122,7 +124,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     throw new UncheckedIOException(e);
                 }
             }
-            default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
+            case UNSUPPORTED, OBJECT, NESTED, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+                "can't make random values for [" + type.typeName() + "]"
+            );
         }, type);
     }
 
@@ -303,18 +307,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             var testCase = supplier.supplier().get();
 
             var newData = testCase.getData().stream().map(typedData -> {
-                if (typedData.data() instanceof BytesRef bytesRef) {
-                    var offset = randomIntBetween(0, 10);
-                    var extraLength = randomIntBetween(0, 10);
-                    var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
-
-                    System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
-
-                    var newBytesRef = new BytesRef(newBytesArray, offset, bytesRef.length);
-
-                    return typedData.withData(newBytesRef);
+                if (typedData.isMultiRow()) {
+                    return typedData.withData(
+                        typedData.multiRowData().stream().map(AbstractFunctionTestCase::tryRandomizeBytesRefOffset).toList()
+                    );
                 }
-                return typedData;
+
+                return typedData.withData(tryRandomizeBytesRefOffset(typedData.data()));
             }).toList();
 
             return new TestCaseSupplier.TestCase(
@@ -328,6 +327,33 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 testCase.foldingExceptionMessage()
             );
         })).toList();
+    }
+
+    private static Object tryRandomizeBytesRefOffset(Object value) {
+        if (value instanceof BytesRef bytesRef) {
+            return randomizeBytesRefOffset(bytesRef);
+        }
+
+        if (value instanceof List<?> list) {
+            return list.stream().map(element -> {
+                if (element instanceof BytesRef bytesRef) {
+                    return randomizeBytesRefOffset(bytesRef);
+                }
+                return element;
+            }).toList();
+        }
+
+        return value;
+    }
+
+    private static BytesRef randomizeBytesRefOffset(BytesRef bytesRef) {
+        var offset = randomIntBetween(0, 10);
+        var extraLength = randomIntBetween(0, 10);
+        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+
+        return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 
     public void testSerializationOfSimple() {
@@ -349,6 +375,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
         assertTrue("expect description to be defined", description.description() != null && false == description.description().isEmpty());
+        assertThat(
+            "descriptions should be complete sentences",
+            description.description(),
+            either(endsWith(".")) // A full sentence
+                .or(endsWith("∅")) // Math
+        );
 
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new HashSet<>();
@@ -481,7 +513,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             renderDescription(description.description(), info.detailedDescription(), info.note());
             boolean hasExamples = renderExamples(info);
-            renderFullLayout(name, hasExamples);
+            boolean hasAppendix = renderAppendix(info.appendix());
+            renderFullLayout(name, hasExamples, hasAppendix);
             renderKibanaInlineDocs(name, info);
             List<EsqlFunctionRegistry.ArgSignature> args = description.args();
             if (name.equals("case")) {
@@ -610,7 +643,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return true;
     }
 
-    private static void renderFullLayout(String name, boolean hasExamples) throws IOException {
+    private static boolean renderAppendix(String appendix) throws IOException {
+        if (appendix.isEmpty()) {
+            return false;
+        }
+
+        String rendered = DOCS_WARNING + appendix + "\n";
+
+        LogManager.getLogger(getTestClass()).info("Writing appendix for [{}]:\n{}", functionName(), rendered);
+        writeToTempDir("appendix", rendered, "asciidoc");
+        return true;
+    }
+
+    private static void renderFullLayout(String name, boolean hasExamples, boolean hasAppendix) throws IOException {
         String rendered = DOCS_WARNING + """
             [discrete]
             [[esql-$NAME$]]
@@ -627,6 +672,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             """.replace("$NAME$", name).replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT));
         if (hasExamples) {
             rendered += "include::../examples/" + name + ".asciidoc[]\n";
+        }
+        if (hasAppendix) {
+            rendered += "include::../appendix/" + name + ".asciidoc[]\n";
         }
         LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("layout", rendered, "asciidoc");

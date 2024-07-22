@@ -111,11 +111,25 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+        executeRequest(task, request, REMOTE_TYPE, listener);
     }
 
-    private void doExecuteForked(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
+    public void executeRequest(
+        Task task,
+        FieldCapabilitiesRequest request,
+        RemoteClusterActionType<FieldCapabilitiesResponse> remoteAction,
+        ActionListener<FieldCapabilitiesResponse> listener
+    ) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, remoteAction, l)));
+    }
+
+    private void doExecuteForked(
+        Task task,
+        FieldCapabilitiesRequest request,
+        RemoteClusterActionType<FieldCapabilitiesResponse> remoteAction,
+        ActionListener<FieldCapabilitiesResponse> listener
+    ) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
@@ -249,7 +263,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     }
                 });
                 remoteClusterClient.execute(
-                    TransportFieldCapabilitiesAction.REMOTE_TYPE,
+                    remoteAction,
                     remoteRequest,
                     // The underlying transport service may call onFailure with a thread pool other than search_coordinator.
                     // This fork is a workaround to ensure that the merging of field-caps always occurs on the search_coordinator.
@@ -265,9 +279,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private static void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
+        var blocks = clusterState.blocks();
+        if (blocks.global().isEmpty() && blocks.indices().isEmpty()) {
+            // short circuit optimization because block check below is relatively expensive for many indices
+            return;
+        }
+        blocks.globalBlockedRaiseException(ClusterBlockLevel.READ);
         for (String index : concreteIndices) {
-            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+            blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
         }
     }
 

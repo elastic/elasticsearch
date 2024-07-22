@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -81,6 +81,28 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 
+/**
+ * <p>This class is part of the planner</p>
+ * <p>Global optimizations based strictly on the structure of the query (i.e. not factoring in information about the backing indices).
+ * The bulk of query transformations happen in this step. </p>
+ *
+ * <p>Global optimizations based strictly on the structure of the query (i.e. not factoring in information about the backing indices).  The
+ * bulk of query transformations happen in this step. This has three important sub-phases:</p>
+ * <ul>
+ *     <li>The {@link LogicalPlanOptimizer#substitutions()} phase rewrites things to expand out shorthand in the syntax.  For example,
+ *     a nested expression embedded in a stats gets replaced with an eval followed by a stats, followed by another eval.  This phase
+ *     also applies surrogates, such as replacing an average with a sum divided by a count.</li>
+ *     <li>{@link LogicalPlanOptimizer#operators()} (NB: The word "operator" is extremely overloaded and referrers to many different
+ *     things.) transform the tree in various different ways.  This includes folding (i.e. computing constant expressions at parse
+ *     time), combining expressions, dropping redundant clauses, and some normalization such as putting literals on the right whenever
+ *     possible.  These rules are run in a loop until none of the rules make any changes to the plan (there is also a safety shut off
+ *     after many iterations, although hitting that is considered a bug)</li>
+ *     <li>{@link LogicalPlanOptimizer#cleanup()}  Which can replace sorts+limit with a TopN</li>
+ * </ul>
+ *
+ * <p>Note that the {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()} steps are reapplied at the
+ * {@link LocalLogicalPlanOptimizer} layer.</p>
+ */
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
     private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;

@@ -5,6 +5,7 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 field | limit | order | result
+boolean | integer | keyword | boolean
 datetime | integer | keyword | datetime
 double | integer | keyword | double
 integer | integer | keyword | integer

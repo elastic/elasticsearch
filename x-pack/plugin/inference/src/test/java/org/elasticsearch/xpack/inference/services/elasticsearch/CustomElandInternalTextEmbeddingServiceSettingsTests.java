@@ -23,8 +23,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
-import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.NUM_ALLOCATIONS;
-import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.NUM_THREADS;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
 import static org.hamcrest.Matchers.is;
 
 public class CustomElandInternalTextEmbeddingServiceSettingsTests extends AbstractWireSerializingTestCase<
@@ -216,8 +216,7 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"num_allocations":1,"num_threads":1,"model_id":"model_id","adaptive_allocations":null,"dimensions":100,""" + """
-            "similarity":"cosine","element_type":"byte"}"""));
+            {"num_allocations":1,"num_threads":1,"model_id":"model_id","dimensions":100,"similarity":"cosine","element_type":"byte"}"""));
     }
 
     @Override

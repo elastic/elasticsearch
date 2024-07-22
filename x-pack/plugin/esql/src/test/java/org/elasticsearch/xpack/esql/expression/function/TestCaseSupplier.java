@@ -991,6 +991,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#BOOLEAN}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#booleanCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> booleanCases() {
         return List.of(
             new TypedDataSupplier("<true>", () -> true, DataType.BOOLEAN),
@@ -1107,6 +1113,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#IP}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ipCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> ipCases() {
         return List.of(
             new TypedDataSupplier(

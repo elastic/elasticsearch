@@ -310,12 +310,10 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
             // Case 3: a NotMasterException
 
-            PlainActionFuture.<Void, RuntimeException>get(future -> {
-                clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
-                    final var state = clusterService.state();
-                    return ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)).build();
-                }, future);
-            }, 10, TimeUnit.SECONDS);
+            safeAwait((ActionListener<Void> listener) -> clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
+                final var state = clusterService.state();
+                return ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)).build();
+            }, listener));
 
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(

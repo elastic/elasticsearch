@@ -138,19 +138,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testInsufficientPrivilege() {
-        Exception error = expectThrows(
-            Exception.class,
-            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)")
-        );
+        Exception error = expectThrows(Exception.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"));
         logger.info("error", error);
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+    }
+
+    public void testLimitedPrivilege() throws Exception {
+        Response resp = runESQLCommand("metadata1_read2", """
+            FROM index-user1,index-user2 METADATA _index
+            | STATS sum=sum(value), index=VALUES(_index)
+            """);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
-            error.getMessage(),
-            containsString(
-                "unauthorized for user [test-admin] run as [metadata1_read2] "
-                    + "with effective roles [metadata1_read2] on indices [index-user1], "
-                    + "this action is granted by the index privileges [read,all]"
-            )
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword")))
         );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(72.0, "index-user2"))));
+
     }
 
     public void testDocumentLevelSecurity() throws Exception {

@@ -188,7 +188,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testLogsIndexMode() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGS, MAPPING_3);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));

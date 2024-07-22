@@ -91,6 +91,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public static boolean validate(ClusterState state) {
         return state.getMetadata()
+            .getProject()
             .templatesV2()
             .keySet()
             .stream()

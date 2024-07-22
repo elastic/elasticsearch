@@ -288,8 +288,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
-        assertNotNull(state.metadata().componentTemplates().get("foo"));
-        assertThat(state.metadata().componentTemplates().get("foo"), equalTo(componentTemplate));
+        assertNotNull(state.metadata().projectMetadata.componentTemplates().get("foo"));
+        assertThat(state.metadata().projectMetadata.componentTemplates().get("foo"), equalTo(componentTemplate));
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         assertThat(

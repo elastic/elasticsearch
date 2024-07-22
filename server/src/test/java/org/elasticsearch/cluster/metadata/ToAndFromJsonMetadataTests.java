@@ -163,14 +163,14 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         );
 
         // component template
-        assertNotNull(parsedMetadata.componentTemplates().get("component_template"));
-        assertThat(parsedMetadata.componentTemplates().get("component_template").version(), is(5L));
+        assertNotNull(parsedMetadata.projectMetadata.componentTemplates().get("component_template"));
+        assertThat(parsedMetadata.projectMetadata.componentTemplates().get("component_template").version(), is(5L));
         assertThat(
-            parsedMetadata.componentTemplates().get("component_template").metadata(),
+            parsedMetadata.projectMetadata.componentTemplates().get("component_template").metadata(),
             equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("foo", "bar")))
         );
         assertThat(
-            parsedMetadata.componentTemplates().get("component_template").template(),
+            parsedMetadata.projectMetadata.componentTemplates().get("component_template").template(),
             equalTo(
                 new Template(
                     Settings.builder().put("setting", "value").build(),
@@ -181,17 +181,20 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         );
 
         // index template v2
-        assertNotNull(parsedMetadata.templatesV2().get("index_templatev2"));
-        assertThat(parsedMetadata.templatesV2().get("index_templatev2").priority(), is(5L));
-        assertThat(parsedMetadata.templatesV2().get("index_templatev2").version(), is(4L));
-        assertThat(parsedMetadata.templatesV2().get("index_templatev2").indexPatterns(), is(Arrays.asList("foo", "bar*")));
-        assertThat(parsedMetadata.templatesV2().get("index_templatev2").composedOf(), is(Collections.singletonList("component_template")));
+        assertNotNull(parsedMetadata.projectMetadata.templatesV2().get("index_templatev2"));
+        assertThat(parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").priority(), is(5L));
+        assertThat(parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").version(), is(4L));
+        assertThat(parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").indexPatterns(), is(Arrays.asList("foo", "bar*")));
         assertThat(
-            parsedMetadata.templatesV2().get("index_templatev2").metadata(),
+            parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").composedOf(),
+            is(Collections.singletonList("component_template"))
+        );
+        assertThat(
+            parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").metadata(),
             equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")))
         );
         assertThat(
-            parsedMetadata.templatesV2().get("index_templatev2").template(),
+            parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").template(),
             equalTo(
                 new Template(
                     Settings.builder().put("setting", "value").build(),

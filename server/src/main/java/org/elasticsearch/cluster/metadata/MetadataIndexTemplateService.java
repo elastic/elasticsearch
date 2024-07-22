@@ -260,7 +260,7 @@ public class MetadataIndexTemplateService {
         final String name,
         final ComponentTemplate template
     ) throws Exception {
-        final ComponentTemplate existing = currentState.metadata().componentTemplates().get(name);
+        final ComponentTemplate existing = currentState.metadata().projectMetadata.componentTemplates().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
@@ -277,8 +277,7 @@ public class MetadataIndexTemplateService {
         // Collect all the composable (index) templates that use this component template, we'll use
         // this for validating that they're still going to be valid after this component template
         // has been updated
-        final Map<String, ComposableIndexTemplate> templatesUsingComponent = currentState.metadata()
-            .templatesV2()
+        final Map<String, ComposableIndexTemplate> templatesUsingComponent = currentState.metadata().projectMetadata.templatesV2()
             .entrySet()
             .stream()
             .filter(e -> e.getValue().composedOf().contains(name))
@@ -433,7 +432,7 @@ public class MetadataIndexTemplateService {
         if (names.length > 1) {
             Set<String> missingNames = null;
             for (String name : names) {
-                if (currentState.metadata().componentTemplates().containsKey(name)) {
+                if (currentState.metadata().projectMetadata.componentTemplates().containsKey(name)) {
                     templateNames.add(name);
                 } else {
                     // wildcards are not supported, so if a name with a wildcard is specified then
@@ -449,7 +448,7 @@ public class MetadataIndexTemplateService {
                 throw new ResourceNotFoundException(String.join(",", missingNames));
             }
         } else {
-            for (String templateName : currentState.metadata().componentTemplates().keySet()) {
+            for (String templateName : currentState.metadata().projectMetadata.componentTemplates().keySet()) {
                 if (Regex.simpleMatch(names[0], templateName)) {
                     templateNames.add(templateName);
                 }
@@ -483,13 +482,13 @@ public class MetadataIndexTemplateService {
         } else {
             predicate = name -> Regex.simpleMatch(templateNameOrWildcard[0], name);
         }
-        final Set<String> matchingComponentTemplates = metadata.componentTemplates()
+        final Set<String> matchingComponentTemplates = metadata.projectMetadata.componentTemplates()
             .keySet()
             .stream()
             .filter(predicate)
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
-        final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream().filter(e -> {
+        final List<String> templatesStillUsing = metadata.projectMetadata.templatesV2().entrySet().stream().filter(e -> {
             Set<String> intersecting = Sets.intersection(
                 new HashSet<>(e.getValue().getRequiredComponentTemplates()),
                 matchingComponentTemplates
@@ -538,7 +537,7 @@ public class MetadataIndexTemplateService {
 
     public static void validateV2TemplateRequest(Metadata metadata, String name, ComposableIndexTemplate template) {
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
-            Settings mergedSettings = resolveSettings(template, metadata.componentTemplates());
+            Settings mergedSettings = resolveSettings(template, metadata.projectMetadata.componentTemplates());
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
                 throw new InvalidIndexTemplateException(
                     name,
@@ -547,7 +546,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        final Map<String, ComponentTemplate> componentTemplates = metadata.projectMetadata.componentTemplates();
         final List<String> ignoreMissingComponentTemplates = (template.getIgnoreMissingComponentTemplates() == null
             ? List.of()
             : template.getIgnoreMissingComponentTemplates());
@@ -594,7 +593,7 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final boolean validateV2Overlaps
     ) throws Exception {
-        final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
+        final ComposableIndexTemplate existing = currentState.metadata().projectMetadata.templatesV2().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
@@ -698,15 +697,15 @@ public class MetadataIndexTemplateService {
         final var now = Instant.now();
         final var metadata = currentState.getMetadata();
 
-        final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
-        final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
+        final var combinedMappings = collectMappings(indexTemplate, metadata.projectMetadata.componentTemplates(), "tmp_idx");
+        final var combinedSettings = resolveSettings(indexTemplate, metadata.projectMetadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
             finalSettings.put(
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
+                    indexTemplate.getDataStreamTemplate() != null && metadata.projectMetadata.isTimeSeriesTemplate(indexTemplate),
                     currentState.getMetadata(),
                     now,
                     combinedSettings,
@@ -735,7 +734,11 @@ public class MetadataIndexTemplateService {
         validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionResolver.resolve(currentState));
 
         if (templateToValidate.isDeprecated() == false) {
-            validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
+            validateUseOfDeprecatedComponentTemplates(
+                name,
+                templateToValidate,
+                currentState.metadata().projectMetadata.componentTemplates()
+            );
             validateUseOfDeprecatedIngestPipelines(
                 name,
                 currentState.metadata().projectMetadata.custom(IngestMetadata.TYPE),
@@ -812,7 +815,7 @@ public class MetadataIndexTemplateService {
         ComposableIndexTemplate template,
         @Nullable DataStreamGlobalRetention globalRetention
     ) {
-        DataStreamLifecycle lifecycle = resolveLifecycle(template, metadata.componentTemplates());
+        DataStreamLifecycle lifecycle = resolveLifecycle(template, metadata.projectMetadata.componentTemplates());
         if (lifecycle != null) {
             if (template.getDataStreamTemplate() == null) {
                 throw new IllegalArgumentException(
@@ -845,7 +848,7 @@ public class MetadataIndexTemplateService {
                 } else {
                     // We found a template that still matches, great! Buuuuttt... check whether it
                     // is a data stream template, as it's only useful if it has a data stream definition
-                    if (meta.templatesV2().get(matchingTemplate).getDataStreamTemplate() == null) {
+                    if (meta.projectMetadata.templatesV2().get(matchingTemplate).getDataStreamTemplate() == null) {
                         unreferenced.add(dataStream);
                     }
                 }
@@ -940,7 +943,7 @@ public class MetadataIndexTemplateService {
     ) {
         Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new TreeMap<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().projectMetadata.templatesV2().entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
             Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
@@ -987,7 +990,7 @@ public class MetadataIndexTemplateService {
         if (names.length > 1) {
             Set<String> missingNames = null;
             for (String name : names) {
-                if (currentState.metadata().templatesV2().containsKey(name)) {
+                if (currentState.metadata().projectMetadata.templatesV2().containsKey(name)) {
                     templateNames.add(name);
                 } else {
                     // wildcards are not supported, so if a name with a wildcard is specified then
@@ -1004,7 +1007,7 @@ public class MetadataIndexTemplateService {
             }
         } else {
             final String name = names[0];
-            for (String templateName : currentState.metadata().templatesV2().keySet()) {
+            for (String templateName : currentState.metadata().projectMetadata.templatesV2().keySet()) {
                 if (Regex.simpleMatch(name, templateName)) {
                     templateNames.add(templateName);
                 }
@@ -1051,7 +1054,7 @@ public class MetadataIndexTemplateService {
         Metadata metadata = state.metadata();
 
         Set<String> namePatterns = templateNames.stream()
-            .map(templateName -> metadata.templatesV2().get(templateName))
+            .map(templateName -> metadata.projectMetadata.templatesV2().get(templateName))
             .filter(Objects::nonNull)
             .map(ComposableIndexTemplate::indexPatterns)
             .map(Set::copyOf)
@@ -1310,7 +1313,7 @@ public class MetadataIndexTemplateService {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<Tuple<String, ComposableIndexTemplate>> candidates = new ArrayList<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.getProject().templatesV2().entrySet()) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
             if (isHidden == false) {
@@ -1343,14 +1346,14 @@ public class MetadataIndexTemplateService {
      * Collect the given v2 template into an ordered list of mappings.
      */
     public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName, final String indexName) {
-        final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
+        final ComposableIndexTemplate template = state.metadata().projectMetadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve mappings for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return List.of();
         }
 
-        final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
+        final Map<String, ComponentTemplate> componentTemplates = state.metadata().projectMetadata.componentTemplates();
         return collectMappings(template, componentTemplates, indexName);
     }
 
@@ -1422,13 +1425,13 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template into a collected {@link Settings} object
      */
     public static Settings resolveSettings(final Metadata metadata, final String templateName) {
-        final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
+        final ComposableIndexTemplate template = metadata.projectMetadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return Settings.EMPTY;
         }
-        return resolveSettings(template, metadata.componentTemplates());
+        return resolveSettings(template, metadata.projectMetadata.componentTemplates());
     }
 
     /**
@@ -1474,7 +1477,7 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template name into an ordered list of aliases
      */
     public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata, final String templateName) {
-        final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
+        final ComposableIndexTemplate template = metadata.projectMetadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve aliases for a template [" + templateName + "] that did not exist in the cluster state";
         return resolveAliases(metadata, template);
@@ -1487,7 +1490,7 @@ public class MetadataIndexTemplateService {
         if (template == null) {
             return List.of();
         }
-        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        final Map<String, ComponentTemplate> componentTemplates = metadata.projectMetadata.componentTemplates();
         return resolveAliases(template, componentTemplates);
     }
 
@@ -1524,13 +1527,13 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static DataStreamLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
-        final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
+        final ComposableIndexTemplate template = metadata.projectMetadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return null;
         }
-        return resolveLifecycle(template, metadata.componentTemplates());
+        return resolveLifecycle(template, metadata.projectMetadata.componentTemplates());
     }
 
     /**

@@ -161,7 +161,7 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.metadata().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
+                        if (currentState.metadata().projectMetadata.indexGraveyard().containsIndex(indexMetadata.getIndex())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] since it was recently deleted",
                                 indexMetadata.getIndex(),

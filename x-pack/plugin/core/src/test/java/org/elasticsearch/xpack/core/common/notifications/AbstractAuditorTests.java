@@ -233,7 +233,7 @@ public class AbstractAuditorTests extends ESTestCase {
         ProjectMetadata project = mock(ProjectMetadata.class);
         when(metadata.getProject()).thenReturn(project);
         when(project.templates()).thenReturn(templates);
-        when(metadata.templatesV2()).thenReturn(templatesV2);
+        when(project.templatesV2()).thenReturn(templatesV2);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);

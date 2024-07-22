@@ -149,7 +149,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         }
 
         final ClusterState tempClusterState = resolveTemporaryState(matchingTemplate, request.getIndexName(), stateWithTemplate);
-        ComposableIndexTemplate templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate templateV2 = tempClusterState.metadata().projectMetadata.templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
         final Template template = resolveTemplate(
@@ -248,7 +248,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             matchingTemplate
         );
 
-        ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate template = simulatedState.metadata().projectMetadata.templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -272,7 +272,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(template),
+                template.getDataStreamTemplate() != null && metadata.projectMetadata.isTimeSeriesTemplate(template),
                 simulatedState.getMetadata(),
                 now,
                 templateSettings,

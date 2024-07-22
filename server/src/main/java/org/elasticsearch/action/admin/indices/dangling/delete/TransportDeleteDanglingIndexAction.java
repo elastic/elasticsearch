@@ -145,7 +145,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
         // By definition, a dangling index is an index not present in the cluster state and with no tombstone,
         // so we shouldn't reach this point if these conditions aren't met. For super-safety, however, check
         // that a tombstone doesn't already exist for this index.
-        if (metaData.indexGraveyard().containsIndex(indexToDelete)) {
+        if (metaData.projectMetadata.indexGraveyard().containsIndex(indexToDelete)) {
             return currentState;
         }
 

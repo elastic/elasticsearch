@@ -286,7 +286,7 @@ public class MetadataTests extends ESTestCase {
         List<Index> allIndices = new ArrayList<>(result.indices);
         allIndices.addAll(result.backingIndices);
         String[] concreteIndices = allIndices.stream().map(Index::getName).toArray(String[]::new);
-        Map<String, DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
+        Map<String, DataStream> dataStreams = result.metadata.getProject().findDataStreams(concreteIndices);
         assertThat(dataStreams, aMapWithSize(numBackingIndices));
         for (Index backingIndex : result.backingIndices) {
             assertThat(dataStreams, hasKey(backingIndex.getName()));
@@ -580,7 +580,7 @@ public class MetadataTests extends ESTestCase {
         IndexGraveyard.Builder builder = IndexGraveyard.builder();
         builder.addTombstone(new Index("idx1", UUIDs.randomBase64UUID()));
         final Metadata metadata1 = Metadata.builder().indexGraveyard(builder.build()).build();
-        builder = IndexGraveyard.builder(metadata1.indexGraveyard());
+        builder = IndexGraveyard.builder(metadata1.projectMetadata.indexGraveyard());
         builder.addTombstone(new Index("idx2", UUIDs.randomBase64UUID()));
         final Metadata metadata2 = Metadata.builder(metadata1).indexGraveyard(builder.build()).build();
         assertFalse("metadata not equal after adding index deletions", Metadata.isGlobalStateEquals(metadata1, metadata2));
@@ -597,7 +597,7 @@ public class MetadataTests extends ESTestCase {
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final Metadata fromXContentMeta = Metadata.fromXContent(parser);
-            assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
+            assertThat(fromXContentMeta.projectMetadata.indexGraveyard(), equalTo(originalMeta.projectMetadata.indexGraveyard()));
         }
     }
 
@@ -796,7 +796,7 @@ public class MetadataTests extends ESTestCase {
         final Metadata fromStreamMeta = Metadata.readFrom(
             new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)
         );
-        assertThat(fromStreamMeta.indexGraveyard(), equalTo(fromStreamMeta.indexGraveyard()));
+        assertThat(fromStreamMeta.projectMetadata.indexGraveyard(), equalTo(fromStreamMeta.projectMetadata.indexGraveyard()));
     }
 
     public void testFindMappings() throws IOException {
@@ -807,7 +807,7 @@ public class MetadataTests extends ESTestCase {
 
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
                 Strings.EMPTY_ARRAY,
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -817,7 +817,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
                 new String[] { "index1" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -828,7 +828,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
                 new String[] { "index1", "index2" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -851,7 +851,7 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
                 new String[] { "index1" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -860,7 +860,7 @@ public class MetadataTests extends ESTestCase {
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
                 new String[] { "index1" },
                 index -> field -> randomBoolean(),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -889,18 +889,22 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1", "index2", "index3" }, index -> {
-                if (index.equals("index1")) {
-                    return field -> field.startsWith("name.") == false
-                        && field.startsWith("properties.key.") == false
-                        && field.equals("age") == false
-                        && field.equals("address.location") == false;
-                }
-                if (index.equals("index2")) {
-                    return Predicates.never();
-                }
-                return FieldPredicate.ACCEPT_ALL;
-            }, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
+                new String[] { "index1", "index2", "index3" },
+                index -> {
+                    if (index.equals("index1")) {
+                        return field -> field.startsWith("name.") == false
+                            && field.startsWith("properties.key.") == false
+                            && field.equals("age") == false
+                            && field.equals("address.location") == false;
+                    }
+                    if (index.equals("index2")) {
+                        return Predicates.never();
+                    }
+                    return FieldPredicate.ACCEPT_ALL;
+                },
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
 
             assertIndexMappingsNoFields(mappings, "index2");
             assertIndexMappingsNotFiltered(mappings, "index3");
@@ -934,7 +938,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         {
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index3") && field.endsWith("keyword")),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -964,7 +968,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         {
-            Map<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index2")),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -2346,15 +2350,15 @@ public class MetadataTests extends ESTestCase {
             }
             metadata = mb.build();
         }
-        assertThat(metadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
+        assertThat(metadata.projectMetadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
         assertThat(
             metadata.projectMetadata.indices().values().stream().map(IndexMetadata::mapping).collect(Collectors.toSet()),
-            hasSize(metadata.getMappingsByHash().size())
+            hasSize(metadata.projectMetadata.getMappingsByHash().size())
         );
 
         // Add a new index with a new index with known mapping:
         MappingMetadata mapping = metadata.projectMetadata.indices().get("index-" + randomInt(numIndices - 1)).mapping();
-        MappingMetadata entry = metadata.getMappingsByHash().get(mapping.getSha256());
+        MappingMetadata entry = metadata.projectMetadata.getMappingsByHash().get(mapping.getSha256());
         {
             Metadata.Builder mb = new Metadata.Builder(metadata);
             mb.put(
@@ -2366,8 +2370,8 @@ public class MetadataTests extends ESTestCase {
             );
             metadata = mb.build();
         }
-        assertThat(metadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
-        assertThat(metadata.getMappingsByHash().get(mapping.getSha256()), equalTo(entry));
+        assertThat(metadata.projectMetadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
+        assertThat(metadata.projectMetadata.getMappingsByHash().get(mapping.getSha256()), equalTo(entry));
 
         // Remove index and ensure mapping cache stays the same
         {
@@ -2375,21 +2379,21 @@ public class MetadataTests extends ESTestCase {
             mb.remove("index-" + numIndices);
             metadata = mb.build();
         }
-        assertThat(metadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
-        assertThat(metadata.getMappingsByHash().get(mapping.getSha256()), equalTo(entry));
+        assertThat(metadata.projectMetadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
+        assertThat(metadata.projectMetadata.getMappingsByHash().get(mapping.getSha256()), equalTo(entry));
 
         // Update a mapping of an index:
         IndexMetadata luckyIndex = metadata.projectMetadata.index("index-" + randomInt(numIndices - 1));
-        entry = metadata.getMappingsByHash().get(luckyIndex.mapping().getSha256());
+        entry = metadata.projectMetadata.getMappingsByHash().get(luckyIndex.mapping().getSha256());
         MappingMetadata updatedMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("mapping", "updated"));
         {
             Metadata.Builder mb = new Metadata.Builder(metadata);
             mb.put(IndexMetadata.builder(luckyIndex).putMapping(updatedMapping));
             metadata = mb.build();
         }
-        assertThat(metadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size() + 1));
-        assertThat(metadata.getMappingsByHash().get(luckyIndex.mapping().getSha256()), equalTo(entry));
-        assertThat(metadata.getMappingsByHash().get(updatedMapping.getSha256()), equalTo(updatedMapping));
+        assertThat(metadata.projectMetadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size() + 1));
+        assertThat(metadata.projectMetadata.getMappingsByHash().get(luckyIndex.mapping().getSha256()), equalTo(entry));
+        assertThat(metadata.projectMetadata.getMappingsByHash().get(updatedMapping.getSha256()), equalTo(updatedMapping));
 
         // Remove the index with updated mapping
         {
@@ -2397,8 +2401,8 @@ public class MetadataTests extends ESTestCase {
             mb.remove(luckyIndex.getIndex().getName());
             metadata = mb.build();
         }
-        assertThat(metadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
-        assertThat(metadata.getMappingsByHash().get(updatedMapping.getSha256()), nullValue());
+        assertThat(metadata.projectMetadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
+        assertThat(metadata.projectMetadata.getMappingsByHash().get(updatedMapping.getSha256()), nullValue());
 
         // Add an index with new mapping and then later remove it:
         MappingMetadata newMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("new", "mapping"));
@@ -2413,16 +2417,16 @@ public class MetadataTests extends ESTestCase {
             );
             metadata = mb.build();
         }
-        assertThat(metadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size() + 1));
-        assertThat(metadata.getMappingsByHash().get(newMapping.getSha256()), equalTo(newMapping));
+        assertThat(metadata.projectMetadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size() + 1));
+        assertThat(metadata.projectMetadata.getMappingsByHash().get(newMapping.getSha256()), equalTo(newMapping));
 
         {
             Metadata.Builder mb = new Metadata.Builder(metadata);
             mb.remove("index-" + numIndices);
             metadata = mb.build();
         }
-        assertThat(metadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
-        assertThat(metadata.getMappingsByHash().get(newMapping.getSha256()), nullValue());
+        assertThat(metadata.projectMetadata.getMappingsByHash(), aMapWithSize(randomMappingDefinitions.size()));
+        assertThat(metadata.projectMetadata.getMappingsByHash().get(newMapping.getSha256()), nullValue());
     }
 
     public void testWithLifecycleState() {
@@ -2615,7 +2619,7 @@ public class MetadataTests extends ESTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
-            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+            assertThat(m.projectMetadata.isTimeSeriesTemplate(indexTemplate), is(true));
         }
         // Settings in composable index template:
         {
@@ -2627,7 +2631,7 @@ public class MetadataTests extends ESTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
-            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+            assertThat(m.projectMetadata.isTimeSeriesTemplate(indexTemplate), is(true));
         }
     }
 

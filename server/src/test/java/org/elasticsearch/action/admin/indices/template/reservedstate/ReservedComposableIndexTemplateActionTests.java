@@ -903,7 +903,10 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         doReturn(state).when(clusterService).state();
 
         // we should see the weird composable name prefixed 'validate_template'
-        assertThat(state.metadata().templatesV2(), allOf(aMapWithSize(1), hasKey(reservedComposableIndexName(conflictingTemplateName))));
+        assertThat(
+            state.metadata().projectMetadata.templatesV2(),
+            allOf(aMapWithSize(1), hasKey(reservedComposableIndexName(conflictingTemplateName)))
+        );
 
         TransformState prevState = new TransformState(state, Collections.emptySet());
         var action = new ReservedComposableIndexTemplateAction(mockedTemplateService, indexScopedSettings);
@@ -916,7 +919,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         // added that weird name 'composable_index_template:validate_template', using this prefix in the name shouldn't make us fail
         // any reservation validation
         assertThat(
-            updatedState.state().metadata().templatesV2(),
+            updatedState.state().metadata().projectMetadata.templatesV2(),
             allOf(aMapWithSize(2), hasKey(reservedComposableIndexName(conflictingTemplateName)), hasKey(conflictingTemplateName))
         );
 

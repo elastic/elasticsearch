@@ -238,7 +238,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
             assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
             ManagedBy managedBy;
-            if (metadata.isIndexManagedByILM(indexMetadata)) {
+            if (metadata.projectMetadata.isIndexManagedByILM(indexMetadata)) {
                 managedBy = ManagedBy.ILM;
             } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index)) {
                 managedBy = ManagedBy.LIFECYCLE;

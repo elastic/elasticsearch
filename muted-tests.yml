@@ -87,6 +87,8 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343
+- class: org.elasticsearch.multi_node.RollupIT
+  issue: https://github.com/elastic/elasticsearch/issues/111142
 
 # Examples:
 #

@@ -266,34 +266,15 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // \_Eval[[2 * x{f}#1 as $$y]]
             // ..\_....
 
-            AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
-            project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
-            var aliases = aliasBuilder.build();
-
-            // Resolve Project's renames in the generating plan.
-            @SuppressWarnings("unchecked")
-            Plan generatingPlanWithResolvedExpressions = (Plan) generatingPlan.transformExpressionsOnly(
-                ReferenceAttribute.class,
-                r -> aliases.resolve(r, r)
-            );
-
-            // Look for generated Attributes that currently shadow any of the childs's references.
-            // We need to generate them using a different, non-shadowing name to avoid inconsistencies.
             List<Attribute> generatedAttributes = generatingPlan.generatedAttributes();
-            Set<String> projectReferencedNames = project.references().names();
-            Map<String, String> renameGeneratedAttributeTo = new HashMap<>();
-            for (Attribute attr : generatedAttributes) {
-                String name = attr.name();
-                if (projectReferencedNames.contains(name)) {
-                    renameGeneratedAttributeTo.putIfAbsent(
-                        name,
-                        // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
-                        // Do not use the attribute's id, as multiple attributes with the same name can occur.
-                        SubstituteSurrogates.rawTemporaryName(name, "temp_name", "")
-                    );
-                }
-            }
 
+            @SuppressWarnings("unchecked")
+            Plan generatingPlanWithResolvedExpressions = (Plan) resolveRenamesFromProject(generatingPlan, project);
+
+            Map<String, String> renameGeneratedAttributeTo = newNamesForConflictingAttributes(
+                generatingPlan.generatedAttributes(),
+                project.references().names()
+            );
             List<String> newNames = generatedAttributes.stream()
                 .map(attr -> renameGeneratedAttributeTo.getOrDefault(attr.name(), attr.name()))
                 .toList();
@@ -364,21 +345,42 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributes);
     }
 
+    private static Map<String, String> newNamesForConflictingAttributes(
+        List<Attribute> potentiallyConflictingAttributes,
+        Set<String> reservedNames
+    ) {
+        Map<String, String> renameAttributeTo = new HashMap<>();
+        for (Attribute attr : potentiallyConflictingAttributes) {
+            String name = attr.name();
+            if (reservedNames.contains(name)) {
+                renameAttributeTo.putIfAbsent(
+                    name,
+                    // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
+                    // Do not use the attribute's id, as multiple attributes with the same name can occur.
+                    SubstituteSurrogates.rawTemporaryName(name, "temp_name", "")
+                );
+            }
+        }
+
+        return renameAttributeTo;
+    }
+
     public static Project pushDownPastProject(UnaryPlan parent) {
         if (parent.child() instanceof Project project) {
-            AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
-            project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
-            var aliases = aliasBuilder.build();
-
-            var expressionsWithResolvedAliases = (UnaryPlan) parent.transformExpressionsOnly(
-                ReferenceAttribute.class,
-                r -> aliases.resolve(r, r)
-            );
+            UnaryPlan expressionsWithResolvedAliases = resolveRenamesFromProject(parent, project);
 
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
             throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
         }
+    }
+
+    private static UnaryPlan resolveRenamesFromProject(UnaryPlan plan, Project project) {
+        AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
+        project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
+        var aliases = aliasBuilder.build();
+
+        return (UnaryPlan) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> aliases.resolve(r, r));
     }
 
     public abstract static class ParameterizedOptimizerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<

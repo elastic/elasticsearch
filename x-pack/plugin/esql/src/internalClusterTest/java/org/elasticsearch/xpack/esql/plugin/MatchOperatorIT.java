@@ -19,14 +19,15 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-public class MatchOperatorPushDownIT extends AbstractEsqlIntegTestCase {
+public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
@@ -46,9 +47,7 @@ public class MatchOperatorPushDownIT extends AbstractEsqlIntegTestCase {
             assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of("INTEGER")));
             // values
             List<List<Object>> values = getValuesList(resp);
-            assertThat(values.size(), equalTo(2));
-            assertThat(values.get(0), contains(1));
-            assertThat(values.get(1), contains(6));
+            assertMap(values, matchesList().item(List.of(1)).item(List.of(6)));
         }
     }
 
@@ -65,8 +64,7 @@ public class MatchOperatorPushDownIT extends AbstractEsqlIntegTestCase {
             assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of(("INTEGER"))));
             // values
             List<List<Object>> values = getValuesList(resp);
-            assertThat(values.size(), equalTo(1));
-            assertThat(values.get(0), equalTo(List.of((6))));
+            assertMap(values, matchesList().item(List.of(6)));
         }
     }
 
@@ -84,11 +82,7 @@ public class MatchOperatorPushDownIT extends AbstractEsqlIntegTestCase {
             // values
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.size(), equalTo(5));
-            assertThat(values.get(0), equalTo(List.of((1))));
-            assertThat(values.get(1), equalTo(List.of((2))));
-            assertThat(values.get(2), equalTo(List.of((3))));
-            assertThat(values.get(3), equalTo(List.of((4))));
-            assertThat(values.get(4), equalTo(List.of((6))));
+            assertMap(values, matchesList().item(List.of(1)).item(List.of(2)).item(List.of(3)).item(List.of(4)).item(List.of(6)));
         }
     }
 
@@ -111,7 +105,7 @@ public class MatchOperatorPushDownIT extends AbstractEsqlIntegTestCase {
     public void testNotWhereMatch() {
         var query = """
             FROM test
-            | WHERE NOT (content MATCH "brown fox")
+            | WHERE NOT content MATCH "brown fox"
             | KEEP id
             | SORT id
             """;
@@ -121,8 +115,7 @@ public class MatchOperatorPushDownIT extends AbstractEsqlIntegTestCase {
             assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of(("INTEGER"))));
             // values
             List<List<Object>> values = getValuesList(resp);
-            assertThat(values.size(), equalTo(1));
-            assertThat(values.get(0), equalTo(List.of((5))));
+            assertMap(values, matchesList().item(List.of(5)));
         }
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -57,7 +56,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.sameNameAlias;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -737,7 +735,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Dissect dissect = (Dissect) cmd;
         assertEquals("%{foo}", dissect.parser().pattern());
         assertEquals("", dissect.parser().appendSeparator());
-        assertEquals(List.of(EsqlTestUtils.sameNameAlias(EsqlTestUtils.referenceAttribute("foo", KEYWORD))), dissect.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
 
         for (String separatorName : List.of("append_separator", "APPEND_SEPARATOR", "AppEnd_SeparAtor")) {
             cmd = processingCommand("dissect a \"%{foo}\" " + separatorName + "=\",\"");
@@ -745,7 +743,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             dissect = (Dissect) cmd;
             assertEquals("%{foo}", dissect.parser().pattern());
             assertEquals(",", dissect.parser().appendSeparator());
-            assertEquals(List.of(EsqlTestUtils.sameNameAlias(EsqlTestUtils.referenceAttribute("foo", KEYWORD))), dissect.extractedFields());
+            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
         }
 
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
@@ -770,7 +768,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(Grok.class, cmd.getClass());
         Grok grok = (Grok) cmd;
         assertEquals("%{WORD:foo}", grok.parser().pattern());
-        assertEquals(List.of(sameNameAlias(referenceAttribute("foo", KEYWORD))), grok.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
 
         ParsingException pe = expectThrows(ParsingException.class, () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\""));
         assertThat(
@@ -782,7 +780,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(Grok.class, cmd.getClass());
         grok = (Grok) cmd;
         assertEquals("%{WORD:foo} %{WORD:foo}", grok.parser().pattern());
-        assertEquals(List.of(sameNameAlias(referenceAttribute("foo", KEYWORD))), grok.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
 
         expectError(
             "row a = \"foo bar\" | GROK a \"%{NUMBER:foo} %{WORD:foo}\"",

@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -169,10 +168,6 @@ public final class EsqlTestUtils {
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {
         return new ReferenceAttribute(EMPTY, name, type);
-    }
-
-    public static Alias sameNameAlias(ReferenceAttribute ref) {
-        return new Alias(ref.source(), ref.name(), ref);
     }
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {

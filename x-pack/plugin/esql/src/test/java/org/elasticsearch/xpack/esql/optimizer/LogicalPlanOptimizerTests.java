@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -110,9 +112,13 @@ import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEnrich;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.SplitInWithFoldableValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -160,7 +166,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.sameNameAlias;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
@@ -1025,7 +1030,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var dissect = as(keep.child(), Dissect.class);
-        assertThat(dissect.extractedFields(), contains(sameNameAlias(referenceAttribute("y", DataType.KEYWORD))));
+        assertThat(dissect.extractedFields(), contains(referenceAttribute("y", DataType.KEYWORD)));
     }
 
     public void testPushDownGrokPastProject() {
@@ -1038,7 +1043,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var grok = as(keep.child(), Grok.class);
-        assertThat(grok.extractedFields(), contains(sameNameAlias(referenceAttribute("y", DataType.KEYWORD))));
+        assertThat(grok.extractedFields(), contains(referenceAttribute("y", DataType.KEYWORD)));
     }
 
     public void testPushDownFilterPastProjectUsingEval() {
@@ -4451,107 +4456,99 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     record PushdownShadowingGeneratingPlanTestCase(
         BiFunction<LogicalPlan, Attribute, LogicalPlan> applyLogicalPlan,
-        Function<LogicalPlan, List<Alias>> getGenerated,
         OptimizerRules.OptimizerRule<? extends LogicalPlan> rule
     ) {};
-    //
-    // @SuppressWarnings("unchecked")
-    // static PushdownShadowingGeneratingPlanTestCase[] PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES = {
-    // // | EVAL y = to_string(attr)
-    // new PushdownShadowingGeneratingPlanTestCase(
-    // (plan, attr) -> new Eval(EMPTY, plan, List.of(new Alias(EMPTY, "y", new ToString(EMPTY, attr)))),
-    // eval -> (((Eval) eval).fields()),
-    // new PushDownEval()
-    // ),
-    // // | DISSECT attr "%{y}"
-    // new PushdownShadowingGeneratingPlanTestCase(
-    // (plan, attr) -> new Dissect(
-    // EMPTY,
-    // plan,
-    // attr,
-    // new Dissect.Parser("%{y}", ",", new DissectParser("%{y}", ",")),
-    // List.of(sameNameAlias(new ReferenceAttribute(EMPTY, "y", KEYWORD)))
-    // ),
-    // dissect -> (((RegexExtract) dissect).extractedFields()),
-    // new PushDownRegexExtract()
-    // ),
-    // // | GROK attr "%{WORD:y}"
-    // new PushdownShadowingGeneratingPlanTestCase(
-    // (plan, attr) -> new Grok(EMPTY, plan, attr, Grok.pattern(EMPTY, "%{WORD:y}")),
-    // grok -> (((RegexExtract) grok).extractedFields()),
-    // new PushDownRegexExtract()
-    // ),
-    // // | ENRICH some_policy ON y WITH y = some_enrich_idx_field
-    // new PushdownShadowingGeneratingPlanTestCase(
-    // (plan, attr) -> new Enrich(
-    // EMPTY,
-    // plan,
-    // Enrich.Mode.ANY,
-    // new Literal(EMPTY, "some_policy", KEYWORD),
-    // attr,
-    // null,
-    // Map.of(),
-    // List.of(new Alias(EMPTY, "y", new ReferenceAttribute(EMPTY, "some_enrich_idx_field", KEYWORD)))
-    // ),
-    // // ENRICH ... WITH y = ... will have an alias for y, not a raw reference attribute.
-    // enrich -> (List<Alias>) (List) (((Enrich) enrich).enrichFields()),
-    // new PushDownEnrich()
-    // ) };
-    //
-    // /**
-    // * The following plan
-    // *
-    // * Eval[[x{r}#2 * 5[INTEGER] AS y]]
-    // * \_Project[[x{r}#2, y{r}#3, y{r}#3 AS z]]
-    // * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
-    // *
-    // * should become
-    // *
-    // * Project[[x{r}#2, y{r}#3 AS z, $$y$temp_name${r}#6 AS y]]
-    // * \_Eval[[x{r}#2 * 5[INTEGER] AS $$y$temp_name$]]
-    // * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
-    // *
-    // * and similarly for dissect, grok and enrich.
-    // */
-    // public void testPushShadowingEvalPastProject() {
-    // Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, 1, INTEGER));
-    // Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER));
-    // LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
-    // LogicalPlan initialProject = new Project(
-    // EMPTY,
-    // initialRow,
-    // List.of(x.toAttribute(), y.toAttribute(), new Alias(EMPTY, "z", y.toAttribute()))
-    // );
-    //
-    // for (PushdownShadowingGeneratingPlanTestCase testCase : PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES) {
-    // LogicalPlan initialPlan = testCase.applyLogicalPlan.apply(initialProject, x.toAttribute());
-    // List<Alias> initialGeneratedExprs = testCase.getGenerated.apply(initialPlan);
-    // LogicalPlan optimizedPlan = testCase.rule.apply(initialPlan);
-    //
-    // Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan);
-    // ;
-    // assertFalse(inconsistencies.hasFailures());
-    //
-    // Project project = as(optimizedPlan, Project.class);
-    // LogicalPlan pushedDownGeneratingPlan = project.child();
-    //
-    // List<? extends NamedExpression> projections = project.projections();
-    // List<Alias> generatedExprs = testCase.getGenerated.apply(pushedDownGeneratingPlan);
-    //
-    // assertThat(Expressions.names(generatedExprs), contains("$$y$temp_name$"));
-    // Alias yTemp = generatedExprs.get(0);
-    // assertThat(yTemp.child(), equalTo(initialGeneratedExprs.get(0).child()));
-    //
-    // assertThat(Expressions.names(projections), contains("x", "z", "y"));
-    // assertThat(projections.get(0), instanceOf(ReferenceAttribute.class));
-    // Alias zAlias = as(projections.get(1), Alias.class);
-    // ReferenceAttribute yRenamed = as(zAlias.child(), ReferenceAttribute.class);
-    // assertEquals(yRenamed.name(), "y");
-    // Alias yAlias = as(projections.get(2), Alias.class);
-    // ReferenceAttribute yTempRenamed = as(yAlias.child(), ReferenceAttribute.class);
-    // assertEquals(yTempRenamed.name(), "$$y$temp_name$");
-    // }
-    // }
+
+    static PushdownShadowingGeneratingPlanTestCase[] PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES = {
+        // | EVAL y = to_string(attr)
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Eval(EMPTY, plan, List.of(new Alias(EMPTY, "y", new ToString(EMPTY, attr)))),
+            new PushDownEval()
+        ),
+        // | DISSECT attr "%{y}"
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Dissect(
+                EMPTY,
+                plan,
+                attr,
+                new Dissect.Parser("%{y}", ",", new DissectParser("%{y}", ",")),
+                List.of(new ReferenceAttribute(EMPTY, "y", KEYWORD))
+            ),
+            new PushDownRegexExtract()
+        ),
+        // | GROK attr "%{WORD:y}"
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Grok(EMPTY, plan, attr, Grok.pattern(EMPTY, "%{WORD:y}")),
+            new PushDownRegexExtract()
+        ),
+        // | ENRICH some_policy ON y WITH y = some_enrich_idx_field
+        new PushdownShadowingGeneratingPlanTestCase(
+            (plan, attr) -> new Enrich(
+                EMPTY,
+                plan,
+                Enrich.Mode.ANY,
+                new Literal(EMPTY, "some_policy", KEYWORD),
+                attr,
+                null,
+                Map.of(),
+                List.of(new Alias(EMPTY, "y", new ReferenceAttribute(EMPTY, "some_enrich_idx_field", KEYWORD)))
+            ),
+            new PushDownEnrich()
+        ) };
+
+    /**
+    * The following plan
+    *
+    * Eval[[x{r}#2 * 5[INTEGER] AS y]]
+    * \_Project[[x{r}#2, y{r}#3, y{r}#3 AS z]]
+    * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+    *
+    * should become
+    *
+    * Project[[x{r}#2, y{r}#3 AS z, $$y$temp_name${r}#6 AS y]]
+    * \_Eval[[x{r}#2 * 5[INTEGER] AS $$y$temp_name$]]
+    * \_Row[[1[INTEGER] AS x, 2[INTEGER] AS y]]
+    *
+    * and similarly for dissect, grok and enrich.
+    */
+    public void testPushShadowingGeneratingPlanPastProject() {
+        Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, 1, INTEGER));
+        Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER));
+        LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
+        LogicalPlan initialProject = new Project(
+            EMPTY,
+            initialRow,
+            List.of(x.toAttribute(), y.toAttribute(), new Alias(EMPTY, "z", y.toAttribute()))
+        );
+
+        for (PushdownShadowingGeneratingPlanTestCase testCase : PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES) {
+            LogicalPlan initialPlan = testCase.applyLogicalPlan.apply(initialProject, x.toAttribute());
+            @SuppressWarnings("unchecked")
+            List<Attribute> initialGeneratedExprs = ((GeneratingPlan) initialPlan).generatedAttributes();
+            LogicalPlan optimizedPlan = testCase.rule.apply(initialPlan);
+
+            Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan);
+            ;
+            assertFalse(inconsistencies.hasFailures());
+
+            Project project = as(optimizedPlan, Project.class);
+            LogicalPlan pushedDownGeneratingPlan = project.child();
+
+            List<? extends NamedExpression> projections = project.projections();
+            @SuppressWarnings("unchecked")
+            List<Attribute> generatedExprs = ((GeneratingPlan) pushedDownGeneratingPlan).generatedAttributes();
+            assertThat(Expressions.names(generatedExprs), contains("$$y$temp_name$"));
+
+            assertThat(Expressions.names(projections), contains("x", "z", "y"));
+            assertThat(projections.get(0), instanceOf(ReferenceAttribute.class));
+            Alias zAlias = as(projections.get(1), Alias.class);
+            ReferenceAttribute yRenamed = as(zAlias.child(), ReferenceAttribute.class);
+            assertEquals(yRenamed.name(), "y");
+            Alias yAlias = as(projections.get(2), Alias.class);
+            ReferenceAttribute yTempRenamed = as(yAlias.child(), ReferenceAttribute.class);
+            assertEquals(yTempRenamed.name(), "$$y$temp_name$");
+        }
+    }
 
     public void testPartiallyFoldCase() {
         var plan = optimizedPlan("""

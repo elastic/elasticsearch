@@ -11,8 +11,6 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -22,30 +20,36 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link MinIpAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link TopIpAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MinIpGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class TopIpGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("max", ElementType.BYTES_REF),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("top", ElementType.BYTES_REF)  );
 
-  private final MinIpAggregator.GroupingState state;
+  private final TopIpAggregator.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public MinIpGroupingAggregatorFunction(List<Integer> channels,
-      MinIpAggregator.GroupingState state, DriverContext driverContext) {
+  private final int limit;
+
+  private final boolean ascending;
+
+  public TopIpGroupingAggregatorFunction(List<Integer> channels,
+      TopIpAggregator.GroupingState state, DriverContext driverContext, int limit,
+      boolean ascending) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.limit = limit;
+    this.ascending = ascending;
   }
 
-  public static MinIpGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinIpGroupingAggregatorFunction(channels, MinIpAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+  public static TopIpGroupingAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext, int limit, boolean ascending) {
+    return new TopIpGroupingAggregatorFunction(channels, TopIpAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -101,7 +105,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        MinIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        TopIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
       }
     }
   }
@@ -110,7 +114,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      MinIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+      TopIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 
@@ -130,7 +134,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          MinIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+          TopIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
         }
       }
     }
@@ -146,7 +150,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getInt(g));
-        MinIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+        TopIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
       }
     }
   }
@@ -155,21 +159,15 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block maxUncast = page.getBlock(channels.get(0));
-    if (maxUncast.areAllValuesNull()) {
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector max = ((BytesRefBlock) maxUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert max.getPositionCount() == seen.getPositionCount();
+    BytesRefBlock top = (BytesRefBlock) topUncast;
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(groupPosition + positionOffset, scratch), seen.getBoolean(groupPosition + positionOffset));
+      TopIpAggregator.combineIntermediate(state, groupId, top, groupPosition + positionOffset);
     }
   }
 
@@ -178,9 +176,9 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    MinIpAggregator.GroupingState inState = ((MinIpGroupingAggregatorFunction) input).state;
+    TopIpAggregator.GroupingState inState = ((TopIpGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    MinIpAggregator.combineStates(state, groupId, inState, position);
+    TopIpAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -191,7 +189,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = MinIpAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = TopIpAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

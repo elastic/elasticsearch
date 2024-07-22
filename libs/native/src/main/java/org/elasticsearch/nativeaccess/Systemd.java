@@ -60,13 +60,14 @@ public class Systemd {
             buffer.buffer().clear();
             byte[] bytes = state.getBytes(StandardCharsets.US_ASCII);
             buffer.buffer().put(0, bytes);
+            buffer.buffer().limit(bytes.length);
             long bytesSent = libc.send(sockfd, buffer, 0);
             if (bytesSent == -1) {
                 throwOrLog("Failed to send message (" + state + ") to systemd socket: " + libc.strerror(libc.errno()), warnOnError);
             } else if (bytesSent != bytes.length) {
                 throwOrLog("Not all bytes of message (" + state + ") sent to systemd socket", warnOnError);
             } else {
-                logger.debug("Message (" + state + ") sent to systemd socket");
+                logger.info("Message (" + state + ") sent to systemd socket");
             }
         } catch (RuntimeException e) {
             error = e;

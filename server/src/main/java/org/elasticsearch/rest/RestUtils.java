@@ -146,7 +146,11 @@ public class RestUtils {
     }
 
     private static boolean decodingNeeded(String s, int size, boolean plusAsSpace) {
-        for (int i = 0; i < Math.min(s.length(), size); i++) {
+        if (Strings.isEmpty(s)) {
+            return false;
+        }
+        int num = Math.min(s.length(), size);
+        for (int i = 0; i < num; i++) {
             final char c = s.charAt(i);
             if (c == '%' || (plusAsSpace && c == '+')) {
                 return true;

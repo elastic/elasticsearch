@@ -118,6 +118,33 @@
  *         </p>
  *     </li>
  *     <li>
+ *         The methods in the aggregator will define how it will work:
+ *         <ul>
+ *             <li>
+ *                 Adding the `type init()` method will autogenerate the code to manage the state, using your returned value
+ *                 as the initial value for each group.
+ *             </li>
+ *             <li>
+ *                 Adding the `type initSingle()` or `type initGrouping()` methods will use the state object you return there instead.
+ *                 <p>
+ *                     You will also have to provide `evaluateIntermediate()` and `evaluateFinal()` methods this way.
+ *                 </p>
+ *             </li>
+ *         </ul>
+ *         Depending on the way you use, adapt your `combine*()` methods to receive one or other type as their first parameters.
+ *     </li>
+ *     <li>
+ *         If it's also a {@link org.elasticsearch.compute.ann.GroupingAggregator}, you should provide the same methods as commented before:
+ *         <ul>
+ *             <li>
+ *                 Add an `initGrouping()`, unless you're using the `init()` method
+ *             </li>
+ *             <li>
+ *                 Add all the other methods, with the state parameter of the type of your `initGrouping()`.
+ *             </li>
+ *         </ul>
+ *     </li>
+ *     <li>
  *         Make a test for your aggregator.
  *         You can copy an existing one from {@code x-pack/plugin/esql/compute/src/test/java/org/elasticsearch/compute/aggregation/}.
  *         <p>

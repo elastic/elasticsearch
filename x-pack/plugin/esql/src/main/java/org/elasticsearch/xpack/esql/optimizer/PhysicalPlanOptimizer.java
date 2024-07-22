@@ -46,8 +46,8 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 
 /**
- * Performs global (coordinator) optimization of the physical plan.
- * Local (data-node) optimizations occur later by operating just on a plan fragment (subplan).
+ * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
+ * occur later by operating just on a plan {@link FragmentExec} (subplan).
  */
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
     private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);

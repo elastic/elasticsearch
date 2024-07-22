@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -18,7 +18,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -41,11 +40,10 @@ public class RestNodesStatsActionIT extends ESIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        var metrics = Set.copyOf(randomSubsetOf(NodesStatsRequestParameters.Metric.allMetrics()));
-        client(node).admin().cluster().nodesStats(new NodesStatsRequest().addMetrics(metrics.toArray(String[]::new))).actionGet();
+        var metrics = randomSubsetOf(Metric.values().length, Metric.values());
+        client(node).admin().cluster().nodesStats(new NodesStatsRequest().addMetrics(metrics)).actionGet();
 
-        var shouldSendGetAllocationStatsRequest = NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)
-            || NodesStatsRequestParameters.Metric.FS.containedIn(metrics);
+        var shouldSendGetAllocationStatsRequest = metrics.contains(Metric.ALLOCATIONS) || metrics.contains(Metric.FS);
         assertThat(getAllocationStatsActions.get(), equalTo(shouldSendGetAllocationStatsRequest ? 1 : 0));
     }
 }

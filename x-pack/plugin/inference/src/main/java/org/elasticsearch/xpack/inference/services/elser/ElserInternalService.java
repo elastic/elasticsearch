@@ -52,17 +52,6 @@ public class ElserInternalService extends BaseElasticsearchInternalService {
 
     public static final String NAME = "elser";
 
-    static final String ELSER_V1_MODEL = ".elser_model_1";
-    // Default non platform specific v2 model
-    static final String ELSER_V2_MODEL = ".elser_model_2";
-    static final String ELSER_V2_MODEL_LINUX_X86 = ".elser_model_2_linux-x86_64";
-
-    public static Set<String> VALID_ELSER_MODEL_IDS = Set.of(
-        ElserInternalService.ELSER_V1_MODEL,
-        ElserInternalService.ELSER_V2_MODEL,
-        ElserInternalService.ELSER_V2_MODEL_LINUX_X86
-    );
-
     private static final String OLD_MODEL_ID_FIELD_NAME = "model_version";
 
     public ElserInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {

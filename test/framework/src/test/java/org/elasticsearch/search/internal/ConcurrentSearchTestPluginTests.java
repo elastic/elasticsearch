@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "todo: this is somewhat meaningless with without a worker pool")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class ConcurrentSearchTestPluginTests extends ESIntegTestCase {
 

@@ -6,7 +6,97 @@
  */
 
 /**
- * ES|QL Overview and Documentation Links
+ * The ES|QL query language.
+ *
+ * <h2>Overview</h2>
+ * ES|QL is a typed query language which consists of many small languages separated by the {@code |}
+ * character. Like this:
+ *
+ * <pre>{@code
+ *   FROM foo
+ * | WHERE a > 1
+ * | STATS m=MAX(j)
+ * | SORT m ASC
+ * | LIMIT 10
+ * }</pre>
+ *
+ * <p>
+ *    Here the {@code FROM}, {@code WHERE}, {@code STATS}, {@code SORT}, and {@code LIMIT} keywords
+ *    enable the mini-language for selecting indices, filtering documents, calculate aggregates,
+ *    sorting results, and limiting the number of results respectively.
+ * </p>
+ *
+ * <h2>Language Design Goals</h2>
+ * In designing ES|QL we have some principals and rules of thumb:
+ * <ul>
+ *     <li>Don't waste people's time</li>
+ *     <li>Progress over perfection</li>
+ *     <li>Design for Elasticsearch</li>
+ *     <li>Be inspired by the best</li>
+ * </ul>
+ *
+ * <h3>Don't waste people's time</h3>
+ * <ul>
+ *     <li>Queries should not fail at runtime. Instead we should return a
+ *         {@link org.elasticsearch.xpack.esql.expression.function.Warnings warning} and {@code null}.</li>
+ *     <li>It <strong>is</strong> ok to fail a query up front at analysis time. Just not after it's
+ *         started.</li>
+ *     <li>It <strong>is better</strong> if things can be made to work.</li>
+ *     <li>But genuinely confusing requests require the query writing to make a choice.</li>
+ * </ul>
+ * <p>
+ *     As you can see this is a real tight rope, but we try to follow the rules above in order. Examples:
+ * </p>
+ * <ul>
+ *     <li>If {@link org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime TO_DATETIME}
+ *         receives an invalid date at runtime, it emits a WARNING.</li>
+ *     <li>If {@link org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract DATE_EXTRACT}
+ *         receives an invalid extract configuration at query parsing time it fails to start the query.</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add 1 + 3.2}
+ *         promotes both sides to a {@code double}.</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add 1 + "32"}
+ *         fails at query compile time and the query writer must decide to either write
+ *         {@code CONCAT(TO_STRING(1), "32")} or {@code 1 + TO_INT("32")}.</li>
+ * </ul>
+ *
+ * <h3>Progress over perfection</h3>
+ * <ul>
+ *     <li>Stability is super important for released features.</li>
+ *     <li>But we need to experiment and get feedback. So mark features {@code experimental} when
+ *         there's any question about how they should work.</li>
+ *     <li>Experimental features shouldn't live forever because folks will get tired of waiting
+ *         and use them in production anyway. We don't officially support them in production but
+ *         we will feel bad if they break.</li>
+ * </ul>
+ *
+ * <h3>Design for Elasticsearch</h3>
+ * We must design the language <strong>for</strong> Elasticsearch, celebrating its advantages
+ * smoothing out its and quirks.
+ * <ul>
+ *     <li>{@link org.elasticsearch.index.fielddata doc_values} sometimes sorts field values and
+ *         sometimes sorts and removes duplicates. We couldn't hide this even if we want to and
+ *         most folks are ok with it. ES|QL has to be useful in those cases.</li>
+ *     <li>Multivalued fields are very easy to index in Elasticsearch so they should be easy to
+ *         read in ES|QL. They <strong>should</strong> be easy to work with in ES|QL too, but we
+ *         haven't gotten that far yet.</li>
+ * </ul>
+ *
+ * <h3>Be inspired by the best</h3>
+ * We'll frequently have lots of different choices on how to implement a feature. We should talk
+ * and figure out the best way for us, especially considering Elasticsearch's advantages and quirks.
+ * But we should also look to our data-access-forebears:
+ * <ul>
+ *     <li><a href="https://www.postgresql.org/docs/current/functions.html">PostgreSQL</a> is the
+ *         <a href="https://www.wikidata.org/wiki/Q120920482">GOAT</a> SQL implementation. It's a joy
+ *         to use for everything but dates. Use <a href="https://www.db-fiddle.com/f/xgMswzqBb6GYQ5uzwcYzi8/0">DB Fiddle</a>
+ *         to link to syntax examples.</li>
+ *     <li><a href="https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/date-and-time-functions.html">Oracle</a>
+ *         is pretty good about dates. It's fine about a lot of things but PostgreSQL is better.</li>
+ *     <li>MS <a href="https://learn.microsoft.com/en-us/sql/sql-server/?view=sql-server-ver16">SQL Server</a>
+ *         has a silly name but it's documentation is <strong>wonderful</strong>.</li>
+ *     <li><a href="https://docs.splunk.com/Documentation/SCS/current/SearchReference/UnderstandingSPLSyntax">SPL</a>
+ *         is super familiar to our users and it's a piped query language.</li>
+ * </ul>
  *
  * <h2>Major Components</h2>
  * <ul>
@@ -25,16 +115,42 @@
  *     but see also {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper}</li>
  * </ul>
  * </li>
- * <li> org.elasticsearch.compute.gen - ES|QL generates code for evaluators, which are type-specific implementations of
- * functions, designed to run over a {@link org.elasticsearch.compute.data.Block} </li>
- * <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - manages state across a query</li>
- * <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar} - Guide to writing scalar functions</li>
- * <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate} - Guide to writing aggregation functions</li>
+ * <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - Manages state across a query</li>
  * <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer} - The first step in query processing</li>
+ * <li>{@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry} - Resolves function names to
+ *     function implementations.</li>
  * <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer} - Coordinator level logical optimizations</li>
  * <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer} - Data node level logical optimizations</li>
- * <li>{@link org.elasticsearch.xpack.esql.action.RestEsqlQueryAction} - REST API entry point</li>
+ * <li>{@link org.elasticsearch.xpack.esql.action.RestEsqlQueryAction Sync} and
+ *     {@link org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction async} HTTP API entry points</li>
  * </ul>
+ * <h2>Guides</h2>
+ * <ul>
+ * <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar Writing scalar functions}</li>
+ * <li>{@link org.elasticsearch.xpack.esql.expression.function.aggregate Writing aggregation functions}</li>
+ * </ul>
+ *
+ * <h2>Code generation</h2>
+ * ES|QL uses two kinds of code generation which is uses mostly to
+ * <a href="https://en.wikipedia.org/wiki/Monomorphization">monomorphize</a> tight loops. That process would
+ * require a lot of copy-and-paste with small tweaks and some of us have copy-and-paste blindness so instead
+ * we use code generation.
+ * <ol>
+ *     <li>When possible we use <a href="https://www.stringtemplate.org/">StringTemplate</a> to build
+ *         Java files. These files typically look like {@code X-Blah.java.st} and are typically used for things
+ *         like the different {@link org.elasticsearch.compute.data.Block} types and their subclasses and
+ *         aggregation state. The templates themselves are easy to read and edit. This process is appropriate
+ *         for cases where you just have to copy and paste something and change a few lines here and there. See
+ *         {@code build.gradle} for the code generators.</li>
+ *     <li>When that doesn't work, we use
+ *         <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.compiler/javax/annotation/processing/package-summary.html">
+ *         Annotation processing</a> and <a href="https://github.com/square/javapoet">JavaPoet</a> to build the Java files.
+ *         These files are typically the inner loops for {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ *         or {@link org.elasticsearch.compute.aggregation.AggregatorFunction}. The code generation is much more difficult
+ *         to write and debug but much, much, much, much more flexible. The degree of control we have during this
+ *         code generation is amazing but it is much harder to debug failures. See files in
+ *         {@code org.elasticsearch.compute.gen} for the code generators.</li>
+ * </ol>
  */
 
 package org.elasticsearch.xpack.esql;

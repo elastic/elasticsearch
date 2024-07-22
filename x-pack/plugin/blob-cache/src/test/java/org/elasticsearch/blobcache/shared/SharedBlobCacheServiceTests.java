@@ -570,9 +570,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 // a download that would use up all regions should not run
                 final var cacheKey = generateCacheKey();
                 assertEquals(2, cacheService.freeRegionCount());
-                var configured = cacheService.maybeFetchFullEntry(cacheKey, size(500), (ch, chPos, streamFactory, relPos, len, update) -> {
-                    throw new AssertionError("Should never reach here");
-                }, bulkExecutor, ActionListener.noop());
+                var configured = cacheService.maybeFetchFullEntry(
+                    cacheKey,
+                    size(500),
+                    (ch, chPos, streamFactory, relPos, len, update) -> { throw new AssertionError("Should never reach here"); },
+                    bulkExecutor,
+                    ActionListener.noop()
+                );
                 assertFalse(configured);
                 assertEquals(2, cacheService.freeRegionCount());
             }
@@ -1394,8 +1398,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var factoryClosed = new AtomicBoolean(false);
             final var dummyStreamFactory = new SourceInputStreamFactory() {
                 @Override
-                public InputStream create(int relativePos) {
-                    return null;
+                public void create(int relativePos, ActionListener<InputStream> completionListener) {
+                    ActionListener.completeWith(completionListener, () -> null);
                 }
 
                 @Override

@@ -8,22 +8,43 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.dissect.DissectParser;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import java.util.Set;
 
 public class Dissect extends RegexExtract {
     private final Parser parser;
 
     public record Parser(String pattern, String appendSeparator, DissectParser parser) {
+
+        public List<Attribute> keyAttributes(Source src) {
+            Set<String> referenceKeys = parser.referenceKeys();
+            if (referenceKeys.size() > 0) {
+                throw new ParsingException(
+                    src,
+                    "Reference keys not supported in dissect patterns: [%{*{}}]",
+                    referenceKeys.iterator().next()
+                );
+            }
+            List<Attribute> keys = new ArrayList<>();
+            for (var x : parser.outputKeys()) {
+                if (x.isEmpty() == false) {
+                    keys.add(new ReferenceAttribute(src, x, DataType.KEYWORD));
+                }
+            }
+
+            return keys;
+        }
 
         // Override hashCode and equals since the parser is considered equal if its pattern and
         // appendSeparator are equal ( and DissectParser uses reference equality )
@@ -41,7 +62,7 @@ public class Dissect extends RegexExtract {
         }
     }
 
-    public Dissect(Source source, LogicalPlan child, Expression input, Parser parser, List<Alias> extracted) {
+    public Dissect(Source source, LogicalPlan child, Expression input, Parser parser, List<Attribute> extracted) {
         super(source, child, input, extracted);
         this.parser = parser;
     }
@@ -57,13 +78,25 @@ public class Dissect extends RegexExtract {
     }
 
     @Override
-    public List<Attribute> generatedAttributes() {
-        return asAttributes(extractedFields);
-    }
-
-    @Override
     public Dissect withGeneratedNames(List<String> newNames) {
-        return new Dissect(source(), child(), input, parser, GeneratingPlan.renameAliases(extractedFields, newNames));
+        if (newNames.size() != extractedFields.size()) {
+            throw new IllegalArgumentException(
+                "Number of new names is [" + newNames.size() + "] but there are [" + extractedFields.size() + "] existing names."
+            );
+        }
+
+        List<Attribute> renamedExtractedFields = new ArrayList<>(extractedFields.size());
+        for (int i = 0; i < newNames.size(); i++) {
+            Attribute extractedField = extractedFields.get(i);
+            String newName = newNames.get(i);
+            if (extractedField.name().equals(newName)) {
+                renamedExtractedFields.add(extractedField);
+            } else {
+                renamedExtractedFields.add(extractedFields.get(i).withName(newNames.get(i)).withId(new NameId()));
+            }
+        }
+
+        return new Dissect(source(), child(), input, parser, renamedExtractedFields);
     }
 
     @Override

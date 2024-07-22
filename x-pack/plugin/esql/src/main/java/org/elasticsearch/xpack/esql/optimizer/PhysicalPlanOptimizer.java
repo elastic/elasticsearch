@@ -114,9 +114,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                         }
                     });
                     if (p instanceof RegexExtractExec ree) {
-                        for (Alias extractedField : ree.extractedFields()) {
-                            attributes.remove((Attribute) extractedField.child());
-                        }
+                        attributes.removeAll(ree.extractedFields());
                     }
                     if (p instanceof MvExpandExec mvee) {
                         attributes.remove(mvee.expanded());
@@ -129,7 +127,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     }
                     if (p instanceof EnrichExec ee) {
                         for (NamedExpression enrichField : ee.enrichFields()) {
-                            // TODO: This weirdness could be avoided if Enrich just used Aliases all the time.
+                            // TODO: why is this different then the remove above?
                             attributes.remove(enrichField instanceof Alias a ? a.child() : enrichField);
                         }
                     }

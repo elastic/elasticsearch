@@ -58,6 +58,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -417,15 +419,13 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(dissect.extractedFields());
         final Expression expr = dissect.inputExpression();
-        String[] attributeNames = dissect.extractedFields()
-            .stream()
-            .map(alias -> ((Attribute) alias.child()).name())
-            .toArray(String[]::new);
+        // Names in the pattern and layout can differ.
+        String[] patternNames = Expressions.names(dissect.parser().keyAttributes(Source.EMPTY)).toArray(new String[0]);
 
         Layout layout = layoutBuilder.build();
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
-                attributeNames,
+                patternNames,
                 EvalMapper.toEvaluator(expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
@@ -437,16 +437,19 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planGrok(GrokExec grok, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(grok.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
-        List<Alias> extractedFields = grok.extractedFields();
+        List<Attribute> extractedFields = grok.extractedFields();
         layoutBuilder.append(extractedFields);
         Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
         Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
+        List<Attribute> extractedFieldsFromPattern = grok.pattern().extractedFields();
         for (int i = 0; i < extractedFields.size(); i++) {
-            Attribute extractedField = (Attribute) extractedFields.get(i).child();
-            ElementType type = PlannerUtils.toElementType(extractedField.dataType());
-            fieldToPos.put(extractedField.name(), i);
-            fieldToType.put(extractedField.name(), type);
+            DataType extractedFieldType = extractedFields.get(i).dataType();
+            // Names in pattern and layout can differ.
+            String patternName = extractedFieldsFromPattern.get(i).name();
+            ElementType type = PlannerUtils.toElementType(extractedFieldType);
+            fieldToPos.put(patternName, i);
+            fieldToType.put(patternName, type);
             types[i] = type;
         }
 

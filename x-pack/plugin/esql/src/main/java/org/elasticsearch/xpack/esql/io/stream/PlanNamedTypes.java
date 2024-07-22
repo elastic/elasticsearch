@@ -180,25 +180,22 @@ public final class PlanNamedTypes {
         out.writeOptionalVInt(aggregateExec.estimatedRowSize());
     }
 
-    @SuppressWarnings("unchecked")
     static DissectExec readDissectExec(PlanStreamInput in) throws IOException {
         return new DissectExec(
             Source.readFrom(in),
             in.readPhysicalPlanNode(),
             in.readNamedWriteable(Expression.class),
             readDissectParser(in),
-            (List<Alias>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class)
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
-    @SuppressWarnings("unchecked")
     static void writeDissectExec(PlanStreamOutput out, DissectExec dissectExec) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writePhysicalPlanNode(dissectExec.child());
         out.writeNamedWriteable(dissectExec.inputExpression());
         writeDissectParser(out, dissectExec.parser());
-        // TODO: needs new transport version
-        out.writeNamedWriteableCollection((List<NamedExpression>) (List) dissectExec.extractedFields());
+        out.writeNamedWriteableCollection(dissectExec.extractedFields());
     }
 
     static EsQueryExec readEsQueryExec(PlanStreamInput in) throws IOException {
@@ -409,7 +406,6 @@ public final class PlanNamedTypes {
         }
     }
 
-    @SuppressWarnings("unchecked")
     static GrokExec readGrokExec(PlanStreamInput in) throws IOException {
         Source source;
         return new GrokExec(
@@ -417,18 +413,16 @@ public final class PlanNamedTypes {
             in.readPhysicalPlanNode(),
             in.readNamedWriteable(Expression.class),
             Grok.pattern(source, in.readString()),
-            // TODO: needs new transport version
-            (List<Alias>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class)
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
-    @SuppressWarnings("unchecked")
     static void writeGrokExec(PlanStreamOutput out, GrokExec grokExec) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writePhysicalPlanNode(grokExec.child());
         out.writeNamedWriteable(grokExec.inputExpression());
         out.writeString(grokExec.pattern().pattern());
-        out.writeNamedWriteableCollection((List<NamedExpression>) (List) grokExec.extractedFields());
+        out.writeNamedWriteableCollection(grokExec.extractedFields());
     }
 
     static LimitExec readLimitExec(PlanStreamInput in) throws IOException {
@@ -528,25 +522,22 @@ public final class PlanNamedTypes {
         out.writeOptionalVInt(topNExec.estimatedRowSize());
     }
 
-    @SuppressWarnings("unchecked")
     static Dissect readDissect(PlanStreamInput in) throws IOException {
         return new Dissect(
             Source.readFrom(in),
             in.readLogicalPlanNode(),
             in.readNamedWriteable(Expression.class),
             readDissectParser(in),
-            // TODO: needs new transport version
-            (List<Alias>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class)
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
-    @SuppressWarnings("unchecked")
     static void writeDissect(PlanStreamOutput out, Dissect dissect) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeLogicalPlanNode(dissect.child());
         out.writeNamedWriteable(dissect.input());
         writeDissectParser(out, dissect.parser());
-        out.writeNamedWriteableCollection((List<NamedExpression>) (List) dissect.extractedFields());
+        out.writeNamedWriteableCollection(dissect.extractedFields());
     }
 
     static EsRelation readEsRelation(PlanStreamInput in) throws IOException {
@@ -689,7 +680,6 @@ public final class PlanNamedTypes {
         out.writeNamedWriteable(filter.condition());
     }
 
-    @SuppressWarnings("unchecked")
     static Grok readGrok(PlanStreamInput in) throws IOException {
         Source source;
         return new Grok(
@@ -697,18 +687,16 @@ public final class PlanNamedTypes {
             in.readLogicalPlanNode(),
             in.readNamedWriteable(Expression.class),
             Grok.pattern(source, in.readString()),
-            // TODO: needs new transport version
-            (List<Alias>) (List) in.readNamedWriteableCollectionAsList(NamedExpression.class)
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
-    @SuppressWarnings("unchecked")
     static void writeGrok(PlanStreamOutput out, Grok grok) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeLogicalPlanNode(grok.child());
         out.writeNamedWriteable(grok.input());
         out.writeString(grok.parser().pattern());
-        out.writeNamedWriteableCollection((List<NamedExpression>) (List) grok.extractedFields());
+        out.writeNamedWriteableCollection(grok.extractedFields());
     }
 
     static Limit readLimit(PlanStreamInput in) throws IOException {

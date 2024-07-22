@@ -242,7 +242,7 @@ public class EsqlSession {
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
-                for (Alias extracted : re.extractedFields()) {
+                for (Attribute extracted : re.extractedFields()) {
                     references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
                 // but keep the inputs needed by Grok/Dissect

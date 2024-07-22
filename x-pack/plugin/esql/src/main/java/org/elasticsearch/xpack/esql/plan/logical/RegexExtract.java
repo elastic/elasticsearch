@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,13 +19,11 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<RegexExtract> {
     protected final Expression input;
-    protected final List<Alias> extractedFields;
+    protected final List<Attribute> extractedFields;
 
-    protected RegexExtract(Source source, LogicalPlan child, Expression input, List<Alias> extracted) {
+    protected RegexExtract(Source source, LogicalPlan child, Expression input, List<Attribute> extracted) {
         super(source, child);
         this.input = input;
-        // TODO: Test the case where the alias' names deviate from the names of their ReferenceAttributes.
-        // Consider and test also the case where the same name may be used multiple times in the RegexExtract's aliases.
         this.extractedFields = extracted;
     }
 
@@ -44,7 +41,12 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
         return input;
     }
 
-    public List<Alias> extractedFields() {
+    public List<Attribute> extractedFields() {
+        return extractedFields;
+    }
+
+    @Override
+    public List<Attribute> generatedAttributes() {
         return extractedFields;
     }
 

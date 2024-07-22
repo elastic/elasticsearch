@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,7 +25,7 @@ public class DissectExec extends RegexExtractExec {
         PhysicalPlan child,
         Expression inputExpression,
         Dissect.Parser parser,
-        List<Alias> extractedAttributes
+        List<Attribute> extractedAttributes
     ) {
         super(source, child, inputExpression, extractedAttributes);
         this.parser = parser;

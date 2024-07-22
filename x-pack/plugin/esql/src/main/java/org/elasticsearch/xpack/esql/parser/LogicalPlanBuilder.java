@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
@@ -66,7 +65,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
@@ -162,7 +160,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern) {
         Map<String, DataType> definedAttributes = new HashMap<>();
-        for (Alias field : grokParser.extractedFields()) {
+        for (Attribute field : grokParser.extractedFields()) {
             String name = field.name();
             DataType type = field.dataType();
             DataType prev = definedAttributes.put(name, type);
@@ -198,20 +196,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             try {
                 DissectParser parser = new DissectParser(pattern, appendSeparator);
-                Set<String> referenceKeys = parser.referenceKeys();
-                if (referenceKeys.size() > 0) {
-                    throw new ParsingException(
-                        src,
-                        "Reference keys not supported in dissect patterns: [%{*{}}]",
-                        referenceKeys.iterator().next()
-                    );
-                }
-                List<Alias> keys = new ArrayList<>();
-                for (var x : parser.outputKeys()) {
-                    if (x.isEmpty() == false) {
-                        keys.add(new Alias(src, x, new ReferenceAttribute(src, x, DataType.KEYWORD)));
-                    }
-                }
+
+                Dissect.Parser esqlDissectParser = new Dissect.Parser(pattern, appendSeparator, parser);
+                List<Attribute> keys = esqlDissectParser.keyAttributes(src);
+
                 return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
             } catch (DissectException e) {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);

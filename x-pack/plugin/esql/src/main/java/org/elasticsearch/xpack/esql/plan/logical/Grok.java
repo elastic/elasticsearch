@@ -12,40 +12,33 @@ import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import java.util.stream.Collectors;
 
 public class Grok extends RegexExtract {
 
     public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
 
-        public List<Alias> extractedFields() {
+        public List<Attribute> extractedFields() {
             return grok.captureConfig()
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
                 // promote small numeric types, since Grok can produce float values
-                .map(
-                    x -> new Alias(
-                        Source.EMPTY,
-                        x.name(),
-                        new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type()).widenSmallNumeric())
-                    )
-                )
-                .toList();
+                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type()).widenSmallNumeric()))
+                .collect(Collectors.toList());
         }
 
         private static DataType toDataType(GrokCaptureType type) {
@@ -91,7 +84,7 @@ public class Grok extends RegexExtract {
         this(source, child, inputExpression, parser, parser.extractedFields());
     }
 
-    public Grok(Source source, LogicalPlan child, Expression inputExpr, Parser parser, List<Alias> extracted) {
+    public Grok(Source source, LogicalPlan child, Expression inputExpr, Parser parser, List<Attribute> extracted) {
         super(source, child, inputExpr, extracted);
         this.parser = parser;
 
@@ -113,13 +106,25 @@ public class Grok extends RegexExtract {
     }
 
     @Override
-    public List<Attribute> generatedAttributes() {
-        return asAttributes(extractedFields);
-    }
-
-    @Override
     public Grok withGeneratedNames(List<String> newNames) {
-        return new Grok(source(), child(), input, parser, GeneratingPlan.renameAliases(extractedFields, newNames));
+        if (newNames.size() != extractedFields.size()) {
+            throw new IllegalArgumentException(
+                "Number of new names is [" + newNames.size() + "] but there are [" + extractedFields.size() + "] existing names."
+            );
+        }
+
+        List<Attribute> renamedExtractedFields = new ArrayList<>(extractedFields.size());
+        for (int i = 0; i < newNames.size(); i++) {
+            Attribute extractedField = extractedFields.get(i);
+            String newName = newNames.get(i);
+            if (extractedField.name().equals(newName)) {
+                renamedExtractedFields.add(extractedField);
+            } else {
+                renamedExtractedFields.add(extractedFields.get(i).withName(newNames.get(i)).withId(new NameId()));
+            }
+        }
+
+        return new Grok(source(), child(), input, parser, renamedExtractedFields);
     }
 
     @Override

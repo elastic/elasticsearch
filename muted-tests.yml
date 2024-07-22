@@ -103,17 +103,11 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/111084
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {stats.MaxOfIpGrouping}
-  issue: https://github.com/elastic/elasticsearch/issues/111107
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownCartesianPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/110982
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {stats.MinOfIpGrouping}
-  issue: https://github.com/elastic/elasticsearch/issues/111125
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testGetPrivilegesUsesCache
   issue: https://github.com/elastic/elasticsearch/issues/110788
@@ -123,6 +117,12 @@ tests:
 - class: org.elasticsearch.cluster.PrevalidateShardPathIT
   method: testCheckShards
   issue: https://github.com/elastic/elasticsearch/issues/111134
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test021InstallPlugin
+  issue: https://github.com/elastic/elasticsearch/issues/110343
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testDisableFieldNameField {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111141
 
 # Examples:
 #
@@ -153,4 +153,12 @@ tests:
 #    method: "test {union_types.MultiIndexIpStringStatsInline}"
 #    issue: "https://github.com/elastic/elasticsearch/..."
 #  Note that this mutes for the unit-test-like CsvTests only.
-#  Muting for the integration tests needs to be done for each IT class individually.
+#  Muting all the integration tests can be done using the class "org.elasticsearch.xpack.esql.**".
+#  Consider however, that some tests are named as "test {file.test SYNC}" and "ASYNC" in the integration tests.
+#  To mute all 3 tests safely everywhere use:
+#  - class: "org.elasticsearch.xpack.esql.**"
+#    method: "test {union_types.MultiIndexIpStringStatsInline}"
+#    issue: "https://github.com/elastic/elasticsearch/..."
+#  - class: "org.elasticsearch.xpack.esql.**"
+#    method: "test {union_types.MultiIndexIpStringStatsInline *}"
+#    issue: "https://github.com/elastic/elasticsearch/..."

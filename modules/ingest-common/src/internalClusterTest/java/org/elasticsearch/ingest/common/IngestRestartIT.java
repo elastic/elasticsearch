@@ -8,6 +8,8 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -385,8 +387,17 @@ public class IngestRestartIT extends ESIntegTestCase {
         }
 
         // Make sure the requests are processed (even though we blocked system_write thread pool above).
-        assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
+        assertThat(response.getItems().length, equalTo(numRequests));
         assertFalse(response.hasFailures());
+
+        // Check Node Ingest stats
+        NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest(ingestNode).addMetric("ingest"))
+            .actionGet();
+        assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
+
+        NodeStats stats = nodesStatsResponse.getNodes().get(0);
+        assertThat(stats.getIngestStats().totalStats().ingestCount(), equalTo((long) numRequests));
+        assertThat(stats.getIngestStats().totalStats().ingestFailedCount(), equalTo(0L));
 
         MultiGetResponse docListResponse = safeGet(
             client().prepareMultiGet().addIds("index", IntStream.range(0, numRequests).mapToObj(String::valueOf).toList()).execute()

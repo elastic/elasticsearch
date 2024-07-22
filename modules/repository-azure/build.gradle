@@ -22,7 +22,7 @@ versions << [
   'azureCore': '1.50.0',
   'azureCoreHttpNetty': '1.15.2',
   'azureIdentity': '1.13.1',
-  'azureJackson': '2.15.4',
+  'azureJackson': '2.13.5',
   'azureJacksonDatabind': '2.13.4.2',
   'azureAvro': '12.5.3',
 

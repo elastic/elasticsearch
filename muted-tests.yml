@@ -103,9 +103,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/111084
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {stats.MaxOfIpGrouping}
-  issue: https://github.com/elastic/elasticsearch/issues/111107
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/111002
@@ -114,9 +111,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/110982
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {stats.MinOfIpGrouping}
-  issue: https://github.com/elastic/elasticsearch/issues/111125
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testGetPrivilegesUsesCache
   issue: https://github.com/elastic/elasticsearch/issues/110788
@@ -126,15 +120,6 @@ tests:
 - class: org.elasticsearch.cluster.PrevalidateShardPathIT
   method: testCheckShards
   issue: https://github.com/elastic/elasticsearch/issues/111134
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {stats.MaxOfIpGrouping SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/111136
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {stats.MinOfIpGrouping SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/111137
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {stats.MinOfIpGrouping ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/111138
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343

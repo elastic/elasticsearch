@@ -47,8 +47,8 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         * `?` matches one character.""", examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression left,
-        @Param(name = "pattern", type = { "keyword", "text" }) WildcardPattern pattern
+        @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
+        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPattern pattern
     ) {
         super(source, left, pattern, false);
     }

@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
@@ -27,7 +29,18 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
 
     private DataType type;
 
-    public Div(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Divide one number by another. "
+            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+        note = "Division of two integer types will yield an integer result, rounding towards 0. "
+            + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`."
+    )
+    public Div(
+        Source source,
+        @Param(name = "lhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression left,
+        @Param(name = "rhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression right
+    ) {
         this(source, left, right, null);
     }
 

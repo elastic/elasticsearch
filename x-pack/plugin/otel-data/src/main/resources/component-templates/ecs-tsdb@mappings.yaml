@@ -5,14 +5,6 @@ _meta:
 template:
   mappings:
     dynamic_templates:
-      - ecs_ip:
-          mapping:
-            type: ip
-          path_match:
-            - "ip"
-            - "*.ip"
-            - "*_ip"
-          match_mapping_type: string
       - all_strings_to_keywords:
           mapping:
             ignore_above: 1024

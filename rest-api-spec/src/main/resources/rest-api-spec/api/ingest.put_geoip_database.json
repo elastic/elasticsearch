@@ -1,0 +1,35 @@
+{
+  "ingest.put_geoip_database":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/TODO.html",
+      "description":"Puts the configuration for a geoip database to be downloaded"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ingest/geoip/database/{id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The id of the database configuration"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+    },
+    "body":{
+      "description":"The database configuration definition",
+      "required":true
+    }
+  }
+}

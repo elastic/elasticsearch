@@ -98,9 +98,9 @@ the cluster:
 Specify when shard rebalancing is allowed:
 
 
-* `always` -                    Always allow rebalancing.
+* `always` -                    (default) Always allow rebalancing.
 * `indices_primaries_active` -  Only when all primaries in the cluster are allocated.
-* `indices_all_active` -        (default) Only when all shards (primaries and replicas) in the cluster are allocated.
+* `indices_all_active` -        Only when all shards (primaries and replicas) in the cluster are allocated.
 --
 
 `cluster.routing.rebalance.enable`::

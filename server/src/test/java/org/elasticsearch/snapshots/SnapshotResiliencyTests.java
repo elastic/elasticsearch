@@ -1378,7 +1378,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             .anyMatch(
                                 e -> e.snapshot().getSnapshotId().getName().equals(cloneName)
                                     && e.isClone()
-                                    && e.shardsByRepoShardId().isEmpty() == false
+                                    && e.shardSnapshotStatusByRepoShardId().isEmpty() == false
                             )
                     ).addListener(l);
                     client.admin()

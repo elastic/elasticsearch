@@ -99,7 +99,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void contenderSettings(Settings.Builder builder) {
-        builder.put("index.mode", "logs");
+        builder.put("index.mode", "logsdb");
         settings(builder);
     }
 
@@ -132,9 +132,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
@@ -150,13 +148,10 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String method = randomFrom("put", "post", "get");
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
@@ -175,9 +170,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments)
@@ -197,9 +190,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(0)
@@ -219,9 +210,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .aggregation(AggregationBuilders.dateHistogram("agg").field("@timestamp").calendarInterval(DateHistogramInterval.SECOND))
@@ -259,6 +248,12 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final Map<String, Object> aggs = (Map<String, Object>) map.get("aggregations");
         final Map<String, Object> agg = (Map<String, Object>) aggs.get(aggName);
         return (List<Map<String, Object>>) agg.get("buckets");
+    }
+
+    private void assertDocumentIndexing(List<XContentBuilder> documents) throws IOException {
+        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
+        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
     }
 
 }

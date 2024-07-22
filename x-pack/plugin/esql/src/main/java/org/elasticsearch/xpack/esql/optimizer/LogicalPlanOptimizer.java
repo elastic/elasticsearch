@@ -15,11 +15,14 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanSimplification;
@@ -113,6 +116,34 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
         super(optimizerContext);
+    }
+
+    public static String temporaryName(Expression inner, Expression outer, int suffix) {
+        String in = toString(inner);
+        String out = toString(outer);
+        return rawTemporaryName(in, out, String.valueOf(suffix));
+    }
+
+    public static String locallyUniqueTemporaryName(String inner, String outer) {
+        return FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX + inner + "$" + outer + "$" + new NameId();
+    }
+
+    public static String rawTemporaryName(String inner, String outer, String suffix) {
+        return FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX + inner + "$" + outer + "$" + suffix;
+    }
+
+    static String toString(Expression ex) {
+        return ex instanceof AggregateFunction af ? af.functionName() : extractString(ex);
+    }
+
+    static String extractString(Expression ex) {
+        return ex instanceof NamedExpression ne ? ne.name() : limitToString(ex.sourceText()).replace(' ', '_');
+    }
+
+    static int TO_STRING_LIMIT = 16;
+
+    static String limitToString(String string) {
+        return string.length() > 16 ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {
@@ -331,8 +362,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
                         // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
-                        String tempName = SubstituteSurrogates.rawTemporaryName(a.name(), "temp_name", a.id().toString());
+                        String tempName = rawTemporaryName(a.name(), "temp_name", a.id().toString());
                         // TODO: this should be synthetic
+                        // blocked on https://github.com/elastic/elasticsearch/issues/98703
                         return new Alias(a.source(), tempName, null, a, null, false);
                     });
                     return renamedAttribute.toAttribute();
@@ -357,7 +389,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     name,
                     // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
                     // Do not use the attribute's id, as multiple attributes with the same name can occur.
-                    SubstituteSurrogates.rawTemporaryName(name, "temp_name", "")
+                    rawTemporaryName(name, "temp_name", "")
                 );
             }
         }

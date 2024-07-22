@@ -178,6 +178,7 @@ public class EsqlCapabilities {
         DATE_NANOS_TYPE;
 
         private final boolean snapshotOnly;
+
         Cap() {
             snapshotOnly = false;
         };

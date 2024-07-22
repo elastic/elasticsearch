@@ -41,6 +41,10 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
         return input;
     }
 
+    /**
+     * Upon parsing, these are named according to the {@link Dissect} or {@link Grok} pattern, but can be renamed without changing the
+     * pattern.
+     */
     public List<Attribute> extractedFields() {
         return extractedFields;
     }

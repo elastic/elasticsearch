@@ -213,32 +213,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new LocalRelation(plan.source(), plan.output(), supplier);
     }
 
-    // TODO: update
     /**
      * Pushes LogicalPlans which generate new attributes (Eval, Grok/Dissect, Enrich), past OrderBys and Projections.
-     * Although it seems arbitrary whether the OrderBy or the Eval is executed first, this transformation ensures that OrderBys only
-     * separated by an eval can be combined by PushDownAndCombineOrderBy.
-     *
-     * E.g.:
-     *
-     * ... | sort a | eval x = b + 1 | sort x
-     *
-     * becomes
-     *
-     * ... | eval x = b + 1 | sort a | sort x
-     *
-     * Ordering the Evals before the OrderBys has the advantage that it's always possible to order the plans like this.
+     * Although it seems arbitrary whether the OrderBy or the generating plan is executed first, this transformation ensures that OrderBys
+     * only separated by e.g. an Eval can be combined by {@link PushDownAndCombineOrderBy}.
+     * <p>
+     * E.g. {@code ... | sort a | eval x = b + 1 | sort x} becomes {@code ... | eval x = b + 1 | sort a | sort x}
+     * <p>
+     * Ordering the generating plans before the OrderBys has the advantage that it's always possible to order the plans like this.
      * E.g., in the example above it would not be possible to put the eval after the two orderBys.
-     *
-     * In case one of the Eval's fields would shadow the orderBy's attributes, we rename the attribute first.
-     *
-     * E.g.
-     *
-     * ... | sort a | eval a = b + 1 | ...
-     *
-     * becomes
-     *
-     * ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a
+     * <p>
+     * In case one of the generating plan's attributes would shadow the OrderBy's attributes, we alias the generated attribute first.
+     * <p>
+     * E.g. {@code ... | sort a | eval a = b + 1 | ...} becomes {@code ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a ...}
+     * <p>
+     * In case the generating plan's attributes would shadow the Project's attributes, we rename the generated attributes in place.
+     * <p>
+     * E.g. {@code ... | rename a as z | eval a = b + 1 | ...} becomes {@code ... eval $$a = b + 1 | rename a as z, $$a as a ...}
      */
     public static <Plan extends UnaryPlan & GeneratingPlan<Plan>> LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(Plan generatingPlan) {
         LogicalPlan child = generatingPlan.child();

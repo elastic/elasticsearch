@@ -22,7 +22,10 @@ public class RefreshStatsTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            between(0, Integer.MAX_VALUE)
+            between(0, Integer.MAX_VALUE),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomBoolean()
         );
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
@@ -34,5 +37,8 @@ public class RefreshStatsTests extends ESTestCase {
         assertEquals(stats.getListeners(), read.getListeners());
         assertEquals(stats.getTotalTimeInMillis(), read.getTotalTimeInMillis());
         assertEquals(stats.getExternalTotalTimeInMillis(), read.getExternalTotalTimeInMillis());
+        assertEquals(stats.getLastRefreshTime(), read.getLastRefreshTime());
+        assertEquals(stats.getLastExternalRefreshTime(), read.getLastExternalRefreshTime());
+        assertEquals(stats.getHasUnwrittenChanges(), read.getHasUnwrittenChanges());
     }
 }

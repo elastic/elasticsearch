@@ -252,6 +252,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
+    private final AtomicLong lastRefreshTime = new AtomicLong();
+    private final AtomicLong lastExternalRefreshTime = new AtomicLong();
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
 
@@ -398,7 +400,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> refresh("too_many_listeners"),
             logger,
             threadPool.getThreadContext(),
-            externalRefreshMetric
+            externalRefreshMetric,
+            lastExternalRefreshTime
         );
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -1304,12 +1307,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public RefreshStats refreshStats() {
         int listeners = refreshListeners.pendingCount();
+        Engine engine = getEngineOrNull();
+        boolean hasUnwrittenChanges = engine != null && engine.refreshNeeded("refresh_needed_stats");
         return new RefreshStats(
             refreshMetric.count(),
             TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()),
             externalRefreshMetric.count(),
             TimeUnit.NANOSECONDS.toMillis(externalRefreshMetric.sum()),
-            listeners
+            listeners,
+            lastRefreshTime.get(),
+            lastExternalRefreshTime.get(),
+            hasUnwrittenChanges
         );
     }
 
@@ -3490,7 +3498,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener),
-            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            Collections.singletonList(new RefreshMetricUpdater(refreshMetric, lastRefreshTime)),
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,
@@ -4162,9 +4170,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         private final MeanMetric refreshMetric;
         private long currentRefreshStartTime;
         private Thread callingThread = null;
+        private AtomicLong lastRefreshTime;
 
-        private RefreshMetricUpdater(MeanMetric refreshMetric) {
+        private RefreshMetricUpdater(MeanMetric refreshMetric, AtomicLong lastRefreshTime) {
             this.refreshMetric = refreshMetric;
+            this.lastRefreshTime = lastRefreshTime;
         }
 
         @Override
@@ -4190,6 +4200,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 callingThread = null;
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
+            lastRefreshTime.set(System.currentTimeMillis());
         }
     }
 

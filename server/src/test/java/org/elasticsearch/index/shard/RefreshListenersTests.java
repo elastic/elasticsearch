@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -101,7 +102,8 @@ public class RefreshListenersTests extends ESTestCase {
             () -> engine.refresh("too-many-listeners"),
             logger,
             threadPool.getThreadContext(),
-            new MeanMetric()
+            new MeanMetric(),
+            new AtomicLong()
         );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);

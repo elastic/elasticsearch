@@ -25,6 +25,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
@@ -44,6 +45,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private final Logger logger;
     private final ThreadContext threadContext;
     private final MeanMetric refreshMetric;
+    private final AtomicLong lastRefreshTime;
 
     /**
      * Time in nanosecond when beforeRefresh() is called. Used for calculating refresh metrics.
@@ -83,13 +85,15 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         final Runnable forceRefresh,
         final Logger logger,
         final ThreadContext threadContext,
-        final MeanMetric refreshMetric
+        final MeanMetric refreshMetric,
+        final AtomicLong lastRefreshTime
     ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
         this.logger = logger;
         this.threadContext = threadContext;
         this.refreshMetric = refreshMetric;
+        this.lastRefreshTime = lastRefreshTime;
     }
 
     /**
@@ -308,6 +312,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     public void afterRefresh(boolean didRefresh) throws IOException {
         // Increment refresh metric before communicating to listeners.
         refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
+        lastRefreshTime.set(System.currentTimeMillis());
 
         /* Set the lastRefreshedLocation so listeners that come in for locations before that will just execute inline without messing
          * around with refreshListeners or synchronizing at all. Note that it is not safe for us to abort early if we haven't advanced the

@@ -194,6 +194,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -1735,25 +1736,33 @@ public class IndexShardTests extends IndexShardTestCase {
         final long initialRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 2L : 3L;
         assertThat(shard.refreshStats().getTotal(), equalTo(initialRefreshes));
         long initialTotalTime = shard.refreshStats().getTotalTimeInMillis();
+        long startingRefreshTime = shard.refreshStats().getLastRefreshTime();
         // check time advances
         for (int i = 1; shard.refreshStats().getTotalTimeInMillis() == initialTotalTime; i++) {
             indexDoc(shard, "_doc", "test");
             assertThat(shard.refreshStats().getTotal(), equalTo(initialRefreshes + i - 1));
+            assertThat(startingRefreshTime, equalTo(shard.refreshStats().getLastRefreshTime()));
             shard.refresh("test");
             assertThat(shard.refreshStats().getTotal(), equalTo(initialRefreshes + i));
             assertThat(shard.refreshStats().getTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
+            assertThat(startingRefreshTime, lessThan(shard.refreshStats().getLastRefreshTime()));
+            startingRefreshTime = shard.refreshStats().getLastRefreshTime();
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "_doc", "test");
         try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"))) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
+            assertThat(startingRefreshTime, lessThan(shard.refreshStats().getLastRefreshTime()));
+            startingRefreshTime = shard.refreshStats().getLastRefreshTime();
         }
         indexDoc(shard, "_doc", "test");
         shard.writeIndexingBuffer();
         // This did not actually run a refresh, it called IndexWriter#flushNextBuffer()
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
+        assertThat(startingRefreshTime, equalTo(shard.refreshStats().getLastRefreshTime()));
         shard.refresh("force");
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 2));
+        assertThat(startingRefreshTime, lessThan(shard.refreshStats().getLastRefreshTime()));
         closeShards(shard);
     }
 
@@ -1761,13 +1770,17 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard();
         assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L)); // refresh on: finalize and end of recovery
         long initialTotalTime = shard.refreshStats().getExternalTotalTimeInMillis();
+        long startingExternalRefreshTime = shard.refreshStats().getLastExternalRefreshTime();
         // check time advances
         for (int i = 1; shard.refreshStats().getExternalTotalTimeInMillis() == initialTotalTime; i++) {
             indexDoc(shard, "_doc", "test");
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i - 1));
+            assertThat(startingExternalRefreshTime, equalTo(shard.refreshStats().getLastExternalRefreshTime()));
             shard.refresh("test");
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i));
             assertThat(shard.refreshStats().getExternalTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
+            assertThat(startingExternalRefreshTime, lessThan(shard.refreshStats().getLastExternalRefreshTime()));
+            startingExternalRefreshTime = shard.refreshStats().getLastExternalRefreshTime();
         }
         final long externalRefreshCount = shard.refreshStats().getExternalTotal();
         final long extraInternalRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 0 : 1;
@@ -1775,12 +1788,24 @@ public class IndexShardTests extends IndexShardTestCase {
         try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"))) {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
+            assertThat(startingExternalRefreshTime, equalTo(shard.refreshStats().getLastExternalRefreshTime()));
         }
         indexDoc(shard, "_doc", "test");
         // This runs IndexWriter#flushNextBuffer internally
         shard.writeIndexingBuffer();
         assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
         assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
+        assertThat(startingExternalRefreshTime, equalTo(shard.refreshStats().getLastExternalRefreshTime()));
+        closeShards(shard);
+    }
+
+    public void testUnwrittenChangesRefreshMetric() throws IOException {
+        IndexShard shard = newStartedShard();
+        assertFalse(shard.refreshStats().getHasUnwrittenChanges());
+        indexDoc(shard, "_doc", "test");
+        assertTrue(shard.refreshStats().getHasUnwrittenChanges());
+        shard.refresh("test");
+        assertFalse(shard.refreshStats().getHasUnwrittenChanges());
         closeShards(shard);
     }
 

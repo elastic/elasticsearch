@@ -34,6 +34,12 @@ public class RefreshStats implements Writeable, ToXContentFragment {
      */
     private int listeners;
 
+    private long lastRefreshTime;
+
+    private long lastExternalRefreshTime;
+
+    private boolean hasUnwrittenChanges;
+
     public RefreshStats() {}
 
     public RefreshStats(StreamInput in) throws IOException {
@@ -44,6 +50,11 @@ public class RefreshStats implements Writeable, ToXContentFragment {
             externalTotalTimeInMillis = in.readVLong();
         }
         listeners = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.LAST_REFRESH_TIME_STATS)) {
+            lastRefreshTime = in.readVLong();
+            lastExternalRefreshTime = in.readVLong();
+            hasUnwrittenChanges = in.readBoolean();
+        }
     }
 
     @Override
@@ -55,14 +66,31 @@ public class RefreshStats implements Writeable, ToXContentFragment {
             out.writeVLong(externalTotalTimeInMillis);
         }
         out.writeVInt(listeners);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.LAST_REFRESH_TIME_STATS)) {
+            out.writeVLong(lastRefreshTime);
+            out.writeVLong(lastExternalRefreshTime);
+            out.writeBoolean(hasUnwrittenChanges);
+        }
     }
 
-    public RefreshStats(long total, long totalTimeInMillis, long externalTotal, long externalTotalTimeInMillis, int listeners) {
+    public RefreshStats(
+        long total,
+        long totalTimeInMillis,
+        long externalTotal,
+        long externalTotalTimeInMillis,
+        int listeners,
+        long lastRefreshTime,
+        long lastExternalRefreshTime,
+        boolean hasUnwrittenChanges
+    ) {
         this.total = total;
         this.totalTimeInMillis = totalTimeInMillis;
         this.externalTotal = externalTotal;
         this.externalTotalTimeInMillis = externalTotalTimeInMillis;
         this.listeners = listeners;
+        this.lastRefreshTime = lastRefreshTime;
+        this.lastExternalRefreshTime = lastExternalRefreshTime;
+        this.hasUnwrittenChanges = hasUnwrittenChanges;
     }
 
     public void add(RefreshStats refreshStats) {
@@ -78,6 +106,9 @@ public class RefreshStats implements Writeable, ToXContentFragment {
         this.externalTotal += refreshStats.externalTotal;
         this.externalTotalTimeInMillis += refreshStats.externalTotalTimeInMillis;
         this.listeners += refreshStats.listeners;
+        this.lastRefreshTime = Math.max(this.lastRefreshTime, refreshStats.lastRefreshTime);
+        this.lastExternalRefreshTime = Math.max(this.lastExternalRefreshTime, refreshStats.lastExternalRefreshTime);
+        this.hasUnwrittenChanges |= refreshStats.hasUnwrittenChanges;
     }
 
     /**
@@ -129,6 +160,27 @@ public class RefreshStats implements Writeable, ToXContentFragment {
         return listeners;
     }
 
+    /**
+     * Timestamp of the last refresh.
+     */
+    public long getLastRefreshTime() {
+        return lastRefreshTime;
+    }
+
+    /**
+     * Timestamp of the last external refresh.
+     */
+    public long getLastExternalRefreshTime() {
+        return lastExternalRefreshTime;
+    }
+
+    /**
+     * Whether there are changes that need to be written to disk or not.
+     */
+    public boolean getHasUnwrittenChanges() {
+        return hasUnwrittenChanges;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("refresh");
@@ -137,6 +189,9 @@ public class RefreshStats implements Writeable, ToXContentFragment {
         builder.field("external_total", externalTotal);
         builder.humanReadableField("external_total_time_in_millis", "external_total_time", getExternalTotalTime());
         builder.field("listeners", listeners);
+        builder.field("last_refresh_timestamp", lastRefreshTime);
+        builder.field("last_external_refresh_timestamp", lastExternalRefreshTime);
+        builder.field("has_unwritten_changes", hasUnwrittenChanges);
         builder.endObject();
         return builder;
     }
@@ -151,11 +206,23 @@ public class RefreshStats implements Writeable, ToXContentFragment {
             && totalTimeInMillis == rhs.totalTimeInMillis
             && externalTotal == rhs.externalTotal
             && externalTotalTimeInMillis == rhs.externalTotalTimeInMillis
-            && listeners == rhs.listeners;
+            && listeners == rhs.listeners
+            && lastRefreshTime == rhs.lastRefreshTime
+            && lastExternalRefreshTime == rhs.lastExternalRefreshTime
+            && hasUnwrittenChanges == rhs.hasUnwrittenChanges;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(total, totalTimeInMillis, externalTotal, externalTotalTimeInMillis, listeners);
+        return Objects.hash(
+            total,
+            totalTimeInMillis,
+            externalTotal,
+            externalTotalTimeInMillis,
+            listeners,
+            lastRefreshTime,
+            lastExternalRefreshTime,
+            hasUnwrittenChanges
+        );
     }
 }

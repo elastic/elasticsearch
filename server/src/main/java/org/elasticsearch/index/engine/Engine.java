@@ -1199,6 +1199,10 @@ public abstract class Engine implements Closeable {
     public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
 
     public boolean refreshNeeded() {
+        return refreshNeeded("refresh_needed");
+    }
+
+    public boolean refreshNeeded(String source) {
         if (store.tryIncRef()) {
             /*
               we need to inc the store here since we acquire a searcher and that might keep a file open on the
@@ -1206,7 +1210,7 @@ public abstract class Engine implements Closeable {
               the store is closed so we need to make sure we increment it here
              */
             try {
-                try (Searcher searcher = acquireSearcher("refresh_needed", SearcherScope.EXTERNAL)) {
+                try (Searcher searcher = acquireSearcher(source, SearcherScope.EXTERNAL)) {
                     return searcher.getDirectoryReader().isCurrent() == false;
                 }
             } catch (IOException e) {

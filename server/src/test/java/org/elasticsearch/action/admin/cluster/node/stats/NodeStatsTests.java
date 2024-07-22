@@ -628,7 +628,7 @@ public class NodeStatsTests extends ESTestCase {
         mergeStats.add(++iota, ++iota, ++iota, ++iota, ++iota, ++iota, ++iota, ++iota, ++iota, 1.0 * ++iota);
 
         indicesCommonStats.getMerge().add(mergeStats);
-        indicesCommonStats.getRefresh().add(new RefreshStats(++iota, ++iota, ++iota, ++iota, ++iota));
+        indicesCommonStats.getRefresh().add(new RefreshStats(++iota, ++iota, ++iota, ++iota, ++iota, ++iota, ++iota, false));
         indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getWarmer().add(new WarmerStats(++iota, ++iota, ++iota));
         indicesCommonStats.getCompletion().add(new CompletionStats(++iota, null));

@@ -511,8 +511,10 @@ public class InternalEngine extends Engine {
         if (scope == SearcherScope.EXTERNAL) {
             switch (source) {
                 // we can access segment_stats while a shard is still in the recovering state.
+                // we may also access refresh state before the searcher is warmed up.
                 case "segments":
                 case "segments_stats":
+                case "refresh_needed_stats":
                     break;
                 default:
                     assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";

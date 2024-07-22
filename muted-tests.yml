@@ -156,4 +156,12 @@ tests:
 #    method: "test {union_types.MultiIndexIpStringStatsInline}"
 #    issue: "https://github.com/elastic/elasticsearch/..."
 #  Note that this mutes for the unit-test-like CsvTests only.
-#  Muting for the integration tests needs to be done for each IT class individually.
+#  Muting all the integration tests can be done using the class "org.elasticsearch.xpack.esql.**".
+#  Consider however, that some tests are named as "test {file.test SYNC}" and "ASYNC" in the integration tests.
+#  To mute all 3 tests safely everywhere use:
+#  - class: "org.elasticsearch.xpack.esql.**"
+#    method: "test {union_types.MultiIndexIpStringStatsInline}"
+#    issue: "https://github.com/elastic/elasticsearch/..."
+#  - class: "org.elasticsearch.xpack.esql.**"
+#    method: "test {union_types.MultiIndexIpStringStatsInline *}"
+#    issue: "https://github.com/elastic/elasticsearch/..."

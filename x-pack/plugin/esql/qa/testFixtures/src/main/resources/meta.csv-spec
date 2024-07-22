@@ -31,6 +31,7 @@ double e()
 "double|integer|long|unsigned_long floor(number:double|integer|long|unsigned_long)"
 "keyword from_base64(string:keyword|text)"
 "boolean|double|integer|ip|keyword|long|text|version greatest(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
+"boolean in(field:boolean|cartesian_point|cartesian_shape|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, inlist...:boolean|cartesian_point|cartesian_shape|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "ip ip_prefix(ip:ip, prefixLengthV4:integer, prefixLengthV6:integer)"
 "boolean|double|integer|ip|keyword|long|text|version least(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
 "keyword left(string:keyword|text, length:integer)"
@@ -152,6 +153,7 @@ exp           |number                              |"double|integer|long|unsigne
 floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 from_base64   |string                              |"keyword|text"                                                                                                                    |A base64 string.
 greatest      |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
+in            |[field, inlist]                     |["boolean|cartesian_point|cartesian_shape|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"] |["An expression.", "A list of items."]
 ip_prefix     |[ip, prefixLengthV4, prefixLengthV6]|[ip, integer, integer]                                                                                                            |[IP address of type `ip` (both IPv4 and IPv6 are supported)., Prefix length for IPv4 addresses., Prefix length for IPv6 addresses.]
 least         |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
@@ -274,6 +276,7 @@ exp           |Returns the value of e raised to the power of the given number.
 floor         |Round a number down to the nearest integer.
 from_base64   |Decode a base64 string.
 greatest      |Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>> except it is intended to run on multiple columns at once.
+in            |The `IN` operator allows testing whether a field or expression equals an element in a list of literals, fields or expressions.
 ip_prefix     |Truncates an IP to a given prefix length.
 least         |Returns the minimum value from multiple columns. This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.
 left          |Returns the substring that extracts 'length' chars from 'string' starting from the left.
@@ -397,6 +400,7 @@ exp           |double                                                           
 floor         |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 from_base64   |keyword                                                                                                                     |false                       |false           |false
 greatest      |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
+in            |boolean                                                                                                                     |[false, false]              |true            |false
 ip_prefix     |ip                                                                                                                          |[false, false, false]       |false           |false
 least         |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
 left          |keyword                                                                                                                     |[false, false]              |false           |false
@@ -497,5 +501,5 @@ countFunctions#[skip:-8.15.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-113    | 113    | 113
+114    | 114    | 114
 ;

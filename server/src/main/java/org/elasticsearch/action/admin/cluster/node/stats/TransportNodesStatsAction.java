@@ -57,8 +57,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        NodeService nodeService,
         ActionFilters actionFilters,
+        NodeService nodeService,
         NodeClient client
     ) {
         super(
@@ -92,14 +92,15 @@ public class TransportNodesStatsAction extends TransportNodesAction<
                 TransportGetAllocationStatsAction.TYPE,
                 new TransportGetAllocationStatsAction.Request(
                     Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
-                    new TaskId(clusterService.localNode().getId(), task.getId())
+                    new TaskId(clusterService.localNode().getId(), task.getId()),
+                    metrics
                 ),
-                listener.delegateFailure((l, r) -> {
-                    ActionListener.respondAndRelease(
+                listener.delegateFailure(
+                    (l, r) -> ActionListener.respondAndRelease(
                         l,
                         newResponse(request, merge(responses, r.getNodeAllocationStats(), r.getDiskThresholdSettings()), failures)
-                    );
-                })
+                    )
+                )
             );
         } else {
             ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));

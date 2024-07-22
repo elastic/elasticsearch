@@ -467,7 +467,7 @@ For example, it's possible to define a dense vector field that utilizes the `fla
 
 [source,console]
 --------------------------------------------------
-PUT my-index
+PUT my-index-000001
 {
     "mappings": {
         "properties": {
@@ -488,7 +488,7 @@ That includes new segments created by <<index-modules-merge,merging>> previously
 
 [source,console]
 --------------------------------------------------
-PUT /my-index/_mapping
+PUT /my-index-000001/_mapping
 {
     "properties": {
         "text_embedding": {
@@ -501,6 +501,7 @@ PUT /my-index/_mapping
     }
 }
 --------------------------------------------------
+// TEST[setup:my_index]
 
 Vectors indexed before this change will keep using the `flat` type (raw float32 representation and brute force search for KNN queries).
 

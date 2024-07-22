@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -113,6 +114,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Operators are unregistered functions.
      */
     private static final Map<String, Class<?>> OPERATORS = Map.ofEntries(
+        entry("in", In.class),
         entry("like", WildcardLike.class),
         entry("rlike", RLike.class),
         entry("equals", Equals.class),
@@ -530,7 +532,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         String name = functionName();
-        if (binaryOperator(name) != null || unaryOperator(name) != null || likeOperator(name)) {
+        if (binaryOperator(name) != null || unaryOperator(name) != null || likeOrInOperator(name)) {
             renderDocsForOperators(name);
             return;
         }
@@ -710,11 +712,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
-        var constructors = clazz.getConstructors();
-        if (constructors.length == 0) {
-            return null;
-        }
-        for (Constructor<?> ctor : constructors) {
+        for (Constructor<?> ctor : clazz.getConstructors()) {
             FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
             if (functionInfo != null) {
                 return ctor;
@@ -744,7 +742,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional, targetDataType));
             }
         }
-        renderKibanaFunctionDefinition(name, functionInfo, args, likeOperator(name));
+        renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
         renderTypes(args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList());
     }
 
@@ -925,8 +923,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * If this tests is for a like or rlike operator return true, otherwise return {@code null}.
      */
-    private static boolean likeOperator(String name) {
-        return name.equalsIgnoreCase("rlike") || name.equalsIgnoreCase("like");
+    private static boolean likeOrInOperator(String name) {
+        return name.equalsIgnoreCase("rlike") || name.equalsIgnoreCase("like") || name.equalsIgnoreCase("in");
     }
 
     /**

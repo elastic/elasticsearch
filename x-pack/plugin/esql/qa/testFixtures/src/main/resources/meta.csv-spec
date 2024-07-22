@@ -31,7 +31,6 @@ double e()
 "double|integer|long|unsigned_long floor(number:double|integer|long|unsigned_long)"
 "keyword from_base64(string:keyword|text)"
 "boolean|double|integer|ip|keyword|long|text|version greatest(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
-"boolean in(field:boolean|cartesian_point|cartesian_shape|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, inlist...:boolean|cartesian_point|cartesian_shape|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "ip ip_prefix(ip:ip, prefixLengthV4:integer, prefixLengthV6:integer)"
 "boolean|double|integer|ip|keyword|long|text|version least(first:boolean|double|integer|ip|keyword|long|text|version, ?rest...:boolean|double|integer|ip|keyword|long|text|version)"
 "keyword left(string:keyword|text, length:integer)"
@@ -82,7 +81,7 @@ double pi()
 "double st_y(point:geo_point|cartesian_point)"
 "boolean starts_with(str:keyword|text, prefix:keyword|text)"
 "keyword substring(string:keyword|text, start:integer, ?length:integer)"
-"long sum(number:double|integer|long)"
+"long|double sum(number:double|integer|long)"
 "double tan(angle:double|integer|long|unsigned_long)"
 "double tanh(angle:double|integer|long|unsigned_long)"
 double tau()
@@ -112,7 +111,7 @@ double tau()
 "keyword|text to_upper(str:keyword|text)"
 "version to_ver(field:keyword|text|version)"
 "version to_version(field:keyword|text|version)"
-"boolean|double|integer|long|date top(field:boolean|double|integer|long|date, limit:integer, order:keyword)"
+"boolean|double|integer|long|date|ip top(field:boolean|double|integer|long|date|ip, limit:integer, order:keyword)"
 "keyword|text trim(string:keyword|text)"
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 "double weighted_avg(number:double|integer|long, weight:double|integer|long)"
@@ -153,7 +152,6 @@ exp           |number                              |"double|integer|long|unsigne
 floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 from_base64   |string                              |"keyword|text"                                                                                                                    |A base64 string.
 greatest      |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
-in            |[field, inlist]                     |["boolean|cartesian_point|cartesian_shape|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"] |["An expression.", "A list of items."]
 ip_prefix     |[ip, prefixLengthV4, prefixLengthV6]|[ip, integer, integer]                                                                                                            |[IP address of type `ip` (both IPv4 and IPv6 are supported)., Prefix length for IPv4 addresses., Prefix length for IPv6 addresses.]
 least         |first                               |"boolean|double|integer|ip|keyword|long|text|version"                                                                             |First of the columns to evaluate.
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
@@ -234,7 +232,7 @@ to_unsigned_lo|field                               |"boolean|date|keyword|text|d
 to_upper      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 to_ver        |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
 to_version    |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
-top           |[field, limit, order]               |["boolean|double|integer|long|date", integer, keyword]                                                                            |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
+top           |[field, limit, order]               |["boolean|double|integer|long|date|ip", integer, keyword]                                                                         |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
 trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
@@ -276,7 +274,6 @@ exp           |Returns the value of e raised to the power of the given number.
 floor         |Round a number down to the nearest integer.
 from_base64   |Decode a base64 string.
 greatest      |Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>> except it is intended to run on multiple columns at once.
-in            |The `IN` operator allows testing whether a field or expression equals an element in a list of literals, fields or expressions.
 ip_prefix     |Truncates an IP to a given prefix length.
 least         |Returns the minimum value from multiple columns. This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.
 left          |Returns the substring that extracts 'length' chars from 'string' starting from the left.
@@ -327,7 +324,7 @@ st_x          |Extracts the `x` coordinate from the supplied point. If the point
 st_y          |Extracts the `y` coordinate from the supplied point. If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.
 starts_with   |Returns a boolean that indicates whether a keyword string starts with another string.
 substring     |Returns a substring of a string, specified by a start position and an optional length.
-sum           |The sum of a numeric field.
+sum           |The sum of a numeric expression.
 tan           |Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.
 tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
 tau           |Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
@@ -400,7 +397,6 @@ exp           |double                                                           
 floor         |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 from_base64   |keyword                                                                                                                     |false                       |false           |false
 greatest      |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
-in            |boolean                                                                                                                     |[false, false]              |true            |false
 ip_prefix     |ip                                                                                                                          |[false, false, false]       |false           |false
 least         |"boolean|double|integer|ip|keyword|long|text|version"                                                                       |false                       |true            |false
 left          |keyword                                                                                                                     |[false, false]              |false           |false
@@ -451,7 +447,7 @@ st_x          |double                                                           
 st_y          |double                                                                                                                      |false                       |false           |false
 starts_with   |boolean                                                                                                                     |[false, false]              |false           |false
 substring     |keyword                                                                                                                     |[false, false, true]        |false           |false
-sum           |long                                                                                                                        |false                       |false           |true
+sum           |"long|double"                                                                                                               |false                       |false           |true
 tan           |double                                                                                                                      |false                       |false           |false
 tanh          |double                                                                                                                      |false                       |false           |false
 tau           |double                                                                                                                      |null                        |false           |false
@@ -481,7 +477,7 @@ to_unsigned_lo|unsigned_long                                                    
 to_upper      |"keyword|text"                                                                                                              |false                       |false           |false
 to_ver        |version                                                                                                                     |false                       |false           |false
 to_version    |version                                                                                                                     |false                       |false           |false
-top           |"boolean|double|integer|long|date"                                                                                          |[false, false, false]       |false           |true
+top           |"boolean|double|integer|long|date|ip"                                                                                       |[false, false, false]       |false           |true
 trim          |"keyword|text"                                                                                                              |false                       |false           |false
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true
@@ -501,5 +497,5 @@ countFunctions#[skip:-8.15.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-114    | 114    | 114
+113    | 113    | 113
 ;

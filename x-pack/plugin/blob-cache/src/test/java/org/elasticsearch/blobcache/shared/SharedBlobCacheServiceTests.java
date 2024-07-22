@@ -570,13 +570,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 // a download that would use up all regions should not run
                 final var cacheKey = generateCacheKey();
                 assertEquals(2, cacheService.freeRegionCount());
-                var configured = cacheService.maybeFetchFullEntry(
-                    cacheKey,
-                    size(500),
-                    (ch, chPos, streamFactory, relPos, len, update) -> { throw new AssertionError("Should never reach here"); },
-                    bulkExecutor,
-                    ActionListener.noop()
-                );
+                var configured = cacheService.maybeFetchFullEntry(cacheKey, size(500), (ch, chPos, streamFactory, relPos, len, update) -> {
+                    throw new AssertionError("Should never reach here");
+                }, bulkExecutor, ActionListener.noop());
                 assertFalse(configured);
                 assertEquals(2, cacheService.freeRegionCount());
             }

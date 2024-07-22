@@ -23,13 +23,7 @@ public class NodeAllocationStatsTests extends AbstractWireSerializingTestCase<No
 
     @Override
     protected NodeAllocationStats createTestInstance() {
-        return new NodeAllocationStats(
-            randomIntBetween(0, 10000),
-            randomIntBetween(0, 1000),
-            randomDoubleBetween(0, 8, true),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return randomNodeAllocationStats();
     }
 
     @Override
@@ -72,5 +66,15 @@ public class NodeAllocationStatsTests extends AbstractWireSerializingTestCase<No
             );
             default -> throw new RuntimeException("unreachable");
         };
+    }
+
+    public static NodeAllocationStats randomNodeAllocationStats() {
+        return new NodeAllocationStats(
+            randomIntBetween(0, 10000),
+            randomIntBetween(0, 1000),
+            randomDoubleBetween(0, 8, true),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 }

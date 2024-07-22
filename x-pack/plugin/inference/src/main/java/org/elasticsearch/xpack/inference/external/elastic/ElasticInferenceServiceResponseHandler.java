@@ -39,7 +39,12 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
             return;
         }
 
-        // TODO: handle explicit response codes as soon as they're available in EIS
+        //TODO: handle 400
+
+        //TODO: handle 405
+
+        //TODO: handle 500
+
         throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
     }
 }

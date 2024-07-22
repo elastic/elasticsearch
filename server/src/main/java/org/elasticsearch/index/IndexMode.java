@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -222,7 +223,7 @@ public enum IndexMode {
             return true;
         }
     },
-    LOGS("logs") {
+    LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             IndexMode.validateTimeSeriesSettings(settings);
@@ -286,7 +287,11 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            if (sourceFieldMapper.isSynthetic() == false) {
+                throw new IllegalArgumentException("Indices with with index mode [" + IndexMode.LOGSDB + "] only support synthetic source");
+            }
+        }
 
         @Override
         public boolean isSyntheticSourceEnabled() {
@@ -344,6 +349,10 @@ public enum IndexMode {
                     .startObject("properties")
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .endObject()
+                    .startObject("host.name")
+                    .field("type", KeywordFieldMapper.CONTENT_TYPE)
+                    .field("ignore_above", 1024)
                     .endObject()
                     .endObject()
                     .endObject())
@@ -464,7 +473,7 @@ public enum IndexMode {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
-            case "logs" -> IndexMode.LOGS;
+            case "logsdb" -> IndexMode.LOGSDB;
             default -> throw new IllegalArgumentException(
                 "["
                     + value

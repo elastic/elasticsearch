@@ -834,12 +834,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         @Override
         protected void performOnReplica(BulkShardOperationsRequest request, IndexShard replica) throws Exception {
             try (
-                Releasable ignored = PlainActionFuture.get(
-                    f -> replica.acquireReplicaOperationPermit(
+                Releasable ignored = safeAwait(
+                    listener -> replica.acquireReplicaOperationPermit(
                         getPrimaryShard().getPendingPrimaryTerm(),
                         getPrimaryShard().getLastKnownGlobalCheckpoint(),
                         getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(),
-                        f,
+                        ActionListener.assertOnce(listener),
                         EsExecutors.DIRECT_EXECUTOR_SERVICE
                     )
                 )

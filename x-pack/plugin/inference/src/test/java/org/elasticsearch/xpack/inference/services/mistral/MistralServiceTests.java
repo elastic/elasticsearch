@@ -100,7 +100,7 @@ public class MistralServiceTests extends ESTestCase {
 
                 var embeddingsModel = (MistralEmbeddingsModel) model;
                 var serviceSettings = (MistralEmbeddingsServiceSettings) model.getServiceSettings();
-                assertThat(serviceSettings.model(), is("mistral-embed"));
+                assertThat(serviceSettings.modelId(), is("mistral-embed"));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
             }, exception -> fail("Unexpected exception: " + exception));
 
@@ -231,7 +231,7 @@ public class MistralServiceTests extends ESTestCase {
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
             var embeddingsModel = (MistralEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().model(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -354,7 +354,7 @@ public class MistralServiceTests extends ESTestCase {
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
             var embeddingsModel = (MistralEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().model(), is("mistral-embed"));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
         }

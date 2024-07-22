@@ -140,8 +140,6 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
 
     @Override
     public Enrich withGeneratedNames(List<String> newNames) {
-        // TODO: Could be just a `return new Enrich` with a call to GeneratingPlan.renameAliases() if
-        // Enrich consistently used Aliases all the time.
         if (newNames.size() != enrichFields.size()) {
             throw new IllegalArgumentException(
                 "Number of new names is [" + newNames.size() + "] but there are [" + enrichFields.size() + "] names."

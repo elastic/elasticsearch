@@ -14,5 +14,9 @@ import java.util.List;
 public interface GeneratingPlan<PlanType extends GeneratingPlan<PlanType>> {
     List<Attribute> generatedAttributes();
 
+    /**
+     * Create a new instance of this node with new output {@link Attribute}s using the given names.
+     * The output attributes have new {@link org.elasticsearch.xpack.esql.core.expression.NameId}s.
+     */
     PlanType withGeneratedNames(List<String> newNames);
 }

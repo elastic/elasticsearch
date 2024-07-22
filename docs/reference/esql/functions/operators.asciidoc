@@ -13,7 +13,7 @@ Boolean operators for comparing against one or multiple expressions.
 * <<esql-logical-operators>>
 * <<esql-predicates>>
 * <<esql-cast-operator>>
-* <<esql-in>>
+* <<esql-in-operator>>
 * <<esql-like-operator>>
 * <<esql-rlike-operator>>
 // end::op_list[]
@@ -23,6 +23,6 @@ include::unary.asciidoc[]
 include::logical.asciidoc[]
 include::predicates.asciidoc[]
 include::cast.asciidoc[]
-include::layout/in.asciidoc[]
+include::in.asciidoc[]
 include::like.asciidoc[]
 include::rlike.asciidoc[]

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.io.IOException;
 
@@ -92,9 +93,9 @@ public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInve
         return unsignedLongMultiplyExact(lhs, rhs);
     }
 
-    @Evaluator(extraName = "Doubles")
+    @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        return lhs * rhs;
+        return NumericUtils.asFiniteNumber(lhs * rhs);
     }
 
 }

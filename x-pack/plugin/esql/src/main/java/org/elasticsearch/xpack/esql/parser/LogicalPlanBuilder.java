@@ -78,6 +78,11 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
+/**
+ * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
+ * which change the grammar will need to make changes here as well.
+ *
+ */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;

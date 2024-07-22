@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -54,17 +54,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
         );
     }
 
-    static final Map<String, Consumer<NodesStatsRequest>> METRICS;
-
-    static {
-        Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
-        for (NodesStatsRequestParameters.Metric metric : NodesStatsRequestParameters.Metric.values()) {
-            map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
-        }
-        map.put("indices", request -> request.indices(true));
-        METRICS = Collections.unmodifiableMap(map);
-    }
-
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
 
     static {
@@ -88,14 +77,14 @@ public class RestNodesStatsAction extends BaseRestHandler {
         }
 
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
+        Set<String> metricNames = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(getTimeout(request));
         // level parameter validation
         nodesStatsRequest.setIncludeShardsStats(NodeStatsLevel.of(request, NodeStatsLevel.NODE) != NodeStatsLevel.NODE);
 
-        if (metrics.size() == 1 && metrics.contains("_all")) {
+        if (metricNames.size() == 1 && metricNames.contains("_all")) {
             if (request.hasParam("index_metric")) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -108,7 +97,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
             }
             nodesStatsRequest.all();
             nodesStatsRequest.indices(CommonStatsFlags.ALL);
-        } else if (metrics.contains("_all")) {
+        } else if (metricNames.contains("_all")) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -122,21 +111,22 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
             // use a sorted set so the unrecognized parameters appear in a reliable sorted order
             final Set<String> invalidMetrics = new TreeSet<>();
-            for (final String metric : metrics) {
-                final Consumer<NodesStatsRequest> handler = METRICS.get(metric);
-                if (handler != null) {
-                    handler.accept(nodesStatsRequest);
+            for (final String metricName : metricNames) {
+                if (Metric.isValid(metricName)) {
+                    nodesStatsRequest.addMetric(Metric.get(metricName));
                 } else {
-                    invalidMetrics.add(metric);
+                    if (metricName.equals("indices")) continue; // indices metric has different implications, see below
+                    invalidMetrics.add(metricName);
                 }
             }
 
             if (invalidMetrics.isEmpty() == false) {
-                throw new IllegalArgumentException(unrecognized(request, invalidMetrics, METRICS.keySet(), "metric"));
+                throw new IllegalArgumentException(unrecognized(request, invalidMetrics, Metric.ALL_NAMES, "metric"));
             }
 
             // check for index specific metrics
-            if (metrics.contains("indices")) {
+            if (metricNames.contains("indices")) {
+                nodesStatsRequest.indices(true);
                 Set<String> indexMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", "_all"));
                 if (indexMetrics.size() == 1 && indexMetrics.contains("_all")) {
                     nodesStatsRequest.indices(CommonStatsFlags.ALL);

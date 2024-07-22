@@ -501,6 +501,7 @@ POST _reindex
 Here’s how to resolve common shard-related errors.
 
 [discrete]
+[[troubleshooting-max-shards-open]]
 ==== this action would add [x] total shards, but this cluster currently has [y]/[z] maximum shards open;
 
 The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster

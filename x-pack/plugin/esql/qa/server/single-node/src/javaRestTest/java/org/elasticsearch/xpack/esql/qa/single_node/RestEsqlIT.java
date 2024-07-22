@@ -430,9 +430,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     .item("OutputOperator"),
                 // Second pass read and join via eval
                 matchesList().item("LuceneSourceOperator")
-                    .item("ValuesSourceReaderOperator")
                     .item("EvalOperator")
+                    .item("ValuesSourceReaderOperator")
                     .item("TopNOperator")
+                    .item("ValuesSourceReaderOperator")
                     .item("ProjectOperator")
                     .item("ExchangeSinkOperator"),
                 // Second pass node level reduce

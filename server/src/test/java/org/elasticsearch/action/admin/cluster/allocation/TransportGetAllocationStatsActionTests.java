@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -88,7 +89,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
     public void testReturnsOnlyRequestedStats() throws Exception {
 
-        var metrics = Set.copyOf(randomSubsetOf(NodesStatsRequestParameters.Metric.allMetrics()));
+        var metrics = EnumSet.copyOf(randomSubsetOf(Metric.values().length, Metric.values()));
 
         var request = new TransportGetAllocationStatsAction.Request(
             TimeValue.ONE_MINUTE,
@@ -104,7 +105,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);
         var response = future.get();
 
-        if (NodesStatsRequestParameters.Metric.ALLOCATIONS.containedIn(metrics)) {
+        if (metrics.contains(Metric.ALLOCATIONS)) {
             assertThat(response.getNodeAllocationStats(), not(anEmptyMap()));
             verify(allocationStatsService).stats();
         } else {
@@ -112,7 +113,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             verify(allocationStatsService, never()).stats();
         }
 
-        if (NodesStatsRequestParameters.Metric.FS.containedIn(metrics)) {
+        if (metrics.contains(Metric.FS)) {
             assertNotNull(response.getDiskThresholdSettings());
         } else {
             assertNull(response.getDiskThresholdSettings());

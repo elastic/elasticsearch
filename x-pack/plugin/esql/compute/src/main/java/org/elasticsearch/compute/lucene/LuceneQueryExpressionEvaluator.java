@@ -31,6 +31,12 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
+/**
+ * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
+ * the compute engine's normal execution. It's much faster to push these to the
+ * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
+ * this evaluator is here to save the day.
+ */
 public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEvaluator {
     public record ShardConfig(Query query, IndexSearcher searcher) {}
 

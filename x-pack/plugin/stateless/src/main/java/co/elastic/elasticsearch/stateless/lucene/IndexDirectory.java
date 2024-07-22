@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.store.Directory;
@@ -25,6 +26,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -50,6 +52,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -72,7 +75,7 @@ public class IndexDirectory extends ByteSizeDirectory {
      * Directory used to access files stored in the object store through the shared cache. Once a commit is uploaded to the object store,
      * its files should be accessed using this cache directory.
      */
-    private final SearchDirectory cacheDirectory;
+    private final IndexBlobStoreCacheDirectory cacheDirectory;
     /**
      * A callback to invoke when a generational file is deleted (by Lucene). It is used for
      * ref-counting their associated BCC blobs.
@@ -99,9 +102,16 @@ public class IndexDirectory extends ByteSizeDirectory {
      */
     private final AtomicLong estimatedSize = new AtomicLong();
 
+    private final SetOnce<String> recoveryCommitMetadataNodeEphemeralId = new SetOnce<>();
+    private final SetOnce<Long> recoveryCommitTranslogRecoveryStartFile = new SetOnce<>();
+
     private long lastGeneration = -1;
 
-    public IndexDirectory(Directory in, SearchDirectory cacheDirectory, @Nullable BiConsumer<ShardId, String> onGenerationalFileDeletion) {
+    public IndexDirectory(
+        Directory in,
+        IndexBlobStoreCacheDirectory cacheDirectory,
+        @Nullable BiConsumer<ShardId, String> onGenerationalFileDeletion
+    ) {
         super(in);
         this.cacheDirectory = Objects.requireNonNull(cacheDirectory);
         this.onGenerationalFileDeletion = onGenerationalFileDeletion;
@@ -266,42 +276,71 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
     }
 
-    public SearchDirectory getSearchDirectory() {
+    public IndexBlobStoreCacheDirectory getBlobStoreCacheDirectory() {
         return cacheDirectory;
     }
 
-    public void updateCommit(StatelessCompoundCommit commit, Set<String> filesToRetain) {
+    public void updateCommit(
+        long lastUploadedGeneration,
+        long dataSizeInBytes,
+        Set<String> uploadedFiles,
+        Map<String, BlobLocation> blobLocations
+    ) {
         try (var ignored = writeLock.acquire()) {
             // retaining files will not work if we receive files out of order.
             // StatelessCommitService however promises to only call this in commit generation order.
-            assert commit.generation() >= lastGeneration : "out of order generation " + commit.generation() + " < " + lastGeneration;
-            lastGeneration = commit.generation();
-            assert filesToRetain == null || filesToRetain.containsAll(commit.commitFiles().keySet());
+            assert lastUploadedGeneration >= lastGeneration : "out of order generation " + lastUploadedGeneration + " < " + lastGeneration;
+            lastGeneration = lastUploadedGeneration;
+            assert blobLocations.keySet().containsAll(uploadedFiles);
 
-            cacheDirectory.updateCommit(commit);
-            if (filesToRetain != null) { // during close we do not know the files to retain
-                cacheDirectory.retainFilesIndexing(filesToRetain);
-            }
-            if (localFiles.isEmpty()) {
-                // create references for first commit files if they are not known
-                commit.commitFiles().keySet().forEach(file -> localFiles.putIfAbsent(file, new LocalFileRef(file) {
-                    @Override
-                    protected void closeInternal() {
-                        // skipping deletion, the file was not created locally
-                    }
-                }));
-
-                // Mark all the files added as uploaded since they came from the object store
-                commit.commitFiles().keySet().forEach(file -> localFiles.get(file).markAsUploaded());
-            } else {
-                commit.commitFiles().keySet().forEach(file -> {
-                    var localFile = localFiles.get(file);
-                    if (localFile != null) {
-                        localFile.markAsUploaded();
-                    }
-                });
-            }
+            cacheDirectory.updateMetadata(blobLocations, dataSizeInBytes);
+            uploadedFiles.forEach(file -> {
+                var localFile = localFiles.get(file);
+                if (localFile != null) {
+                    localFile.markAsUploaded();
+                }
+            });
         }
+    }
+
+    /**
+     * Updates the metadata required for recovery operations. This method is invoked prior to the recovery process
+     * to ensure that all necessary information is available for replaying operations from the transaction log (translog) if needed.
+     *
+     * @param recoveryCommit the base commit point from which recovery will proceed.
+     */
+    public void updateRecoveryCommit(StatelessCompoundCommit recoveryCommit) {
+        recoveryCommitMetadataNodeEphemeralId.set(recoveryCommit.nodeEphemeralId());
+        recoveryCommitTranslogRecoveryStartFile.set(recoveryCommit.translogRecoveryStartFile());
+        try (var ignored = writeLock.acquire()) {
+            assert localFiles.isEmpty();
+            recoveryCommit.commitFiles().keySet().forEach(file -> localFiles.putIfAbsent(file, new LocalFileRef(file) {
+                @Override
+                protected void closeInternal() {
+                    // skipping deletion, the file was not created locally
+                }
+            }));
+            updateCommit(
+                recoveryCommit.generation(),
+                recoveryCommit.getAllFilesSizeInBytes(),
+                recoveryCommit.commitFiles().keySet(),
+                recoveryCommit.commitFiles()
+            );
+        }
+    }
+
+    public void updateMetadataForPreWarming(StatelessCompoundCommit preWarmingCommit) {
+        cacheDirectory.updateMetadata(preWarmingCommit.commitFiles(), preWarmingCommit.getAllFilesSizeInBytes());
+    }
+
+    public Optional<String> getRecoveryCommitMetadataNodeEphemeralId() {
+        String nodeEphemeralId = recoveryCommitMetadataNodeEphemeralId.get();
+        return nodeEphemeralId != null ? Optional.of(nodeEphemeralId) : Optional.empty();
+    }
+
+    public long getTranslogRecoveryStartFile() {
+        Long translogRecoveryStartFile = recoveryCommitTranslogRecoveryStartFile.get();
+        return translogRecoveryStartFile != null ? translogRecoveryStartFile : 0;
     }
 
     public static IndexDirectory unwrapDirectory(final Directory directory) {

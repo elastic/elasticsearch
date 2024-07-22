@@ -53,6 +53,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
@@ -831,11 +832,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     /**
      * @param uploadedBcc the BCC that was uploaded
-     * @param filesToRetain the individual files (not blobs) that are still necessary to be able to access, including
+     * @param blobLocations the individual files (not blobs) that are still necessary to be able to access, including
      *                      being held by open readers or being part of a commit that is not yet deleted by lucene.
      *                      Always includes all files from the new commit.
      */
-    public record UploadedBccInfo(BatchedCompoundCommit uploadedBcc, Set<String> filesToRetain) {}
+    public record UploadedBccInfo(BatchedCompoundCommit uploadedBcc, Map<String, BlobLocation> blobLocations) {}
 
     public void addConsumerForNewUploadedBcc(ShardId shardId, Consumer<UploadedBccInfo> listener) {
         requireNonNull(listener, "listener cannot be null");
@@ -1496,7 +1497,44 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
             }
 
-            final var uploadedBccInfo = new UploadedBccInfo(uploadedBcc, Set.copyOf(blobLocations.keySet()));
+            // From this point onwards the IndexDirectory can delete the local files and rely on the files that are uploaded
+            // into the blob store, hence we just provide the Lucene file -> BlobLocation map for files that are already uploaded
+            // as it's possible the blobLocations contains files from new commits that are not uploaded yet
+            Map<String, BlobLocation> uploadedFilesBlobLocations = Maps.newMapWithExpectedSize(blobLocations.size());
+            for (Map.Entry<String, CommitAndBlobLocation> blobLocationEntry : blobLocations.entrySet()) {
+                CommitAndBlobLocation commitAndBlobLocation = blobLocationEntry.getValue();
+                if (commitAndBlobLocation.blobReference()
+                    .getPrimaryTermAndGeneration()
+                    .onOrBefore(uploadedBcc.primaryTermAndGeneration())) {
+                    String fileName = blobLocationEntry.getKey();
+                    if (isGenerationalFile(fileName)
+                        && commitAndBlobLocation.blobLocation()
+                            .getBatchedCompoundCommitTermAndGeneration()
+                            .after(uploadedBcc.primaryTermAndGeneration())) {
+                        // BlobLocations for generational files can change while the BlobReference remains the same, hence we have to check
+                        // and use the uploaded BCC in that case.
+                        BlobLocation generationalFileBCCBlobLocation = uploadedBcc.last().commitFiles().get(fileName);
+                        assert generationalFileBCCBlobLocation != null
+                            : fileName
+                                + " vs "
+                                + uploadedBcc.compoundCommits().stream().toList()
+                                + " vs "
+                                + blobLocations
+                                + " -- "
+                                + commitAndBlobLocation;
+                        uploadedFilesBlobLocations.put(fileName, generationalFileBCCBlobLocation);
+                    } else {
+                        uploadedFilesBlobLocations.put(fileName, commitAndBlobLocation.blobLocation());
+                    }
+                }
+            }
+            assert uploadedFilesBlobLocations.values()
+                .stream()
+                .allMatch(
+                    blobLocation -> blobLocation.getBatchedCompoundCommitTermAndGeneration()
+                        .onOrBefore(uploadedBcc.primaryTermAndGeneration())
+                ) : uploadedFilesBlobLocations + " vs " + uploadedBcc.primaryTermAndGeneration() + " " + uploadedBcc;
+            final var uploadedBccInfo = new UploadedBccInfo(uploadedBcc, uploadedFilesBlobLocations);
             // upload consumers must be triggered in generation order, hence trigger before removing from `pendingUploadBccGenerations`.
             Exception exception = null;
             try {

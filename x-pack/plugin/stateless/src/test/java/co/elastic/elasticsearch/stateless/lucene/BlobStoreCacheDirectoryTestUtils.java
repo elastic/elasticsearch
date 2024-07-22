@@ -21,29 +21,19 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
-import java.util.Map;
+public class BlobStoreCacheDirectoryTestUtils {
 
-public class SearchDirectoryTestUtils {
+    private BlobStoreCacheDirectoryTestUtils() {}
 
-    private SearchDirectoryTestUtils() {}
-
-    public static void setMetadata(SearchDirectory target, Map<String, BlobLocation> source) {
-        target.setMetadata(source);
-    }
-
-    public static BlobLocation getBlobLocation(SearchDirectory target, String fileName) {
+    public static BlobLocation getBlobLocation(BlobStoreCacheDirectory target, String fileName) {
         return target.getBlobLocation(fileName);
-    }
-
-    public static FileCacheKey getCacheKey(SearchIndexInput target) {
-        return target.cacheFile().getCacheKey();
     }
 
     public static StatelessSharedBlobCacheService.CacheFile getCacheFile(SearchIndexInput target) {
         return target.cacheFile();
     }
 
-    public static StatelessSharedBlobCacheService getCacheService(SearchDirectory target) {
+    public static StatelessSharedBlobCacheService getCacheService(BlobStoreCacheDirectory target) {
         return target.getCacheService();
     }
 

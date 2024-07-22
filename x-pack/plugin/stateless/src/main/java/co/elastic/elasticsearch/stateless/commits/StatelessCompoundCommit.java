@@ -176,6 +176,21 @@ public record StatelessCompoundCommit(
     }
 
     /**
+     * Calculates and returns the total size of all the files referenced in this compound commit.
+     * This method includes the sizes of files stored in other commits, unlike {@link #sizeInBytes()},
+     * which only considers the sizes of files unique to this commit and the header + padding.
+     *
+     * @return the total size of the files either embedded or referenced in this commit in bytes
+     */
+    public long getAllFilesSizeInBytes() {
+        long commitFilesSizeInBytes = 0;
+        for (BlobLocation commitFile : commitFiles.values()) {
+            commitFilesSizeInBytes += commitFile.fileLength();
+        }
+        return commitFilesSizeInBytes;
+    }
+
+    /**
      * Writes the StatelessCompoundCommit header to the given StreamOutput and returns the number of bytes written
      * @return the header size in bytes
      */

@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.recovery.metering;
 
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.elasticsearch.action.ActionListener;
@@ -106,21 +107,28 @@ public class RecoveryMetricsCollector implements IndexEventListener {
                     shardRecoveryTranslogTimeMetric.record(recoveryState.getTranslog().time(), metricLabels);
 
                     final Store store = indexShard.store();
-                    final SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
                     // TODO: ideally read/warmed metrics should be emitted right after corresponding operation is finished (ES-8709)
-                    shardRecoveryTotalBytesReadFromIndexingMetric.incrementBy(searchDirectory.totalBytesReadFromIndexing(), metricLabels);
+                    if (indexShard.routingEntry().isPromotableToPrimary() == false) {
+                        final SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
+                        shardRecoveryTotalBytesReadFromIndexingMetric.incrementBy(
+                            searchDirectory.totalBytesReadFromIndexing(),
+                            metricLabels
+                        );
+                        shardRecoveryTotalBytesWarmedFromIndexingMetric.incrementBy(
+                            searchDirectory.totalBytesWarmedFromIndexing(),
+                            metricLabels
+                        );
+                    }
+                    var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(store.directory());
                     shardRecoveryTotalBytesReadFromObjectStoreMetric.incrementBy(
-                        searchDirectory.totalBytesReadFromObjectStore(),
-                        metricLabels
-                    );
-                    shardRecoveryTotalBytesWarmedFromIndexingMetric.incrementBy(
-                        searchDirectory.totalBytesWarmedFromIndexing(),
+                        blobStoreCacheDirectory.totalBytesReadFromObjectStore(),
                         metricLabels
                     );
                     shardRecoveryTotalBytesWarmedFromObjectStoreMetric.incrementBy(
-                        searchDirectory.totalBytesWarmedFromObjectStore(),
+                        blobStoreCacheDirectory.totalBytesWarmedFromObjectStore(),
                         metricLabels
                     );
+
                 }
             }
         } catch (Exception e) {

@@ -74,6 +74,7 @@ import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -943,15 +944,10 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
-                    SearchDirectory searchDirectory = createSearchDirectory(
-                        sharedBlobCacheService.get(),
-                        cacheBlobReaderService.get(),
-                        MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                        shardRouting.shardId()
-                    );
+                    var indexCacheDirectory = createIndexBlobStoreCacheDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
                     return new IndexDirectory(
                         in,
-                        searchDirectory,
+                        indexCacheDirectory,
                         statelessCommitService.isGenerationalFilesTrackingEnabled()
                             ? statelessCommitService::onGenerationalFileDeletion
                             : null
@@ -1140,6 +1136,13 @@ public class Stateless extends Plugin
         ShardId shardId
     ) {
         return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+    }
+
+    protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(
+        StatelessSharedBlobCacheService cacheService,
+        ShardId shardId
+    ) {
+        return new IndexBlobStoreCacheDirectory(cacheService, shardId);
     }
 
     private ClosedShardService getClosedShardService() {

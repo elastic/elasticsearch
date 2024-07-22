@@ -133,13 +133,21 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
+        protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(
+            StatelessSharedBlobCacheService cacheService,
+            ShardId shardId
+        ) {
+            return new GenerationalFilesTrackingIndexBlobStoreCacheDirectory(cacheService, shardId);
+        }
+
+        @Override
         protected SearchDirectory createSearchDirectory(
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
-            MutableObjectStoreUploadTracker tracker,
+            MutableObjectStoreUploadTracker objectStoreUploadTracker,
             ShardId shardId
         ) {
-            return new GenerationalFilesTrackingSearchDirectory(cacheService, cacheBlobReaderService, tracker, shardId);
+            return new GenerationalFilesTrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
         }
 
         @Override
@@ -283,28 +291,56 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    private static class GenerationalFilesTrackingSearchDirectory extends SearchDirectory {
+    private static class GenerationalFilesTrackingIndexBlobStoreCacheDirectory extends IndexBlobStoreCacheDirectory {
+        private final GenerationalFilesTracker generationalFilesTracker = new GenerationalFilesTracker();
 
-        record NameAndLocation(String name, BlobLocation blobLocation) {}
-
-        private final Map<IndexInput, NameAndLocation> inputs = new HashMap<>();
-
-        GenerationalFilesTrackingSearchDirectory(
-            StatelessSharedBlobCacheService cacheService,
-            CacheBlobReaderService cacheBlobReaderService,
-            MutableObjectStoreUploadTracker tracker,
-            ShardId shardId
-        ) {
-            super(cacheService, cacheBlobReaderService, tracker, shardId);
+        GenerationalFilesTrackingIndexBlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
+            super(cacheService, shardId);
         }
 
         @Override
         protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
             var input = super.doOpenInput(name, context, blobLocation);
-            return StatelessCommitService.isGenerationalFile(name) ? track(input, name, blobLocation) : input;
+            return generationalFilesTracker.trackIfIsGenerationalFile(input, name, blobLocation);
         }
 
-        private synchronized IndexInput track(IndexInput input, String name, BlobLocation blobLocation) {
+        public GenerationalFilesTracker getGenerationalFilesTracker() {
+            return generationalFilesTracker;
+        }
+    }
+
+    private static class GenerationalFilesTrackingSearchDirectory extends SearchDirectory {
+        private final GenerationalFilesTracker generationalFilesTracker = new GenerationalFilesTracker();
+
+        GenerationalFilesTrackingSearchDirectory(
+            StatelessSharedBlobCacheService cacheService,
+            CacheBlobReaderService cacheBlobReaderService,
+            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+            ShardId shardId
+        ) {
+            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        }
+
+        @Override
+        protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
+            var input = super.doOpenInput(name, context, blobLocation);
+            return generationalFilesTracker.trackIfIsGenerationalFile(input, name, blobLocation);
+        }
+
+        public GenerationalFilesTracker getGenerationalFilesTracker() {
+            return generationalFilesTracker;
+        }
+    }
+
+    private static final class GenerationalFilesTracker {
+        record NameAndLocation(String name, BlobLocation blobLocation) {}
+
+        private final Map<IndexInput, NameAndLocation> inputs = new HashMap<>();
+
+        private synchronized IndexInput trackIfIsGenerationalFile(IndexInput input, String name, BlobLocation blobLocation) {
+            if (StatelessCommitService.isGenerationalFile(name) == false) {
+                return input;
+            }
             var nameAndLocation = new NameAndLocation(name, blobLocation);
             if (inputs.putIfAbsent(input, nameAndLocation) != null) {
                 fail("Input already tracked for " + name);
@@ -352,22 +388,20 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 );
         }
 
-        static GenerationalFilesTrackingSearchDirectory unwrapTrackingDirectory(final Directory directory) {
+        static GenerationalFilesTracker getDirectoryGenerationalFilesTracker(final Directory directory) {
             Directory dir = directory;
             while (dir != null) {
-                if (dir instanceof GenerationalFilesTrackingSearchDirectory trackingSearchDirectory) {
-                    return trackingSearchDirectory;
-                } else if (dir instanceof IndexDirectory indexDirectory) {
-                    dir = indexDirectory.getSearchDirectory();
+                if (dir instanceof GenerationalFilesTrackingIndexBlobStoreCacheDirectory trackingIndexDirectory) {
+                    return trackingIndexDirectory.getGenerationalFilesTracker();
+                } else if (dir instanceof GenerationalFilesTrackingSearchDirectory trackingSearchDirectory) {
+                    return trackingSearchDirectory.getGenerationalFilesTracker();
                 } else if (dir instanceof FilterDirectory) {
                     dir = ((FilterDirectory) dir).getDelegate();
                 } else {
                     dir = null;
                 }
             }
-            var e = new IllegalStateException(
-                directory.getClass() + " cannot be unwrapped as " + GenerationalFilesTrackingSearchDirectory.class
-            );
+            var e = new IllegalStateException(directory.getClass() + " is not a generational files tracking directory");
             assert false : e;
             throw e;
         }
@@ -423,7 +457,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         final var indexName = createIndex(1, 0);
         var indexingShard = findIndexShard(resolveIndex(indexName), 0);
         var indexEngine = asInstanceOf(IndexEngine.class, indexingShard.getEngineOrNull());
-        var searchDirectory = SearchDirectory.unwrapDirectory(indexingShard.store().directory());
+        var blobStoreCacheDirectory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexingShard.store().directory());
 
         // BCC4
         final long docsAfterSegment_0 = 10_000L;
@@ -436,7 +470,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
         assertThat(indexEngine.getCurrentGeneration(), equalTo(4L));
         assertBusyFilesLocations(
-            searchDirectory,
+            blobStoreCacheDirectory,
             Map.ofEntries(
                 // BCC3
                 entry("segments_3", 3L),
@@ -459,7 +493,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
         assertThat(indexEngine.getCurrentGeneration(), equalTo(6L));
         assertBusyFilesLocations(
-            searchDirectory,
+            blobStoreCacheDirectory,
             Map.ofEntries(
                 // BCC3
                 entry("segments_3", 3L),
@@ -588,7 +622,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
         assertThat(indexEngine.getCurrentGeneration(), equalTo(8L));
         assertBusyFilesLocations(
-            searchDirectory,
+            blobStoreCacheDirectory,
             Map.ofEntries(
                 // BCC3
                 entry("segments_3", 3L),
@@ -630,7 +664,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         // The commit with generation 8 was reserved for the background merge, hence the jump to generation 9
         assertThat(indexEngine.getCurrentGeneration(), equalTo(9L));
         assertBusyFilesLocations(
-            searchDirectory,
+            blobStoreCacheDirectory,
             Map.ofEntries(
                 // BCC3
                 entry("segments_3", 3L),
@@ -700,7 +734,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
         assertThat(indexEngine.getCurrentGeneration(), equalTo(10L));
         assertBusyFilesLocations(
-            searchDirectory,
+            blobStoreCacheDirectory,
             Map.ofEntries(
                 // BCC3
                 entry("segments_3", 3L),
@@ -804,7 +838,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             )
         );
 
-        assertBusyOpenedGenerationalFiles(indexDirectory.getSearchDirectory(), Map.of());
+        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of());
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_0));
         assertThat(indexingShard.docStats().getDeleted(), equalTo(0L));
 
@@ -833,7 +867,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             )
         );
 
-        assertBusyOpenedGenerationalFiles(indexDirectory.getSearchDirectory(), Map.of());
+        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of());
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_1));
         assertThat(indexingShard.docStats().getDeleted(), equalTo(0L));
 
@@ -874,11 +908,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         // .dvm and .fnm are also opened but then fully read once and closed.
-        assertBusyOpenedGenerationalFiles(indexDirectory.getSearchDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
 
         // batched compound commit for generation 6 exists in the object store (stateless_commit_6)
         final String bccBlobName = StatelessCompoundCommit.blobNameFromGeneration(6L);
-        var blobContainer = indexDirectory.getSearchDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
+        var blobContainer = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
         assertBusy(() -> assertThat(blobContainer.listBlobs(OperationPurpose.INDICES).keySet(), hasItem(bccBlobName)));
 
         // now start a search shard on commit generation 6
@@ -934,7 +968,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertThat(indexEngine.getCurrentGeneration(), equalTo(7L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
-        assertBusyOpenedGenerationalFiles(indexDirectory.getSearchDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
         assertBusyRefreshedGeneration(searchEngine, equalTo(7L));
@@ -975,7 +1009,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertThat(indexEngine.getCurrentGeneration(), equalTo(8L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
-        assertBusyOpenedGenerationalFiles(indexDirectory.getSearchDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
         assertBusyRefreshedGeneration(searchEngine, equalTo(8L));
@@ -997,7 +1031,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         );
 
         // check that blob 'stateless_commit_6' exists in the object store
-        var blobContainerBefore = indexDirectory.getSearchDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
+        var blobContainerBefore = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
         assertBusy(() -> assertThat(blobContainerBefore.listBlobs(OperationPurpose.INDICES).keySet(), hasItem(bccBlobName)));
 
         // relocate the indexing shard
@@ -1031,11 +1065,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         // the new indexing shard opens the generational files on the generation 8L (flush before relocation)
-        assertBusyOpenedGenerationalFiles(indexDirectory.getSearchDirectory(), Map.of("_0_1_Lucene90_0.dvd", 8L));
+        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 8L));
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
         // after some time the new indexing shard can delete unused commits, including generation 6
-        var blobContainerAfter = indexDirectory.getSearchDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
+        var blobContainerAfter = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
         assertBusy(() -> assertThat(blobContainerAfter.listBlobs(OperationPurpose.INDICES).keySet(), not(hasItem(bccBlobName))));
 
         assertBusyRefreshedGeneration(searchEngine, equalTo(9L));
@@ -1049,7 +1083,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         );
 
         // clear the cache on the search shard to force reading data from object store again
-        var searchCacheService = SearchDirectoryTestUtils.getCacheService(searchDirectory);
+        var searchCacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory);
         searchCacheService.forceEvict(fileCacheKey -> bccBlobName.equals(fileCacheKey.fileName()));
 
         // Issue ES-7496:
@@ -1103,11 +1137,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     }
 
     private static void assertBusyFilesLocations(Directory directory, Map<String, Long> expectedLocations) throws Exception {
-        var searchDirectory = SearchDirectory.unwrapDirectory(directory);
+        var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(directory);
         assertBusy(() -> {
             for (var expected : expectedLocations.entrySet()) {
                 var fileName = expected.getKey();
-                var blobLocation = SearchDirectoryTestUtils.getBlobLocation(searchDirectory, fileName);
+                var blobLocation = BlobStoreCacheDirectoryTestUtils.getBlobLocation(blobStoreCacheDirectory, fileName);
                 var actualCompoundCommitGeneration = blobLocation != null ? blobLocation.compoundFileGeneration() : null;
                 assertThat(
                     "BlobLocation of file ["
@@ -1136,9 +1170,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     }
 
     private static void assertBusyOpenedGenerationalFiles(Directory directory, Map<String, Long> generationalFiles) throws Exception {
-        var trackingDirectory = GenerationalFilesTrackingSearchDirectory.unwrapTrackingDirectory(directory);
-        assertThat(trackingDirectory, notNullValue());
-        assertBusy(() -> assertThat(trackingDirectory.getGenerationalFilesAsMap(), equalTo(generationalFiles)));
+        var generationalFilesTracker = GenerationalFilesTracker.getDirectoryGenerationalFilesTracker(directory);
+        assertThat(generationalFilesTracker, notNullValue());
+        assertBusy(() -> assertThat(generationalFilesTracker.getGenerationalFilesAsMap(), equalTo(generationalFiles)));
     }
 
     /**

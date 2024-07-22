@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -50,6 +51,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
@@ -85,7 +88,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             final var blobStore = objectStoreService.blobStore();
             final ShardId shardId = indexShard.shardId();
             final var shardBasePath = objectStoreService.shardBasePath(shardId);
-            SearchDirectory.unwrapDirectory(store.directory())
+            BlobStoreCacheDirectory.unwrapDirectory(store.directory())
                 .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
             final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
                 ? null
@@ -158,9 +161,10 @@ class StatelessIndexEventListener implements IndexEventListener {
         ActionListener.completeWith(listener, () -> {
             final Store store = indexShard.store();
             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
+
             if (indexingShardState.latestCommit() != null) {
                 StatelessCompoundCommit lastCommit = indexingShardState.latestCommit().last();
-                indexDirectory.updateCommit(lastCommit, null);
+                indexDirectory.updateRecoveryCommit(lastCommit);
                 warmingService.warmCacheForShardRecovery("indexing", indexShard, lastCommit);
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
@@ -187,10 +191,17 @@ class StatelessIndexEventListener implements IndexEventListener {
                 );
             }
             statelessCommitService.addConsumerForNewUploadedBcc(indexShard.shardId(), info -> {
-                for (var compoundCommit : info.uploadedBcc().compoundCommits()) {
-                    // TODO: Avoid repeatedly update info.filesToRetain() for each CC. Or can we update only for the last CC?
-                    indexDirectory.updateCommit(compoundCommit, info.filesToRetain());
-                }
+                Set<String> uploadedFiles = info.uploadedBcc()
+                    .compoundCommits()
+                    .stream()
+                    .flatMap(f -> f.commitFiles().keySet().stream())
+                    .collect(Collectors.toSet());
+                indexDirectory.updateCommit(
+                    info.uploadedBcc().last().generation(),
+                    info.uploadedBcc().last().getAllFilesSizeInBytes(),
+                    uploadedFiles,
+                    info.blobLocations()
+                );
             });
 
             statelessCommitService.addConsumerForNewUploadedBcc(

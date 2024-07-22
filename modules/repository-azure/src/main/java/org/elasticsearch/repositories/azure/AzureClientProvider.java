@@ -166,7 +166,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         final String connectionString = settings.getConnectString();
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
-            .credential(new DefaultAzureCredentialBuilder().build())
+            .credential(new DefaultAzureCredentialBuilder().executorService(eventLoopGroup).build())
             .httpClient(httpClient)
             .retryOptions(retryOptions);
 

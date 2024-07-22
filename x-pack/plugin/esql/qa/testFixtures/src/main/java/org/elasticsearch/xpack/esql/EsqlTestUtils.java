@@ -156,6 +156,10 @@ public final class EsqlTestUtils {
         return of(Source.EMPTY, value);
     }
 
+    public static Configuration randomConfiguration() {
+        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
     /**
      * Utility method for creating 'in-line' Literals (out of values instead of expressions).
      */
@@ -172,10 +176,6 @@ public final class EsqlTestUtils {
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
-    }
-
-    public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static EsRelation relation() {

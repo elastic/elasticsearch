@@ -140,8 +140,16 @@ documentation].
 [[configuring-logging-levels]]
 === Configuring logging levels
 
-Log4J 2 log messages include a _level_ field. In order of increasing verbosity,
-the available levels are `FATAL`, `ERROR`, `WARN`, `INFO`, `DEBUG` or `TRACE`.
+Log4J 2 log messages include a _level_ field, which is one of the following (in
+order of increasing verbosity):
+
+* `FATAL`
+* `ERROR`
+* `WARN`
+* `INFO`
+* `DEBUG`
+* `TRACE`
+
 By default {es} includes all messages at levels `INFO`, `WARN`, `ERROR` and
 `FATAL` in its logs, but filters out messages at levels `DEBUG` and `TRACE`.
 This is the recommended configuration. Do not filter out messages at `INFO` or
@@ -155,18 +163,18 @@ Messages are logged by a hierarchy of loggers which matches the hierarchy of
 Java packages and classes in the {es-repo}[{es} source code]. Every logger has
 a corresponding <<cluster-update-settings,dynamic setting>> which can be used
 to control the verbosity of its logs. The setting's name is the fully-qualified
-name of the package or class, prefixed with `logger.`. For example, the
-`org.elasticsearch.discovery` package contains functionality related to the
-<<discovery-hosts-providers,discovery>> process, and you can control the
-verbosity of its logs with the `logger.org.elasticsearch.discovery` dynamic
-setting. You may set each logger's setting to the name of a log level, for
-instance `DEBUG`, which means that messages from this logger at levels up to
-the specified one will be included in the logs. Each logger can also be set to
-`OFF` to suppress its messages entirely.
+name of the package or class, prefixed with `logger.`.
 
-For example, to enable `DEBUG` logging for the `org.elasticsearch.discovery`
-package, use the <<cluster-update-settings,Cluster update settings API>> as
-follows:
+You may set each logger's verbosity to the name of a log level, for instance
+`DEBUG`, which means that messages from this logger at levels up to the
+specified one will be included in the logs. You may also use the value `OFF` to
+suppress all messages from the logger.
+
+For example, the `org.elasticsearch.discovery` package contains functionality
+related to the <<discovery-hosts-providers,discovery>> process, and you can
+control the verbosity of its logs with the `logger.org.elasticsearch.discovery`
+setting. To enable `DEBUG` logging for this package, use the
+<<cluster-update-settings,Cluster update settings API>> as follows:
 
 [source,console]
 ----

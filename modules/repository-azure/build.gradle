@@ -128,7 +128,12 @@ dependencies {
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
 
   // netty
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
   api "io.netty:netty-codec-dns:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
   api "io.netty:netty-handler-proxy:${versions.netty}"

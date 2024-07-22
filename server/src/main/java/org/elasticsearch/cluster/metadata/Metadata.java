@@ -1139,7 +1139,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             customs = ImmutableOpenMap.builder();
-            projectMetadata = new ProjectMetadata.Builder(mappingsByHash, indexCountHint);
+            projectMetadata = new ProjectMetadata.Builder(mappingsByHash, indexCountHint, clusterUUID);
             reservedStateMetadata = new HashMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }

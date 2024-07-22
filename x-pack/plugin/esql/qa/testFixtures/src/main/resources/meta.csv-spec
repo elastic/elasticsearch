@@ -39,10 +39,10 @@ double e()
 "double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
-"boolean|double|integer|long|date max(field:boolean|double|integer|long|date)"
+"boolean|double|integer|long|date|ip max(field:boolean|double|integer|long|date|ip)"
 "double|integer|long median(number:double|integer|long)"
 "double|integer|long median_absolute_deviation(number:double|integer|long)"
-"boolean|double|integer|long|date min(field:boolean|double|integer|long|date)"
+"boolean|double|integer|long|date|ip min(field:boolean|double|integer|long|date|ip)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(field1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, field2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "double mv_avg(number:double|integer|long|unsigned_long)"
 "keyword mv_concat(string:text|keyword, delim:text|keyword)"
@@ -58,7 +58,7 @@ double e()
 "double|integer|long|unsigned_long mv_sum(number:double|integer|long|unsigned_long)"
 "keyword mv_zip(string1:keyword|text, string2:keyword|text, ?delim:keyword|text)"
 date now()
-"double|integer|long percentile(number:double|integer|long, percentile:double|integer|long)"
+"double percentile(number:double|integer|long, percentile:double|integer|long)"
 double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
 "keyword repeat(string:keyword|text, number:integer)"
@@ -160,10 +160,10 @@ locate        |[string, substring, start]          |["keyword|text", "keyword|te
 log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
 log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 ltrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
-max           |field                               |"boolean|double|integer|long|date"                                                                                                |[""]
+max           |field                               |"boolean|double|integer|long|date|ip"                                                                                             |[""]
 median        |number                              |"double|integer|long"                                                                                                             |[""]
 median_absolut|number                              |"double|integer|long"                                                                                                             |[""]
-min           |field                               |"boolean|double|integer|long|date"                                                                                                |[""]
+min           |field                               |"boolean|double|integer|long|date|ip"                                                                                             |[""]
 mv_append     |[field1, field2]                    |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"]                 | ["", ""]
 mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[Multivalue expression., Delimiter.]
@@ -301,7 +301,7 @@ mv_sort       |Sorts a multivalued field in lexicographical order.
 mv_sum        |Converts a multivalued field into a single valued field containing the sum of all of the values.
 mv_zip        |Combines the values from two multivalued fields with a delimiter that joins them together.
 now           |Returns current date and time.
-percentile    |The value at which a certain percentage of observed values occur.
+percentile    |Returns the value at which a certain percentage of observed values occur. For example, the 95th percentile is the value which is greater than 95% of the observed values and the 50th percentile is the `MEDIAN`.
 pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.
 pow           |Returns the value of `base` raised to the power of `exponent`.
 repeat        |Returns a string constructed by concatenating `string` with itself the specified `number` of times.
@@ -405,10 +405,10 @@ locate        |integer                                                          
 log           |double                                                                                                                      |[true, false]               |false           |false
 log10         |double                                                                                                                      |false                       |false           |false
 ltrim         |"keyword|text"                                                                                                              |false                       |false           |false
-max           |"boolean|double|integer|long|date"                                                                                          |false                       |false           |true
+max           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
 median        |"double|integer|long"                                                                                                       |false                       |false           |true
 median_absolut|"double|integer|long"                                                                                                       |false                       |false           |true
-min           |"boolean|double|integer|long|date"                                                                                          |false                       |false           |true
+min           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
 mv_append     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false]              |false 		     |false
 mv_avg        |double                                                                                                                      |false                       |false           |false
 mv_concat     |keyword                                                                                                                     |[false, false]              |false           |false
@@ -424,7 +424,7 @@ mv_sort       |"boolean|date|double|integer|ip|keyword|long|text|version"       
 mv_sum        |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 mv_zip        |keyword                                                                                                                     |[false, false, true]        |false           |false
 now           |date                                                                                                                        |null                        |false           |false
-percentile    |"double|integer|long"                                                                                                       |[false, false]              |false           |true
+percentile    |double                                                                                                                      |[false, false]              |false           |true
 pi            |double                                                                                                                      |null                        |false           |false
 pow           |double                                                                                                                      |[false, false]              |false           |false
 repeat        |keyword                                                                                                                     |[false, false]              |false           |false

@@ -105,13 +105,21 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         startEnterpriseGeoIpDownloaderTask();
         configureDatabase(DATABASE_TYPE);
         createGeoIpPipeline(pipelineName, DATABASE_TYPE, sourceField, targetField);
-        String documentId = ingestDocument(indexName, pipelineName, sourceField);
-        GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
-        Map<String, Object> returnedSource = getResponse.getSource();
-        assertNotNull(returnedSource);
-        Object targetFieldValue = returnedSource.get(targetField);
-        assertNotNull(targetFieldValue);
-        assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+
+        assertBusy(() -> {
+            /*
+             * We know that the .geoip_databases index has been populated, but we don't know for sure that the database has been pulled
+             * down and made available on all nodes. So we run this ingest-and-check step in an assertBusy.
+             */
+            logger.info("Ingesting a test document");
+            String documentId = ingestDocument(indexName, pipelineName, sourceField);
+            GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
+            Map<String, Object> returnedSource = getResponse.getSource();
+            assertNotNull(returnedSource);
+            Object targetFieldValue = returnedSource.get(targetField);
+            assertNotNull(targetFieldValue);
+            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+        });
     }
 
     private void startEnterpriseGeoIpDownloaderTask() {

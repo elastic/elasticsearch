@@ -170,7 +170,7 @@ final class AggregateMapper {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else if (Top.class.isAssignableFrom(clazz)) {
-            types = List.of("Boolean", "Int", "Long", "Double");
+            types = List.of("Boolean", "Int", "Long", "Double", "Ip");
         } else if (Rate.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
         } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {
@@ -292,6 +292,9 @@ final class AggregateMapper {
             return "";
         }
         if ((aggClass == Max.class || aggClass == Min.class) && type.equals(DataType.IP)) {
+            return "Ip";
+        }
+        if (aggClass == Top.class && type.equals(DataType.IP)) {
             return "Ip";
         }
         if (type.equals(DataType.BOOLEAN)) {

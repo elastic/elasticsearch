@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
-import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;

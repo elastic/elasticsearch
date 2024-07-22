@@ -12,9 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.Objects;
 
 /**
- * A {@code Filter} is a type of Plan that performs filtering of results. In
- * {@code SELECT x FROM y WHERE z ..} the "WHERE" clause is a Filter. A
- * {@code Filter} has a "queryString" Expression that does the filtering.
+ * A {@code QueryStringFilter} is a type of Plan that performs filtering of results using a query string.
  */
 public class QueryStringFilter extends UnaryPlan {
 

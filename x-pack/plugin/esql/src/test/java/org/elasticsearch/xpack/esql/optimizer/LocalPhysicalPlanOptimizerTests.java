@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.QueryStringFilterExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -377,7 +376,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
      * me{f}#6, long_noidx{f}#11, salary{f}#7]]
      *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3]
-     *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"\"last_name: Smith\"","fields":[]}}][_doc{f}#12], limit[1000], sort[] estimatedRowSize[324]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"\"last_name: Smith\""
      */
     public void testMatchCommand() {
         var plan = plannerOptimizer.plan("""

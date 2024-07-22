@@ -49,12 +49,7 @@ public final class PhysicalVerifier {
                     );
                 }
             } else if (p instanceof QueryStringFilterExec queryStringFilterExec) {
-                failures.add(
-                    fail(
-                        queryStringFilterExec,
-                        "MATCH command must be used directly on a SOURCE command"
-                    )
-                );
+                failures.add(fail(queryStringFilterExec, "MATCH command must be used directly on a SOURCE command"));
             }
         });
 

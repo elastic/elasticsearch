@@ -329,23 +329,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertMetricAttributes(metric, indexName, 0, true);
         }
         assertThat("No bytes read or warmed from object store", warmedBytes || readBytes, equalTo(true));
-        // 2 metrics below are expected to report zeros since all files should be fetched from object store at this time
-        {
-            var metric = getSingleRecordedMetric(
-                plugin::getLongCounterMeasurement,
-                RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
-            );
-            assertThat("No bytes warmed from indexing", metric.getLong(), equalTo(0L));
-            assertMetricAttributes(metric, indexName, 0, true);
-        }
-        {
-            var metric = getSingleRecordedMetric(
-                plugin::getLongCounterMeasurement,
-                RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
-            );
-            assertThat("No bytes read from indexing", metric.getLong(), equalTo(0L));
-            assertMetricAttributes(metric, indexName, 0, true);
-        }
         {
             final List<Measurement> measurements = plugin.getLongCounterMeasurement(
                 SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC

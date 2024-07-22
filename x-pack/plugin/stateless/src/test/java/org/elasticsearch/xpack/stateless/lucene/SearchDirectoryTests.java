@@ -25,7 +25,6 @@ import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadT
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -117,7 +116,8 @@ public class SearchDirectoryTests extends ESTestCase {
                             shardId,
                             blobContainer,
                             location,
-                            objectStoreUploadTracker,
+                            // The test expects to go through the blob store always
+                            MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                             bytesReadFromObjectStore,
                             bytesReadFromIndexing
                         );
@@ -162,7 +162,7 @@ public class SearchDirectoryTests extends ESTestCase {
         }) {
             final var primaryTerm = randomLongBetween(1L, 10L);
             final var indexDirectory = IndexDirectory.unwrapDirectory(node.indexingStore.directory());
-            final var searchDirectory = indexDirectory.getSearchDirectory();
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             final var blobContainer = searchDirectory.getBlobContainer(primaryTerm);
             final int minFileSize = CodecUtil.footerLength();
 
@@ -222,11 +222,6 @@ public class SearchDirectoryTests extends ESTestCase {
 
                 logger.debug("--> update commit with file [{}]", fileName);
                 // bypass index directory so that files remain on disk and can be read again by ChecksumedFilesInputStream
-                searchDirectory.updateLatestUploadInfo(
-                    randomBoolean() ? null : new PrimaryTermAndGeneration(primaryTerm, generation),
-                    new PrimaryTermAndGeneration(primaryTerm, generation),
-                    node.clusterService.localNode().getId()
-                );
                 searchDirectory.updateCommit(
                     new StatelessCompoundCommit(
                         node.shardId,
@@ -259,7 +254,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 assertThat(CodecUtil.retrieveChecksum(input), equalTo(file.fileChecksum()));
 
                 logger.debug("--> verify cache file");
-                var cacheFile = SearchDirectoryTestUtils.getCacheFile((SearchIndexInput) input);
+                var cacheFile = BlobStoreCacheDirectoryTestUtils.getCacheFile((SearchIndexInput) input);
                 assertBusyCacheFile(cacheFile, file, blobName, blobLength);
 
                 if (previousFile != null) {
@@ -292,7 +287,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 previousInput = input;
                 previousFile = file;
             }
-            assertThat(indexDirectory.getSearchDirectory().getCacheService().getStats().evictCount(), equalTo(0L));
+            assertThat(indexDirectory.getBlobStoreCacheDirectory().getCacheService().getStats().evictCount(), equalTo(0L));
         }
     }
 

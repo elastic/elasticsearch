@@ -29,7 +29,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.store.Directory;
@@ -99,7 +99,7 @@ import static co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompou
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
-import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
+import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.action.search.SearchTransportService.QUERY_ACTION_NAME;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
@@ -271,8 +271,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     private void evictSearchShardCache(String indexName) {
         IndexShard shard = findSearchShard(indexName);
         Directory directory = shard.store().directory();
-        SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(directory);
-        getCacheService(searchDirectory).forceEvict((key) -> true);
+        BlobStoreCacheDirectory blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(directory);
+        getCacheService(blobStoreCacheDirectory).forceEvict((key) -> true);
     }
 
     private record IndexedDocs(int numDocs, int customDocs, long sum) {}

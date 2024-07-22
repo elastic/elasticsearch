@@ -23,8 +23,8 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
@@ -71,7 +71,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_DELAYED;
-import static co.elastic.elasticsearch.stateless.lucene.SearchDirectory.unwrapDirectory;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
@@ -501,7 +500,7 @@ public class SharedBlobCacheWarmingService {
             public void onResponse(Releasable releasable) {
                 try (RefCountingRunnable refs = new RefCountingRunnable(() -> Releasables.close(releasable))) {
                     var cacheKey = new FileCacheKey(indexShard.shardId(), blobRegion.blob.primaryTerm(), blobRegion.blob.blobName());
-                    var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+                    var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
 
                     var remaining = queue.counter.get();
                     assert 0 < remaining : remaining;
@@ -517,7 +516,7 @@ public class SharedBlobCacheWarmingService {
                             }
 
                             var blobLocation = item.blobLocation();
-                            var cacheBlobReader = searchDirectory.getCacheBlobReaderForWarming(blobLocation);
+                            var cacheBlobReader = blobStoreCacheDirectory.getCacheBlobReaderForWarming(blobLocation);
                             // compute the range to warm in cache
                             var range = cacheBlobReader.getRange(
                                 item.position(),
@@ -604,7 +603,8 @@ public class SharedBlobCacheWarmingService {
                         (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
                             assert streamFactory == null : streamFactory;
                             long position = (long) target.region * cacheService.getRegionSize() + relativePos;
-                            var blobContainer = unwrapDirectory(indexShard.store().directory()).getBlobContainer(target.blob.primaryTerm());
+                            var blobContainer = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory())
+                                .getBlobContainer(target.blob.primaryTerm());
                             try (var in = blobContainer.readBlob(OperationPurpose.INDICES, target.blob.blobName(), position, length)) {
                                 assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
                                 int bytesCopied = SharedBytes.copyToCacheFileAligned(

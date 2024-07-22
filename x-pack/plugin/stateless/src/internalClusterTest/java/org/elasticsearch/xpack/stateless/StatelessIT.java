@@ -25,7 +25,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
@@ -698,9 +698,9 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
         IndexShard shard = findIndexShard(indexName);
         Directory directory = shard.store().directory();
-        SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(directory);
+        BlobStoreCacheDirectory blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(directory);
         // nothing deleted yet so we expect same contents.
-        String[] originalFiles = searchDirectory.listAll();
+        String[] originalFiles = blobStoreCacheDirectory.listAll();
         assertThat(originalFiles, equalTo(directory.listAll()));
         if (randomBoolean()) {
             indexDocs(indexName, randomIntBetween(1, 100));
@@ -709,12 +709,12 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertObjectStoreConsistentWithIndexShards();
 
         Set<String> secondFileSet = Sets.union(toSet(directory.listAll()), toSet(originalFiles));
-        assertBusy(() -> assertThat(toSet(searchDirectory.listAll()), equalTo(secondFileSet)));
+        assertBusy(() -> assertThat(toSet(blobStoreCacheDirectory.listAll()), equalTo(secondFileSet)));
         indexDocs(indexName, randomIntBetween(1, 100));
         flush(indexName);
 
         // retained by external reader manager.
-        assertThat(toSet(searchDirectory.listAll()), hasItems(secondFileSet.toArray(String[]::new)));
+        assertThat(toSet(blobStoreCacheDirectory.listAll()), hasItems(secondFileSet.toArray(String[]::new)));
 
         refresh(indexName);
 
@@ -723,7 +723,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         flush(indexName);
 
         // expect at least one deleted file, the segments_N file.
-        assertBusy(() -> assertThat(toSet(searchDirectory.listAll()), not(hasItems(secondFileSet.toArray(String[]::new)))));
+        assertBusy(() -> assertThat(toSet(blobStoreCacheDirectory.listAll()), not(hasItems(secondFileSet.toArray(String[]::new)))));
 
         forceMerge();
         refresh(indexName);
@@ -731,7 +731,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         flush(indexName);
 
         // all from secondFileSet are gone.
-        assertBusy(() -> assertThat(Sets.intersection(toSet(searchDirectory.listAll()), secondFileSet), empty()));
+        assertBusy(() -> assertThat(Sets.intersection(toSet(blobStoreCacheDirectory.listAll()), secondFileSet), empty()));
 
     }
 

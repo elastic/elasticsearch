@@ -32,6 +32,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterC
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -281,20 +282,16 @@ public class FakeStatelessNode implements Closeable {
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(
                     new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
-                    createSearchDirectory(
-                        sharedCacheService,
-                        shardId,
-                        cacheBlobReaderService,
-                        MutableObjectStoreUploadTracker.ALWAYS_UPLOADED
-                    ),
+                    new IndexBlobStoreCacheDirectory(sharedCacheService, shardId),
                     commitService.isGenerationalFilesTrackingEnabled() ? commitService::onGenerationalFileDeletion : null
                 )
             );
             indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
-            indexingDirectory.getSearchDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
+            indexingDirectory.getBlobStoreCacheDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
             searchDirectory = localCloseables.add(
                 createSearchDirectory(sharedCacheService, shardId, cacheBlobReaderService, new AtomicMutableObjectStoreUploadTracker())
             );
+            searchDirectory.setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
             closeables = localCloseables.transfer();

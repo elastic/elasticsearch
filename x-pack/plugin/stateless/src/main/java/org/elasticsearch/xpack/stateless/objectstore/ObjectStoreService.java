@@ -23,7 +23,7 @@ import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
@@ -401,7 +401,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             l -> new BatchedCommitFileUploadTask(
                 commitStartNanos,
                 pendingCommit,
-                SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm),
+                BlobStoreCacheDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm),
                 l
             )
         );

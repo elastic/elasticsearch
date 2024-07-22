@@ -21,8 +21,6 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
-import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
@@ -37,7 +35,6 @@ import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
@@ -74,12 +71,14 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class IndexDirectoryTests extends ESTestCase {
@@ -100,11 +99,7 @@ public class IndexDirectoryTests extends ESTestCase {
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         final Path path = PathUtils.get(createTempDir().toString());
         try (
-            Directory directory = new IndexDirectory(
-                FSDirectory.open(path),
-                new SearchDirectory(null, null, MutableObjectStoreUploadTracker.ALWAYS_UPLOADED, null),
-                null
-            );
+            Directory directory = new IndexDirectory(FSDirectory.open(path), new IndexBlobStoreCacheDirectory(null, null), null);
             IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())
         ) {
             indexWriter.commit();
@@ -131,17 +126,12 @@ public class IndexDirectoryTests extends ESTestCase {
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
-                new SearchDirectory(
-                    sharedBlobCacheService,
-                    new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
-                    MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                    shardId
-                ),
+                new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
                 null
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
-            directory.getSearchDirectory().setBlobContainer(value -> blobContainer);
+            directory.getBlobStoreCacheDirectory().setBlobContainer(value -> blobContainer);
 
             var filesSizes = new HashMap<String, Integer>();
             var iters = randomIntBetween(1, 50);
@@ -176,18 +166,7 @@ public class IndexDirectoryTests extends ESTestCase {
                     {
                         var fileName = randomFrom(filesSizes.keySet());
                         var totalSize = directory.estimateSizeInBytes();
-                        directory.updateCommit(
-                            new StatelessCompoundCommit(
-                                directory.getSearchDirectory().getShardId(),
-                                2L,
-                                1L,
-                                "_na_",
-                                Map.of(fileName, new BlobLocation(1L, "_blob", 0L, length)),
-                                length,
-                                Set.of(fileName)
-                            ),
-                            null
-                        );
+                        directory.updateCommit(2L, length, Set.of(fileName), Map.of(fileName, new BlobLocation(1L, "_blob", 0L, length)));
                         var fileLength = filesSizes.remove(fileName);
                         assertThat(directory.estimateSizeInBytes(), equalTo(totalSize - fileLength));
                     }
@@ -218,22 +197,13 @@ public class IndexDirectoryTests extends ESTestCase {
                         var sizeBeforeUpload = directory.estimateSizeInBytes();
                         var totalSize = files.stream().mapToLong(Map.Entry::getValue).sum();
                         directory.updateCommit(
-                            new StatelessCompoundCommit(
-                                directory.getSearchDirectory().getShardId(),
-                                2L,
-                                1L,
-                                "_na_",
-                                files.stream()
-                                    .collect(
-                                        Collectors.toMap(
-                                            Map.Entry::getKey,
-                                            o -> new BlobLocation(1L, "blob_" + o.getKey(), 0L, o.getValue())
-                                        )
-                                    ),
-                                totalSize,
-                                files.stream().map(Map.Entry::getKey).collect(Collectors.toSet())
-                            ),
-                            null
+                            2L,
+                            files.stream().mapToLong(Map.Entry::getValue).sum(),
+                            files.stream().map(Map.Entry::getKey).collect(Collectors.toSet()),
+                            files.stream()
+                                .collect(
+                                    Collectors.toMap(Map.Entry::getKey, o -> new BlobLocation(1L, "blob_" + o.getKey(), 0L, o.getValue()))
+                                )
                         );
                         files.forEach(file -> filesSizes.remove(file.getKey()));
                         assertThat(directory.estimateSizeInBytes(), equalTo(sizeBeforeUpload - totalSize));
@@ -265,17 +235,12 @@ public class IndexDirectoryTests extends ESTestCase {
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
-                new SearchDirectory(
-                    sharedBlobCacheService,
-                    new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
-                    MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                    shardId
-                ),
+                new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
                 null
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
-            directory.getSearchDirectory().setBlobContainer(value -> blobContainer);
+            directory.getBlobStoreCacheDirectory().setBlobContainer(value -> blobContainer);
 
             final int fileLength = randomIntBetween(1024, 10240);
             assertThat(fileLength, greaterThanOrEqualTo(BlobCacheBufferedIndexInput.BUFFER_SIZE));
@@ -347,39 +312,46 @@ public class IndexDirectoryTests extends ESTestCase {
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
-                new SearchDirectory(
-                    sharedBlobCacheService,
-                    new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
-                    MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                    shardId
-                ),
+                new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
                 null
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
-            directory.getSearchDirectory().setBlobContainer(value -> blobContainer);
+            directory.getBlobStoreCacheDirectory().setBlobContainer(value -> blobContainer);
 
             Set<String> files = randomSet(1, 10, () -> randomAlphaOfLength(10));
 
             StatelessCompoundCommit commit = createCommit(directory, files, 2L);
 
-            directory.updateCommit(commit, null);
-            assertEquals(files, Set.of(directory.getSearchDirectory().listAll()));
+            directory.updateRecoveryCommit(commit);
+            assertEquals(files, Set.of(directory.getBlobStoreCacheDirectory().listAll()));
             Set<String> newFiles = randomSet(1, 10, () -> randomAlphaOfLength(10));
             newFiles.removeAll(files);
 
             StatelessCompoundCommit newCommit = createCommit(directory, newFiles, 3L);
-            directory.updateCommit(newCommit, Sets.union(files, newFiles));
+            directory.updateCommit(
+                3L,
+                newCommit.getAllFilesSizeInBytes(),
+                newFiles,
+                Stream.concat(commit.commitFiles().entrySet().stream(), newCommit.commitFiles().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
 
-            assertEquals(Sets.union(files, newFiles), Set.of(directory.getSearchDirectory().listAll()));
+            assertEquals(Sets.union(files, newFiles), Set.of(directory.getBlobStoreCacheDirectory().listAll()));
 
-            directory.updateCommit(newCommit, Sets.union(newFiles, files));
+            directory.updateCommit(
+                3L,
+                newCommit.getAllFilesSizeInBytes(),
+                newFiles,
+                Stream.concat(commit.commitFiles().entrySet().stream(), newCommit.commitFiles().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
 
-            assertEquals(Sets.union(files, newFiles), Set.of(directory.getSearchDirectory().listAll()));
+            assertEquals(Sets.union(files, newFiles), Set.of(directory.getBlobStoreCacheDirectory().listAll()));
 
-            directory.updateCommit(newCommit, newFiles);
+            directory.updateCommit(3, newCommit.getAllFilesSizeInBytes(), newFiles, newCommit.commitFiles());
 
-            assertEquals(newFiles, Set.of(directory.getSearchDirectory().listAll()));
+            assertEquals(newFiles, Set.of(directory.getBlobStoreCacheDirectory().listAll()));
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
         }
@@ -389,12 +361,12 @@ public class IndexDirectoryTests extends ESTestCase {
         final Path path = PathUtils.get(createTempDir().toString());
         final ShardId shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 10));
         final List<Tuple<ShardId, String>> capturedOnDeletions = new ArrayList<>();
-        final SearchDirectory searchDirectory = new SearchDirectory(null, null, MutableObjectStoreUploadTracker.ALWAYS_UPLOADED, shardId);
-        searchDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
+        final IndexBlobStoreCacheDirectory indexBlobStoreCacheDirectory = new IndexBlobStoreCacheDirectory(null, shardId);
+        indexBlobStoreCacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
         try (
             IndexDirectory directory = new IndexDirectory(
                 FSDirectory.open(path),
-                searchDirectory,
+                indexBlobStoreCacheDirectory,
                 (shardId1, filename) -> capturedOnDeletions.add(new Tuple<>(shardId1, filename))
             )
         ) {
@@ -407,16 +379,10 @@ public class IndexDirectoryTests extends ESTestCase {
             // randomly mark the generational file as uploaded
             if (randomBoolean()) {
                 directory.updateCommit(
-                    new StatelessCompoundCommit(
-                        shardId,
-                        1,
-                        1,
-                        "node",
-                        Map.of(generationalFilename, new BlobLocation(1, "stateless_commit_4", 0, fileLength)),
-                        fileLength,
-                        Set.of(generationalFilename)
-                    ),
-                    Set.of(generationalFilename)
+                    1,
+                    fileLength,
+                    Set.of(generationalFilename),
+                    Map.of(generationalFilename, new BlobLocation(1, "stateless_commit_4", 0, fileLength))
                 );
             }
             assertThat(capturedOnDeletions, empty());
@@ -439,6 +405,24 @@ public class IndexDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testUpdateRecoveryCommit() throws IOException {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final ShardId shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 10));
+        final IndexBlobStoreCacheDirectory indexBlobStoreCacheDirectory = new IndexBlobStoreCacheDirectory(null, shardId);
+        indexBlobStoreCacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
+        try (IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), indexBlobStoreCacheDirectory, null)) {
+            Set<String> files = randomSet(1, 10, () -> randomAlphaOfLength(10));
+            var recoveryCommit = createCommit(directory, files, 4L);
+            directory.updateRecoveryCommit(recoveryCommit);
+
+            assertThat(directory.getRecoveryCommitMetadataNodeEphemeralId().isPresent(), is(true));
+            assertThat(directory.getRecoveryCommitMetadataNodeEphemeralId().get(), is(equalTo(recoveryCommit.nodeEphemeralId())));
+
+            assertThat(directory.getTranslogRecoveryStartFile(), is(equalTo(recoveryCommit.translogRecoveryStartFile())));
+            assertEquals(files, Set.of(indexBlobStoreCacheDirectory.listAll()));
+        }
+    }
+
     private static TestThreadPool getThreadPool(String name) {
         return new TestThreadPool(name, Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
     }
@@ -447,7 +431,7 @@ public class IndexDirectoryTests extends ESTestCase {
         Map<String, BlobLocation> commitFiles = files.stream()
             .collect(Collectors.toMap(Function.identity(), o -> new BlobLocation(1L, "blob_" + o, 0L, between(1, 100))));
         return new StatelessCompoundCommit(
-            directory.getSearchDirectory().getShardId(),
+            directory.getBlobStoreCacheDirectory().getShardId(),
             generation,
             1L,
             "_na_",

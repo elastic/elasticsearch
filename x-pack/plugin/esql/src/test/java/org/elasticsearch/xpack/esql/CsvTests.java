@@ -242,6 +242,10 @@ public class CsvTests extends ESTestCase {
                 "multiple indices aren't supported",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
             );
+            assumeFalse(
+                "can't use match command in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_COMMAND.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

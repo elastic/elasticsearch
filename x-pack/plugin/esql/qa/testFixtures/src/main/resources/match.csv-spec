@@ -1,0 +1,18 @@
+matchField
+required_capability: match_command
+from employees | match "first_name: Ma*"  | keep emp_no, first_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword      
+10011          |Mary       
+10020          |Mayuko       
+10042          |Magy  
+10054          |Mayumi
+10069          |Margareta
+;
+
+required_capability: match_command
+from employees | match "+first_name: Ma* +last_name:*man"  | keep emp_no, first_name, last_name | sort emp_no;  
+
+emp_no:integer | first_name:keyword | last_name:keyword      
+10069          |Margareta           | Bierman
+;

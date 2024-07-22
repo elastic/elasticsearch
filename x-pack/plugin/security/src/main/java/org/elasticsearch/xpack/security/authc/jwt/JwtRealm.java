@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -48,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
@@ -257,23 +260,29 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
                 }
                 processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
             }, ex -> {
-                final String msg = "Realm ["
-                    + name()
-                    + "] JWT validation failed for token=["
-                    + tokenPrincipal
-                    + "] with header ["
-                    + jwtAuthenticationToken.getSignedJWT().getHeader()
-                    + "] and claimSet ["
-                    + jwtAuthenticationToken.getJWTClaimsSet()
-                    + "]";
+                AtomicReference<String> msg = new AtomicReference<>();
+                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    msg.set(
+                        "Realm ["
+                            + name()
+                            + "] JWT validation failed for token=["
+                            + tokenPrincipal
+                            + "] with header ["
+                            + jwtAuthenticationToken.getSignedJWT().getHeader()
+                            + "] and claimSet ["
+                            + jwtAuthenticationToken.getJWTClaimsSet()
+                            + "]"
+                    );
+                    return null;
+                });
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace(msg, ex);
+                    logger.trace(msg.get(), ex);
                 } else {
-                    logger.debug(msg + " Cause: " + ex.getMessage()); // only log the stack trace at trace level
+                    logger.debug(msg.get() + " Cause: " + ex.getMessage()); // only log the stack trace at trace level
                 }
                 // TODO: No point to continue to another realm if failure is ParseException
-                listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
+                listener.onResponse(AuthenticationResult.unsuccessful(msg.get(), ex));
             }));
 
         } else {

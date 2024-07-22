@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.QueryStringFilter;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -963,9 +965,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.child().fold(), is(11));
     }
 
-    public void testMatch() {
+    public void testMatch() throws IOException {
         String queryString = "field: value";
-        assertEquals(new QueryStringFilter(EMPTY, PROCESSING_CMD_INPUT, queryString), processingCommand("match \"" + queryString + "\""));
+        assertEquals(
+            new Filter(EMPTY, PROCESSING_CMD_INPUT, new StringQueryPredicate(EMPTY, queryString, null)),
+            processingCommand("match \"" + queryString + "\"")
+        );
 
         expectError("from a | match an unquoted string", "mismatched input 'an' expecting QUOTED_STRING");
     }

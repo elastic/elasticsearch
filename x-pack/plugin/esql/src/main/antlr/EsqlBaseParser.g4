@@ -295,5 +295,9 @@ lookupCommand
     ;
 
 matchCommand
-    : MATCH string
+    : MATCH queryString
+    ;
+
+queryString
+    : string
     ;

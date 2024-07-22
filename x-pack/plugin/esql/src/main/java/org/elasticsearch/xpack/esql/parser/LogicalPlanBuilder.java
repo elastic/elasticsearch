@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -346,8 +348,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (Build.current().isSnapshot() == false) {
             throw new ParsingException(source(ctx), "MATCH command currently requires a snapshot build");
         }
+
+        StringQueryPredicate stringQueryPredicate = visitQueryString(ctx.queryString());
+        return input -> new Filter(source(ctx), input, stringQueryPredicate);
+    }
+
+    @Override
+    public StringQueryPredicate visitQueryString(EsqlBaseParser.QueryStringContext ctx) {
+        Source source = source(ctx);
         String queryString = visitString(ctx.string()).fold().toString();
-        return input -> new QueryStringFilter(source(ctx), input, queryString);
+        return new StringQueryPredicate(source, queryString, null);
     }
 
     @Override

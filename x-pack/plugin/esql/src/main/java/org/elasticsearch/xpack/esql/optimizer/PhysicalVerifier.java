@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.PhysicalPlanDependencyCheck;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.QueryStringFilterExec;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -48,8 +47,6 @@ public final class PhysicalVerifier {
                         )
                     );
                 }
-            } else if (p instanceof QueryStringFilterExec queryStringFilterExec) {
-                failures.add(fail(queryStringFilterExec, "MATCH command must be used directly on a SOURCE command"));
             }
         });
 

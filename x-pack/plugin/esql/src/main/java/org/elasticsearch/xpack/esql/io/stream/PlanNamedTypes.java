@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.QueryStringFilter;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -67,7 +66,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.QueryStringFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -137,12 +135,6 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, MvExpandExec.class, PlanNamedTypes::writeMvExpandExec, PlanNamedTypes::readMvExpandExec),
             of(PhysicalPlan.class, OrderExec.class, PlanNamedTypes::writeOrderExec, PlanNamedTypes::readOrderExec),
             of(PhysicalPlan.class, ProjectExec.class, PlanNamedTypes::writeProjectExec, PlanNamedTypes::readProjectExec),
-            of(
-                PhysicalPlan.class,
-                QueryStringFilterExec.class,
-                PlanNamedTypes::writeQueryStringFilterExec,
-                PlanNamedTypes::readQueryStringFilterExec
-            ),
             of(PhysicalPlan.class, RowExec.class, PlanNamedTypes::writeRowExec, PlanNamedTypes::readRowExec),
             of(PhysicalPlan.class, ShowExec.class, PlanNamedTypes::writeShowExec, PlanNamedTypes::readShowExec),
             of(PhysicalPlan.class, TopNExec.class, PlanNamedTypes::writeTopNExec, PlanNamedTypes::readTopNExec),
@@ -162,7 +154,6 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, MvExpand.class, PlanNamedTypes::writeMvExpand, PlanNamedTypes::readMvExpand),
             of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
-            of(LogicalPlan.class, QueryStringFilter.class, PlanNamedTypes::writeQueryStringFilter, PlanNamedTypes::readQueryStringFilter),
             of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN)
         );
         return declared;
@@ -389,20 +380,10 @@ public final class PlanNamedTypes {
         return new FilterExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readNamedWriteable(Expression.class));
     }
 
-    static QueryStringFilterExec readQueryStringFilterExec(PlanStreamInput in) throws IOException {
-        return new QueryStringFilterExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readString());
-    }
-
     static void writeFilterExec(PlanStreamOutput out, FilterExec filterExec) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writePhysicalPlanNode(filterExec.child());
         out.writeNamedWriteable(filterExec.condition());
-    }
-
-    static void writeQueryStringFilterExec(PlanStreamOutput out, QueryStringFilterExec filterExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writePhysicalPlanNode(filterExec.child());
-        out.writeString(filterExec.queryString());
     }
 
     static FragmentExec readFragmentExec(PlanStreamInput in) throws IOException {
@@ -693,20 +674,10 @@ public final class PlanNamedTypes {
         return new Filter(Source.readFrom(in), in.readLogicalPlanNode(), in.readNamedWriteable(Expression.class));
     }
 
-    static QueryStringFilter readQueryStringFilter(PlanStreamInput in) throws IOException {
-        return new QueryStringFilter(Source.readFrom(in), in.readLogicalPlanNode(), in.readString());
-    }
-
     static void writeFilter(PlanStreamOutput out, Filter filter) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeLogicalPlanNode(filter.child());
         out.writeNamedWriteable(filter.condition());
-    }
-
-    static void writeQueryStringFilter(PlanStreamOutput out, QueryStringFilter filter) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(filter.child());
-        out.writeString(filter.queryString());
     }
 
     static Grok readGrok(PlanStreamInput in) throws IOException {

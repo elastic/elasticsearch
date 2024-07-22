@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.core.util.serializer.JacksonAdapter;
+import com.azure.core.util.serializer.SerializerAdapter;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,6 +28,8 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,7 +47,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     static {
         // Trigger static initialization with the plugin class loader
         // so we have access to the proper xml parser
-        JacksonAdapter.createDefaultSerializerAdapter();
+        AccessController.doPrivileged((PrivilegedAction<SerializerAdapter>) JacksonAdapter::createDefaultSerializerAdapter);
     }
 
     // protected for testing

@@ -116,8 +116,22 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     private class SegmentState {
         private final Weight weight;
         private final LeafReaderContext ctx;
+        /**
+         * Lazily initialed {@link Scorer} for this. {@code null} here means uninitialized
+         * <strong>or</strong> that {@link #noMatch} is true.
+         */
         private Scorer scorer;
+
+        /**
+         * Lazily initialed {@link BulkScorer} for this. {@code null} here means uninitialized
+         * <strong>or</strong> that {@link #noMatch} is true.
+         */
         private BulkScorer bulkScorer;
+
+        /**
+         * Set to {@code true} if, in the process of building a {@link Scorer} or {@link BulkScorer},
+         * the {@link Weight} tells us there aren't any matches.
+         */
         private boolean noMatch;
 
         private SegmentState(Weight weight, LeafReaderContext ctx) {
@@ -125,6 +139,10 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             this.ctx = ctx;
         }
 
+        /**
+         * Score a range using the {@link BulkScorer}. This should be faster
+         * than using {@link #scoreSparse} for dense doc ids.
+         */
         BooleanVector scoreDense(int min, int max) throws IOException {
             int length = max - min + 1;
             if (noMatch) {
@@ -143,6 +161,10 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             }
         }
 
+        /**
+         * Score a vector of doc ids using {@link Scorer}. If you have a dense range of
+         * doc ids it'd be faster to use {@link #scoreDense}.
+         */
         BooleanVector scoreSparse(IntVector docs) throws IOException {
             if (noMatch) {
                 return blockFactory.newConstantBooleanVector(false, docs.getPositionCount());
@@ -174,6 +196,11 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     private static final ShardState[] EMPTY_SHARD_STATES = new ShardState[0];
     private static final SegmentState[] EMPTY_SEGMENT_STATES = new SegmentState[0];
 
+    /**
+     * Collects matching information for dense range of doc ids. This assumes that
+     * doc ids are sent to {@link LeafCollector#collect(int)} in ascending order
+     * which isn't documented, but @jpountz swears is true.
+     */
     static class DenseCollector implements LeafCollector, Releasable {
         private final BooleanVector.FixedBuilder builder;
         private final int max;

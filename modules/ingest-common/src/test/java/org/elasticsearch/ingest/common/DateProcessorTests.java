@@ -394,7 +394,6 @@ public class DateProcessorTests extends ESTestCase {
         verify(supplier2, times(2)).get();
     }
 
-    @SuppressWarnings("unchecked")
     public void testMustacheTemplateExecutesAtMostTwiceWithMultipleFormats() {
         final TemplateScript.Factory factory = mock(TemplateScript.Factory.class);
         final TemplateScript compiledScript = mock(TemplateScript.class);

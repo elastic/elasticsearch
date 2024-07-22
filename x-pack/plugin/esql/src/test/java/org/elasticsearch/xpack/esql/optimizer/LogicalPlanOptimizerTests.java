@@ -4570,11 +4570,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Alias x = new Alias(EMPTY, "x", new Literal(EMPTY, 1, INTEGER));
         Alias y = new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER));
         LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
-        LogicalPlan initialProject = new Project(
-            EMPTY,
-            initialRow,
-            List.of(y.toAttribute(), x.toAttribute())
-        );
+        LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), x.toAttribute()));
 
         for (PushdownShadowingGeneratingPlanTestCase testCase : PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES) {
             LogicalPlan initialPlan = testCase.applyLogicalPlan.apply(initialProject, x.toAttribute());

@@ -16,7 +16,8 @@ public interface GeneratingPlan<PlanType extends GeneratingPlan<PlanType>> {
 
     /**
      * Create a new instance of this node with new output {@link Attribute}s using the given names.
-     * The output attributes have new {@link org.elasticsearch.xpack.esql.core.expression.NameId}s.
+     * If an output attribute already has the desired name, we continue using it; otherwise, we
+     * create a new attribute with a new {@link org.elasticsearch.xpack.esql.core.expression.NameId}.
      */
     // TODO: the generated attributes should probably become synthetic once renamed
     // blocked on https://github.com/elastic/elasticsearch/issues/98703

@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -287,24 +288,32 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             return orderBy.replaceChild(generatingPlan.replaceChild(orderBy.child()));
         } else if (child instanceof Project project) {
-            // We need to account for attribute shadowing. E.g.
+            // We need to account for attribute shadowing: a rename might rely on a name generated in an Eval/Grok/Dissect/Enrich.
+            // E.g. in:
+            //
             // Eval[[2 * x{f}#1 AS y]]
             // \_Project[[x{f}#1, y{f}#2, y{f}#2 AS z]]
-            // ..\_....
+            //
             // Just moving the Eval down breaks z because we shadow y{f}#2.
             // Instead, we use a different alias in the Eval, eventually renaming back to y:
+            //
             // Project[[x{f}#1, y{f}#2 as z, $$y{r}#3 as y]]
             // \_Eval[[2 * x{f}#1 as $$y]]
-            // ..\_....
 
             List<Attribute> generatedAttributes = generatingPlan.generatedAttributes();
 
             @SuppressWarnings("unchecked")
             Plan generatingPlanWithResolvedExpressions = (Plan) resolveRenamesFromProject(generatingPlan, project);
 
+            Set<String> namesReferencedInRenames = new HashSet<>();
+            for (NamedExpression ne : project.projections()) {
+                if (ne instanceof Alias as) {
+                    namesReferencedInRenames.addAll(as.child().references().names());
+                }
+            }
             Map<String, String> renameGeneratedAttributeTo = newNamesForConflictingAttributes(
                 generatingPlan.generatedAttributes(),
-                project.references().names()
+                namesReferencedInRenames
             );
             List<String> newNames = generatedAttributes.stream()
                 .map(attr -> renameGeneratedAttributeTo.getOrDefault(attr.name(), attr.name()))
@@ -380,14 +389,15 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         List<Attribute> potentiallyConflictingAttributes,
         Set<String> reservedNames
     ) {
+        if (reservedNames.isEmpty()) {
+            return Map.of();
+        }
+
         Map<String, String> renameAttributeTo = new HashMap<>();
         for (Attribute attr : potentiallyConflictingAttributes) {
             String name = attr.name();
             if (reservedNames.contains(name)) {
-                renameAttributeTo.putIfAbsent(
-                    name,
-                    locallyUniqueTemporaryName(name, "temp_name")
-                );
+                renameAttributeTo.putIfAbsent(name, locallyUniqueTemporaryName(name, "temp_name"));
             }
         }
 

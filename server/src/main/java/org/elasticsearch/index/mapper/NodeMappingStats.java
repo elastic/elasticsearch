@@ -99,7 +99,7 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.MAPPINGS);
         builder.field(Fields.TOTAL_COUNT, getTotalCount());
         builder.humanReadableField(Fields.TOTAL_ESTIMATED_OVERHEAD_IN_BYTES, Fields.TOTAL_ESTIMATED_OVERHEAD, getTotalEstimatedOverhead());
-        builder.field(Fields.TOTAL_SEGMENT_FIELDS, totalSegments);
+        builder.field(Fields.TOTAL_SEGMENT_FIELDS, totalSegmentFields);
         builder.field(Fields.AVERAGE_FIELDS_PER_SEGMENT, totalSegments == 0 ? 0 : totalSegmentFields / totalSegments);
         builder.endObject();
         return builder;

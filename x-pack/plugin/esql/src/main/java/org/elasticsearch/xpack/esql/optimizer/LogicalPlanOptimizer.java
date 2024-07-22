@@ -361,8 +361,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
-                        // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
-                        String tempName = rawTemporaryName(a.name(), "temp_name", a.id().toString());
+                        String tempName = locallyUniqueTemporaryName(a.name(), "temp_name");
                         // TODO: this should be synthetic
                         // blocked on https://github.com/elastic/elasticsearch/issues/98703
                         return new Alias(a.source(), tempName, null, a, null, false);
@@ -389,7 +388,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     name,
                     // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
                     // Do not use the attribute's id, as multiple attributes with the same name can occur.
-                    rawTemporaryName(name, "temp_name", "")
+                    locallyUniqueTemporaryName(name, "temp_name")
                 );
             }
         }

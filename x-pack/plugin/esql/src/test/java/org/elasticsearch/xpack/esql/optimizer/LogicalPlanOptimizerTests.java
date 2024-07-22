@@ -197,6 +197,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -4536,8 +4537,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
             List<? extends NamedExpression> projections = project.projections();
             @SuppressWarnings("unchecked")
-            List<Attribute> generatedExprs = ((GeneratingPlan) pushedDownGeneratingPlan).generatedAttributes();
-            assertThat(Expressions.names(generatedExprs), contains("$$y$temp_name$"));
+            List<Attribute> newGeneratedExprs = ((GeneratingPlan) pushedDownGeneratingPlan).generatedAttributes();
+            List<String> newNames = Expressions.names(newGeneratedExprs);
+            assertThat(newNames.size(), equalTo(1));
+            assertThat(newNames.get(0), startsWith("$$y$temp_name$"));
+            int suffix = Integer.parseInt(newNames.get(0).substring("$$y$temp_name$".length()));
+            assertThat(suffix, greaterThan(0));
 
             assertThat(Expressions.names(projections), contains("x", "z", "y"));
             assertThat(projections.get(0), instanceOf(ReferenceAttribute.class));
@@ -4546,7 +4551,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertEquals(yRenamed.name(), "y");
             Alias yAlias = as(projections.get(2), Alias.class);
             ReferenceAttribute yTempRenamed = as(yAlias.child(), ReferenceAttribute.class);
-            assertEquals(yTempRenamed.name(), "$$y$temp_name$");
+            assertThat(yTempRenamed.name(), startsWith("$$y$temp_name$"));
+            assertThat(Integer.parseInt(yTempRenamed.name().substring("$$y$temp_name$".length())), equalTo(suffix));
         }
     }
 

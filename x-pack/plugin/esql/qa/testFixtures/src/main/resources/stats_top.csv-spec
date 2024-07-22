@@ -216,10 +216,11 @@ from hosts
     a = TOP(ip0, 2, "desc"),
     b = TOP(x, 2, "desc"),
     c = TOP(case(host == "beta", ip0, ip1), 2, "desc")
-    by host;
+    by host
+| sort host asc;
 
 a:ip | b:ip | c:ip | host:keyword
 [127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | beta
-[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe81::cae2:65ff:fece:feb9, 127.0.0.3] | gamma
 [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | epsilon
+[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe81::cae2:65ff:fece:feb9, 127.0.0.3] | gamma
 ;

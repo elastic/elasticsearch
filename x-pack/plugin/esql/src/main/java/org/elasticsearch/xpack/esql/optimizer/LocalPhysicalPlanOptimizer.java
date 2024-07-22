@@ -177,7 +177,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     //
     // 1. add the materialization right before usage inside the local plan
     // 2. materialize any missing fields needed further up the chain
-
     /**
      * @see org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer.ProjectAwayColumns
      */

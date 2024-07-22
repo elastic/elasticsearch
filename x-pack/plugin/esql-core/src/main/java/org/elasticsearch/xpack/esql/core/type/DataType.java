@@ -230,23 +230,8 @@ public enum DataType {
         return t.isNumeric() || isNull(t);
     }
 
-    public static boolean isSigned(DataType t) {
-        return t.isNumeric() && t.equals(UNSIGNED_LONG) == false;
-    }
-
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
-    }
-
-    public static boolean areCompatible(DataType left, DataType right) {
-        if (left == right) {
-            return true;
-        } else {
-            return (left == NULL || right == NULL)
-                || (isString(left) && isString(right))
-                || (left.isNumeric() && right.isNumeric())
-                || (isDateTime(left) && isDateTime(right));
-        }
     }
 
     public String nameUpper() {

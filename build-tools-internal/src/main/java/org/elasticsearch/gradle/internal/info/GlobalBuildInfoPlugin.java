@@ -350,7 +350,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
         Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(javaToolchainSpec -> {
             javaToolchainSpec.getLanguageVersion().value(value);
-            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
         });
         return javaLauncherProvider.get().getMetadata().getInstallationPath().getAsFile();
     }

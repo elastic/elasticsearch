@@ -81,7 +81,7 @@ double pi()
 "double st_y(point:geo_point|cartesian_point)"
 "boolean starts_with(str:keyword|text, prefix:keyword|text)"
 "keyword substring(string:keyword|text, start:integer, ?length:integer)"
-"long sum(number:double|integer|long)"
+"long|double sum(number:double|integer|long)"
 "double tan(angle:double|integer|long|unsigned_long)"
 "double tanh(angle:double|integer|long|unsigned_long)"
 double tau()
@@ -324,7 +324,7 @@ st_x          |Extracts the `x` coordinate from the supplied point. If the point
 st_y          |Extracts the `y` coordinate from the supplied point. If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.
 starts_with   |Returns a boolean that indicates whether a keyword string starts with another string.
 substring     |Returns a substring of a string, specified by a start position and an optional length.
-sum           |The sum of a numeric field.
+sum           |The sum of a numeric expression.
 tan           |Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.
 tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
 tau           |Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
@@ -447,7 +447,7 @@ st_x          |double                                                           
 st_y          |double                                                                                                                      |false                       |false           |false
 starts_with   |boolean                                                                                                                     |[false, false]              |false           |false
 substring     |keyword                                                                                                                     |[false, false, true]        |false           |false
-sum           |long                                                                                                                        |false                       |false           |true
+sum           |"long|double"                                                                                                               |false                       |false           |true
 tan           |double                                                                                                                      |false                       |false           |false
 tanh          |double                                                                                                                      |false                       |false           |false
 tau           |double                                                                                                                      |null                        |false           |false

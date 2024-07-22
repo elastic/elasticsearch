@@ -218,7 +218,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
         boolean hasIndicesChanges = event.previousState().metadata().projectMetadata.indices()
             .equals(event.state().metadata().projectMetadata.indices()) == false;
-        boolean hasIngestPipelineChanges = event.changedCustomProjectMetadataSet().contains(IngestMetadata.TYPE);
+        boolean hasIngestPipelineChanges = event.metadataChanged() && event.changedCustomProjectMetadataSet().contains(IngestMetadata.TYPE);
 
         if (hasIngestPipelineChanges || hasIndicesChanges) {
             boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());

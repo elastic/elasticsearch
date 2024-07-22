@@ -181,12 +181,8 @@ Emits original token when set to `true`. Defaults to `false`.
 +
 --
 (Optional, string)
-Deprecated. Indicates whether to truncate tokens from the `front` or `back`.
-Defaults to `front`.
-
-Instead of using the `back` value, you can use the
-<<analysis-reverse-tokenfilter,`reverse`>> token filter before and after the
-`edge_ngram` filter to achieve the same results.
+deprecated:[8.16.0, use <<analysis-reverse-tokenfilter,`reverse`>> token filter before and after `edge_ngram` for same results].
+Indicates whether to truncate tokens from the `front` or `back`. Defaults to `front`.
 --
 
 [[analysis-edgengram-tokenfilter-customize]]

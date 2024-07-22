@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -91,11 +92,6 @@ class OptimizerRules {
                 // But they are not actually referring to attributes from the input plan - only the match field does.
                 return enrich.matchField().references();
             }
-            if (plan instanceof RegexExtract re) {
-                // Similarly as for Enrich: the extractedFields are Aliases for ReferenceAttributes, which are in turn created by the
-                // RegexExtract node.
-                return re.input().references();
-            }
             return super.references(plan);
         }
 
@@ -108,17 +104,11 @@ class OptimizerRules {
                 || logicalPlan instanceof Aggregate) {
                 return logicalPlan.outputSet();
             }
-            if (logicalPlan instanceof Eval eval) {
-                return new AttributeSet(Expressions.asAttributes(eval.fields()));
-            }
-            if (logicalPlan instanceof RegexExtract extract) {
-                return new AttributeSet(Expressions.asAttributes(extract.extractedFields()));
+            if (logicalPlan instanceof GeneratingPlan<?> generating) {
+                return new AttributeSet(generating.generatedAttributes());
             }
             if (logicalPlan instanceof MvExpand mvExpand) {
                 return new AttributeSet(mvExpand.expanded());
-            }
-            if (logicalPlan instanceof Enrich enrich) {
-                return new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
             }
 
             return AttributeSet.EMPTY;

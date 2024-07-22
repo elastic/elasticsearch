@@ -4529,7 +4529,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             LogicalPlan optimizedPlan = testCase.rule.apply(initialPlan);
 
             Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan);
-            ;
             assertFalse(inconsistencies.hasFailures());
 
             Project project = as(optimizedPlan, Project.class);

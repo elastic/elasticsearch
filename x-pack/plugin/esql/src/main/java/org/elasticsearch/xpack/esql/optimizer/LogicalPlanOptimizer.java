@@ -386,8 +386,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             if (reservedNames.contains(name)) {
                 renameAttributeTo.putIfAbsent(
                     name,
-                    // TODO: Use e.g. AtomicLong to make sure generated temp names can not clash.
-                    // Do not use the attribute's id, as multiple attributes with the same name can occur.
                     locallyUniqueTemporaryName(name, "temp_name")
                 );
             }

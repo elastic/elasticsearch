@@ -402,13 +402,13 @@ public class DateProcessorTests extends ESTestCase {
         when(compiledScript.execute()).thenReturn(null);
 
         final List<String> matchFormats = List.of(
-            "yyyy dd MM",
             "dd/MM/yyyy",
             "dd-MM-yyyy",
             "uuuu-dd-MM",
             "uuuu-MM-dd",
             "TAI64N",
-            "epoch_millis"
+            "epoch_millis",
+            "yyyy dd MM"
         );
         DateProcessor dateProcessor = new DateProcessor(
             randomAlphaOfLength(10),

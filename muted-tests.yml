@@ -85,9 +85,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
   method: testCacheFileCreatedAsSparseFile
   issue: https://github.com/elastic/elasticsearch/issues/110801
-- class: "org.elasticsearch.xpack.watcher.test.integration.HistoryIntegrationTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/110885"
-  method: "testPayloadInputWithDotsInFieldNameWorks"
 - class: org.elasticsearch.nativeaccess.PreallocateTests
   method: testPreallocate
   issue: https://github.com/elastic/elasticsearch/issues/110948
@@ -123,6 +120,27 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testGetPrivilegesUsesCache
   issue: https://github.com/elastic/elasticsearch/issues/110788
+- class: org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankTests
+  method: testRerankInferenceResultMismatch
+  issue: https://github.com/elastic/elasticsearch/issues/111133
+- class: org.elasticsearch.cluster.PrevalidateShardPathIT
+  method: testCheckShards
+  issue: https://github.com/elastic/elasticsearch/issues/111134
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {stats.MaxOfIpGrouping SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111136
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {stats.MinOfIpGrouping SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111137
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {stats.MinOfIpGrouping ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111138
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test021InstallPlugin
+  issue: https://github.com/elastic/elasticsearch/issues/110343
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testDisableFieldNameField {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111141
 
 # Examples:
 #

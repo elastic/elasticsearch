@@ -55,6 +55,11 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_BOOLEAN_SUPPORT,
 
         /**
+         * Support for ips in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
          * Support for booleans in {@code TOP} aggregation.
          */
         AGG_TOP_BOOLEAN_SUPPORT,
@@ -152,14 +157,15 @@ public class EsqlCapabilities {
         FIX_COUNT_DISTINCT_SOURCE_ERROR,
 
         /**
-        * Use RangeQuery for BinaryComparison on DateTime fields.
-        * */
+         * Use RangeQuery for BinaryComparison on DateTime fields.
+         */
         RANGEQUERY_FOR_DATETIME,
 
         /**
-         * Add tests for #105383, STATS BY constant.
+         * Fix for non-unique attribute names in ROW and logical plans.
+         * https://github.com/elastic/elasticsearch/issues/110541
          */
-        STATS_BY_CONSTANT;
+        UNIQUE_NAMES;
 
         private final boolean snapshotOnly;
 

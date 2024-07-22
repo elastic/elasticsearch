@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -118,6 +119,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
+/**
+ * This class is part of the planner. Resolves references (such as variable and index names) and performs implicit casting.
+ */
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
@@ -383,7 +387,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveRefs extends BaseAnalyzerRule {
+    public static class ResolveRefs extends BaseAnalyzerRule {
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan.childrenResolved() == false) {
@@ -575,20 +579,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
+            return maybeResolveAttribute(ua, childrenOutput, log);
+        }
+
+        private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             if (ua.customMessage()) {
                 return ua;
             }
-            return resolveAttribute(ua, childrenOutput);
+            return resolveAttribute(ua, childrenOutput, logger);
         }
 
         private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
+            return resolveAttribute(ua, childrenOutput, log);
+        }
+
+        private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             Attribute resolved = ua;
             var named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
-                if (log.isTraceEnabled() && resolved.resolved()) {
-                    log.trace("Resolved {} to {}", ua, resolved);
+                if (logger != null && logger.isTraceEnabled() && resolved.resolved()) {
+                    logger.trace("Resolved {} to {}", ua, resolved);
                 }
             } else {
                 if (named.size() > 0) {
@@ -724,6 +736,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveRename(Rename rename, List<Attribute> childrenOutput) {
+            List<NamedExpression> projections = projectionsForRename(rename, childrenOutput, log);
+
+            return new EsqlProject(rename.source(), rename.child(), projections);
+        }
+
+        public static List<NamedExpression> projectionsForRename(Rename rename, List<Attribute> childrenOutput, Logger logger) {
             List<NamedExpression> projections = new ArrayList<>(childrenOutput);
 
             int renamingsCount = rename.renamings().size();
@@ -736,7 +754,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
                     projections.removeIf(x -> x.name().equals(alias.name()));
 
-                    var resolved = maybeResolveAttribute(ua, childrenOutput);
+                    var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
                         var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
@@ -779,7 +797,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // add unresolved renamings to later trip the Verifier.
             projections.addAll(unresolved);
 
-            return new EsqlProject(rename.source(), rename.child(), projections);
+            return projections;
         }
 
         private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
@@ -1068,13 +1086,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
      * (See UnresolveUnionTypes below).
      */
-    private static class ResolveUnionTypes extends BaseAnalyzerRule {
+    private static class ResolveUnionTypes extends Rule<LogicalPlan, LogicalPlan> {
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
+        private List<FieldAttribute> unionFieldAttributes;
+
         @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
-            List<FieldAttribute> unionFieldAttributes = new ArrayList<>();
+        public LogicalPlan apply(LogicalPlan plan) {
+            unionFieldAttributes = new ArrayList<>();
+            // Collect field attributes from previous runs
+            plan.forEachUp(EsRelation.class, rel -> {
+                for (Attribute attr : rel.output()) {
+                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField) {
+                        unionFieldAttributes.add(fa);
+                    }
+                }
+            });
+
+            return plan.transformUp(LogicalPlan.class, p -> p.resolved() || p.childrenResolved() == false ? p : doRule(p));
+        }
+
+        private LogicalPlan doRule(LogicalPlan plan) {
+            int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(
@@ -1082,7 +1116,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 convert -> resolveConvertFunction(convert, unionFieldAttributes)
             );
             // If no union fields were generated, return the plan as is
-            if (unionFieldAttributes.isEmpty()) {
+            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
             }
 

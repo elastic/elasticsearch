@@ -668,8 +668,8 @@ ca:l | cx:l | l:i
 // https://github.com/elastic/elasticsearch/issues/108008
 ///////////////////////////////////////////////////////////////
 
-// TODO: we update capabilities
 countSameFieldWithEval
+required_capability: fixed_pushdown_past_project
 from employees | stats  b = count(gender), c = count(gender) by gender | eval b = gender | sort c asc
 ;
 
@@ -680,6 +680,7 @@ c:l | gender:s | b:s
 ;
 
 countSameFieldWithDissect
+required_capability: fixed_pushdown_past_project
 from employees | stats b = count(gender), c = count(gender) by gender | dissect gender "%{b}" | sort c asc
 ;
 
@@ -690,6 +691,7 @@ c:l | gender:s | b:s
 ;
 
 countSameFieldWithGrok
+required_capability: fixed_pushdown_past_project
 from employees | stats  b = count(gender), c = count(gender) by gender | grok gender "%{USERNAME:b}" | sort c asc
 ;
 
@@ -700,6 +702,7 @@ c:l | gender:s | b:s
 ;
 
 countSameFieldWithEnrich
+required_capability: fixed_pushdown_past_project
 required_capability: enrich_load
 from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc
 ;
@@ -711,6 +714,7 @@ c:l | gender:s | b:s
 ;
 
 countSameFieldWithEnrichLimit0
+required_capability: fixed_pushdown_past_project
 from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc | limit 0
 ;
 

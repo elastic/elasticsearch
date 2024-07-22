@@ -200,7 +200,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString(" MATCH requires a text of keyword field, but [id] has type [integer]"));
+        assertThat(error.getMessage(), containsString(" MATCH requires a text or keyword field, but [id] has type [integer]"));
     }
 
     private void createAndPopulateIndex() {

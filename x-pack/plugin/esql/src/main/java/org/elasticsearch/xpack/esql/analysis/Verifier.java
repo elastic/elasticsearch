@@ -586,6 +586,15 @@ public class Verifier {
         });
     }
 
+    /**
+     * Currently any filter condition using MATCH needs to be pushed down to the Lucene query.
+     * Conditions that use a combination of MATCH and ES|QL functions (e.g. `title MATCH "anna" OR DATE_EXTRACT("year", date) > 2010)
+     * cannot be pushed down to Lucene.
+     * Another condition is for MATCH to use index fields that have been mapped as text or keyword.
+     * We are using canPushToSource at the Verifier level because we want to detect any condition that cannot be pushed down
+     * early in the execution, rather than fail at the compute engine level.
+     * In the future we will be able to handle MATCH at the compute and we will no longer need these checks.
+     */
     private static void checkFilterMatchConditions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
@@ -601,7 +610,7 @@ public class Verifier {
                 if (DataType.isString(field.dataType()) == false) {
                     var message = LoggerMessageFormat.format(
                         null,
-                        "MATCH requires a text of keyword field, but [{}] has type [{}]",
+                        "MATCH requires a text or keyword field, but [{}] has type [{}]",
                         field.sourceText(),
                         field.dataType().esType()
                     );

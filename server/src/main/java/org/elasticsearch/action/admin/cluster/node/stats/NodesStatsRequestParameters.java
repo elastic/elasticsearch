@@ -62,7 +62,7 @@ public class NodesStatsRequestParameters implements Writeable {
         this.indices = indices;
     }
 
-    public Set<Metric> requestedMetrics() {
+    public EnumSet<Metric> requestedMetrics() {
         return requestedMetrics;
     }
 

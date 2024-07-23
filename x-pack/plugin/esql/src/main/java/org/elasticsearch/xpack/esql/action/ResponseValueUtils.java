@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -21,30 +19,21 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 /**
@@ -154,56 +143,5 @@ public final class ResponseValueUtils {
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, NESTED, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE,
                 NULL, PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
-    }
-
-    /**
-     * Converts a list of values to Pages so that we can parse from xcontent. It's not
-     * super efficient, but it doesn't really have to be.
-     */
-    static Page valuesToPage(BlockFactory blockFactory, List<ColumnInfoImpl> columns, List<List<Object>> values) {
-        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        List<Block.Builder> results = dataTypes.stream()
-            .map(c -> PlannerUtils.toElementType(c).newBlockBuilder(values.size(), blockFactory))
-            .toList();
-
-        for (List<Object> row : values) {
-            for (int c = 0; c < row.size(); c++) {
-                var builder = results.get(c);
-                var value = row.get(c);
-                switch (dataTypes.get(c)) {
-                    case UNSIGNED_LONG -> ((LongBlock.Builder) builder).appendLong(longToUnsignedLong(((Number) value).longValue(), true));
-                    case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
-                    case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
-                    case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case KEYWORD, TEXT, UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
-                    case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
-                    case DATETIME -> {
-                        long longVal = dateTimeToLong(value.toString());
-                        ((LongBlock.Builder) builder).appendLong(longVal);
-                    }
-                    case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
-                    case NULL -> builder.appendNull();
-                    case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToVersion(new BytesRef(value.toString())));
-                    case SOURCE -> {
-                        @SuppressWarnings("unchecked")
-                        Map<String, ?> o = (Map<String, ?>) value;
-                        try {
-                            try (XContentBuilder sourceBuilder = JsonXContent.contentBuilder()) {
-                                sourceBuilder.map(o);
-                                ((BytesRefBlock.Builder) builder).appendBytesRef(BytesReference.bytes(sourceBuilder).toBytesRef());
-                            }
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-                    case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> {
-                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
-                        BytesRef wkb = stringToSpatial(value.toString());
-                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
-                    }
-                }
-            }
-        }
-        return new Page(results.stream().map(Block.Builder::build).toArray(Block[]::new));
     }
 }

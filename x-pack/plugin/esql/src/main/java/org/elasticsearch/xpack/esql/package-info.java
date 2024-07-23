@@ -121,6 +121,8 @@
  *         function implementations.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.action.RestEsqlQueryAction Sync} and
  *         {@link org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction async} HTTP API entry points</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.plan.logical.Phased} - Marks a {@link org.elasticsearch.xpack.esql.plan.logical.LogicalPlan}
+ *         node as requiring multiple ESQL executions to run. </li>
  * </ul>
  *
  * <h3>Query Planner</h3>

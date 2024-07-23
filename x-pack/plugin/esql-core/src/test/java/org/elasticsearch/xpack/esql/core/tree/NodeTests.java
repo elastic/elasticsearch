@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -72,7 +71,7 @@ public class NodeTests extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedEncodingException();
+            throw new UnsupportedOperationException();
         }
 
         @Override

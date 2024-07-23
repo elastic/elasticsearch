@@ -9,11 +9,22 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import fixture.azure.AzureHttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -26,6 +37,8 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(USE_FIXTURE, AZURE_TEST_ACCOUNT, AZURE_TEST_CONTAINER);
+
+    private static TestTrustStore trustStore = new TestTrustStore(AzureHttpFixture.class, "azure-http-fixture.pem");
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-azure")
@@ -53,10 +66,11 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             }
         })
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
+        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);
 
     @Override
     protected String getTestRestCluster() {
@@ -77,5 +91,40 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         assertThat(basePath, not(blankOrNullString()));
 
         return Settings.builder().put("client", "repository_test_kit").put("container", container).put("base_path", basePath).build();
+    }
+
+    private static class TestTrustStore extends ExternalResource {
+
+        private final Class<?> clazz;
+        private final String resourceName;
+
+        TestTrustStore(Class<?> clazz, String resourceName) {
+            this.clazz = clazz;
+            this.resourceName = resourceName;
+        }
+
+        private Path trustStorePath;
+
+        public Path getTrustStorePath() {
+            return Objects.requireNonNullElseGet(trustStorePath, () -> ESTestCase.fail(null, "trust store not created"));
+        }
+
+        @Override
+        protected void before() {
+            final var tmpDir = createTempDir();
+            final var tmpTrustStorePath = tmpDir.resolve("trust-store.jks");
+            try (var pemStream = clazz.getResourceAsStream(resourceName); var jksStream = Files.newOutputStream(tmpTrustStorePath)) {
+                final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+                final Collection<? extends Certificate> parsed = certFactory.generateCertificates(pemStream);
+                if (parsed.size() != 1) {
+                    throw new AssertionError("should have got exactly one certificate");
+                }
+                final var trustStore = KeyStoreUtil.buildTrustStore(List.of(parsed.iterator().next()));
+                trustStore.store(jksStream, null);
+                trustStorePath = tmpTrustStorePath;
+            } catch (Exception e) {
+                throw new AssertionError("unexpected", e);
+            }
+        }
     }
 }

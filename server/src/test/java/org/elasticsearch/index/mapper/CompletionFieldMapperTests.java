@@ -152,6 +152,9 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
         } else {
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             assertThat(
                 ((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"),

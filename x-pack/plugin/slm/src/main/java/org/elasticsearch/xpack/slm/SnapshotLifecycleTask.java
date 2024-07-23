@@ -269,7 +269,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             SnapshotLifecycleStats newStats;
             if (exception.isPresent()) {
-                newStats = stats.withSnapshotFailedForPolicy(policyName);
+                newStats = stats.withFailedIncremented(policyName);
                 newPolicyMetadata.setLastFailure(
                     new SnapshotInvocationRecord(
                         snapshotName,
@@ -280,7 +280,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 );
                 newPolicyMetadata.setInvocationsSinceLastSuccess(policyMetadata.getInvocationsSinceLastSuccess() + 1L);
             } else {
-                newStats = stats.withSnapshotTakenForPolicy(policyName);
+                newStats = stats.withTakenIncremented(policyName);
                 newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, snapshotFinishTime, null));
                 newPolicyMetadata.setInvocationsSinceLastSuccess(0L);
             }

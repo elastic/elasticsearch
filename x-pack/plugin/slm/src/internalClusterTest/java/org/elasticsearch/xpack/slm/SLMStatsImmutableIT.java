@@ -29,21 +29,16 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2)
-public class PutSnapshotLifecycleIT extends AbstractSnapshotIntegTestCase  {
+public class SLMStatsImmutableIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-            LocalStateCompositeXPackPlugin.class,
-            IndexLifecycle.class,
-            SnapshotLifecycle.class,
-            DataStreamsPlugin.class
-        );
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, SnapshotLifecycle.class, DataStreamsPlugin.class);
     }
 
     private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
-    public void testCantModifyEmpty() throws Exception {
+    public void testSnapshotLifeCycleMetadataEmptyNotChanged() throws Exception {
         final String policyId = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String idxName = "test-idx";
         final String repoName = "test-repo";

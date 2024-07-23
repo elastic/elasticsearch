@@ -65,6 +65,6 @@ public class OptimalShardCountCondition extends Condition<Integer> {
 
     @Override
     boolean includedInVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.AUTO_SHARDING_ROLLOVER_CONDITION);
+        return version.onOrAfter(TransportVersions.V_8_14_0);
     }
 }

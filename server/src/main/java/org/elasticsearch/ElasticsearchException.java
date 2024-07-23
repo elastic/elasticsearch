@@ -1908,19 +1908,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             FailureIndexNotSupportedException.class,
             FailureIndexNotSupportedException::new,
             178,
-            TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS
+            TransportVersions.V_8_14_0
         ),
         NOT_PERSISTENT_TASK_NODE_EXCEPTION(
             NotPersistentTaskNodeException.class,
             NotPersistentTaskNodeException::new,
             179,
-            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+            TransportVersions.V_8_14_0
         ),
         PERSISTENT_TASK_NODE_NOT_ASSIGNED_EXCEPTION(
             PersistentTaskNodeNotAssignedException.class,
             PersistentTaskNodeNotAssignedException::new,
             180,
-            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+            TransportVersions.V_8_14_0
         ),
         RESOURCE_ALREADY_UPLOADED_EXCEPTION(
             ResourceAlreadyUploadedException.class,

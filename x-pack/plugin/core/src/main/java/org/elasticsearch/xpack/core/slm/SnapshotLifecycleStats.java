@@ -109,6 +109,19 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
+    public long getRetentionRunCount() {
+        return retentionRunCount.count();
+    }
+    public long getRetentionFailedCount() {
+        return retentionFailedCount.count();
+    }
+    public long getRetentionTimedOut() {
+        return retentionTimedOut.count();
+    }
+    public long getRetentionTimeMs() {
+        return retentionTimeMs.count();
+    }
+
     public SnapshotLifecycleStats merge(SnapshotLifecycleStats other) {
 
         HashMap<String, SnapshotPolicyStats> newPolicyStats = new HashMap<>(this.policyStats);
@@ -345,6 +358,14 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
                 this.snapshotsDeleted.count() + other.snapshotsDeleted.count(),
                 this.snapshotDeleteFailures.count() + other.snapshotDeleteFailures.count()
             );
+        }
+
+        public long getSnapshotTakenCount() {
+            return snapshotsTaken.count();
+        }
+
+        public long getSnapshotFailedCount() {
+            return snapshotsFailed.count();
         }
 
         void snapshotTaken() {

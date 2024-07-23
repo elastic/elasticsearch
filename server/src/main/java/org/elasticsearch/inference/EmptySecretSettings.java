@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-//TODO: test
 /**
  * This class defines an empty secret settings object. This is useful for services that do not have any secret settings.
  */

@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.common.util.FeatureFlag;
 
-//TODO: docs
+/**
+ * Elastic Inference Service (EIS) feature flag. When the feature is complete, this flag will be removed.
+ * Enable feature via JVM option: `-Des.eis_feature_flag_enabled=true`.
+ */
 public class ElasticInferenceServiceFeature {
 
     public static final FeatureFlag ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG = new FeatureFlag("eis");

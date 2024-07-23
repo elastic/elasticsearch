@@ -525,10 +525,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     public static String errorMessageStringForBinaryOperators(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
-        List<DataType> types
+        List<DataType> types,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, positionalErrorMessageSupplier);
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             if (types.get(0).equals(DataType.UNSIGNED_LONG)) {

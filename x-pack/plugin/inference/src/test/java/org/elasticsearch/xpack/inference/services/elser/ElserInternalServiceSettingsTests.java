@@ -84,7 +84,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                 )
             );
             case 2 -> {
-                var versions = new HashSet<>(ElserInternalService.VALID_ELSER_MODEL_IDS);
+                var versions = new HashSet<>(ElserModels.VALID_ELSER_MODEL_IDS);
                 versions.remove(instance.modelId());
                 yield new ElserInternalServiceSettings(
                     new ElasticsearchInternalServiceSettings(

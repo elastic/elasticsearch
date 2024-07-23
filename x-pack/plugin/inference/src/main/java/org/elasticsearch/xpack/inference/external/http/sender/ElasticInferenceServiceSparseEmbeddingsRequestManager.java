@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceResponseHandler;
@@ -52,13 +51,13 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
 
     @Override
     public void execute(
-        @Nullable String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        ElasticInferenceServiceSparseEmbeddingsRequest request = new ElasticInferenceServiceSparseEmbeddingsRequest(input, model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        ElasticInferenceServiceSparseEmbeddingsRequest request = new ElasticInferenceServiceSparseEmbeddingsRequest(docsInput, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

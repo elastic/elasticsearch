@@ -18,8 +18,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.elser.ElserInternalService.VALID_ELSER_MODEL_IDS;
-
 public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "elser_mlnode_service_settings";

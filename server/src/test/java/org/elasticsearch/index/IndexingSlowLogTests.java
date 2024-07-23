@@ -211,7 +211,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSizeObserver.NOOP
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -240,7 +240,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSizeObserver.NOOP
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -270,7 +270,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSizeObserver.NOOP
         );
         Index index = new Index("foo", "123");
 
@@ -289,7 +289,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSizeObserver.NOOP
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -321,7 +321,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSizeObserver.NOOP
         );
 
         final XContentParseException e = expectThrows(

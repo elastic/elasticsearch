@@ -733,14 +733,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             """;
         ParsedDocument doc = mapperService.documentMapper()
             .parse(
-                new SourceToParse(
-                    "1",
-                    new BytesArray(json),
-                    XContentType.JSON,
-                    null,
-                    Map.of("foo", "geo_point"),
-                    DocumentSizeObserver.EMPTY_INSTANCE
-                )
+                new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point"), DocumentSizeObserver.NOOP)
             );
         assertThat(doc.rootDoc().getFields("foo"), hasSize(2));
         assertThat(doc.rootDoc().getFields("bar"), hasSize(1));

@@ -9,17 +9,17 @@
 package org.elasticsearch.plugins.internal;
 
 /**
- * Returns the state gathered during parsing
+ * Exposes the normalized ingested and stored size of a document.
  */
-public interface NormalisedBytesToReport {
+public interface NormalizedDocumentSize {
 
     /**
-     * The value of to be reported for RA-I metric
+     * The ingest size of the document.
      */
-    long raiNormalisedBytes();
+    long ingestedBytes();
 
     /**
-     * The value of to be reported for RA-S metric
+     * The stored retained size of the document.
      */
-    long rasNormalisedBytes();
+    long storedBytes();
 }

@@ -207,7 +207,7 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
-        return parseToType(extractor, bytes, xContentType, config, DocumentSizeObserver.EMPTY_INSTANCE);
+        return parseToType(extractor, bytes, xContentType, config, DocumentSizeObserver.NOOP);
     }
 
     public static <T> Tuple<XContentType, T> parseToType(

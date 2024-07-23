@@ -429,7 +429,7 @@ public abstract class EngineTestCase extends ESTestCase {
             source,
             XContentType.JSON,
             mappingUpdate,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSizeObserver.NOOP
         );
     }
 

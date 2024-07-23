@@ -567,7 +567,7 @@ public class RefreshListenersTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            DocumentSizeObserver.NOOP
         );
         Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);

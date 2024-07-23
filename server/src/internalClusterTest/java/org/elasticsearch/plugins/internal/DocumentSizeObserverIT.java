@@ -151,7 +151,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
         @Override
         public void onIndexingCompleted(ParsedDocument parsedDocument) {
-            COUNTER.addAndGet(parsedDocument.getDocumentSizeObserver().raiNormalisedBytes());
+            COUNTER.addAndGet(parsedDocument.getNormalizedSize().ingestedBytes());
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
         }
     }
@@ -182,12 +182,12 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public long raiNormalisedBytes() {
+        public long ingestedBytes() {
             return counter;
         }
 
         @Override
-        public long rasNormalisedBytes() {
+        public long storedBytes() {
             return counter;
         }
 

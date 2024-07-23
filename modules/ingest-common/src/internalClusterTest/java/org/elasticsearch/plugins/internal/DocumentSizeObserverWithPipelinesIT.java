@@ -134,12 +134,12 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         }
 
         @Override
-        public long raiNormalisedBytes() {
+        public long ingestedBytes() {
             return mapCounter;
         }
 
         @Override
-        public long rasNormalisedBytes() {
+        public long storedBytes() {
             return 0;
         }
 

@@ -5510,7 +5510,7 @@ public class InternalEngineTests extends EngineTestCase {
                 source,
                 XContentType.JSON,
                 null,
-                DocumentSizeObserver.EMPTY_INSTANCE
+                DocumentSizeObserver.NOOP
             );
 
             final Engine.Index index = new Engine.Index(

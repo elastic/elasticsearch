@@ -40,6 +40,6 @@ public interface DocumentParsingProvider {
      * @return an observer
      */
     default <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
-        return DocumentSizeObserver.EMPTY_INSTANCE;
+        return DocumentSizeObserver.NOOP;
     }
 }

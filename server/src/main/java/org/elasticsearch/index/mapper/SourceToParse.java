@@ -49,11 +49,11 @@ public class SourceToParse {
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+        this(id, source, xContentType, null, Map.of(), DocumentSizeObserver.NOOP);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
+        this(id, source, xContentType, routing, Map.of(), DocumentSizeObserver.NOOP);
     }
 
     public BytesReference source() {

@@ -1178,12 +1178,12 @@ public class IngestServiceTests extends ESTestCase {
             public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
                 return new DocumentSizeObserver() {
                     @Override
-                    public long raiNormalisedBytes() {
+                    public long ingestedBytes() {
                         return 0;
                     }
 
                     @Override
-                    public long rasNormalisedBytes() {
+                    public long storedBytes() {
                         return 0;
                     }
 

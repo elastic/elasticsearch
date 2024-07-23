@@ -91,9 +91,6 @@ tests:
 - class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
   method: testKnnSearchAction
   issue: https://github.com/elastic/elasticsearch/issues/111072
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testKnnQuantizedFlatVectorsFormat
-  issue: https://github.com/elastic/elasticsearch/issues/111044
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/111084
@@ -114,9 +111,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test600Interrupt
-  issue: https://github.com/elastic/elasticsearch/issues/111132
+- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
+  method: testAuthenticateWithImplicitFlow
+  issue: https://github.com/elastic/elasticsearch/issues/111191
 
 # Examples:
 #

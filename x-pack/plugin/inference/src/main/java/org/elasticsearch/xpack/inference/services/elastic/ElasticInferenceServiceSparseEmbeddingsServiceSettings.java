@@ -28,7 +28,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
-//TODO: add to named writables
 public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
@@ -65,8 +64,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-
-        // TODO: move valid elser model ids to some common class?
 
         return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, rateLimitSettings);
     }

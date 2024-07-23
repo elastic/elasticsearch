@@ -74,6 +74,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.TYPE;
 
 public class TransportStatelessPrimaryRelocationAction extends TransportAction<
@@ -197,7 +198,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             clusterService,
             recoveryExecutor,
             threadContext,
-            listener,
+            listener.delegateResponse((l, e) -> {
+                logger.warn(() -> format("[{}]: primary relocation failed", request.shardId()), e);
+                l.onFailure(e);
+            }),
             new Consumer<>() {
                 @Override
                 public void accept(ActionListener<Void> l) {
@@ -387,7 +391,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         } else if (engine == null) {
             throw new AlreadyClosedException("source shard closed before recovery started: " + shardRouting);
         } else {
-            final var message = Strings.format(
+            final var message = format(
                 "not an IndexEngine: %s [indexShardState=%s, shardRouting=%s]",
                 engine,
                 indexShardState,

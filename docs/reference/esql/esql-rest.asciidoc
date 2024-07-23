@@ -303,9 +303,9 @@ POST /_query
     | LIMIT 5
   """,
   "params": [
-    {"name": "minPageCount", "value": 300},
-    {"name": "authorName", "value": "Frank Herbert"},
-    {"name": "minCount", "value": 0}
+    {"minPageCount": 300},
+    {"authorName": "Frank Herbert"},
+    {"minCount": 0}
   ]
 }
 ----

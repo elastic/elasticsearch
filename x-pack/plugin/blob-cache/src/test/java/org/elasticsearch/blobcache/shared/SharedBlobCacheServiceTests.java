@@ -123,8 +123,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 ByteRange.of(0L, 1L),
                 ByteRange.of(0L, 1L),
                 (channel, channelPos, relativePos, length) -> 1,
-                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(
-                    completed,
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
                     () -> progressUpdater.accept(length)
                 ),
                 taskQueue.getThreadPool().generic(),
@@ -563,11 +563,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 cacheService.maybeFetchFullEntry(
                     cacheKey,
                     size,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                        assert streamFactory == null : streamFactory;
-                        bytesRead.addAndGet(-length);
-                        progressUpdater.accept(length);
-                    }),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> {
+                            assert streamFactory == null : streamFactory;
+                            bytesRead.addAndGet(-length);
+                            progressUpdater.accept(length);
+                        }
+                    ),
                     bulkExecutor,
                     future
                 );
@@ -584,7 +587,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 var configured = cacheService.maybeFetchFullEntry(
                     cacheKey,
                     size(500),
-                    (ch, chPos, streamFactory, relPos, len, update, completion) -> completeWith(completion, () -> {
+                    (ch, chPos, streamFactory, relPos, len, update, completionListener) -> completeWith(completionListener, () -> {
                         throw new AssertionError("Should never reach here");
                     }),
                     bulkExecutor,
@@ -630,10 +633,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             (ActionListener<Void> listener) -> cacheService.maybeFetchFullEntry(
                                 cacheKey,
                                 size,
-                                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(
-                                    completed,
-                                    () -> progressUpdater.accept(length)
-                                ),
+                                (
+                                    channel,
+                                    channelPos,
+                                    streamFactory,
+                                    relativePos,
+                                    length,
+                                    progressUpdater,
+                                    completionListener) -> completeWith(completionListener, () -> progressUpdater.accept(length)),
                                 bulkExecutor,
                                 listener
                             )
@@ -877,8 +884,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 var entry = cacheService.get(cacheKey, regionSize, 0);
                 entry.populate(
                     ByteRange.of(0L, regionSize),
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(
-                        completed,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
                         () -> progressUpdater.accept(length)
                     ),
                     taskQueue.getThreadPool().generic(),
@@ -975,11 +982,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     cacheKey,
                     0,
                     blobLength,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                        assert streamFactory == null : streamFactory;
-                        bytesRead.addAndGet(length);
-                        progressUpdater.accept(length);
-                    }),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> {
+                            assert streamFactory == null : streamFactory;
+                            bytesRead.addAndGet(length);
+                            progressUpdater.accept(length);
+                        }
+                    ),
                     bulkExecutor,
                     future
                 );
@@ -1006,8 +1016,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         cacheKey,
                         region,
                         blobLength,
-                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(
-                            completed,
+                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                            completionListener,
                             () -> {
                                 assert streamFactory == null : streamFactory;
                                 bytesRead.addAndGet(length);
@@ -1034,13 +1044,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     cacheKey,
                     randomIntBetween(0, 10),
                     randomLongBetween(1L, regionSize),
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                        throw new AssertionError("should not be executed");
-                    }),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> {
+                            throw new AssertionError("should not be executed");
+                        }
+                    ),
                     bulkExecutor,
                     future
                 );
-                assertThat("Listener is immediately completed", future.isDone(), is(true));
+                assertThat("Listener is immediately completionListener", future.isDone(), is(true));
                 assertThat("Region already exists in cache", future.get(), is(false));
             }
             {
@@ -1056,11 +1069,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     cacheKey,
                     0,
                     blobLength,
-                    (channel, channelPos, ignore, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                        assert ignore == null : ignore;
-                        bytesRead.addAndGet(length);
-                        progressUpdater.accept(length);
-                    }),
+                    (channel, channelPos, ignore, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> {
+                            assert ignore == null : ignore;
+                            bytesRead.addAndGet(length);
+                            progressUpdater.accept(length);
+                        }
+                    ),
                     bulkExecutor,
                     future
                 );
@@ -1134,12 +1150,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     region,
                     range,
                     blobLength,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                        assertThat(range.start() + relativePos, equalTo(cacheService.getRegionStart(region) + regionRange.start()));
-                        assertThat(channelPos, equalTo(Math.toIntExact(regionRange.start())));
-                        assertThat(length, equalTo(Math.toIntExact(regionRange.length())));
-                        bytesCopied.addAndGet(length);
-                    }),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> {
+                            assertThat(range.start() + relativePos, equalTo(cacheService.getRegionStart(region) + regionRange.start()));
+                            assertThat(channelPos, equalTo(Math.toIntExact(regionRange.start())));
+                            assertThat(length, equalTo(Math.toIntExact(regionRange.length())));
+                            bytesCopied.addAndGet(length);
+                        }
+                    ),
                     bulkExecutor,
                     future
                 );
@@ -1174,8 +1193,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         region,
                         ByteRange.of(0L, blobLength),
                         blobLength,
-                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(
-                            completed,
+                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                            completionListener,
                             () -> bytesCopied.addAndGet(length)
                         ),
                         bulkExecutor,
@@ -1200,13 +1219,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     randomIntBetween(0, 10),
                     ByteRange.of(0L, blobLength),
                     blobLength,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                        throw new AssertionError("should not be executed");
-                    }),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> {
+                            throw new AssertionError("should not be executed");
+                        }
+                    ),
                     bulkExecutor,
                     future
                 );
-                assertThat("Listener is immediately completed", future.isDone(), is(true));
+                assertThat("Listener is immediately completionListener", future.isDone(), is(true));
                 assertThat("Region already exists in cache", future.get(), is(false));
             }
             {
@@ -1223,8 +1245,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     0,
                     ByteRange.of(0L, blobLength),
                     blobLength,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(
-                        completed,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
                         () -> bytesCopied.addAndGet(length)
                     ),
                     bulkExecutor,
@@ -1269,10 +1291,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
             entry.populate(
                 ByteRange.of(0, regionSize - 1),
-                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                    bytesWritten.addAndGet(length);
-                    progressUpdater.accept(length);
-                }),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> {
+                        bytesWritten.addAndGet(length);
+                        progressUpdater.accept(length);
+                    }
+                ),
                 taskQueue.getThreadPool().generic(),
                 future1
             );
@@ -1285,10 +1310,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
             entry.populate(
                 ByteRange.of(0, regionSize - 1),
-                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                    bytesWritten.addAndGet(length);
-                    progressUpdater.accept(length);
-                }),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> {
+                        bytesWritten.addAndGet(length);
+                        progressUpdater.accept(length);
+                    }
+                ),
                 taskQueue.getThreadPool().generic(),
                 future2
             );
@@ -1298,10 +1326,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
             entry.populate(
                 ByteRange.of(0, regionSize - 1),
-                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completed) -> completeWith(completed, () -> {
-                    bytesWritten.addAndGet(length);
-                    progressUpdater.accept(length);
-                }),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> {
+                        bytesWritten.addAndGet(length);
+                        progressUpdater.accept(length);
+                    }
+                ),
                 taskQueue.getThreadPool().generic(),
                 future3
             );
@@ -1422,8 +1453,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     range,
                     range,
                     (channel, channelPos, relativePos, length) -> length,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completion) -> completeWith(
-                        completion,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
                         () -> progressUpdater.accept(length)
                     ),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,

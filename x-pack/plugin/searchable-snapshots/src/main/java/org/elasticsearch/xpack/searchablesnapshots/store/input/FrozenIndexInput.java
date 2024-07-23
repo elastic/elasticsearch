@@ -148,8 +148,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                 stats.addCachedBytesRead(read);
                 return read;
             },
-                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completion) -> ActionListener.completeWith(
-                    completion,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener.completeWith(
+                    completionListener,
                     () -> {
                         assert streamFactory == null : streamFactory;
                         final long startTimeNanos = stats.currentTimeNanos();

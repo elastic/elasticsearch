@@ -54,9 +54,8 @@ public class AzureHttpFixture extends ExternalResource {
     }
 
     @Override
-    protected void before() throws Exception {
+    protected void before() {
         if (enabled) {
-
             try {
                 this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                 metadataServer.createContext("/", new AzureMetadataServiceHttpHandler());

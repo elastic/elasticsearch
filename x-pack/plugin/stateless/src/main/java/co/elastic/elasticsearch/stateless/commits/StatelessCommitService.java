@@ -1694,7 +1694,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var notificationCommitGeneration = uploadedBcc.last().generation();
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
             Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
-            if (shardRoutingTable.isEmpty()) {
+
+            Optional<Set<String>> nodesWithAssignedSearchShards = shardRoutingTable.map(
+                routingTable -> routingTable.unpromotableShards()
+                    .stream()
+                    .filter(ShardRouting::assignedToNode)
+                    .map(ShardRouting::currentNodeId)
+                    .collect(Collectors.toSet())
+            );
+
+            if (nodesWithAssignedSearchShards.isEmpty()) {
                 // no search shards, initializing or deleting index
 
                 // is noop, but do this for completeness anyway.
@@ -1712,13 +1721,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            Set<String> nodesWithAssignedSearchShards = shardRoutingTable.get()
-                .unpromotableShards()
-                .stream()
-                .filter(ShardRouting::assignedToNode)
-                .map(ShardRouting::currentNodeId)
-                .collect(Collectors.toSet());
-            trackOutstandingUnpromotableShardCommitRef(nodesWithAssignedSearchShards, blobReference);
+            trackOutstandingUnpromotableShardCommitRef(nodesWithAssignedSearchShards.get(), blobReference);
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
 
             NewCommitNotificationRequest request = new NewCommitNotificationRequest(
@@ -1732,7 +1735,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert request.isUploaded();
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 onNewUploadedCommitNotificationResponse(
-                    nodesWithAssignedSearchShards,
+                    nodesWithAssignedSearchShards.get(),
                     uploadedBcc.primaryTermAndGeneration().generation(),
                     notificationCommitGeneration,
                     notificationCommitBCCDependencies,

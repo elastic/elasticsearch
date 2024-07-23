@@ -666,7 +666,7 @@ ca:l | cx:l | l:i
 ;
 
 ///////////////////////////////////////////////////////////////
-// Test edge case interaction with push down optimization rules
+// Test edge case interaction with push down past a rename
 // https://github.com/elastic/elasticsearch/issues/108008
 ///////////////////////////////////////////////////////////////
 

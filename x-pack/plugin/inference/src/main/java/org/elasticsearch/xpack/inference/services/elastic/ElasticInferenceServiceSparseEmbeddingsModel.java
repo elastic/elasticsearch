@@ -103,7 +103,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     }
 
     private URI createUri() throws URISyntaxException {
-        // TODO: use URI builder here?
+        // TODO: use URI builder here
         // TODO: map model id to correct path
         return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/sparse-text-embedding/" + getServiceSettings().modelId());
     }

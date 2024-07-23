@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -45,7 +46,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAmount;
 import java.util.Locale;
 import java.util.Map;
@@ -320,6 +323,16 @@ public class EsqlDataTypeConverter {
 
     public static long dateTimeToLong(String dateTime, DateFormatter formatter) {
         return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
+    }
+
+    public static long dateNanosToLong(String dateNano) {
+        return dateNanosToLong(dateNano, DateFormatter.forPattern("strict_date_optional_time_nanos"));
+    }
+
+    public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
+        TemporalAccessor parsed = formatter.parse(dateNano);
+        long nanos = parsed.getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000 + parsed.getLong(ChronoField.NANO_OF_SECOND);
+        return nanos;
     }
 
     public static String dateTimeToString(long dateTime) {

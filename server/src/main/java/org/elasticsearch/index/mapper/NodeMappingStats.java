@@ -50,7 +50,7 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public NodeMappingStats(StreamInput in) throws IOException {
         totalCount = in.readVLong();
         totalEstimatedOverhead = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_FIELDS_STATS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS)) {
             totalSegments = in.readVLong();
             totalSegmentFields = in.readVLong();
         }
@@ -91,7 +91,7 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalCount);
         out.writeVLong(totalEstimatedOverhead);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_FIELDS_STATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS)) {
             out.writeVLong(totalSegments);
             out.writeVLong(totalSegmentFields);
         }

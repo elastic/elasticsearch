@@ -1308,7 +1308,9 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
             "400000000",
             MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
-            "7.2.0"
+            "7.2.0",
+            MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+            "2.0"
         );
 
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
@@ -1505,7 +1507,9 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
             "400000000",
             MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
-            "7.2.0"
+            "7.2.0",
+            MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+            "2.0"
         );
 
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
@@ -1607,7 +1611,9 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
             "400000000",
             MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
-            "7.2.0"
+            "7.2.0",
+            MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+            "2.0"
         );
 
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
@@ -1703,7 +1709,9 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
             "400000000",
             MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
-            "7.2.0"
+            "7.2.0",
+            MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+            "2.0"
         );
 
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(

@@ -115,6 +115,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -208,6 +209,7 @@ import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assert.assertThat;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -2513,6 +2515,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         if (e != null) {
             throw new AssertionError(e);
+        }
+    }
+
+    public static void ensureAllContextsReleased(SearchService searchService) {
+        try {
+            assertBusy(() -> {
+                assertThat(searchService.getActiveContexts(), equalTo(0));
+                assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+            });
+        } catch (Exception e) {
+            throw new AssertionError("Failed to verify search contexts", e);
         }
     }
 }

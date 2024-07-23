@@ -42,7 +42,7 @@ import java.util.Map;
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
-        super("logs-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 99, 99);
+        super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
     }
 
     @Override
@@ -52,11 +52,11 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
+        builder.field("subobjects", false);
         mappings(builder);
     }
 
     private static void mappings(final XContentBuilder builder) throws IOException {
-        builder.field("subobjects", false);
         if (randomBoolean()) {
             builder.startObject("properties")
 

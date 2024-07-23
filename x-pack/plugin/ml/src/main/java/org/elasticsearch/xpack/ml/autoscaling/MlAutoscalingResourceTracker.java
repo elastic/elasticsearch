@@ -274,12 +274,8 @@ public final class MlAutoscalingResourceTracker {
 
                 if (numberOfAvailableProcessors < numMissingProcessors) {
                     // we don't have enough processors or memory to start the new allocations, we need to scale up
-
-                    if (numberOfAvailableProcessors < numMissingProcessors) {
-                        numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
-                        extraProcessors += numMissingAllocations * numberOfThreadsPerAllocation - numExistingProcessorsToBeUsed;
-                        extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
-                    }
+                    extraProcessors += numMissingAllocations * numberOfThreadsPerAllocation - numExistingProcessorsToBeUsed;
+                    extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
 
                     final int extraProcessorsNeededForAssignment = numMissingAllocations * numberOfThreadsPerAllocation
                         - numExistingProcessorsToBeUsed;
@@ -302,9 +298,9 @@ public final class MlAutoscalingResourceTracker {
                             numMissingAllocations
                         )
                     );
-                    numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
                 }
 
+                numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
                 existingModelMemoryBytes += estimatedMemoryUsage;
                 sumOfCurrentlyExistingAndUsedProcessors += numberOfTargetAllocationsOnExistingNodes * numberOfThreadsPerAllocation;
 
@@ -389,10 +385,8 @@ public final class MlAutoscalingResourceTracker {
             removeNodeMemoryInBytes = perNodeMemoryInBytes;
         }
 
-        if (extraProcessors > 0) {
-            // if we need extra processors, we need to tell the elasticsearch-autoscaler that we need at least 1 processor per node
-            assert extraSingleNodeProcessors > 0;
-        }
+        // if we need extra processors, we need to tell the elasticsearch-autoscaler that we need at least 1 processor per node
+        assert extraProcessors == 0 || extraSingleNodeProcessors > 0;
 
         listener.onResponse(
             new MlAutoscalingStats(

@@ -1111,9 +1111,9 @@ public class DockerTests extends PackagingTestCase {
 
         assertBusy(() -> {
             final Result containerLogsAfter = getContainerLogs();
-            assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
-            assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
-            assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+            assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout, containsString("stopping ..."));
+            assertThat("No errors stdout", containerLogsAfter.stdout, not(containsString("java.security.AccessControlException:")));
+            assertThat("No errors stderr", containerLogsAfter.stderr, not(containsString("java.security.AccessControlException:")));
         });
     }
 }

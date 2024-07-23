@@ -55,6 +55,17 @@ x:integer
 9999
 ;
 
+shadowingWhenPushedDownPastRename
+required_capability: fixed_pushdown_past_project
+ROW x = 1, y = 2
+| RENAME x AS z
+| EVAL x = 3
+;
+
+z:integer | y:integer | x:integer
+        1 |         2 |         3
+;
+
 
 withMath
 row a = 1 | eval b = 2 + 3;

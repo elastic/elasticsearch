@@ -254,7 +254,7 @@ public final class MlAutoscalingResourceTracker {
                     existingModelMemoryBytes += estimatedMemoryUsage;
                 } else {
                     // only increase memory requirements for new models
-                    extraPerNodeModelMemoryBytes += estimatedMemoryUsage;
+                    extraPerNodeModelMemoryBytes += Math.max(extraPerNodeModelMemoryBytes, estimatedMemoryUsage);
                     extraModelMemoryInBytes += estimatedMemoryUsage;
                 }
 

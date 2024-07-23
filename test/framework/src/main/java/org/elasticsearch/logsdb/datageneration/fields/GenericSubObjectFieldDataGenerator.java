@@ -54,15 +54,27 @@ public class GenericSubObjectFieldDataGenerator {
 
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
         return b -> {
-            b.startObject();
+            if (context.shouldGenerateObjectArray()) {
+                int size = context.specification().arbitrary().objectArraySize();
 
-            for (var childField : childFields) {
-                b.field(childField.fieldName);
-                childField.generator.fieldValueGenerator().accept(b);
+                b.startArray();
+                for (int i = 0; i < size; i++) {
+                    writeObject(b, childFields);
+                }
+                b.endArray();
+            } else {
+                writeObject(b, childFields);
             }
-
-            b.endObject();
         };
+    }
+
+    private static void writeObject(XContentBuilder document, Iterable<ChildField> childFields) throws IOException {
+        document.startObject();
+        for (var childField : childFields) {
+            document.field(childField.fieldName);
+            childField.generator.fieldValueGenerator().accept(document);
+        }
+        document.endObject();
     }
 
     private void generateChildFields() {

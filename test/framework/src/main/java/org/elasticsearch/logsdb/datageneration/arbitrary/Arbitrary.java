@@ -27,4 +27,14 @@ public interface Arbitrary {
     long longValue();
 
     String stringValue(int lengthLowerBound, int lengthUpperBound);
+
+    boolean generateNullValue();
+
+    boolean generateArrayOfValues();
+
+    int valueArraySize();
+
+    boolean generateArrayOfObjects();
+
+    int objectArraySize();
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.logsdb.datageneration.arbitrary;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -51,6 +52,32 @@ public class RandomBasedArbitrary implements Arbitrary {
 
     @Override
     public String stringValue(int lengthLowerBound, int lengthUpperBound) {
-        return randomAlphaOfLengthBetween(lengthLowerBound, lengthLowerBound);
+        return randomAlphaOfLengthBetween(lengthLowerBound, lengthUpperBound);
+    }
+
+    @Override
+    public boolean generateNullValue() {
+        // Using a static 10% chance, this is just a chosen value that can be tweaked.
+        return randomDouble() < 0.1;
+    }
+
+    @Override
+    public boolean generateArrayOfValues() {
+        return randomBoolean();
+    }
+
+    @Override
+    public int valueArraySize() {
+        return randomIntBetween(0, 5);
+    }
+
+    @Override
+    public boolean generateArrayOfObjects() {
+        return randomBoolean();
+    }
+
+    @Override
+    public int objectArraySize() {
+        return randomIntBetween(0, 5);
     }
 }

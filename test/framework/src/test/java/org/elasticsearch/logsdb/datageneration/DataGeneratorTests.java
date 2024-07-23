@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
+import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -33,7 +34,7 @@ public class DataGeneratorTests extends ESTestCase {
 
     public void testDataGeneratorProducesValidMappingAndDocument() throws IOException {
         // Make sure objects, nested objects and all field types are covered.
-        var testArbitrary = new Arbitrary() {
+        var testArbitrary = new RandomBasedArbitrary() {
             private boolean subObjectCovered = false;
             private boolean nestedCovered = false;
             private int generatedFields = 0;
@@ -72,16 +73,6 @@ public class DataGeneratorTests extends ESTestCase {
             @Override
             public FieldType fieldType() {
                 return FieldType.values()[generatedFields % FieldType.values().length];
-            }
-
-            @Override
-            public long longValue() {
-                return randomLong();
-            }
-
-            @Override
-            public String stringValue(int lengthLowerBound, int lengthUpperBound) {
-                return randomAlphaOfLengthBetween(lengthLowerBound, lengthUpperBound);
             }
         };
 
@@ -137,6 +128,31 @@ public class DataGeneratorTests extends ESTestCase {
             @Override
             public String stringValue(int lengthLowerBound, int lengthUpperBound) {
                 return "";
+            }
+
+            @Override
+            public boolean generateNullValue() {
+                return false;
+            }
+
+            @Override
+            public boolean generateArrayOfValues() {
+                return false;
+            }
+
+            @Override
+            public int valueArraySize() {
+                return 3;
+            }
+
+            @Override
+            public boolean generateArrayOfObjects() {
+                return false;
+            }
+
+            @Override
+            public int objectArraySize() {
+                return 3;
             }
         };
         var dataGenerator = new DataGenerator(

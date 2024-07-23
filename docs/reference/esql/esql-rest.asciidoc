@@ -238,7 +238,28 @@ POST /_query
 [[esql-rest-params]]
 ==== Passing parameters to a query
 
-Values can be passed to a query either inline, by integrating the value directly in the query string, or by using parameters to prevent code injection and simplify query management. There are two main approaches to parameterizing queries: positional parameters and named parameters.
+Values can be passed to a query inline, by integrating the value directly in the query string itself. However, this approach is not recommended for production environments.
+
+For example:
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > 300 AND author == "Frank Herbert"
+    | STATS count = COUNT(*) by year
+    | WHERE count > 0
+    | LIMIT 5
+  """
+}
+----
+// TEST[setup:library]
+
+Use parameters to prevent code injection and simplify query management.
+There are two main approaches to parameterizing queries: positional parameters and named parameters.
 
 [discrete]
 [[esql-rest-params-positional]]
@@ -267,7 +288,7 @@ POST /_query
 [[esql-rest-params-named]]
 ===== Named parameters
 
-Named parameters enable you to specify parameters with names, instead of by their position in the array. This makes queries more readable and helps reduces errors.
+Named parameters enable you to specify parameters with names, instead of by their position in the array. This makes queries more readable and helps reduce errors.
 
 [source,console]
 ----

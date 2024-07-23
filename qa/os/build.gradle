@@ -45,7 +45,3 @@ subprojects { Project platformProject ->
     hostEnv 'VAGRANT_PROJECT_DIR', platformProject.projectDir.absolutePath
   }
 }
-tasks.named('resolveAllDependencies') {
-  // avoid resolving all elasticsearch distros
-  enabled = false
-}

@@ -163,6 +163,9 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
 
     @Override
     public LogicalPlan nextPhase(List<Attribute> schema, List<Page> firstPhaseResult) {
+        if (firstPhase().output().equals(schema) == false) {
+            throw new IllegalStateException("Unexpected first phase outputs: " + firstPhase().output() + " vs " + schema);
+        }
         if (groupings.isEmpty()) {
             return ungroupedNextPhase(schema, firstPhaseResult);
         }

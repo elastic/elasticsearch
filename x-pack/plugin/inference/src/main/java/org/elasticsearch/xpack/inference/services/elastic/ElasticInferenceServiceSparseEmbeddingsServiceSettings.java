@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +26,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends FilteredXContentObject
@@ -45,7 +48,12 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        // TODO: max input tokens?
+        Integer maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
         // TODO: dims?
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
@@ -65,19 +73,27 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             throw validationException;
         }
 
-        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, rateLimitSettings);
+        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, rateLimitSettings);
     }
 
     private final String modelId;
+
+    private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
 
-    public ElasticInferenceServiceSparseEmbeddingsServiceSettings(String modelId, RateLimitSettings rateLimitSettings) {
+    public ElasticInferenceServiceSparseEmbeddingsServiceSettings(
+        String modelId,
+        @Nullable Integer maxInputTokens,
+        RateLimitSettings rateLimitSettings
+    ) {
         this.modelId = Objects.requireNonNull(modelId);
+        this.maxInputTokens = maxInputTokens;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
+        this.maxInputTokens = in.readOptionalVInt();
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -88,6 +104,10 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     public String modelId() {
         return modelId;
+    }
+
+    public Integer maxInputTokens() {
+        return maxInputTokens;
     }
 
     @Override
@@ -114,6 +134,9 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
+        if (maxInputTokens != null) {
+            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
+        }
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -122,6 +145,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
+        out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
     }
 
@@ -130,11 +154,13 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         ElasticInferenceServiceSparseEmbeddingsServiceSettings that = (ElasticInferenceServiceSparseEmbeddingsServiceSettings) object;
-        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId)
+            && Objects.equals(maxInputTokens, that.maxInputTokens)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, rateLimitSettings);
+        return Objects.hash(modelId, maxInputTokens, rateLimitSettings);
     }
 }

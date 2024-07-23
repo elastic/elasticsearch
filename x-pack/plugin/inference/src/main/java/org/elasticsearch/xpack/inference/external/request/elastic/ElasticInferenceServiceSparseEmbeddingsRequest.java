@@ -7,30 +7,38 @@
 
 package org.elasticsearch.xpack.inference.external.request.elastic;
 
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Objects;
 
 //TODO: test
 public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticInferenceServiceRequest {
 
-    private final List<String> input;
-
     private final URI uri;
 
-    private final ElasticInferenceServiceModel model;
+    private final ElasticInferenceServiceSparseEmbeddingsModel model;
 
-    public ElasticInferenceServiceSparseEmbeddingsRequest(List<String> input, ElasticInferenceServiceSparseEmbeddingsModel model) {
-        this.input = input;
+    private final Truncator.TruncationResult truncationResult;
+    private final Truncator truncator;
+
+    public ElasticInferenceServiceSparseEmbeddingsRequest(
+        Truncator truncator,
+        Truncator.TruncationResult truncationResult,
+        ElasticInferenceServiceSparseEmbeddingsModel model
+    ) {
+        this.truncator = truncator;
+        this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);
         this.uri = model.uri();
     }
@@ -38,10 +46,12 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
     @Override
     public HttpRequest createHttpRequest() {
         var httpPost = new HttpPost(uri);
-        var requestEntity = Strings.toString(new ElasticInferenceServiceSparseEmbeddingsRequestEntity(input));
+        var requestEntity = Strings.toString(new ElasticInferenceServiceSparseEmbeddingsRequestEntity(truncationResult.input()));
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
+
+        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
@@ -58,14 +68,14 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
 
     @Override
     public Request truncate() {
-        // TODO: truncation
-        return this;
+        var truncatedInput = truncator.truncate(truncationResult.input());
+
+        return new ElasticInferenceServiceSparseEmbeddingsRequest(truncator, truncatedInput, model);
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        // TODO: truncation
-        return null;
+        return truncationResult.truncated().clone();
     }
 
 }

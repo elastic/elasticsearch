@@ -54,7 +54,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
+        assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null, null)));
     }
 
     public void testFromMap_InvalidElserModelId() {
@@ -73,17 +73,18 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
 
     public void testToXContent_WritesAlLFields() throws IOException {
         var modelId = ElserModels.ELSER_V1_MODEL;
-        var serviceSettings = new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null);
+        var maxInputTokens = 10;
+        var serviceSettings = new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is(Strings.format("""
-            {"model_id":"%s","rate_limit":{"requests_per_minute":1000}}""", modelId)));
+            {"model_id":"%s","max_input_tokens":%d,"rate_limit":{"requests_per_minute":1000}}""", modelId, maxInputTokens)));
     }
 
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings createRandom() {
-        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(randomElserModel(), null);
+        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(randomElserModel(), randomNonNegativeInt(), null);
     }
 }

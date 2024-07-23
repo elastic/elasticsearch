@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
+
 public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends ElasticInferenceServiceRequestManager {
 
     private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceSparseEmbeddingsRequestManager.class);
@@ -57,7 +59,13 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
         ActionListener<InferenceServiceResults> listener
     ) {
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        ElasticInferenceServiceSparseEmbeddingsRequest request = new ElasticInferenceServiceSparseEmbeddingsRequest(docsInput, model);
+        var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
+
+        ElasticInferenceServiceSparseEmbeddingsRequest request = new ElasticInferenceServiceSparseEmbeddingsRequest(
+            truncator,
+            truncatedInput,
+            model
+        );
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

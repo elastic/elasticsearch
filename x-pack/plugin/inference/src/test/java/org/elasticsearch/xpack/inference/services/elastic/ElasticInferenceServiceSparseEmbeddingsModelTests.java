@@ -7,8 +7,25 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-public class ElasticInferenceServiceSparseEmbeddingsModelTests {
+import org.elasticsearch.inference.EmptySecretSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.elser.ElserModels;
+
+public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
 
     // TODO: place create model utility methods for other tests here
 
+    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url) {
+        return new ElasticInferenceServiceSparseEmbeddingsModel(
+            randomAlphaOfLength(8),
+            TaskType.SPARSE_EMBEDDING,
+            randomAlphaOfLength(8),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ElserModels.ELSER_V2_MODEL, null, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url)
+        );
+    }
 }

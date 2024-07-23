@@ -71,7 +71,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         TaskType taskType,
         String service,
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
-        TaskSettings taskSettings,
+        @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {

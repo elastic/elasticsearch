@@ -714,7 +714,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         sharedBytes.decRef();
     }
 
-    private record RegionKey<KeyType> (KeyType file, int region) {
+    private record RegionKey<KeyType>(KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';
@@ -918,12 +918,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                         rangeToWrite,
                         rangeToWrite,
-                        Assertions.ENABLED
-                            ? ActionListener.releaseAfter(
-                                ActionListener.running(() -> { assert regionOwners.get(io) == this; }),
-                                refs.acquire()
-                            )
-                            : refs.acquireListener()
+                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
+                            assert regionOwners.get(io) == this;
+                        }), refs.acquire()) : refs.acquireListener()
                     );
                     if (gaps.isEmpty()) {
                         listener.onResponse(false);

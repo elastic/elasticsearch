@@ -556,10 +556,13 @@
               url:
                 type: keyword
   - do:
-      search_shards:
+      search:
         index:  index1
+        body:
+          profile: true
+
   - set:
-      shards.0.0.node: node_id
+      profile.shards.0.node_id: node_id
 
   - do:
       nodes.stats: { metric: _all, level: "indices", human: true }

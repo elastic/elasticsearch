@@ -38,3 +38,5 @@ public interface Arbitrary {
 
     int objectArraySize();
 }
+
+

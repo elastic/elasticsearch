@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-//TODO: test
 public record ElasticInferenceServiceSparseEmbeddingsRequestEntity(List<String> inputs) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";

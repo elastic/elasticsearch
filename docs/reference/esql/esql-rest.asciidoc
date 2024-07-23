@@ -238,28 +238,13 @@ POST /_query
 [[esql-rest-params]]
 ==== Passing parameters to a query
 
-Values, for example for a condition, can be passed to a query "inline", by
-integrating the value in the query string itself:
+Values can be passed to a query either inline, by integrating the value directly in the query string, or by using parameters to prevent code injection and simplify query management. There are two main approaches to parameterizing queries: positional parameters and named parameters.
 
-[source,console]
-----
-POST /_query
-{
-  "query": """
-    FROM library
-    | EVAL year = DATE_EXTRACT("year", release_date)
-    | WHERE page_count > 300 AND author == "Frank Herbert"
-    | STATS count = COUNT(*) by year
-    | WHERE count > 0
-    | LIMIT 5
-  """
-}
-----
-// TEST[setup:library]
+[discrete]
+[[esql-rest-params-positional]]
+===== Positional parameters
 
-To avoid any attempts of hacking or code injection, extract the values in a
-separate list of parameters. Use question mark placeholders (`?`) in the query
-string for each of the parameters:
+With positional parameters, values are passed using question mark placeholders (`?`), which are replaced in the order that parameters appear in the `params` array.
 
 [source,console]
 ----
@@ -273,7 +258,34 @@ POST /_query
     | WHERE count > ?
     | LIMIT 5
   """,
-  "params": [300, "Frank Herbert", 0]
+  "params": [300, "Frank Herbert", 10]
+}
+----
+// TEST[setup:library]
+
+[discrete]
+[[esql-rest-params-named]]
+===== Named parameters
+
+Named parameters enable you to specify parameters with names, instead of by their position in the array. This makes queries more readable and helps reduces errors.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_EXTRACT("year", release_date)
+    | WHERE page_count > ?minPageCount AND author == ?authorName
+    | STATS count = COUNT(*) by year
+    | WHERE count > ?minCount
+    | LIMIT 5
+  """,
+  "params": [
+    {"name": "minPageCount", "value": 300},
+    {"name": "authorName", "value": "Frank Herbert"},
+    {"name": "minCount", "value": 0}
+  ]
 }
 ----
 // TEST[setup:library]

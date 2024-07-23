@@ -65,6 +65,11 @@ public class EsqlCapabilities {
         AGG_TOP_BOOLEAN_SUPPORT,
 
         /**
+         * Support for ips in {@code TOP} aggregation.
+         */
+        AGG_TOP_IP_SUPPORT,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -165,7 +170,13 @@ public class EsqlCapabilities {
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
-        UNIQUE_NAMES;
+        UNIQUE_NAMES,
+
+        /**
+         * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
+         * https://github.com/elastic/elasticsearch/issues/108008
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT;
 
         private final boolean snapshotOnly;
 

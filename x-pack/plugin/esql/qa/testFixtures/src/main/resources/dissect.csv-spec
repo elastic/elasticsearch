@@ -82,8 +82,30 @@ ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
 | DISSECT long_city_name "Zurich, the %{city} city in Switzerland"
 ;
 
-c:keyword | long_city_name:keyword                        | city:keyword
-Zürich    | Zurich, the largest city in Switzerland       | largest
+c:keyword | long_city_name:keyword                  | city:keyword
+Zürich    | Zurich, the largest city in Switzerland | largest
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
+| RENAME city AS c
+| DISSECT long_city_name "Zurich, the %{city} city in %{foo}"
+;
+
+c:keyword | long_city_name:keyword                  | city:keyword | foo:keyword
+Zürich    | Zurich, the largest city in Switzerland | largest      | Switzerland
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
+| RENAME long_city_name AS c
+| DISSECT c "Zurich, the %{long_city_name} city in Switzerland"
+;
+
+city:keyword | c:keyword                               | long_city_name:keyword
+Zürich       | Zurich, the largest city in Switzerland | largest
 ;
 
 

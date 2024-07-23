@@ -227,8 +227,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.existingTotalNodes());
                 assertEquals(extraProcessors, stats.extraProcessors());
                 assertEquals(expectedProcessorsPerNode, stats.extraPerNodeNodeProcessors());
-                assertEquals(randomAssignment2.getTaskParams().estimateMemoryUsageBytes(), stats.extraModelMemoryBytes());
-                assertEquals(randomAssignment2.getTaskParams().estimateMemoryUsageBytes(), stats.extraPerNodeMemoryBytes());
+                assertEquals(0, stats.extraModelMemoryBytes());
+                assertEquals(0, stats.extraPerNodeMemoryBytes());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
             }
         );

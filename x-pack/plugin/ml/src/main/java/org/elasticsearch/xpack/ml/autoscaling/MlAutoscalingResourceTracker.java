@@ -243,17 +243,21 @@ public final class MlAutoscalingResourceTracker {
             final int numMissingProcessors = numMissingAllocations * numberOfThreadsPerAllocation;
             int numExistingProcessorsToBeUsed = Math.min(numMissingProcessors, numberOfAvailableProcessors);
 
-            if (AssignmentState.STARTING.equals(assignment.getAssignmentState()) && assignment.getNodeRoutingTable().isEmpty()) {
-                // this state occurs when the assignment has just been added and has not been assigned to any nodes
-                logger.debug(
-                    () -> format(
-                        "trained model [%s] lacks assignment , memory required [%d]",
-                        modelAssignment.getKey(),
-                        estimatedMemoryUsage
-                    )
-                );
-                extraPerNodeModelMemoryBytes = Math.max(extraPerNodeModelMemoryBytes, estimatedMemoryUsage);
-                extraModelMemoryInBytes += estimatedMemoryUsage;
+            if (assignment.getNodeRoutingTable().isEmpty() == false
+                && assignment.getNodeRoutingTable().values().stream().allMatch(r -> r.getState().consumesMemory() == false)) {
+                // Ignore states that don't consume memory, for example all allocations are failed or stopped
+                // if the node routing table is empty, then it will match the above condition, but it needs to be handled in the next branch
+                continue;
+            } else {
+
+                if (assignment.getNodeRoutingTable().isEmpty() == false) {
+                    // if the routing table is non-empty, this is an existing model
+                    existingModelMemoryBytes += estimatedMemoryUsage;
+                } else {
+                    // only increase memory requirements for new models
+                    extraPerNodeModelMemoryBytes += estimatedMemoryUsage;
+                    extraModelMemoryInBytes += estimatedMemoryUsage;
+                }
 
                 // if not low priority, check processor requirements.
                 if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
@@ -264,35 +268,14 @@ public final class MlAutoscalingResourceTracker {
                     }
                     numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
                 }
-            } else if (assignment.getNodeRoutingTable().values().stream().allMatch(r -> r.getState().consumesMemory() == false)) {
-                // Ignore states that don't consume memory, for example all allocations are failed or stopped
-                continue;
-            } else if (AssignmentState.STARTED.equals(assignment.getAssignmentState()) && numMissingAllocations > 0) {
-                // this state occurs when we have a partial allocation, but not fully allocated
 
-                long numMemoryBytesNeeded = assignment.getTaskParams().estimateMemoryUsageBytes();
-
-                if (numberOfAvailableProcessors < numMissingProcessors) {
-                    // we don't have enough processors or memory to start the new allocations, we need to scale up
-                    extraProcessors += numMissingAllocations * numberOfThreadsPerAllocation - numExistingProcessorsToBeUsed;
-                    extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
-
-                    final int extraProcessorsNeededForAssignment = numMissingAllocations * numberOfThreadsPerAllocation
-                        - numExistingProcessorsToBeUsed;
-                    logger.warn(
-                        () -> format(
-                            "trained model [%s] assigned to [%s], waiting for [%d] allocations to start; waiting on [%d] extra processors "
-                                + "to become available",
-                            modelAssignment.getKey(),
-                            Strings.arrayToCommaDelimitedString(modelAssignment.getValue().getStartedNodes()),
-                            numMissingAllocations,
-                            extraProcessorsNeededForAssignment
-                        )
-                    );
-                } else {
+                if (extraProcessors > 0
+                    || extraSingleNodeProcessors > 0
+                    || extraModelMemoryInBytes > 0
+                    || extraPerNodeModelMemoryBytes > 0) {
                     logger.info(
                         () -> format(
-                            "trained model [%s] assigned to [%s], waiting for [%d] allocations to start",
+                            "trained model [%s] assigned to [%s], waiting for [%d] allocations to start due to missing hardware",
                             modelAssignment.getKey(),
                             Strings.arrayToCommaDelimitedString(modelAssignment.getValue().getStartedNodes()),
                             numMissingAllocations
@@ -300,46 +283,31 @@ public final class MlAutoscalingResourceTracker {
                     );
                 }
 
-                numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
-                existingModelMemoryBytes += estimatedMemoryUsage;
-                sumOfCurrentlyExistingAndUsedProcessors += numberOfTargetAllocationsOnExistingNodes * numberOfThreadsPerAllocation;
+                for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
+                    sumOfCurrentlyExistingAndUsedProcessors += modelAssignment.getValue()
+                        .getNodeRoutingTable()
+                        .get(node)
+                        .getTargetAllocations() * numberOfThreadsPerAllocation;
 
-            } else {
-                // in this state, we just need to update the existing model memory and processor usage
-                logger.debug(
-                    () -> format(
-                        "trained model [%s] assigned to [%s], memory required [%d]",
-                        modelAssignment.getKey(),
-                        Strings.arrayToCommaDelimitedString(modelAssignment.getValue().getStartedNodes()),
-                        estimatedMemoryUsage
-                    )
-                );
+                    jobRequirementsByNode.computeIfAbsent(node, k -> new ArrayList<>())
+                        .add(
+                            MlJobRequirements.of(
+                                estimatedMemoryUsage,
+                                Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority())
+                                    ? 0
+                                    : modelAssignment.getValue().getNodeRoutingTable().get(node).getTargetAllocations()
+                                        * numberOfThreadsPerAllocation
+                            )
+                        );
+                }
 
-                existingModelMemoryBytes += estimatedMemoryUsage;
-                sumOfCurrentlyExistingAndUsedProcessors += numberOfTargetAllocationsOnExistingNodes * numberOfThreadsPerAllocation;
-
+                // min(3, max(number of allocations over all deployed models)
+                // the minimum number of nodes is equal to the number of allocations, up to 3
+                // if the number of allocations is greater than 3, then minNodes is still 3
+                // in theory this should help availability for 2-3 allocations
+                // the planner should split over all available nodes
+                minNodes = Math.min(3, Math.max(minNodes, numberOfRequestedAllocations));
             }
-
-            // regardless of the state of the assignment, we should update this variable with the existing resource usages
-            for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
-                jobRequirementsByNode.computeIfAbsent(node, k -> new ArrayList<>())
-                    .add(
-                        MlJobRequirements.of(
-                            estimatedMemoryUsage,
-                            Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority())
-                                ? 0
-                                : modelAssignment.getValue().getNodeRoutingTable().get(node).getTargetAllocations()
-                                    * numberOfThreadsPerAllocation
-                        )
-                    );
-            }
-
-            // min(3, max(number of allocations over all deployed models)
-            // the minimum number of nodes is equal to the number of allocations, up to 3
-            // if the number of allocations is greater than 3, then minNodes is still 3
-            // in theory this should help availability for 2-3 allocations
-            // the planner should split over all available nodes
-            minNodes = Math.min(3, Math.max(minNodes, numberOfRequestedAllocations));
         }
 
         // dummy autoscaling entity

@@ -683,7 +683,10 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
 
         // TrainedModelAssignments
         int numAllocationsRequestedPreviously = seed;
-        DiscoveryNodes nodes = createDiscoveryNode(16, numAllocationsRequestedPreviously);
+        DiscoveryNodes nodes = createDiscoveryNode(
+            (int) ByteSizeValue.ofBytes((modelBytes + cacheSize) * 2).getGb(),
+            numAllocationsRequestedPreviously * 2 * threadsPerAllocation
+        );
         int numAssignments = 2;
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - already deployed
@@ -913,7 +916,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         long modelBytes,
         long cacheSize
     ) {
-        String testDescription = "test scaling up when updating existing deployment to be smaller but all nodes are still required";
+        String testDescription = "test scaling when updating existing deployment to be smaller but all nodes are still required";
 
         // Generic settings
         ClusterSettings clusterSettings = createClusterSettings();
@@ -923,7 +926,10 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         // TrainedModelAssignments
         int numAllocationsRequestedPreviously = 4;
         int updatedNumAllocations = 3;
-        DiscoveryNodes nodes = createDiscoveryNode(8, numAllocationsRequestedPreviously);
+        DiscoveryNodes nodes = createDiscoveryNode(
+            (int) ByteSizeValue.ofBytes(modelBytes + cacheSize).getGb(),
+            numAllocationsRequestedPreviously * threadsPerAllocation
+        );
         int numAssignments = 1;
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - already deployed - just updated to be smaller
@@ -953,7 +959,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
         long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
         int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
-        int minNodes = 3; // TODO understand why this value
+        int minNodes = 3;
         long extraPerNodeModelMemoryBytes = 0;
         int extraPerNodeProcessors = 0;
         long extraModelMemoryBytes = 0;
@@ -1068,23 +1074,46 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         Settings settings = createSettings();
 
         // TrainedModelAssignments;
-        DiscoveryNodes nodes = createDiscoveryNode(8, 4);
+        int numAllocationsOnAssignment1 = 3;
+        int numAllocationsOnAssignment2 = 1;
+        DiscoveryNodes nodes = createDiscoveryNode(
+            8,
+            numAllocationsOnAssignment1 * threadsPerAllocation + numAllocationsOnAssignment2 * threadsPerAllocation
+        );
         int numAssignments = 2;
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - has 3 allocations
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, 1, threadsPerAllocation, modelBytes, cacheSize);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(
+                numAllocationsOnAssignment1,
+                1,
+                threadsPerAllocation,
+                modelBytes,
+                cacheSize
+            );
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTED);
-            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(3, 3, RoutingState.STARTED, null));
+            tmaBuilder.addRoutingEntry(
+                NODE_NAME_PREFIX + 0,
+                new RoutingInfo(numAllocationsOnAssignment1, numAllocationsOnAssignment1, RoutingState.STARTED, null)
+            );
             assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
         }
         // assignment 2 - is stopping, has 1 allocation
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(1, 2, threadsPerAllocation, modelBytes, cacheSize);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(
+                numAllocationsOnAssignment2,
+                2,
+                threadsPerAllocation,
+                modelBytes,
+                cacheSize
+            );
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STOPPING);
-            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(1, 1, RoutingState.STOPPING, "stopping deployment"));
+            tmaBuilder.addRoutingEntry(
+                NODE_NAME_PREFIX + 0,
+                new RoutingInfo(numAllocationsOnAssignment2, numAllocationsOnAssignment2, RoutingState.STOPPING, "stopping deployment")
+            );
             assignments.put("TrainedModelAssignment-" + seed + "-" + 2, tmaBuilder.build());
         }
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
@@ -1137,20 +1166,40 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         Settings settings = createSettings();
 
         // TrainedModelAssignments;
-        DiscoveryNodes nodes = createDiscoveryNode(8, 4);
+        int numAllocationsOnAssignment1 = 3;
+        int numAllocationsOnAssignment2 = 1;
+        DiscoveryNodes nodes = createDiscoveryNode(
+            8,
+            numAllocationsOnAssignment1 * threadsPerAllocation + numAllocationsOnAssignment2 * threadsPerAllocation
+        );
         int numAssignments = 2;
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - has 3 allocations
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(3, 1, threadsPerAllocation, modelBytes, cacheSize);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(
+                numAllocationsOnAssignment1,
+                1,
+                threadsPerAllocation,
+                modelBytes,
+                cacheSize
+            );
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTED);
-            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(3, 3, RoutingState.STARTED, null));
+            tmaBuilder.addRoutingEntry(
+                NODE_NAME_PREFIX + 0,
+                new RoutingInfo(numAllocationsOnAssignment1, numAllocationsOnAssignment1, RoutingState.STARTED, null)
+            );
             assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
         }
         // assignment 2 - is stopping, has 1 allocation
         {
-            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(1, 2, threadsPerAllocation, modelBytes, cacheSize);
+            StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(
+                numAllocationsOnAssignment2,
+                2,
+                threadsPerAllocation,
+                modelBytes,
+                cacheSize
+            );
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STOPPING);
             tmaBuilder.clearNodeRoutingTable();
@@ -1203,15 +1252,19 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         ClusterSettings clusterSettings = createClusterSettings();
         MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
         Settings settings = createSettings();
+        int numAllocations = 3;
 
         // TrainedModelAssignments;
-        DiscoveryNodes nodes = createDiscoveryNode(8, 4);
+        DiscoveryNodes nodes = createDiscoveryNode(
+            (int) ByteSizeValue.ofBytes(modelBytes + cacheSize).getGb(),
+            numAllocations * threadsPerAllocation
+        );
         int numAssignments = 1;
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - has 3 allocations
         {
             StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(
-                3,
+                numAllocations,
                 seed,
                 threadsPerAllocation,
                 modelBytes,
@@ -1219,7 +1272,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
             );
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTED);
-            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(3, 3, RoutingState.STARTED, null));
+            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(numAllocations, numAllocations, RoutingState.STARTED, null));
             assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
         }
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
@@ -1270,15 +1323,16 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
         Settings settings = createSettings();
 
+        int numAllocations = 12;
         // TrainedModelAssignments;
-        DiscoveryNodes nodes = createSmallDiscoveryNodes(4, 16); // 16 allocations were required, but
-        // the existing assignments now only require 12 allocations, so 2 nodes should be removed, but only 1 node will be removed at a time
+        DiscoveryNodes nodes = createSmallDiscoveryNodes(4, numAllocations * threadsPerAllocation * 2);
+        // more nodes than are needed, requiring a scaledown
         int numAssignments = 2;
         Map<String, TrainedModelAssignment> assignments = new HashMap<>(numAssignments);
         // assignment 1 - has 12 allocations
         {
             StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(
-                12,
+                numAllocations,
                 seed,
                 threadsPerAllocation,
                 modelBytes,
@@ -1286,7 +1340,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
             );
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTED);
-            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(12, 12, RoutingState.STARTED, null));
+            tmaBuilder.addRoutingEntry(NODE_NAME_PREFIX + 0, new RoutingInfo(numAllocations, numAllocations, RoutingState.STARTED, null));
             assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
         }
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);

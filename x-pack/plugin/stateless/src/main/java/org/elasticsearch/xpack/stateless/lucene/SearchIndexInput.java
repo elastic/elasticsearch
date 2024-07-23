@@ -263,8 +263,9 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                 public InputStream create(int relativePos) throws IOException {
                     assert invocationCount.incrementAndGet() <= numberGaps : invocationCount.get() + " > " + numberGaps;
                     if (in == null) {
-                        assert assertCompareAndSetInvocationThread(null, Thread.currentThread());
+                        // The following may throw, so the assertCompareAndSetInvocationThread is done after it.
                         in = inputStreamFromCacheBlobReader(rangeToWrite.start() + relativePos, totalGapLength);
+                        assert assertCompareAndSetInvocationThread(null, Thread.currentThread());
                         currentRelativePos = relativePos;
                     }
                     assert invocationThread.get() == Thread.currentThread() : invocationThread.get() + " != " + Thread.currentThread();
@@ -312,8 +313,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                 public void close() {
                     IOUtils.closeWhileHandlingException(in);
                     logger.trace(() -> Strings.format("closed %s", this));
-                    assert (invocationCount.get() == 0 && invocationThread.get() == null)
-                        || assertCompareAndSetInvocationThread(Thread.currentThread(), null);
+                    assert invocationThread.get() == null || assertCompareAndSetInvocationThread(Thread.currentThread(), null);
                 }
 
                 @Override

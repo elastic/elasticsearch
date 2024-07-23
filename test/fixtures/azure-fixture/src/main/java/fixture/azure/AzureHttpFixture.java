@@ -7,6 +7,7 @@
  */
 package fixture.azure;
 
+import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
@@ -15,8 +16,6 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.rules.ExternalResource;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -26,6 +25,8 @@ import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Objects;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -36,6 +37,7 @@ public class AzureHttpFixture extends ExternalResource {
     private final String account;
     private final String container;
     private HttpsServer server;
+    private HttpServer metadataServer;
 
     public AzureHttpFixture(boolean enabled, String account, String container) {
         this.enabled = enabled;
@@ -47,12 +49,20 @@ public class AzureHttpFixture extends ExternalResource {
         return "https://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
     }
 
+    public String getMetadataAddress() {
+        return "http://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
+    }
+
     @Override
     protected void before() throws Exception {
         if (enabled) {
-            this.server = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
 
             try {
+                this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                metadataServer.createContext("/", new AzureMetadataServiceHttpHandler());
+                metadataServer.start();
+
+                this.server = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                 final var tmpdir = ESTestCase.createTempDir();
                 final var certificates = PemUtils.readCertificates(List.of(copyResource(tmpdir, "azure-http-fixture.pem")));
                 assertThat(certificates, hasSize(1));
@@ -68,11 +78,11 @@ public class AzureHttpFixture extends ExternalResource {
                     new SecureRandom()
                 );
                 server.setHttpsConfigurator(new HttpsConfigurator(sslContext));
+                server.createContext("/" + account, new AzureHttpHandler(account, container));
+                server.start();
             } catch (Exception e) {
                 throw new AssertionError("unexpected", e);
             }
-            server.createContext("/" + account, new AzureHttpHandler(account, container));
-            server.start();
         }
     }
 
@@ -93,6 +103,7 @@ public class AzureHttpFixture extends ExternalResource {
     protected void after() {
         if (enabled) {
             server.stop(0);
+            metadataServer.stop(0);
         }
     }
 }

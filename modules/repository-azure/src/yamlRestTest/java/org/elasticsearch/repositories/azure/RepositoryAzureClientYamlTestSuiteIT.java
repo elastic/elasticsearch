@@ -49,7 +49,6 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
             s -> USE_FIXTURE
         )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
-        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getAddress(), s -> USE_FIXTURE)
         .build();
 
     @ClassRule

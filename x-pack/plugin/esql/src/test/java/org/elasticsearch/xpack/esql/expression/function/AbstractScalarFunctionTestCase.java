@@ -636,9 +636,15 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
-        List<DataType> types
+        List<DataType> types,
+        PositionalErrorMessageSupplier errorMessageSupplier
     ) {
-        return typeErrorSupplier(includeOrdinal, validPerPosition, types, AbstractScalarFunctionTestCase::typeErrorMessage);
+        return typeErrorSupplier(
+            includeOrdinal,
+            validPerPosition,
+            types,
+            (o, v, t) -> AbstractScalarFunctionTestCase.typeErrorMessage(o, v, t, errorMessageSupplier)
+        );
     }
 
     /**

@@ -65,7 +65,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
                     continue;
                 }
 
-                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs)));
+                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs), (v, p) -> "string"));
             }
         }
         return parameterSuppliersFromTypedData(suppliers);

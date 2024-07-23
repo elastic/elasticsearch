@@ -15,12 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public class Dissect extends RegexExtract {
     private final Parser parser;
@@ -28,14 +26,6 @@ public class Dissect extends RegexExtract {
     public record Parser(String pattern, String appendSeparator, DissectParser parser) {
 
         public List<Attribute> keyAttributes(Source src) {
-            Set<String> referenceKeys = parser.referenceKeys();
-            if (referenceKeys.size() > 0) {
-                throw new ParsingException(
-                    src,
-                    "Reference keys not supported in dissect patterns: [%{*{}}]",
-                    referenceKeys.iterator().next()
-                );
-            }
             List<Attribute> keys = new ArrayList<>();
             for (var x : parser.outputKeys()) {
                 if (x.isEmpty() == false) {

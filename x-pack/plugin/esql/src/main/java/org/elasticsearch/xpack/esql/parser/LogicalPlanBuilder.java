@@ -65,6 +65,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
@@ -196,6 +197,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             try {
                 DissectParser parser = new DissectParser(pattern, appendSeparator);
+
+                Set<String> referenceKeys = parser.referenceKeys();
+                if (referenceKeys.isEmpty() == false) {
+                    throw new ParsingException(
+                        src,
+                        "Reference keys not supported in dissect patterns: [%{*{}}]",
+                        referenceKeys.iterator().next()
+                    );
+                }
 
                 Dissect.Parser esqlDissectParser = new Dissect.Parser(pattern, appendSeparator, parser);
                 List<Attribute> keys = esqlDissectParser.keyAttributes(src);

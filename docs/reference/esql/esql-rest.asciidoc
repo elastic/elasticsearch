@@ -279,7 +279,7 @@ POST /_query
     | WHERE count > ?
     | LIMIT 5
   """,
-  "params": [300, "Frank Herbert", 10]
+  "params": [300, "Frank Herbert", 0]
 }
 ----
 // TEST[setup:library]

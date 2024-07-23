@@ -212,6 +212,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> runtimeMappings = emptyMap();
 
+    private SearchUsage searchUsage;
+
     /**
      * Constructs a new search source builder.
      */
@@ -287,6 +289,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_SEARCH_USAGE_METRICS)) {
+            searchUsage = in.readOptionalWriteable(SearchUsage::new);
         }
     }
 
@@ -376,6 +381,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_SEARCH_USAGE_METRICS)) {
+            out.writeOptionalWriteable(searchUsage);
         }
     }
 
@@ -1332,7 +1340,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         List<KnnSearchBuilder.Builder> knnBuilders = new ArrayList<>();
 
-        SearchUsage searchUsage = new SearchUsage();
+        searchUsage = new SearchUsage();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -2356,5 +2364,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         return validationException;
+    }
+
+    public SearchUsage searchUsage() {
+        return searchUsage;
     }
 }

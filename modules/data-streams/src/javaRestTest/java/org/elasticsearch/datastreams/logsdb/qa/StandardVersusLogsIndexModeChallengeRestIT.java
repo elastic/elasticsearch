@@ -47,16 +47,49 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        mappings(builder);
+        if (randomBoolean()) {
+            builder.startObject("properties")
+
+                .startObject("@timestamp")
+                .field("type", "date")
+                .endObject()
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("message")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("method")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("memory_usage_bytes")
+                .field("type", "long")
+                .field("ignore_malformed", randomBoolean())
+                .endObject()
+
+                .endObject();
+        } else {
+            builder.startObject("properties")
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .endObject();
+        }
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
         builder.field("subobjects", false);
-        mappings(builder);
-    }
-
-    private static void mappings(final XContentBuilder builder) throws IOException {
         if (randomBoolean()) {
             builder.startObject("properties")
 

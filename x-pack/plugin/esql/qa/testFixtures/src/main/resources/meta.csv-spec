@@ -81,7 +81,7 @@ double pi()
 "double st_y(point:geo_point|cartesian_point)"
 "boolean starts_with(str:keyword|text, prefix:keyword|text)"
 "keyword substring(string:keyword|text, start:integer, ?length:integer)"
-"long sum(number:double|integer|long)"
+"long|double sum(number:double|integer|long)"
 "double tan(angle:double|integer|long|unsigned_long)"
 "double tanh(angle:double|integer|long|unsigned_long)"
 double tau()
@@ -111,7 +111,7 @@ double tau()
 "keyword|text to_upper(str:keyword|text)"
 "version to_ver(field:keyword|text|version)"
 "version to_version(field:keyword|text|version)"
-"boolean|double|integer|long|date top(field:boolean|double|integer|long|date, limit:integer, order:keyword)"
+"boolean|double|integer|long|date|ip top(field:boolean|double|integer|long|date|ip, limit:integer, order:keyword)"
 "keyword|text trim(string:keyword|text)"
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 "double weighted_avg(number:double|integer|long, weight:double|integer|long)"
@@ -232,7 +232,7 @@ to_unsigned_lo|field                               |"boolean|date|keyword|text|d
 to_upper      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 to_ver        |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
 to_version    |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
-top           |[field, limit, order]               |["boolean|double|integer|long|date", integer, keyword]                                                                            |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
+top           |[field, limit, order]               |["boolean|double|integer|long|date|ip", integer, keyword]                                                                         |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
 trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
@@ -324,7 +324,7 @@ st_x          |Extracts the `x` coordinate from the supplied point. If the point
 st_y          |Extracts the `y` coordinate from the supplied point. If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.
 starts_with   |Returns a boolean that indicates whether a keyword string starts with another string.
 substring     |Returns a substring of a string, specified by a start position and an optional length.
-sum           |The sum of a numeric field.
+sum           |The sum of a numeric expression.
 tan           |Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.
 tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
 tau           |Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
@@ -447,7 +447,7 @@ st_x          |double                                                           
 st_y          |double                                                                                                                      |false                       |false           |false
 starts_with   |boolean                                                                                                                     |[false, false]              |false           |false
 substring     |keyword                                                                                                                     |[false, false, true]        |false           |false
-sum           |long                                                                                                                        |false                       |false           |true
+sum           |"long|double"                                                                                                               |false                       |false           |true
 tan           |double                                                                                                                      |false                       |false           |false
 tanh          |double                                                                                                                      |false                       |false           |false
 tau           |double                                                                                                                      |null                        |false           |false
@@ -477,7 +477,7 @@ to_unsigned_lo|unsigned_long                                                    
 to_upper      |"keyword|text"                                                                                                              |false                       |false           |false
 to_ver        |version                                                                                                                     |false                       |false           |false
 to_version    |version                                                                                                                     |false                       |false           |false
-top           |"boolean|double|integer|long|date"                                                                                          |[false, false, false]       |false           |true
+top           |"boolean|double|integer|long|date|ip"                                                                                       |[false, false, false]       |false           |true
 trim          |"keyword|text"                                                                                                              |false                       |false           |false
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true

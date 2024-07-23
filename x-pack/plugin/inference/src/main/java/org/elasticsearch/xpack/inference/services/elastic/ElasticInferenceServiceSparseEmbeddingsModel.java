@@ -18,6 +18,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elser.ElserModels;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -104,7 +105,14 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
 
     private URI createUri() throws URISyntaxException {
         // TODO: use URI builder here
-        // TODO: map model id to correct path
-        return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/sparse-text-embedding/" + getServiceSettings().modelId());
+        String modelId = getServiceSettings().modelId();
+        String modelIdUriPath;
+
+        switch (modelId) {
+            case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
+            default -> throw new IllegalArgumentException("Unsupported model for EIS [" + modelId + "]");
+        }
+
+        return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/sparse-text-embedding/" + modelIdUriPath);
     }
 }

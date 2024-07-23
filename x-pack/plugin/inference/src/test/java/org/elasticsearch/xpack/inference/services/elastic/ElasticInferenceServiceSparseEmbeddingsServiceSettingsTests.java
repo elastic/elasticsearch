@@ -47,7 +47,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
     }
 
     public void testFromMap() {
-        var modelId = randomElserModel();
+        var modelId = ElserModels.ELSER_V2_MODEL;
 
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(
             new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),

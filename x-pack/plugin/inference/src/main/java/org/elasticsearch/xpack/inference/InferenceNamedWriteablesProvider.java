@@ -482,7 +482,7 @@ public class InferenceNamedWriteablesProvider {
         );
     }
 
-    private static void addEisNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables){
+    private static void addEisNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,

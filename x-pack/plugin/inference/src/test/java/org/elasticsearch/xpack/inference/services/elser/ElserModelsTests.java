@@ -15,11 +15,19 @@ public class ElserModelsTests extends ESTestCase {
         return randomFrom(ElserModels.VALID_ELSER_MODEL_IDS);
     }
 
-    public void testIsValidElserModel() {
+    public void testIsValidModel() {
         assertTrue(ElserModels.isValidModel(randomElserModel()));
     }
 
-    public void testIsInvalidElserModel() {
+    public void testIsValidEisModel() {
+        assertTrue(ElserModels.isValidEisModel(ElserModels.ELSER_V2_MODEL));
+    }
+
+    public void testIsInvalidModel() {
         assertFalse(ElserModels.isValidModel("invalid"));
+    }
+
+    public void testIsInvalidEisModel() {
+        assertFalse(ElserModels.isValidEisModel(ElserModels.ELSER_V2_MODEL_LINUX_X86));
     }
 }

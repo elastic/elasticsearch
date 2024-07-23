@@ -57,7 +57,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         );
 
         // TODO: add "ELSERv2" or change in model-server?
-        if (modelId != null && ElserModels.isValidModel(modelId) == false) {
+        if (modelId != null && ElserModels.isValidEisModel(modelId) == false) {
             validationException.addValidationError("unknown ELSER model id [" + modelId + "]");
         }
 

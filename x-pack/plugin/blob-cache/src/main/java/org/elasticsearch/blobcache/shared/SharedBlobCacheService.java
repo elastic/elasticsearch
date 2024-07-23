@@ -714,7 +714,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         sharedBytes.decRef();
     }
 
-    private record RegionKey<KeyType>(KeyType file, int region) {
+    private record RegionKey<KeyType> (KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';
@@ -918,9 +918,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                         rangeToWrite,
                         rangeToWrite,
-                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                            assert regionOwners.get(io) == this;
-                        }), refs.acquire()) : refs.acquireListener()
+                        Assertions.ENABLED
+                            ? ActionListener.releaseAfter(
+                                ActionListener.running(() -> { assert regionOwners.get(io) == this; }),
+                                refs.acquire()
+                            )
+                            : refs.acquireListener()
                     );
                     if (gaps.isEmpty()) {
                         listener.onResponse(false);
@@ -1262,11 +1265,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             relativePos,
                             len,
                             progressUpdater,
-                            completionListener.map(unused -> {
+                            Assertions.ENABLED ? ActionListener.runBefore(completionListener, () -> {
                                 assert regionOwners.get(fileRegion.io) == fileRegion
                                     : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
-                                return null;
-                            })
+                            }) : completionListener
                         );
                     }
                 };

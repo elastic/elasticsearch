@@ -13,16 +13,16 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
     // See HuggingFaceActionCreatorTests for reference
 
-    //TODO: init mock web server
+    // TODO: init mock web server
 
-    //TODO: shutdown mock web server
+    // TODO: shutdown mock web server
 
-    //TODO: test execute: returns successful response for elser embeddings action
+    // TODO: test execute: returns successful response for elser embeddings action
 
-    //TODO: test execute: fails from invalid response format for elser embeddings action
+    // TODO: test execute: fails from invalid response format for elser embeddings action
 
-    //TODO: test execute: returns successful response after truncating
+    // TODO: test execute: returns successful response after truncating
 
-    //TODO: test execute: truncates input before sending
+    // TODO: test execute: truncates input before sending
 
 }

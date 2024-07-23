@@ -18,7 +18,7 @@ import static org.mockito.Mockito.mock;
 
 public class ElasticInferenceServiceErrorResponseEntityTests extends ESTestCase {
 
-    public void testFromResponse(){
+    public void testFromResponse() {
         String responseJson = """
             {
                 "error": "error"
@@ -33,7 +33,7 @@ public class ElasticInferenceServiceErrorResponseEntityTests extends ESTestCase 
         assertThat(errorResponseEntity.getErrorMessage(), is("error"));
     }
 
-    public void testFromResponse_NoErrorMessagePresent(){
+    public void testFromResponse_NoErrorMessagePresent() {
         String responseJson = """
             {
                 "not_error": "error"
@@ -47,7 +47,7 @@ public class ElasticInferenceServiceErrorResponseEntityTests extends ESTestCase 
         assertNull(errorResponseEntity);
     }
 
-    public void testFromResponse_InvalidJson(){
+    public void testFromResponse_InvalidJson() {
         String invalidResponseJson = """
             {
             """;

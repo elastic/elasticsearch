@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -26,7 +26,8 @@ import static org.elasticsearch.xpack.inference.services.elser.ElserModelsTests.
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<ElasticInferenceServiceSparseEmbeddingsServiceSettings> {
+public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<
+    ElasticInferenceServiceSparseEmbeddingsServiceSettings> {
 
     @Override
     protected Writeable.Reader<ElasticInferenceServiceSparseEmbeddingsServiceSettings> instanceReader() {
@@ -39,31 +40,33 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
     }
 
     @Override
-    protected ElasticInferenceServiceSparseEmbeddingsServiceSettings mutateInstance(ElasticInferenceServiceSparseEmbeddingsServiceSettings instance) throws IOException {
+    protected ElasticInferenceServiceSparseEmbeddingsServiceSettings mutateInstance(
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings instance
+    ) throws IOException {
         return randomValueOtherThan(instance, ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests::createRandom);
     }
 
-    public void testFromMap(){
+    public void testFromMap() {
         var modelId = randomElserModel();
 
         var serviceSettings = ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId
-                )
-            ),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
             ConfigurationParseContext.REQUEST
         );
 
         assertThat(serviceSettings, is(new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, null)));
     }
 
-    public void testFromMap_InvalidElserModelId(){
+    public void testFromMap_InvalidElserModelId() {
         var invalidModelId = "invalid";
 
-        ValidationException validationException = expectThrows(ValidationException.class, () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, invalidModelId)), ConfigurationParseContext.REQUEST));
+        ValidationException validationException = expectThrows(
+            ValidationException.class,
+            () -> ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, invalidModelId)),
+                ConfigurationParseContext.REQUEST
+            )
+        );
 
         assertThat(validationException.getMessage(), containsString(Strings.format("unknown ELSER model id [%s]", invalidModelId)));
     }
@@ -80,7 +83,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             {"model_id":"%s","rate_limit":{"requests_per_minute":1000}}""", modelId)));
     }
 
-    public static ElasticInferenceServiceSparseEmbeddingsServiceSettings createRandom(){
+    public static ElasticInferenceServiceSparseEmbeddingsServiceSettings createRandom() {
         return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(randomElserModel(), null);
     }
 }

@@ -11,16 +11,16 @@ import org.elasticsearch.test.ESTestCase;
 
 public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
 
-    //See CohereResponseHandlerTests for reference
+    // See CohereResponseHandlerTests for reference
 
-    //TODO: test 200 Ok
+    // TODO: test 200 Ok
 
-    //TODO: test 400 Bad Request
+    // TODO: test 400 Bad Request
 
-    //TODO: test 405 Method not allowed
+    // TODO: test 405 Method not allowed
 
-    //TODO: test 500 internal server error
+    // TODO: test 500 internal server error
 
-    //TODO: test other error code, which is not explicitly handled (unknown)
+    // TODO: test other error code, which is not explicitly handled (unknown)
 
 }

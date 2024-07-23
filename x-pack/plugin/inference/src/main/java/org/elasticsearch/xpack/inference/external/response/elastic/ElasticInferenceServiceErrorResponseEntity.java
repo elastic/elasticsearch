@@ -45,13 +45,13 @@ public class ElasticInferenceServiceErrorResponseEntity implements ErrorMessage 
         try (
             XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
-            ) {
+        ) {
             var responseMap = jsonParser.map();
             var error = (String) responseMap.get("error");
-            if(error != null){
+            if (error != null) {
                 return new ElasticInferenceServiceErrorResponseEntity(error);
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             // swallow the error
         }
 

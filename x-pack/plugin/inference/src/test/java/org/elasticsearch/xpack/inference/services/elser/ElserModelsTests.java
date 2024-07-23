@@ -11,15 +11,15 @@ import org.elasticsearch.test.ESTestCase;
 
 public class ElserModelsTests extends ESTestCase {
 
-    public static String randomElserModel(){
+    public static String randomElserModel() {
         return randomFrom(ElserModels.VALID_ELSER_MODEL_IDS);
     }
 
-    public void testIsValidElserModel(){
+    public void testIsValidElserModel() {
         assertTrue(ElserModels.isValidModel(randomElserModel()));
     }
 
-    public void testIsInvalidElserModel(){
+    public void testIsInvalidElserModel() {
         assertFalse(ElserModels.isValidModel("invalid"));
     }
 }

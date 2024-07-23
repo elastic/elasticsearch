@@ -13,10 +13,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
     // See AzureOpenAiEmbeddingsRequestTests as reference
 
-    //TODO: test create request: with model defined
+    // TODO: test create request: with model defined
 
-    //TODO: test truncate: reduces input text size by half
+    // TODO: test truncate: reduces input text size by half
 
-    //TODO: test is truncated: returns true
+    // TODO: test is truncated: returns true
 
 }

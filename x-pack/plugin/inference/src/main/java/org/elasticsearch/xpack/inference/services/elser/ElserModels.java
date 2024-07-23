@@ -22,7 +22,7 @@ public class ElserModels {
         ElserModels.ELSER_V2_MODEL_LINUX_X86
     );
 
-    public static boolean isValidModel(String model){
+    public static boolean isValidModel(String model) {
         return VALID_ELSER_MODEL_IDS.contains(model);
     }
 

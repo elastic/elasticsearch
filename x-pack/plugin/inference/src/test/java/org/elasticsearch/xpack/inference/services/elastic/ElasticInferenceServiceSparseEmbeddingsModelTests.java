@@ -9,6 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 public class ElasticInferenceServiceSparseEmbeddingsModelTests {
 
-    //TODO: place create model utility methods for other tests here
+    // TODO: place create model utility methods for other tests here
 
 }

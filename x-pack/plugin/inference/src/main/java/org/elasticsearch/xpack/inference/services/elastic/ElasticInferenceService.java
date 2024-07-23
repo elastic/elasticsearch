@@ -100,7 +100,7 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        //TODO:
+        // TODO:
     }
 
     @Override

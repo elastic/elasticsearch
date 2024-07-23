@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -64,6 +65,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -300,6 +303,49 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                         final byte[] output = in.readNBytes(nbytes);
                         assertArrayEquals(Arrays.copyOfRange(input, (int) gap.start(), (int) gap.end()), output);
                     }
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testSequentialRangeMissingHandlerWithExceptions() throws IOException {
+        final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+        when(cacheFile.getCacheKey()).thenReturn(new FileCacheKey(shardId, randomNonNegativeLong(), randomIdentifier()));
+        final SearchIndexInput indexInput = new SearchIndexInput(
+            randomIdentifier(),
+            cacheFile,
+            randomIOContext(),
+            cacheBlobReader,
+            randomNonNegativeLong(),
+            0
+        );
+
+        final long rangeToWriteStart = randomLongBetween(0, 1000);
+        final long rangeLength = PAGE_SIZE * between(20, 40);
+        final long rangeToWriteEnd = rangeToWriteStart + rangeLength;
+        final ByteRange rangeToWrite = ByteRange.of(rangeToWriteStart, rangeToWriteEnd);
+        final var sequentialRangeMissingHandler = indexInput.new SequentialRangeMissingHandler(rangeToWrite);
+
+        // Create a list of disjoint gaps
+        final ArrayList<SparseFileTracker.Gap> gaps = new ArrayList<>();
+        for (var start = 0; start < rangeLength; start += 5 * PAGE_SIZE) {
+            gaps.add(mockGap(start, Math.min(rangeLength, start + between(1, 5) * PAGE_SIZE)));
+        }
+
+        // Go through the gaps to try to fill them unsuccessfully due to the noSuchFileException being thrown
+        var noSuchFileException = new NoSuchFileException(cacheFile.getCacheKey().toString());
+        when(cacheBlobReader.getRangeInputStream(anyLong(), anyInt())).thenThrow(noSuchFileException);
+        try (var streamFactory = sequentialRangeMissingHandler.sharedInputStreamFactory(gaps)) {
+            for (int i = 0; i < gaps.size(); i++) {
+                SparseFileTracker.Gap gap = gaps.get(i);
+                try (var in = streamFactory.create((int) gap.start())) {
+                    assert false : "should throw exception";
+                } catch (Exception e) {
+                    assertThat(e, equalTo(noSuchFileException));
                 }
             }
         }

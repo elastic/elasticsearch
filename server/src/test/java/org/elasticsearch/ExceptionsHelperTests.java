@@ -249,12 +249,15 @@ public class ExceptionsHelperTests extends ESTestCase {
         int maxTraces = between(0, 5);
         RuntimeException exception = recurseAndCatchRuntime(
             randomIntBetween(10, 15),
-            () -> suppressNewExceptionUnder(recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException))
+            () -> {
+                RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+                recurseUntil(randomIntBetween(10,15), () -> suppressNewExceptionUnder(original));
+            }
         );
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) Exception message, (n) traces, (1) remaining traces, then
-        // (1) suppressed, (n, maximum 2) suppressed by traces only have 2 common frames max, (1) remaining lines
-        int expectedLength = 4 + maxTraces + Math.min(maxTraces, 2);
+        // (1) suppressed, (n) suppressed by traces, (1) remaining lines
+        int expectedLength = 4 + (2 * maxTraces);
         assertThat(limitedTrace, limitedTrace.split("\n").length, equalTo(expectedLength));
     }
 
@@ -263,9 +266,10 @@ public class ExceptionsHelperTests extends ESTestCase {
         int maxTraces = between(0, 5);
         RuntimeException exception = recurseAndCatchRuntime(
             randomIntBetween(10, 15),
-            () -> throwNewExceptionThatSuppresses(
-                recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
-            )
+            () -> {
+                RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+                recurseUntil(randomIntBetween(10, 15), () -> throwNewExceptionThatSuppresses(original));
+            }
         );
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) Exception message, (n) traces, (1) remaining traces, then
@@ -280,16 +284,17 @@ public class ExceptionsHelperTests extends ESTestCase {
         int maxTraces = between(0, 5);
         RuntimeException exception = recurseAndCatchRuntime(
             randomIntBetween(10, 15),
-            () -> suppressNewExceptionWithCauseUnder(
-                recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException),
-                recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
-            )
+            () -> {
+                RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+                RuntimeException causedBy = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+                recurseUntil(randomIntBetween(10, 15), () -> suppressNewExceptionWithCauseUnder(original, causedBy));
+            }
         );
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) Exception message, (n) traces, (1) remaining traces, then
-        // (1) suppressed exception, (n, maximum 2) this suppressed exception trace has max 2 common frames, (1) remaining traces
+        // (1) suppressed exception, (n) suppressed traces, (1) remaining traces
         // (1) suppressed caused by exception, (n) traces, (1) remaining traces
-        int expectedLength = 6 + (2 * maxTraces) + Math.min(maxTraces, 2);
+        int expectedLength = 6 + (3 * maxTraces);
         assertThat(limitedTrace, limitedTrace.split("\n").length, equalTo(expectedLength));
     }
 
@@ -299,10 +304,11 @@ public class ExceptionsHelperTests extends ESTestCase {
         int maxTraces = between(0, 5);
         RuntimeException exception = recurseAndCatchRuntime(
             randomIntBetween(10, 15),
-            () -> throwNewExceptionWithCauseThatSuppresses(
-                recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException),
-                recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
-            )
+            () -> {
+                RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+                RuntimeException causedBy = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+                recurseUntil(randomIntBetween(10, 15), () -> throwNewExceptionWithCauseThatSuppresses(original, causedBy));
+            }
         );
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) Exception message, (n) traces, (1) remaining traces, then
@@ -319,28 +325,29 @@ public class ExceptionsHelperTests extends ESTestCase {
         int maxTraces = between(0, 5);
         RuntimeException exception = recurseAndCatchRuntime(
             randomIntBetween(10, 15),
-            () -> suppressNewExceptionWithCauseUnder(
-                recurseAndCatchRuntime(
+            () -> {
+                RuntimeException original = recurseAndCatchRuntime(
                     randomIntBetween(10, 15),
                     () -> throwExceptionCausedBy(
                         recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
                     )
-                ),
-                recurseAndCatchRuntime(
+                );
+                RuntimeException causedBy = recurseAndCatchRuntime(
                     randomIntBetween(10, 15),
                     () -> throwExceptionCausedBy(
                         recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
                     )
-                )
-            )
+                );
+                recurseUntil(randomIntBetween(10, 15), () -> suppressNewExceptionWithCauseUnder(original, causedBy));
+            }
         );
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) wrapped exception message, (n) traces, (1) remaining traces, then
-        // (1) suppressed exception, (n, maximum 2) this suppressed exception trace has max 2 common frames, (1) remaining traces, then
+        // (1) suppressed exception, (n) suppressed traces, (1) remaining traces, then
         // (1) wrapped exception under suppressed exception, (n) traces, (1) remaining traces, then
         // (1) root cause of suppressed exception chain, (n) traces, (1) remaining traces, then
         // (1) root cause of the suppressing exception chain, (n) traces, (1) remaining traces
-        int expectedLength = 10 + (4 * maxTraces) + Math.min(maxTraces, 2);
+        int expectedLength = 10 + (5 * maxTraces);
         assertThat(limitedTrace, limitedTrace.split("\n").length, equalTo(expectedLength));
     }
 
@@ -351,20 +358,21 @@ public class ExceptionsHelperTests extends ESTestCase {
         int maxTraces = between(0, 5);
         RuntimeException exception = recurseAndCatchRuntime(
             randomIntBetween(10, 15),
-            () -> throwNewExceptionWithCauseThatSuppresses(
-                recurseAndCatchRuntime(
+            () -> {
+                RuntimeException original = recurseAndCatchRuntime(
                     randomIntBetween(10, 15),
                     () -> throwExceptionCausedBy(
                         recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
                     )
-                ),
-                recurseAndCatchRuntime(
+                );
+                RuntimeException causedBy = recurseAndCatchRuntime(
                     randomIntBetween(10, 15),
                     () -> throwExceptionCausedBy(
                         recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
                     )
-                )
-            )
+                );
+                throwNewExceptionWithCauseThatSuppresses(original, causedBy);
+            }
         );
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) wrapped exception message, (n) traces, (1) remaining traces, then
@@ -463,14 +471,18 @@ public class ExceptionsHelperTests extends ESTestCase {
     };
 
     private static RuntimeException recurseAndCatchRuntime(int depth, Runnable op) {
-        return expectThrows(RuntimeException.class, () -> recurseUntil(depth, 0, op));
+        return expectThrows(RuntimeException.class, () -> doRecurse(depth, 0, op));
     }
 
-    private static void recurseUntil(int depth, int current, Runnable op) {
+    private static void recurseUntil(int depth, Runnable op) {
+        doRecurse(depth, 0, op);
+    }
+
+    private static void doRecurse(int depth, int current, Runnable op) {
         if (depth == current) {
             op.run();
         } else {
-            recurseUntil(depth, current + 1, op);
+            doRecurse(depth, current + 1, op);
         }
     }
 

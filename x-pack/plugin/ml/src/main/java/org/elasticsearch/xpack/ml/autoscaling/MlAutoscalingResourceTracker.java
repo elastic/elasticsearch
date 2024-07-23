@@ -146,7 +146,7 @@ public final class MlAutoscalingResourceTracker {
         long existingModelMemoryBytes = 0;
         long extraPerNodeModelMemoryBytes = 0;
         long extraModelMemoryInBytes = 0;
-        int extraSingleNodeProcessors = 0;
+        int extraPerNodeProcessors = 0;
         int extraProcessors = 0;
         int sumOfCurrentlyExistingAndUsedProcessors = 0;
 
@@ -262,16 +262,17 @@ public final class MlAutoscalingResourceTracker {
                 if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
                     if (numMissingProcessors > numberOfAvailableProcessors) {
                         // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
-                        extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
                         extraProcessors += numMissingProcessors - numExistingProcessorsToBeUsed;
+                        extraPerNodeProcessors = Math.max(extraPerNodeProcessors, 1); // if extra processors >0, we need at least 1
+                                                                                      // extraPerNodeProcessors
+                    }
+                    if (perNodeAvailableProcessors < numberOfThreadsPerAllocation) {
+                        extraPerNodeProcessors = Math.max(extraPerNodeProcessors, numberOfThreadsPerAllocation);
                     }
                     numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
                 }
 
-                if (extraProcessors > 0
-                    || extraSingleNodeProcessors > 0
-                    || extraModelMemoryInBytes > 0
-                    || extraPerNodeModelMemoryBytes > 0) {
+                if (extraProcessors > 0 || extraPerNodeProcessors > 0 || extraModelMemoryInBytes > 0 || extraPerNodeModelMemoryBytes > 0) {
                     logger.info(
                         () -> format(
                             "trained model [%s] assigned to [%s], waiting for [%d] allocations to start due to missing hardware",
@@ -353,7 +354,7 @@ public final class MlAutoscalingResourceTracker {
         }
 
         // if we need extra processors, we need to tell the elasticsearch-autoscaler that we need at least 1 processor per node
-        assert extraProcessors == 0 || extraSingleNodeProcessors > 0;
+        assert extraProcessors == 0 || extraPerNodeProcessors > 0;
 
         listener.onResponse(
             new MlAutoscalingStats(
@@ -363,7 +364,7 @@ public final class MlAutoscalingResourceTracker {
                 sumOfCurrentlyExistingAndUsedProcessors,
                 minNodes,
                 extraPerNodeModelMemoryBytes,
-                extraSingleNodeProcessors,
+                extraPerNodeProcessors,
                 extraModelMemoryInBytes,
                 extraProcessors,
                 removeNodeMemoryInBytes,

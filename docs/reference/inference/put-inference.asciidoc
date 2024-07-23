@@ -43,11 +43,3 @@ The following services are available through the {infer} API, click the links to
 * <<infer-service-hugging-face,Hugging Face>>
 * <<infer-service-mistral,Mistral>>
 * <<infer-service-openai,OpenAI>>
-
-[NOTE]
-====
-You might see a 502 bad gateway error in the response when using the {kib} Console.
-This error usually just reflects a timeout, while the model downloads in the background.
-You can check the download progress in the {ml-app} UI.
-If using the Python client, you can set the `timeout` parameter to a higher value.
-====

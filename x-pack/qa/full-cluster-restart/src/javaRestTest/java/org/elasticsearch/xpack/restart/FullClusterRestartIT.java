@@ -1061,11 +1061,21 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                   "query": "FROM nofnf | LIMIT 1"
                 }""");
             // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}
-            assertMap(
-                entityAsMap(client().performRequest(esql)),
-                matchesMap().entry("columns", List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword")))
-                    .entry("values", List.of(List.of("test", "test")))
-            );
+            try {
+                assertMap(
+                    entityAsMap(client().performRequest(esql)),
+                    matchesMap().entry(
+                        "columns",
+                        List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword"))
+                    ).entry("values", List.of(List.of("test", "test")))
+                );
+            } catch (ResponseException e) {
+                logger.error(
+                    "failed to query index without field name field. Existing indices:\n{}",
+                    EntityUtils.toString(client().performRequest(new Request("GET", "_cat/indices")).getEntity())
+                );
+                throw e;
+            }
         }
     }
 

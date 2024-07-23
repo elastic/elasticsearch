@@ -40,12 +40,30 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -56,6 +74,7 @@ import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -76,6 +95,7 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -90,6 +110,29 @@ import static org.hamcrest.Matchers.instanceOf;
  * Base class for function tests.
  */
 public abstract class AbstractFunctionTestCase extends ESTestCase {
+    /**
+     * Operators are unregistered functions.
+     */
+    private static final Map<String, Class<?>> OPERATORS = Map.ofEntries(
+        entry("in", In.class),
+        entry("like", WildcardLike.class),
+        entry("rlike", RLike.class),
+        entry("equals", Equals.class),
+        entry("not_equals", NotEquals.class),
+        entry("greater_than", GreaterThan.class),
+        entry("greater_than_or_equal", GreaterThanOrEqual.class),
+        entry("less_than", LessThan.class),
+        entry("less_than_or_equal", LessThanOrEqual.class),
+        entry("add", Add.class),
+        entry("sub", Sub.class),
+        entry("mul", Mul.class),
+        entry("div", Div.class),
+        entry("mod", Mod.class),
+        entry("neg", Neg.class),
+        entry("is_null", IsNull.class),
+        entry("is_not_null", IsNotNull.class)
+    );
+
     /**
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
@@ -489,20 +532,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         String name = functionName();
-        if (binaryOperator(name) != null) {
-            renderTypes(List.of("lhs", "rhs"));
-            return;
-        }
-        if (unaryOperator(name) != null) {
-            renderTypes(List.of("v"));
-            return;
-        }
-        if (name.equalsIgnoreCase("rlike")) {
-            renderTypes(List.of("str", "pattern", "caseInsensitive"));
-            return;
-        }
-        if (name.equalsIgnoreCase("like")) {
-            renderTypes(List.of("str", "pattern"));
+        if (binaryOperator(name) != null || unaryOperator(name) != null || likeOrInOperator(name)) {
+            renderDocsForOperators(name);
             return;
         }
         FunctionDefinition definition = definition(name);
@@ -680,6 +711,41 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("layout", rendered, "asciidoc");
     }
 
+    private static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
+        for (Constructor<?> ctor : clazz.getConstructors()) {
+            FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
+            if (functionInfo != null) {
+                return ctor;
+            }
+        }
+        return null;
+    }
+
+    private static void renderDocsForOperators(String name) throws IOException {
+        Constructor<?> ctor = constructorWithFunctionInfo(OPERATORS.get(name));
+        assert ctor != null;
+        FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
+        assert functionInfo != null;
+        renderKibanaInlineDocs(name, functionInfo);
+
+        var params = ctor.getParameters();
+
+        List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
+        for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
+            if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
+                Param paramInfo = params[i].getAnnotation(Param.class);
+                String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
+                String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
+                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
+                boolean optional = paramInfo == null ? false : paramInfo.optional();
+                DataType targetDataType = EsqlFunctionRegistry.getTargetType(type);
+                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional, targetDataType));
+            }
+        }
+        renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
+        renderTypes(args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList());
+    }
+
     private static void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append("""
@@ -852,6 +918,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "neg" -> "-";
             default -> null;
         };
+    }
+
+    /**
+     * If this tests is for a like or rlike operator return true, otherwise return {@code null}.
+     */
+    private static boolean likeOrInOperator(String name) {
+        return name.equalsIgnoreCase("rlike") || name.equalsIgnoreCase("like") || name.equalsIgnoreCase("in");
     }
 
     /**

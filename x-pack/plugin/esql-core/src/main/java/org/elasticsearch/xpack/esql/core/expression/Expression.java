@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
@@ -29,7 +28,7 @@ import java.util.function.Supplier;
  * a, b, ABS(c), and i are all Expressions, with ABS(c) being a Function
  * (which is a type of expression) with a single child, c.
  */
-public abstract class Expression extends Node<Expression> implements Resolvable, NamedWriteable {
+public abstract class Expression extends Node<Expression> implements Resolvable {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         for (NamedWriteableRegistry.Entry e : NamedExpression.getNamedWriteables()) {

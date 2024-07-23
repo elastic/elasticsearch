@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ import static java.util.Collections.emptyList;
  *
  * @param <T> node type
  */
-public abstract class Node<T extends Node<T>> {
+public abstract class Node<T extends Node<T>> implements NamedWriteable {
     private static final int TO_STRING_MAX_PROP = 10;
     private static final int TO_STRING_MAX_WIDTH = 110;
 

@@ -6,11 +6,16 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -18,6 +23,9 @@ import java.util.List;
  * For example, a logical plan in English would be: "I want to get from DEN to SFO".
  */
 public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Resolvable {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(LocalRelation.ENTRY, Lookup.ENTRY, Join.ENTRY);
+    }
 
     /**
      * Order is important in the enum; any values should be added at the end.
@@ -35,6 +43,17 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
 
     public LogicalPlan(Source source, List<LogicalPlan> children) {
         super(source, children);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // TODO remove when all PhysicalPlans are migrated to NamedWriteable
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
     }
 
     public boolean preAnalyzed() {

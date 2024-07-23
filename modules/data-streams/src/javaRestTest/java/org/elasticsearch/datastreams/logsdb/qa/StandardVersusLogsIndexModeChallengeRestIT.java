@@ -47,83 +47,16 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        if (randomBoolean()) {
-            builder.startObject("properties")
-
-                .startObject("@timestamp")
-                .field("type", "date")
-                .endObject()
-
-                .startObject("host.name")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("message")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("method")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("memory_usage_bytes")
-                .field("type", "long")
-                .field("ignore_malformed", randomBoolean())
-                .endObject()
-
-                .endObject();
-        } else {
-            builder.startObject("properties")
-                // NOTE: dynamic mapping of `host.name` would result in a text field without doc values which prevents running aggregations
-                .startObject("host.name")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .endObject();
-        }
+        mappings(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
         builder.field("subobjects", false);
-        // NOTE: without mappings the `host.name` filed will be automatically injected as a keyword for LogsDB
-        if (randomBoolean()) {
-            builder.startObject("properties")
-
-                .startObject("@timestamp")
-                .field("type", "date")
-                .endObject()
-
-                .startObject("host.name")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("message")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("method")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("memory_usage_bytes")
-                .field("type", "long")
-                .field("ignore_malformed", randomBoolean())
-                .endObject()
-
-                .endObject();
-        }
+        mappings(builder);
     }
 
     private static void mappings(final XContentBuilder builder) throws IOException {
-        builder.field("subobjects", false);
         if (randomBoolean()) {
             builder.startObject("properties")
 

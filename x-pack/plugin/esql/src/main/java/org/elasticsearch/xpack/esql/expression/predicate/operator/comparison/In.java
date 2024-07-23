@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -60,10 +61,46 @@ public class In extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = "boolean",
         description = "The `IN` operator allows testing whether a field or expression equals an element in a list of literals, "
-            + "fields or expressions:",
+            + "fields or expressions.",
         examples = @Example(file = "row", tag = "in-with-expressions")
     )
-    public In(Source source, Expression value, List<Expression> list) {
+    public In(
+        Source source,
+        @Param(
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
+            description = "An expression."
+        ) Expression value,
+        @Param(
+            name = "inlist",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
+            description = "A list of items."
+        ) List<Expression> list
+    ) {
         super(source, CollectionUtils.combine(list, value));
         this.value = value;
         this.list = list;

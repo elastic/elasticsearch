@@ -2545,15 +2545,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private void assertSearchContextsReleased() {
         for (NodeAndClient nodeAndClient : nodes.values()) {
-            SearchService searchService = getInstance(SearchService.class, nodeAndClient.name);
-            try {
-                assertBusy(() -> {
-                    assertThat(searchService.getActiveContexts(), equalTo(0));
-                    assertThat(searchService.getOpenScrollContexts(), equalTo(0));
-                });
-            } catch (Exception e) {
-                throw new AssertionError("Failed to verify search contexts", e);
-            }
+            ESTestCase.ensureAllContextsReleased(getInstance(SearchService.class, nodeAndClient.name));
         }
     }
 

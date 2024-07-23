@@ -48,6 +48,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.INGEST;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -391,8 +392,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         assertFalse(response.hasFailures());
 
         // Check Node Ingest stats
-        NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest(ingestNode).addMetric("ingest"))
-            .actionGet();
+        NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest(ingestNode).addMetric(INGEST)).actionGet();
         assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
 
         NodeStats stats = nodesStatsResponse.getNodes().get(0);

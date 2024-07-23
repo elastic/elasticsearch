@@ -14,26 +14,28 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
-public class DoubleBucketedSortTests extends BucketedSortTestCase<DoubleBucketedSort> {
+public class DoubleBucketedSortTests extends BucketedSortTestCase<DoubleBucketedSort, Double> {
     @Override
     protected DoubleBucketedSort build(SortOrder sortOrder, int bucketSize) {
         return new DoubleBucketedSort(bigArrays(), sortOrder, bucketSize);
     }
 
     @Override
-    protected Object expectedValue(double v) {
-        return v;
+    protected Double randomValue() {
+        return randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
     }
 
     @Override
-    protected double randomValue() {
-        return randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+    protected List<Double> threeSortedValues() {
+        return List.of(-Double.MAX_VALUE, randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true), Double.MAX_VALUE);
     }
 
     @Override
-    protected void collect(DoubleBucketedSort sort, double value, int bucket) {
+    protected void collect(DoubleBucketedSort sort, Double value, int bucket) {
         sort.collect(value, bucket);
     }
 
@@ -48,11 +50,11 @@ public class DoubleBucketedSortTests extends BucketedSortTestCase<DoubleBucketed
     }
 
     @Override
-    protected void assertBlockTypeAndValues(Block block, Object... values) {
+    protected void assertBlockTypeAndValues(Block block, List<Double> values) {
         assertThat(block.elementType(), equalTo(ElementType.DOUBLE));
         var typedBlock = (DoubleBlock) block;
-        for (int i = 0; i < values.length; i++) {
-            assertThat(typedBlock.getDouble(i), equalTo(values[i]));
+        for (int i = 0; i < values.size(); i++) {
+            assertThat(typedBlock.getDouble(i), equalTo(values.get(i)));
         }
     }
 }

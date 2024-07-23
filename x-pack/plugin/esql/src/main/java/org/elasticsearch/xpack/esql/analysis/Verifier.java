@@ -57,6 +57,10 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 
+/**
+ * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
+ * step does type resolution and fails queries based on invalid type expressions.
+ */
 public class Verifier {
 
     private final Metrics metrics;

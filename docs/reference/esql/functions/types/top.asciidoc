@@ -9,5 +9,6 @@ boolean | integer | keyword | boolean
 datetime | integer | keyword | datetime
 double | integer | keyword | double
 integer | integer | keyword | integer
+ip | integer | keyword | ip
 long | integer | keyword | long
 |===

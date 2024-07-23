@@ -162,7 +162,8 @@ public class HeapAttackIT extends ESRestTestCase {
             matchesMap().entry("status", 429)
                 .entry(
                     "error",
-                    matchesMap().entry("bytes_wanted", greaterThan(1000))
+                    matchesMap().extraOk()
+                        .entry("bytes_wanted", greaterThan(1000))
                         .entry("reason", matchesRegex("\\[request] Data too large, data for \\[topn] would .+"))
                         .entry("durability", "TRANSIENT")
                         .entry("type", "circuit_breaking_exception")

@@ -567,6 +567,32 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
     }
 
+    public void testComplexFieldNames() throws IOException {
+        bulkLoadTestData(1);
+        // catch verification exception, field names not found
+        int fieldNumber = 5000;
+        String q1 = fromIndex() + queryWithComplexFieldNames(fieldNumber);
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(requestObjectBuilder().query(q1)));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("verification_exception"));
+
+        // catch automaton's TooComplexToDeterminizeException
+        fieldNumber = 6000;
+        final String q2 = fromIndex() + queryWithComplexFieldNames(fieldNumber);
+        e = expectThrows(ResponseException.class, () -> runEsql(requestObjectBuilder().query(q2)));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("The field names are too complex to process"));
+    }
+
+    private static String queryWithComplexFieldNames(int field) {
+        StringBuilder query = new StringBuilder();
+        query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);
+        for (int i = 2; i <= field; i++) {
+            query.append(", ").append(randomAlphaOfLength(10)).append(i);
+        }
+        return query.toString();
+    }
+
     private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {
         StringBuilder sb = new StringBuilder();
         switch (format) {

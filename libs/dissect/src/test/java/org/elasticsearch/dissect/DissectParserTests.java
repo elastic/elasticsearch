@@ -219,9 +219,9 @@ public class DissectParserTests extends ESTestCase {
         );
         assertMatch(
             "Zürich, the %{one} city in Switzerland; Zürich, the %{two} city in Switzerland",
-            "Zürich, the largest city in Switzerland; Zürich, the best city in Switzerland",
+            "Zürich, the largest city in Switzerland; Zürich, the LARGEST city in Switzerland",
             Arrays.asList("one", "two"),
-            Arrays.asList("largest", "best")
+            Arrays.asList("largest", "LARGEST")
         );
     }
 

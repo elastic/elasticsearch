@@ -1178,15 +1178,25 @@ public class IngestServiceTests extends ESTestCase {
             public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
                 return new DocumentSizeObserver() {
                     @Override
+                    public long raiNormalisedBytes() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long rasNormalisedBytes() {
+                        return 0;
+                    }
+
+                    @Override
                     public XContentParser wrapParser(XContentParser xContentParser) {
                         wrappedObserverWasUsed.incrementAndGet();
                         return xContentParser;
                     }
 
                     @Override
-                    public long normalisedBytesParsed() {
+                    public void setNormalisedBytesParsedOn(IndexRequest indexRequest) {
                         parsedValueWasUsed.incrementAndGet();
-                        return 0;
+                        indexRequest.setNormalisedBytesParsed(0L);
                     }
 
                 };

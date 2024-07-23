@@ -226,8 +226,8 @@ public class UpdateHelper {
                 .waitForActiveShards(request.waitForActiveShards())
                 .timeout(request.timeout())
                 .setRefreshPolicy(request.getRefreshPolicy())
-                .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
-
+                .setOriginatesFromUpdateByDoc(true);
+            documentSizeObserver.setNormalisedBytesParsedOn(finalIndexRequest);
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
     }

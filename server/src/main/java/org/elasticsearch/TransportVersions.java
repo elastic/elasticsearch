@@ -218,6 +218,7 @@ public class TransportVersions {
     public static final TransportVersion ENTERPRISE_GEOIP_DOWNLOADER = def(8_708_00_0);
     public static final TransportVersion NODES_STATS_ENUM_SET = def(8_709_00_0);
     public static final TransportVersion MASTER_NODE_METRICS = def(8_710_00_0);
+    public static final TransportVersion INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN = def(8_711_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

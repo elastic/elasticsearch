@@ -34,6 +34,7 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
         static final String TOTAL_COUNT = "total_count";
         static final String TOTAL_ESTIMATED_OVERHEAD = "total_estimated_overhead";
         static final String TOTAL_ESTIMATED_OVERHEAD_IN_BYTES = "total_estimated_overhead_in_bytes";
+        static final String TOTAL_SEGMENTS = "total_segments";
         static final String TOTAL_SEGMENT_FIELDS = "total_segment_fields";
         static final String AVERAGE_FIELDS_PER_SEGMENT = "average_fields_per_segment";
     }
@@ -102,6 +103,7 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.MAPPINGS);
         builder.field(Fields.TOTAL_COUNT, getTotalCount());
         builder.humanReadableField(Fields.TOTAL_ESTIMATED_OVERHEAD_IN_BYTES, Fields.TOTAL_ESTIMATED_OVERHEAD, getTotalEstimatedOverhead());
+        builder.field(Fields.TOTAL_SEGMENTS, totalSegments);
         builder.field(Fields.TOTAL_SEGMENT_FIELDS, totalSegmentFields);
         builder.field(Fields.AVERAGE_FIELDS_PER_SEGMENT, totalSegments == 0 ? 0 : totalSegmentFields / totalSegments);
         builder.endObject();

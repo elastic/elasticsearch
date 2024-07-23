@@ -576,6 +576,7 @@
 
   - match: { nodes.$node_id.indices.mappings.total_count: 28 }
   - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - match: { nodes.$node_id.indices.mappings.total_segments: 1 }
   - match: { nodes.$node_id.indices.mappings.total_segment_fields: 28 }
   - match: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
 
@@ -591,6 +592,7 @@
 
   - match: { nodes.$node_id.indices.mappings.total_count: 28 }
   - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - match: { nodes.$node_id.indices.mappings.total_segments: 2 }
   - match: { nodes.$node_id.indices.mappings.total_segment_fields: 56 }
   - match: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
 ---

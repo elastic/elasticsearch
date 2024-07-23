@@ -987,7 +987,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                 executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
                             }
                         } else {
-                            final List<AbstractRunnable> gapFillingTasks = gaps.stream()
+                            final List<Runnable> gapFillingTasks = gaps.stream()
                                 .map(gap -> fillGapRunnable(gap, writer, streamFactory, refs.acquireListener()))
                                 .toList();
                             executor.execute(() -> {
@@ -1005,40 +1005,31 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        private AbstractRunnable fillGapRunnable(
+        private Runnable fillGapRunnable(
             SparseFileTracker.Gap gap,
             RangeMissingHandler writer,
             @Nullable SourceInputStreamFactory streamFactory,
             ActionListener<Void> listener
         ) {
-            return new AbstractRunnable() {
-
-                @Override
-                protected void doRun() throws Exception {
-                    var ioRef = io;
-                    assert regionOwners.get(ioRef) == CacheFileRegion.this;
-                    assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
-                    int start = Math.toIntExact(gap.start());
-                    writer.fillCacheRange(
-                        ioRef,
-                        start,
-                        streamFactory,
-                        start,
-                        Math.toIntExact(gap.end() - start),
-                        progress -> gap.onProgress(start + progress),
-                        listener.<Void>map(unused -> {
-                            writeCount.increment();
-                            gap.onCompletion();
-                            return null;
-                        }).delegateResponse((l, e) -> failGapAndListener(gap, l, e))
-                    );
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    failGapAndListener(gap, listener, e);
-                }
-            };
+            return () -> ActionListener.run(listener, l -> {
+                var ioRef = io;
+                assert regionOwners.get(ioRef) == CacheFileRegion.this;
+                assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
+                int start = Math.toIntExact(gap.start());
+                writer.fillCacheRange(
+                    ioRef,
+                    start,
+                    streamFactory,
+                    start,
+                    Math.toIntExact(gap.end() - start),
+                    progress -> gap.onProgress(start + progress),
+                    l.<Void>map(unused -> {
+                        writeCount.increment();
+                        gap.onCompletion();
+                        return null;
+                    }).delegateResponse((delegate, e) -> failGapAndListener(gap, delegate, e))
+                );
+            });
         }
 
         private static void failGapAndListener(SparseFileTracker.Gap gap, ActionListener<?> listener, Exception e) {

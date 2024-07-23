@@ -334,7 +334,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
         long numFields = mapperService().mappingLookup().getTotalMapperCount();
         long totalEstimatedOverhead = numFields * 1024L; // 1KiB estimated per mapping
-        // assumes all segments have the same mapping; otherwise, we need to acquire searchers to req
+        // Assume all segments have the same mapping; otherwise, we need to acquire searchers to count the actual fields.
         int numLeaves = 0;
         for (IndexShard shard : shards.values()) {
             try {

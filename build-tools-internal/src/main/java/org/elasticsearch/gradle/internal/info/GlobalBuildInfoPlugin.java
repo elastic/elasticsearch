@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
@@ -98,7 +99,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
         Optional<File> selectedRuntimeJavaHome = findRuntimeJavaHome();
-        File actualRuntimeJavaHome = selectedRuntimeJavaHome.orElse(Jvm.current().getJavaHome());
+        File actualRuntimeJavaHome = selectedRuntimeJavaHome.orElse(
+            resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion())
+        );
         boolean isRuntimeJavaHomeSet = selectedRuntimeJavaHome.isPresent();
 
         GitInfo gitInfo = GitInfo.gitInfo(project.getRootDir());

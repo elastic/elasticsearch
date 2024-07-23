@@ -45,6 +45,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -648,6 +649,18 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * Build the expected error message for an invalid type signature.
      */
     protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        return typeErrorMessage(includeOrdinal, validPerPosition, types, AbstractScalarFunctionTestCase::expectedType);
+    }
+
+    /**
+     * Build the expected error message for an invalid type signature.
+     */
+    protected static String typeErrorMessage(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> types,
+        BiFunction<Set<DataType>, Integer, String> expectedTypeSupplier
+    ) {
         int badArgPosition = -1;
         for (int i = 0; i < types.size(); i++) {
             if (validPerPosition.get(i).contains(types.get(i)) == false) {
@@ -661,9 +674,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             );
         }
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
-        String expectedType = expectedType(validPerPosition.get(badArgPosition));
+        String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
         String name = types.get(badArgPosition).typeName();
-        return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
+        return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
     }
 
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
@@ -851,7 +864,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
-    private static String expectedType(Set<DataType> validTypes) {
+    private static String expectedType(Set<DataType> validTypes, int badArgPosition) {
         String named = NAMED_EXPECTED_TYPES.get(validTypes);
         if (named == null) {
             /*

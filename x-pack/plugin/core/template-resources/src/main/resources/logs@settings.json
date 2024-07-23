@@ -3,7 +3,7 @@
     "settings": {
       "index": {
         "lifecycle": {
-          "name": "logsdb"
+          "name": "logs"
         },
         "mode": "${xpack.stack.template.logsdb.index.mode}",
         "codec": "best_compression",

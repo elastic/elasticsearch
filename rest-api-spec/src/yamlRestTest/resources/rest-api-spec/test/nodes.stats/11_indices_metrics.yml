@@ -512,7 +512,6 @@
 "Lucene segment level fields stats":
 
   - requires:
-      test_runner_features: [arbitrary_key]
       cluster_features: ["mapper.segment_level_fields_stats"]
       reason: "segment level fields stats"
 

@@ -1223,7 +1223,7 @@ public class DockerTests extends PackagingTestCase {
         assertTrue(readinessProbe(9399));
     }
 
-    public void test600Interrupt() {
+    public void test600Interrupt() throws Exception {
         waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();
 
@@ -1233,10 +1233,12 @@ public class DockerTests extends PackagingTestCase {
         final int maxPid = infos.stream().map(i -> i.pid()).max(Integer::compareTo).get();
 
         sh.run("bash -c 'kill -int " + maxPid + "'"); // send ctrl+c to all java processes
-        final Result containerLogsAfter = getContainerLogs();
 
-        assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
-        assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
-        assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+        assertBusy(() -> {
+            final Result containerLogsAfter = getContainerLogs();
+            assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
+            assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
+            assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
+        });
     }
 }

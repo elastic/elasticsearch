@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -52,6 +54,23 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
     @Override
     public List<Attribute> generatedAttributes() {
         return extractedFields;
+    }
+
+    List<Attribute> renameExtractedFields(List<String> newNames) {
+        checkNumberOfNewNames(newNames);
+
+        List<Attribute> renamedExtractedFields = new ArrayList<>(extractedFields.size());
+        for (int i = 0; i < newNames.size(); i++) {
+            Attribute extractedField = extractedFields.get(i);
+            String newName = newNames.get(i);
+            if (extractedField.name().equals(newName)) {
+                renamedExtractedFields.add(extractedField);
+            } else {
+                renamedExtractedFields.add(extractedFields.get(i).withName(newNames.get(i)).withId(new NameId()));
+            }
+        }
+
+        return renamedExtractedFields;
     }
 
     @Override

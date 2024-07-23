@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -69,24 +68,7 @@ public class Dissect extends RegexExtract {
 
     @Override
     public Dissect withGeneratedNames(List<String> newNames) {
-        if (newNames.size() != extractedFields.size()) {
-            throw new IllegalArgumentException(
-                "Number of new names is [" + newNames.size() + "] but there are [" + extractedFields.size() + "] existing names."
-            );
-        }
-
-        List<Attribute> renamedExtractedFields = new ArrayList<>(extractedFields.size());
-        for (int i = 0; i < newNames.size(); i++) {
-            Attribute extractedField = extractedFields.get(i);
-            String newName = newNames.get(i);
-            if (extractedField.name().equals(newName)) {
-                renamedExtractedFields.add(extractedField);
-            } else {
-                renamedExtractedFields.add(extractedFields.get(i).withName(newNames.get(i)).withId(new NameId()));
-            }
-        }
-
-        return new Dissect(source(), child(), input, parser, renamedExtractedFields);
+        return new Dissect(source(), child(), input, parser, renameExtractedFields(newNames));
     }
 
     @Override

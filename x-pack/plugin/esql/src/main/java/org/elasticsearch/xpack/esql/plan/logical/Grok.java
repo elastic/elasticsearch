@@ -14,7 +14,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -107,24 +105,7 @@ public class Grok extends RegexExtract {
 
     @Override
     public Grok withGeneratedNames(List<String> newNames) {
-        if (newNames.size() != extractedFields.size()) {
-            throw new IllegalArgumentException(
-                "Number of new names is [" + newNames.size() + "] but there are [" + extractedFields.size() + "] existing names."
-            );
-        }
-
-        List<Attribute> renamedExtractedFields = new ArrayList<>(extractedFields.size());
-        for (int i = 0; i < newNames.size(); i++) {
-            Attribute extractedField = extractedFields.get(i);
-            String newName = newNames.get(i);
-            if (extractedField.name().equals(newName)) {
-                renamedExtractedFields.add(extractedField);
-            } else {
-                renamedExtractedFields.add(extractedFields.get(i).withName(newNames.get(i)).withId(new NameId()));
-            }
-        }
-
-        return new Grok(source(), child(), input, parser, renamedExtractedFields);
+        return new Grok(source(), child(), input, parser, renameExtractedFields(newNames));
     }
 
     @Override

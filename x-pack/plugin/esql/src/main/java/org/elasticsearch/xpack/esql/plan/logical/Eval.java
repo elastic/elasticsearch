@@ -54,16 +54,12 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
 
     @Override
     public Eval withGeneratedNames(List<String> newNames) {
+        checkNumberOfNewNames(newNames);
+
         return new Eval(source(), child(), renameAliases(fields, newNames));
     }
 
-    private static List<Alias> renameAliases(List<Alias> originalAttributes, List<String> newNames) {
-        if (newNames.size() != originalAttributes.size()) {
-            throw new IllegalArgumentException(
-                "Number of new names is [" + newNames.size() + "] but there are [" + originalAttributes.size() + "] existing names."
-            );
-        }
-
+    private List<Alias> renameAliases(List<Alias> originalAttributes, List<String> newNames) {
         AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
         List<Alias> newFields = new ArrayList<>(originalAttributes.size());
         for (int i = 0; i < originalAttributes.size(); i++) {

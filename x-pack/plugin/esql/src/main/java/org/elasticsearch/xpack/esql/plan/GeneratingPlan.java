@@ -29,4 +29,12 @@ public interface GeneratingPlan<PlanType extends GeneratingPlan<PlanType>> {
     // TODO: the generated attributes should probably become synthetic once renamed
     // blocked on https://github.com/elastic/elasticsearch/issues/98703
     PlanType withGeneratedNames(List<String> newNames);
+
+    default void checkNumberOfNewNames(List<String> newNames) {
+        if (newNames.size() != generatedAttributes().size()) {
+            throw new IllegalArgumentException(
+                "Number of new names is [" + newNames.size() + "] but there are [" + generatedAttributes().size() + "] existing names."
+            );
+        }
+    }
 }

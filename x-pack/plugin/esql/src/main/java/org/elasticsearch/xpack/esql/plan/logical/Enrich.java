@@ -140,11 +140,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
 
     @Override
     public Enrich withGeneratedNames(List<String> newNames) {
-        if (newNames.size() != enrichFields.size()) {
-            throw new IllegalArgumentException(
-                "Number of new names is [" + newNames.size() + "] but there are [" + enrichFields.size() + "] names."
-            );
-        }
+        checkNumberOfNewNames(newNames);
 
         List<NamedExpression> newEnrichFields = new ArrayList<>(enrichFields.size());
         for (int i = 0; i < enrichFields.size(); i++) {

@@ -247,13 +247,10 @@ public class ExceptionsHelperTests extends ESTestCase {
     public void testLimitedStackTraceSuppressingAnException() {
         // A normal exception is thrown several stack frames down and then suppresses a new exception on the way back up
         int maxTraces = between(0, 5);
-        RuntimeException exception = recurseAndCatchRuntime(
-            randomIntBetween(10, 15),
-            () -> {
-                RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
-                recurseUntil(randomIntBetween(10,15), () -> suppressNewExceptionUnder(original));
-            }
-        );
+        RuntimeException exception = recurseAndCatchRuntime(randomIntBetween(10, 15), () -> {
+            RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+            recurseUntil(randomIntBetween(10, 15), () -> suppressNewExceptionUnder(original));
+        });
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) Exception message, (n) traces, (1) remaining traces, then
         // (1) suppressed, (n) suppressed by traces, (1) remaining lines
@@ -264,13 +261,10 @@ public class ExceptionsHelperTests extends ESTestCase {
     public void testLimitedStackTraceSuppressedByAnException() {
         // A normal exception is thrown several stack frames down and then gets suppressed on the way back up by a new exception
         int maxTraces = between(0, 5);
-        RuntimeException exception = recurseAndCatchRuntime(
-            randomIntBetween(10, 15),
-            () -> {
-                RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
-                recurseUntil(randomIntBetween(10, 15), () -> throwNewExceptionThatSuppresses(original));
-            }
-        );
+        RuntimeException exception = recurseAndCatchRuntime(randomIntBetween(10, 15), () -> {
+            RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+            recurseUntil(randomIntBetween(10, 15), () -> throwNewExceptionThatSuppresses(original));
+        });
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) Exception message, (n) traces, (1) remaining traces, then
         // (1) suppressed original exception, (n) suppressed traces, (1) remaining traces
@@ -282,14 +276,11 @@ public class ExceptionsHelperTests extends ESTestCase {
         // A normal exception is thrown several stack frames down. On the way back up, a new exception with a nested cause is
         // suppressed by it.
         int maxTraces = between(0, 5);
-        RuntimeException exception = recurseAndCatchRuntime(
-            randomIntBetween(10, 15),
-            () -> {
-                RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
-                RuntimeException causedBy = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
-                recurseUntil(randomIntBetween(10, 15), () -> suppressNewExceptionWithCauseUnder(original, causedBy));
-            }
-        );
+        RuntimeException exception = recurseAndCatchRuntime(randomIntBetween(10, 15), () -> {
+            RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+            RuntimeException causedBy = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+            recurseUntil(randomIntBetween(10, 15), () -> suppressNewExceptionWithCauseUnder(original, causedBy));
+        });
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) Exception message, (n) traces, (1) remaining traces, then
         // (1) suppressed exception, (n) suppressed traces, (1) remaining traces
@@ -302,14 +293,11 @@ public class ExceptionsHelperTests extends ESTestCase {
         // A normal exception is thrown several stack frames down. On the way back up, a new exception with a nested cause
         // suppresses it.
         int maxTraces = between(0, 5);
-        RuntimeException exception = recurseAndCatchRuntime(
-            randomIntBetween(10, 15),
-            () -> {
-                RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
-                RuntimeException causedBy = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
-                recurseUntil(randomIntBetween(10, 15), () -> throwNewExceptionWithCauseThatSuppresses(original, causedBy));
-            }
-        );
+        RuntimeException exception = recurseAndCatchRuntime(randomIntBetween(10, 15), () -> {
+            RuntimeException original = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+            RuntimeException causedBy = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
+            recurseUntil(randomIntBetween(10, 15), () -> throwNewExceptionWithCauseThatSuppresses(original, causedBy));
+        });
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) Exception message, (n) traces, (1) remaining traces, then
         // (1) suppressed original exception, (n) traces, (1) remaining traces, then
@@ -323,24 +311,17 @@ public class ExceptionsHelperTests extends ESTestCase {
         // Some "recovery" code runs and a new exception is thrown. It also gets wrapped on the way back up.
         // The first chain of exceptions suppresses the second.
         int maxTraces = between(0, 5);
-        RuntimeException exception = recurseAndCatchRuntime(
-            randomIntBetween(10, 15),
-            () -> {
-                RuntimeException original = recurseAndCatchRuntime(
-                    randomIntBetween(10, 15),
-                    () -> throwExceptionCausedBy(
-                        recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
-                    )
-                );
-                RuntimeException causedBy = recurseAndCatchRuntime(
-                    randomIntBetween(10, 15),
-                    () -> throwExceptionCausedBy(
-                        recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
-                    )
-                );
-                recurseUntil(randomIntBetween(10, 15), () -> suppressNewExceptionWithCauseUnder(original, causedBy));
-            }
-        );
+        RuntimeException exception = recurseAndCatchRuntime(randomIntBetween(10, 15), () -> {
+            RuntimeException original = recurseAndCatchRuntime(
+                randomIntBetween(10, 15),
+                () -> throwExceptionCausedBy(recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException))
+            );
+            RuntimeException causedBy = recurseAndCatchRuntime(
+                randomIntBetween(10, 15),
+                () -> throwExceptionCausedBy(recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException))
+            );
+            recurseUntil(randomIntBetween(10, 15), () -> suppressNewExceptionWithCauseUnder(original, causedBy));
+        });
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) wrapped exception message, (n) traces, (1) remaining traces, then
         // (1) suppressed exception, (n) suppressed traces, (1) remaining traces, then
@@ -356,24 +337,17 @@ public class ExceptionsHelperTests extends ESTestCase {
         // Some "recovery" code runs and a new exception is thrown. It also gets wrapped on the way back up.
         // The first chain of exceptions suppresses the second.
         int maxTraces = between(0, 5);
-        RuntimeException exception = recurseAndCatchRuntime(
-            randomIntBetween(10, 15),
-            () -> {
-                RuntimeException original = recurseAndCatchRuntime(
-                    randomIntBetween(10, 15),
-                    () -> throwExceptionCausedBy(
-                        recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
-                    )
-                );
-                RuntimeException causedBy = recurseAndCatchRuntime(
-                    randomIntBetween(10, 15),
-                    () -> throwExceptionCausedBy(
-                        recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException)
-                    )
-                );
-                throwNewExceptionWithCauseThatSuppresses(original, causedBy);
-            }
-        );
+        RuntimeException exception = recurseAndCatchRuntime(randomIntBetween(10, 15), () -> {
+            RuntimeException original = recurseAndCatchRuntime(
+                randomIntBetween(10, 15),
+                () -> throwExceptionCausedBy(recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException))
+            );
+            RuntimeException causedBy = recurseAndCatchRuntime(
+                randomIntBetween(10, 15),
+                () -> throwExceptionCausedBy(recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException))
+            );
+            throwNewExceptionWithCauseThatSuppresses(original, causedBy);
+        });
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         // (1) wrapped exception message, (n) traces, (1) remaining traces, then
         // (1) suppressed wrapped exception, (n) traces, (1) remaining traces, then

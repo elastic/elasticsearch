@@ -51,6 +51,13 @@ public class Regex {
         return str.length() > 1 && str.indexOf('*') == str.length() - 1;
     }
 
+    /**
+     * Returns true if the str ends with ".*".
+     */
+    public static boolean isSuffixWildcard(String str) {
+        return isSuffixMatchPattern(str) && str.endsWith(".*");
+    }
+
     /** Return an {@link Automaton} that matches the given pattern. */
     public static Automaton simpleMatchToAutomaton(String pattern) {
         List<Automaton> automata = new ArrayList<>();
@@ -77,7 +84,7 @@ public class Regex {
         List<BytesRef> prefixes = new ArrayList<>();
         for (String pattern : patterns) {
             // Strings longer than 1000 characters aren't supported by makeStringUnion
-            if (isSuffixMatchPattern(pattern) && pattern.length() < 1000) {
+            if (isSuffixWildcard(pattern) && pattern.length() < 1000) {
                 prefixes.add(new BytesRef(pattern.substring(0, pattern.length() - 1)));
             } else if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
                 automata.add(simpleMatchToAutomaton(pattern));

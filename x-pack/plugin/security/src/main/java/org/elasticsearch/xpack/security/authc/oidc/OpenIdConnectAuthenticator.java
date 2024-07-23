@@ -253,9 +253,23 @@ public class OpenIdConnectAuthenticator {
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
     // package private to testing
-    @SuppressWarnings("unchecked")
+
     void getUserClaims(
         @Nullable AccessToken accessToken,
+        JWT idToken,
+        Nonce expectedNonce,
+        boolean shouldRetry,
+        ActionListener<JWTClaimsSet> claimsListener
+    ) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            doGetUserClaims(accessToken, idToken, expectedNonce, shouldRetry, claimsListener);
+            return null;
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void doGetUserClaims(
+        AccessToken accessToken,
         JWT idToken,
         Nonce expectedNonce,
         boolean shouldRetry,

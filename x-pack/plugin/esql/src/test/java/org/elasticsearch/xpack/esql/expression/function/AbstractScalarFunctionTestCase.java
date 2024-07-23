@@ -45,7 +45,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -75,10 +74,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         boolean entirelyNullPreservesType,
-        List<TestCaseSupplier> suppliers
+        List<TestCaseSupplier> suppliers,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)))
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)),
+                positionalErrorMessageSupplier
+            )
         );
     }
 
@@ -481,8 +484,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * Adds test cases containing unsupported parameter types that assert
      * that they throw type errors.
      */
-    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
-        return errorsForCasesWithoutExamples(testCaseSuppliers, AbstractScalarFunctionTestCase::typeErrorMessage);
+    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
+        List<TestCaseSupplier> testCaseSuppliers,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
+    ) {
+        return errorsForCasesWithoutExamples(
+            testCaseSuppliers,
+            (i, v, t) -> AbstractScalarFunctionTestCase.typeErrorMessage(i, v, t, positionalErrorMessageSupplier)
+        );
     }
 
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
@@ -618,6 +627,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
     }
 
+    @FunctionalInterface
+    protected interface PositionalErrorMessageSupplier {
+        String apply(Set<DataType> validForPosition, int position);
+    }
+
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
@@ -659,7 +673,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
         List<DataType> types,
-        BiFunction<Set<DataType>, Integer, String> expectedTypeSupplier
+        PositionalErrorMessageSupplier expectedTypeSupplier
     ) {
         int badArgPosition = -1;
         for (int i = 0; i < types.size(); i++) {

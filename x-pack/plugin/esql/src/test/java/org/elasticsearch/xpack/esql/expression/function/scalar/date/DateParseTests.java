@@ -128,7 +128,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                         )
                 )
             )
-        );
+        , (v, p) -> "string");
     }
 
     public void testInvalidPattern() {

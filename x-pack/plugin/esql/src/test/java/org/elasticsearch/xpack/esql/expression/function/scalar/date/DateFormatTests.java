@@ -59,7 +59,11 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                     )
                 )
             )
-        );
+        , (v, p) -> switch (p) {
+                case 0 -> "string";
+                case 1 -> "datetime";
+                default -> "";
+            });
     }
 
     @Override

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+$if(Ip)$
+import org.apache.lucene.util.BytesRef;
+$endif$
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -20,7 +23,7 @@ import org.elasticsearch.compute.data.IntVector;
 $if(long)$
 import org.elasticsearch.compute.data.$Type$Block;
 $endif$
-import org.elasticsearch.compute.data.sort.$Type$BucketedSort;
+import org.elasticsearch.compute.data.sort.$Name$BucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -28,10 +31,13 @@ import org.elasticsearch.search.sort.SortOrder;
 
 /**
  * Aggregates the top N field values for $type$.
+ * <p>
+ *     This class is generated. Edit `X-TopAggregator.java.st` to edit this file.
+ * </p>
  */
 @Aggregator({ @IntermediateState(name = "top", type = "$TYPE$_BLOCK") })
 @GroupingAggregator
-class Top$Type$Aggregator {
+class Top$Name$Aggregator {
     public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
         return new SingleState(bigArrays, limit, ascending);
     }
@@ -43,9 +49,16 @@ class Top$Type$Aggregator {
     public static void combineIntermediate(SingleState state, $Type$Block values) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
+$if(Ip)$
+        var scratch = new BytesRef();
+        for (int i = start; i < end; i++) {
+            combine(state, values.get$Type$(i, scratch));
+        }
+$else$
         for (int i = start; i < end; i++) {
             combine(state, values.get$Type$(i));
         }
+$endif$
     }
 
     public static Block evaluateFinal(SingleState state, DriverContext driverContext) {
@@ -63,9 +76,16 @@ class Top$Type$Aggregator {
     public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
+$if(Ip)$
+        var scratch = new BytesRef();
+        for (int i = start; i < end; i++) {
+            combine(state, groupId, values.get$Type$(i, scratch));
+        }
+$else$
         for (int i = start; i < end; i++) {
             combine(state, groupId, values.get$Type$(i));
         }
+$endif$
     }
 
     public static void combineStates(GroupingState current, int groupId, GroupingState state, int statePosition) {
@@ -77,10 +97,10 @@ class Top$Type$Aggregator {
     }
 
     public static class GroupingState implements Releasable {
-        private final $Type$BucketedSort sort;
+        private final $Name$BucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-            this.sort = new $Type$BucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
+            this.sort = new $Name$BucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
         }
 
         public void add(int groupId, $type$ value) {

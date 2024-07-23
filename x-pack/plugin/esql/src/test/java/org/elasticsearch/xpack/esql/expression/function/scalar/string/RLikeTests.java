@@ -140,6 +140,18 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
                     equalTo(expected)
                 );
             }));
+            cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, type), () -> {
+                TextAndPattern v = textAndPattern.get();
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(v.text), type, "e"),
+                        new TestCaseSupplier.TypedData(new BytesRef(v.pattern), type, "pattern").forceLiteral()
+                    ),
+                    startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                    DataType.BOOLEAN,
+                    equalTo(expected)
+                );
+            }));
         }
     }
 
@@ -152,10 +164,13 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
-        Literal caseInsensitive = (Literal) args.get(2);
+        Literal caseInsensitive = args.size() > 2 ? (Literal) args.get(2) : null;
         String patternString = ((BytesRef) pattern.fold()).utf8ToString();
-        boolean caseInsensitiveBool = (boolean) caseInsensitive.fold();
+        boolean caseInsensitiveBool = caseInsensitive != null ? (boolean) caseInsensitive.fold() : false;
         logger.info("pattern={} caseInsensitive={}", patternString, caseInsensitiveBool);
-        return new RLike(source, expression, new RLikePattern(patternString), caseInsensitiveBool);
+
+        return caseInsensitiveBool
+            ? new RLike(source, expression, new RLikePattern(patternString), true)
+            : new RLike(source, expression, new RLikePattern(patternString));
     }
 }

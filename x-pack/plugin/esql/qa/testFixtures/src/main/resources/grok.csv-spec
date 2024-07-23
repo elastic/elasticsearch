@@ -76,6 +76,39 @@ San Francisco     | CA 94108         | ["CA", "94108"]
 Tokyo             | 100-7014         | null
 ;
 
+shadowingWhenPushedDownPastRename
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zürich, the largest city in Switzerland"
+| RENAME city AS c
+| GROK long_city_name "Zürich, the %{WORD:city} %{WORD:city} %{WORD:city} %{WORD:city}"
+;
+
+c:keyword | long_city_name:keyword                        | city:keyword
+Zürich    | Zürich, the largest city in Switzerland       | ["largest", "city", "in", "Switzerland"]
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zürich, the largest city in Switzerland"
+| RENAME city AS c
+| GROK long_city_name "Zürich, the %{WORD:city} %{WORD:foo} %{WORD:city} %{WORD:foo}"
+;
+
+c:keyword | long_city_name:keyword                        | city:keyword       | foo:keyword
+Zürich    | Zürich, the largest city in Switzerland       | ["largest", "in"]  | ["city", "Switzerland"]
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zürich, the largest city in Switzerland"
+| RENAME long_city_name AS c
+| GROK c "Zürich, the %{WORD:long_city_name} %{WORD:long_city_name} %{WORD:long_city_name} %{WORD:long_city_name}"
+;
+
+city:keyword | c:keyword                               | long_city_name:keyword
+Zürich       | Zürich, the largest city in Switzerland | ["largest", "city", "in", "Switzerland"]
+;
+
 complexPattern
 ROW a = "1953-01-23T12:15:00Z 127.0.0.1 some.email@foo.com 42" 
 | GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 

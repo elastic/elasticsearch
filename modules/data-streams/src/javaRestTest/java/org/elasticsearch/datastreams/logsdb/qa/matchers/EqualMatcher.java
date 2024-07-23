@@ -40,7 +40,6 @@ class EqualMatcher<T> extends Matcher {
         this.ignoringSort = ignoringSort;
     }
 
-    @SuppressWarnings({ "unchecked", "checkstyle:LineLength" })
     public MatchResult match() {
         if (actual == null) {
             if (expected == null) {
@@ -76,7 +75,7 @@ class EqualMatcher<T> extends Matcher {
             );
         }
         if (actual.getClass().isArray()) {
-            final ArrayEqualMatcher matcher = new ArrayEqualMatcher(
+            return new ArrayEqualMatcher(
                 actualMappings,
                 actualSettings,
                 expectedMappings,
@@ -84,29 +83,11 @@ class EqualMatcher<T> extends Matcher {
                 (Object[]) actual,
                 (Object[]) expected,
                 ignoringSort
-            );
-            return matcher.match();
+            ).match();
         }
         if (actual instanceof List<?> act && expected instanceof List<?> exp) {
-            final ListEqualMatcher matcher = new ListEqualMatcher(
-                actualMappings,
-                actualSettings,
-                expectedMappings,
-                expectedSettings,
-                act,
-                exp,
-                ignoringSort
-            );
-            return matcher.match();
+            return new ListEqualMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings, act, exp, ignoringSort).match();
         }
-        final ObjectMatcher matcher = new ObjectMatcher(
-            actualMappings,
-            actualSettings,
-            expectedMappings,
-            expectedSettings,
-            actual,
-            expected
-        );
-        return matcher.match();
+        return new ObjectMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected).match();
     }
 }

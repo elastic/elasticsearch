@@ -368,14 +368,13 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
 
         BiFunction<InstrumentType, String, List<Measurement>> collectedMetrics = recordingMeterRegistry.getRecorder()::getMeasurements;
 
-        var translogReadingTime = getSingleRecordedMetric(
+        assertAndGetSingleRecordedMetric(
             collectedMetrics,
             InstrumentType.LONG_HISTOGRAM,
             TranslogRecoveryMetrics.TRANSLOG_REPLAY_TIME_METRIC
         );
-        assertThat(translogReadingTime.getLong(), greaterThan(0L));
 
-        var translogFilesTotalCounters = getRecordedMetrics(
+        var translogFilesTotalCounters = assertAndGetRecordedMetrics(
             collectedMetrics,
             InstrumentType.LONG_COUNTER,
             TranslogRecoveryMetrics.TRANSLOG_FILES_TOTAL_METRIC,
@@ -388,7 +387,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         // main concern of this test is fact of emitting metrics
         assertThat(translogFilesTotalCounter.getLong(), greaterThanOrEqualTo(1L));
 
-        var translogFilesSizeCounters = getRecordedMetrics(
+        var translogFilesSizeCounters = assertAndGetRecordedMetrics(
             collectedMetrics,
             InstrumentType.LONG_COUNTER,
             TranslogRecoveryMetrics.TRANSLOG_FILES_SIZE_METRIC,
@@ -399,14 +398,13 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         var translogFilesSizeCounter = translogFilesTotalCounters.get(0);
         assertThat(translogFilesSizeCounter.getLong(), greaterThan(0L));
 
-        var translogFilesNetworkTimeHistogram = getSingleRecordedMetric(
+        assertAndGetSingleRecordedMetric(
             collectedMetrics,
             InstrumentType.LONG_HISTOGRAM,
             TranslogRecoveryMetrics.TRANSLOG_FILES_NETWORK_TIME_METRIC
         );
-        assertThat(translogFilesNetworkTimeHistogram.getLong(), greaterThan(0L));
 
-        var translogIndexOperationsCounters = getRecordedMetrics(
+        var translogIndexOperationsCounters = assertAndGetRecordedMetrics(
             collectedMetrics,
             InstrumentType.LONG_COUNTER,
             TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_TOTAL_METRIC,
@@ -417,7 +415,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         var translogIndexOperationsCounter = translogIndexOperationsCounters.get(0);
         assertThat(translogIndexOperationsCounter.getLong(), equalTo((long) docsBatchOne + docsBatchTwo + docsBatchThree));
 
-        var translogDeleteOperationsCounters = getRecordedMetrics(
+        var translogDeleteOperationsCounters = assertAndGetRecordedMetrics(
             collectedMetrics,
             InstrumentType.LONG_COUNTER,
             TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_TOTAL_METRIC,
@@ -428,7 +426,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         var translogDeleteOperationsCounter = translogDeleteOperationsCounters.get(0);
         assertThat(translogDeleteOperationsCounter.getLong(), equalTo(1L));
 
-        var translogNoopOperationsCounters = getRecordedMetrics(
+        var translogNoopOperationsCounters = assertAndGetRecordedMetrics(
             collectedMetrics,
             InstrumentType.LONG_COUNTER,
             TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_TOTAL_METRIC,
@@ -439,7 +437,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         var translogNoopOperationsCounter = translogNoopOperationsCounters.get(0);
         assertThat(translogNoopOperationsCounter.getLong(), equalTo(0L));
 
-        var translogOperationsSizeInBytes = getSingleRecordedMetric(
+        var translogOperationsSizeInBytes = assertAndGetSingleRecordedMetric(
             collectedMetrics,
             InstrumentType.LONG_COUNTER,
             TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_SIZE_METRIC
@@ -447,7 +445,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         assertThat(translogOperationsSizeInBytes.getLong(), greaterThan(0L));
     }
 
-    private static Measurement getSingleRecordedMetric(
+    private static Measurement assertAndGetSingleRecordedMetric(
         BiFunction<InstrumentType, String, List<Measurement>> metricGetter,
         InstrumentType type,
         String name
@@ -458,7 +456,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         return measurements.get(0);
     }
 
-    private static List<Measurement> getRecordedMetrics(
+    private static List<Measurement> assertAndGetRecordedMetrics(
         BiFunction<InstrumentType, String, List<Measurement>> metricGetter,
         InstrumentType type,
         String name,

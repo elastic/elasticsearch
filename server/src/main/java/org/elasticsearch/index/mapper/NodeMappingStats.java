@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -25,6 +26,8 @@ import java.util.Objects;
  * Should be used at node or index level, and not at shard level, since the mappings may be shared across the shards of an index.
  */
 public class NodeMappingStats implements Writeable, ToXContentFragment {
+
+    public static final NodeFeature SEGMENT_LEVEL_FIELDS_STATS = new NodeFeature("mapper.segment_level_fields_stats");
 
     private static final class Fields {
         static final String MAPPINGS = "mappings";

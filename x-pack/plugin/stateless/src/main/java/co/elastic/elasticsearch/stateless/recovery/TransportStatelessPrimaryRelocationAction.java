@@ -71,7 +71,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.TYPE;
@@ -289,7 +289,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     throw new RetentionLeaseNotFoundException(leaseId);
                 }
 
-                final var finalFlushDuration = new AtomicReference<TimeValue>();
+                final var beforeSendingContext = new AtomicLong();
                 final var markedShardAsRelocating = new SubscribableListener<Void>();
                 ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
                     indexShard.shardId(),
@@ -302,11 +302,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 ActionListener<TransportResponse.Empty> compoundHandoffListener = new ActionListener<>() {
                     @Override
                     public void onResponse(TransportResponse.Empty unused) {
-                        final var handoffDuration = getTimeSince(beforeAcquiringPermits);
                         final var relocationDuration = getTimeSince(beforeRelocation);
 
                         logger.debug("[{}] primary context handoff succeeded", request.shardId());
-                        if (handoffDuration.getMillis() >= slowRelocationWarningThreshold.getMillis()) {
+                        if (relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis()) {
                             logger.warn(
                                 "[{}] primary shard relocation took [{}] (shutting down={})"
                                     + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
@@ -316,8 +315,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                                 isShuttingDown(),
                                 initialFlushDuration,
                                 acquirePermitsDuration,
-                                finalFlushDuration.get(),
-                                handoffDuration,
+                                getTimeBetween(beforeFinalFlush, beforeSendingContext.get()),
+                                getTimeSince(beforeSendingContext.get()),
                                 slowRelocationWarningThreshold
                             );
                         }
@@ -342,7 +341,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                 markedShardAsRelocating.addListener(compoundHandoffListener.delegateFailureAndWrap((finalHandoffListener, v) -> {
                     logger.debug("[{}] flush complete, handing off primary context", request.shardId());
-                    finalFlushDuration.set(getTimeSince(beforeFinalFlush));
+                    beforeSendingContext.set(threadPool.relativeTimeInMillis());
 
                     assert assertLastCommitSequenceNumberConsistency(indexShard, sourceCheckpoints, false);
                     transportService.sendChildRequest(
@@ -531,7 +530,11 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     }
 
     private TimeValue getTimeSince(long startTimeMillis) {
-        return TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMillis));
+        return getTimeBetween(startTimeMillis, threadPool.relativeTimeInMillis());
+    }
+
+    private TimeValue getTimeBetween(long start, long finish) {
+        return TimeValue.timeValueMillis(Math.max(0, finish - start));
     }
 
     private boolean isShuttingDown() {

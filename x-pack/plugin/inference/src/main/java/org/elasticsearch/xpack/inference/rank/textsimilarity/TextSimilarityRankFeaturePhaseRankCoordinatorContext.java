@@ -54,12 +54,24 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
         final ActionListener<InferenceAction.Response> actionListener = scoreListener.delegateFailureAndWrap((l, r) -> {
-            float[] scores = extractScoresFromResponse(r);
-            if (scores.length != featureDocs.length) {
+            InferenceServiceResults results = r.getResults();
+            assert results instanceof RankedDocsResults;
+
+            // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results
+            List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
+            if (rankedDocs.size() != featureDocs.length) {
                 l.onFailure(
-                    new IllegalStateException("Document and score count mismatch: [" + featureDocs.length + "] vs [" + scores.length + "]")
+                    new IllegalStateException(
+                        "Document and score count mismatch: ["
+                            + featureDocs.length
+                            + "] vs ["
+                            + rankedDocs.size()
+                            + "]. Check your rerank inference endpoint configuration and ensure it returns rank_window_size scores for "
+                            + "rank_window_size input documents."
+                    )
                 );
             } else {
+                float[] scores = extractScoresFromRankedDocs(rankedDocs);
                 l.onResponse(scores);
             }
         });
@@ -85,11 +97,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         );
     }
 
-    private float[] extractScoresFromResponse(InferenceAction.Response response) {
-        InferenceServiceResults results = response.getResults();
-        assert results instanceof RankedDocsResults;
-
-        List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
+    private float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs) {
         float[] scores = new float[rankedDocs.size()];
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
             scores[rankedDoc.index()] = rankedDoc.relevanceScore();

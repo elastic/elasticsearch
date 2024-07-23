@@ -11,6 +11,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
 
+/**
+ * A plan that creates new {@link Attribute}s and appends them to the child {@link org.elasticsearch.xpack.esql.plan.logical.UnaryPlan}'s
+ * attributes.
+ * Attributes are appended on the right hand side of the child's input. In case of name conflicts, the rightmost attribute with
+ * a given name shadows any attributes left of it
+ * (c.f. {@link org.elasticsearch.xpack.esql.expression.NamedExpressions#mergeOutputAttributes(List, List)}).
+ */
 public interface GeneratingPlan<PlanType extends GeneratingPlan<PlanType>> {
     List<Attribute> generatedAttributes();
 

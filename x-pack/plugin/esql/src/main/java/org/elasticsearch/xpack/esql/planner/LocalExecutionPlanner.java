@@ -420,6 +420,7 @@ public class LocalExecutionPlanner {
         layoutBuilder.append(dissect.extractedFields());
         final Expression expr = dissect.inputExpression();
         // Names in the pattern and layout can differ.
+        // Attributes need to be rename-able to avoid problems with shadowing - see GeneratingPlan resp. PushDownRegexExtract.
         String[] patternNames = Expressions.names(dissect.parser().keyAttributes(Source.EMPTY)).toArray(new String[0]);
 
         Layout layout = layoutBuilder.build();
@@ -446,6 +447,7 @@ public class LocalExecutionPlanner {
         for (int i = 0; i < extractedFields.size(); i++) {
             DataType extractedFieldType = extractedFields.get(i).dataType();
             // Names in pattern and layout can differ.
+            // Attributes need to be rename-able to avoid problems with shadowing - see GeneratingPlan resp. PushDownRegexExtract.
             String patternName = extractedFieldsFromPattern.get(i).name();
             ElementType type = PlannerUtils.toElementType(extractedFieldType);
             fieldToPos.put(patternName, i);

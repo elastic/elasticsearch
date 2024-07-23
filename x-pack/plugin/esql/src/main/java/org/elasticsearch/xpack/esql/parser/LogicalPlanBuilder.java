@@ -200,7 +200,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 Dissect.Parser esqlDissectParser = new Dissect.Parser(pattern, appendSeparator, parser);
                 List<Attribute> keys = esqlDissectParser.keyAttributes(src);
 
-                return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
+                return new Dissect(src, p, expression(ctx.primaryExpression()), esqlDissectParser, keys);
             } catch (DissectException e) {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }

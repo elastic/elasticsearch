@@ -144,7 +144,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     static int TO_STRING_LIMIT = 16;
 
     static String limitToString(String string) {
-        return string.length() > 16 ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
+        return string.length() > TO_STRING_LIMIT ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {

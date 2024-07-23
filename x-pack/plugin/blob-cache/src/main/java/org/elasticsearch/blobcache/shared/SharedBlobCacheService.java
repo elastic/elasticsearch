@@ -1024,6 +1024,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     Math.toIntExact(gap.end() - start),
                     progress -> gap.onProgress(start + progress),
                     l.<Void>map(unused -> {
+                        assert regionOwners.get(ioRef) == CacheFileRegion.this;
+                        assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
                         writeCount.increment();
                         gap.onCompletion();
                         return null;

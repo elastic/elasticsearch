@@ -229,10 +229,10 @@ public class SpatialRelatesQuery extends Query {
             if (geometry == null || geometry.isEmpty()) {
                 throw new QueryShardException(context, "Invalid/empty geometry");
             }
-            if (geometry.type() != ShapeType.POINT && relation == ShapeField.QueryRelation.CONTAINS) {
+            final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
+            if (isPointGeometry(luceneGeometries) == false && relation == ShapeField.QueryRelation.CONTAINS) {
                 return new MatchNoDocsQuery("A point field can never contain a non-point geometry");
             }
-            final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
             org.apache.lucene.search.Query intersects = XYPointField.newGeometryQuery(fieldName, luceneGeometries);
             if (relation == ShapeField.QueryRelation.DISJOINT) {
                 // XYPointField does not support DISJOINT queries, so we build one as EXISTS && !INTERSECTS
@@ -249,6 +249,10 @@ public class SpatialRelatesQuery extends Query {
                 intersects = new IndexOrDocValuesQuery(intersects, queryDocValues);
             }
             return intersects;
+        }
+
+        private static boolean isPointGeometry(XYGeometry[] geometries) {
+            return geometries.length == 1 && geometries[0] instanceof org.apache.lucene.geo.XYPoint;
         }
 
         /**

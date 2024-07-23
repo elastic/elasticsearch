@@ -94,9 +94,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/111084
-- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownCartesianPointIT
-  method: testPushedDownQueriesSingleValue
-  issue: https://github.com/elastic/elasticsearch/issues/110982
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests

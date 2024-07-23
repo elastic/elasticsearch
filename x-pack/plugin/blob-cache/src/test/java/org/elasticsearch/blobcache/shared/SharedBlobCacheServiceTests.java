@@ -1473,8 +1473,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var factoryClosed = new AtomicBoolean(false);
             final var dummyStreamFactory = new SourceInputStreamFactory() {
                 @Override
-                public InputStream create(int relativePos) {
-                    return null;
+                public void create(int relativePos, ActionListener<InputStream> listener) {
+                    listener.onResponse(null);
                 }
 
                 @Override

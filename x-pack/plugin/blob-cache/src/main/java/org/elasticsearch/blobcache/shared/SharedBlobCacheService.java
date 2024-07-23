@@ -1377,9 +1377,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         /**
          * Create the input stream at the specified position.
          * @param relativePos the relative position in the remote storage to read from.
-         * @return the input stream ready to be read from.
+         * @param listener listener for the input stream ready to be read from.
          */
-        InputStream create(int relativePos) throws IOException;
+        void create(int relativePos, ActionListener<InputStream> listener) throws IOException;
     }
 
     private abstract static class DelegatingRangeMissingHandler implements RangeMissingHandler {

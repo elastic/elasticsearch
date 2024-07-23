@@ -2,7 +2,7 @@
 [[esql-inlinestats-by]]
 === `INLINESTATS ... BY`
 
-preview::[]
+experimental::["INLINESTATS is highly experimental and only available in SNAPSHOT versions."]
 
 The `INLINESTATS` command calculates an aggregate result and adds new columns
 with the result to the stream of input data.

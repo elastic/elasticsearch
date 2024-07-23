@@ -47,7 +47,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS,
+        INLINESTATS(true),
 
         /**
          * Support for aggregation function {@code TOP}.

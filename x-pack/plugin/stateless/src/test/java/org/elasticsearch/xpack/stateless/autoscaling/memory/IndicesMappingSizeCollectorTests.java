@@ -108,7 +108,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
 
         when(indexService.getShardOrNull(0)).thenReturn(indexShard);
         final long testIndexMappingSizeInBytes = 1024;
-        when(indexService.getNodeMappingStats()).thenReturn(new NodeMappingStats(1, testIndexMappingSizeInBytes));
+        when(indexService.getNodeMappingStats()).thenReturn(new NodeMappingStats(1, testIndexMappingSizeInBytes, 1, 1));
 
         var publisher = mock(IndicesMappingSizePublisher.class);
         var collector = spy(new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS));

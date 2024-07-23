@@ -352,11 +352,13 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             );
 
             AtomicBoolean onFailureCalled = new AtomicBoolean(false);
+            AtomicReference<SnapshotLifecycleStats> slmStats = new AtomicReference<>(new SnapshotLifecycleStats());
+
             task.deleteSnapshot(
                 "policy",
                 "foo",
                 new SnapshotId("name", "uuid"),
-                new SnapshotLifecycleStats(0, 0, 0, 0, new HashMap<>()),
+                slmStats,
                 new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -372,6 +374,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             );
 
             assertThat(onFailureCalled.get(), equalTo(true));
+            assertThat(slmStats.get(), equalTo(new SnapshotLifecycleStats(0, 0, 0, 0, Map.of(policyId, new SnapshotLifecycleStats.SnapshotPolicyStats(policyId, 0, 0, 1, 1)))));
         } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
@@ -544,7 +547,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             String policyId,
             String repo,
             SnapshotId snapshot,
-            SnapshotLifecycleStats slmStats,
+            AtomicReference<SnapshotLifecycleStats> slmStats,
             ActionListener<AcknowledgedResponse> listener
         ) {
             deleteRunner.apply(policyId, repo, snapshot, slmStats, listener);
@@ -557,7 +560,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             String policyId,
             String repo,
             SnapshotId snapshot,
-            SnapshotLifecycleStats slmStats,
+            AtomicReference<SnapshotLifecycleStats> slmStats,
             ActionListener<AcknowledgedResponse> listener
         );
     }

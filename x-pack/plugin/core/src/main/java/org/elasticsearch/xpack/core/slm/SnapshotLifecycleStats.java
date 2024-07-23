@@ -38,11 +38,18 @@ import java.util.stream.Collectors;
  */
 public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
-    private final CounterMetric retentionRunCount = new CounterMetric();
-    private final CounterMetric retentionFailedCount = new CounterMetric();
-    private final CounterMetric retentionTimedOut = new CounterMetric();
-    private final CounterMetric retentionTimeMs = new CounterMetric();
+    private final long retentionRunCount;
+    private final long retentionFailedCount;
+    private final long retentionTimedOut;
+    private final long retentionTimeMs;
     private final Map<String, SnapshotPolicyStats> policyStats;
+
+    public static final SnapshotLifecycleStats RETENTION_RUNS_1 = new SnapshotLifecycleStats(1, 0, 0, 0, Map.of());
+    public static final SnapshotLifecycleStats RETENTION_FAILED_1 = new SnapshotLifecycleStats(0, 1, 0, 0, Map.of());
+    public static final SnapshotLifecycleStats RETENTION_TIMEDOUT_1 = new SnapshotLifecycleStats(0, 0, 1, 0, Map.of());
+    static SnapshotLifecycleStats retentionTime(long retentionTimeMs) {
+        return new SnapshotLifecycleStats(1, 0, 0, retentionTimeMs, Map.of());
+    }
 
     public static final ParseField RETENTION_RUNS = new ParseField("retention_runs");
     public static final ParseField RETENTION_FAILED = new ParseField("retention_failed");
@@ -79,7 +86,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     }
 
     public SnapshotLifecycleStats() {
-        this.policyStats = new ConcurrentHashMap<>();
+        this(0, 0, 0, 0, Map.of());
     }
 
     // public for testing
@@ -90,36 +97,23 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         long retentionTimeMs,
         Map<String, SnapshotPolicyStats> policyStats
     ) {
-        this.retentionRunCount.inc(retentionRuns);
-        this.retentionFailedCount.inc(retentionFailed);
-        this.retentionTimedOut.inc(retentionTimedOut);
-        this.retentionTimeMs.inc(retentionTimeMs);
+        this.retentionRunCount = retentionRuns;
+        this.retentionFailedCount = retentionFailed;
+        this.retentionTimedOut = retentionTimedOut;
+        this.retentionTimeMs = retentionTimeMs;
         this.policyStats = policyStats;
     }
 
     public SnapshotLifecycleStats(StreamInput in) throws IOException {
-        this.policyStats = new ConcurrentHashMap<>(in.readMap(SnapshotPolicyStats::new));
-        this.retentionRunCount.inc(in.readVLong());
-        this.retentionFailedCount.inc(in.readVLong());
-        this.retentionTimedOut.inc(in.readVLong());
-        this.retentionTimeMs.inc(in.readVLong());
+        this.policyStats = in.readImmutableMap(SnapshotPolicyStats::new);
+        this.retentionRunCount = in.readVLong();
+        this.retentionFailedCount = in.readVLong();
+        this.retentionTimedOut = in.readVLong();
+        this.retentionTimeMs = in.readVLong();
     }
 
     public static SnapshotLifecycleStats parse(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    public long getRetentionRunCount() {
-        return retentionRunCount.count();
-    }
-    public long getRetentionFailedCount() {
-        return retentionFailedCount.count();
-    }
-    public long getRetentionTimedOut() {
-        return retentionTimedOut.count();
-    }
-    public long getRetentionTimeMs() {
-        return retentionTimeMs.count();
     }
 
     public SnapshotLifecycleStats merge(SnapshotLifecycleStats other) {
@@ -137,10 +131,10 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         });
 
         return new SnapshotLifecycleStats(
-            this.retentionRunCount.count() + other.retentionRunCount.count(),
-            this.retentionFailedCount.count() + other.retentionFailedCount.count(),
-            this.retentionTimedOut.count() + other.retentionTimedOut.count(),
-            this.retentionTimeMs.count() + other.retentionTimeMs.count(),
+            this.retentionRunCount + other.retentionRunCount,
+            this.retentionFailedCount + other.retentionFailedCount,
+            this.retentionTimedOut + other.retentionTimedOut,
+            this.retentionTimeMs + other.retentionTimeMs,
             newPolicyStats
         );
     }
@@ -149,10 +143,10 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         Map<String, SnapshotPolicyStats> policyStatsCopy = new HashMap<>(this.policyStats);
         policyStatsCopy.remove(policyId);
         return new SnapshotLifecycleStats(
-            this.retentionRunCount.count(),
-            this.retentionFailedCount.count(),
-            this.retentionTimedOut.count(),
-            this.retentionTimeMs.count(),
+            this.retentionRunCount,
+            this.retentionFailedCount,
+            this.retentionTimedOut,
+            this.retentionTimeMs,
             policyStatsCopy
         );
     }
@@ -167,76 +161,88 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     /**
      * Increment the number of times SLM retention has been run
      */
-    public void retentionRun() {
-        this.retentionRunCount.inc();
+    public SnapshotLifecycleStats withRetentionRunInc() {
+        return new SnapshotLifecycleStats(retentionRunCount + 1, retentionFailedCount, retentionTimedOut, retentionTimeMs, policyStats);
     }
 
     /**
      * Increment the number of times SLM retention has failed
      */
-    public void retentionFailed() {
-        this.retentionFailedCount.inc();
+    public SnapshotLifecycleStats withRetentionFailedInc() {
+        return new SnapshotLifecycleStats(retentionRunCount, retentionFailedCount + 1, retentionTimedOut, retentionTimeMs, policyStats);
     }
 
     /**
      * Increment the number of times that SLM retention timed out due to the max delete time
      * window being exceeded.
      */
-    public void retentionTimedOut() {
-        this.retentionTimedOut.inc();
+    public SnapshotLifecycleStats withRetentionTimedOutInc() {
+        return new SnapshotLifecycleStats(retentionRunCount, retentionFailedCount, retentionTimedOut + 1, retentionTimeMs, policyStats);
     }
 
     /**
      * Register the amount of time taken for deleting snapshots during SLM retention
      */
-    public void deletionTime(TimeValue elapsedTime) {
-        this.retentionTimeMs.inc(elapsedTime.millis());
+    public SnapshotLifecycleStats withDeletionTimeInc(TimeValue elapsedTime) {
+        return new SnapshotLifecycleStats(retentionRunCount, retentionFailedCount, retentionTimedOut, retentionTimeMs + elapsedTime.millis(), policyStats);
     }
 
     /**
      * Increment the per-policy snapshot taken count for the given policy id
      */
-    public void snapshotTaken(String slmPolicy) {
-        this.policyStats.computeIfAbsent(slmPolicy, SnapshotPolicyStats::new).snapshotTaken();
+
+    private SnapshotLifecycleStats withPolicyStats(Map<String, SnapshotPolicyStats> policyStats) {
+        return new SnapshotLifecycleStats(retentionRunCount, retentionFailedCount, retentionTimedOut, retentionTimeMs, policyStats);
+    }
+
+    private SnapshotLifecycleStats withSnapshotForPolicyUpdated(String slmPolicy, Function<SnapshotPolicyStats, SnapshotPolicyStats> update) {
+        Map<String, SnapshotPolicyStats> newPolicyStats = new HashMap<>(policyStats);
+        var current = newPolicyStats.getOrDefault(slmPolicy, new SnapshotPolicyStats(slmPolicy));
+        newPolicyStats.put(slmPolicy, update.apply(current));
+        return withPolicyStats(Collections.unmodifiableMap(newPolicyStats));
+    }
+
+    public SnapshotLifecycleStats withSnapshotTakenForPolicy(String slmPolicy) {
+        return withSnapshotForPolicyUpdated(slmPolicy, SnapshotPolicyStats::withSnapshotTakenInc);
     }
 
     /**
      * Increment the per-policy snapshot failure count for the given policy id
      */
-    public void snapshotFailed(String slmPolicy) {
-        this.policyStats.computeIfAbsent(slmPolicy, SnapshotPolicyStats::new).snapshotFailed();
+    public SnapshotLifecycleStats withSnapshotFailedForPolicy(String slmPolicy) {
+        return withSnapshotForPolicyUpdated(slmPolicy, SnapshotPolicyStats::withSnapshotFailedInc);
     }
 
     /**
      * Increment the per-policy snapshot deleted count for the given policy id
      */
-    public void snapshotDeleted(String slmPolicy) {
-        this.policyStats.computeIfAbsent(slmPolicy, SnapshotPolicyStats::new).snapshotDeleted();
+    public SnapshotLifecycleStats withSnapshotDeletedForPolicy(String slmPolicy) {
+        return withSnapshotForPolicyUpdated(slmPolicy, SnapshotPolicyStats::withSnapshotDeletedInc);
     }
 
     /**
      * Increment the per-policy snapshot deletion failure count for the given policy id
      */
-    public void snapshotDeleteFailure(String slmPolicy) {
-        this.policyStats.computeIfAbsent(slmPolicy, SnapshotPolicyStats::new).snapshotDeleteFailure();
+    public SnapshotLifecycleStats withSnapshotDeleteFailureForPolicy(String slmPolicy) {
+        return withSnapshotForPolicyUpdated(slmPolicy, SnapshotPolicyStats::withSnapshotDeleteFailuresInc);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(policyStats, StreamOutput::writeWriteable);
-        out.writeVLong(retentionRunCount.count());
-        out.writeVLong(retentionFailedCount.count());
-        out.writeVLong(retentionTimedOut.count());
-        out.writeVLong(retentionTimeMs.count());
+        out.writeVLong(retentionRunCount);
+        out.writeVLong(retentionFailedCount);
+        out.writeVLong(retentionTimedOut);
+        out.writeVLong(retentionTimeMs);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(RETENTION_RUNS.getPreferredName(), this.retentionRunCount.count());
-        builder.field(RETENTION_FAILED.getPreferredName(), this.retentionFailedCount.count());
-        builder.field(RETENTION_TIMED_OUT.getPreferredName(), this.retentionTimedOut.count());
-        TimeValue retentionTime = TimeValue.timeValueMillis(this.retentionTimeMs.count());
+        builder.field(RETENTION_RUNS.getPreferredName(), this.retentionRunCount);
+        builder.field(RETENTION_FAILED.getPreferredName(), this.retentionFailedCount);
+        builder.field(RETENTION_TIMED_OUT.getPreferredName(), this.retentionTimedOut);
+        TimeValue retentionTime = TimeValue.timeValueMillis(this.retentionTimeMs);
         builder.field(RETENTION_TIME.getPreferredName(), retentionTime);
         builder.field(RETENTION_TIME_MILLIS.getPreferredName(), retentionTime.millis());
 
@@ -244,10 +250,10 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             .stream()
             .sorted(Comparator.comparing(SnapshotPolicyStats::getPolicyId)) // maintain a consistent order when serializing
             .toList();
-        long totalTaken = metrics.stream().mapToLong(s -> s.snapshotsTaken.count()).sum();
-        long totalFailed = metrics.stream().mapToLong(s -> s.snapshotsFailed.count()).sum();
-        long totalDeleted = metrics.stream().mapToLong(s -> s.snapshotsDeleted.count()).sum();
-        long totalDeleteFailures = metrics.stream().mapToLong(s -> s.snapshotDeleteFailures.count()).sum();
+        long totalTaken = metrics.stream().mapToLong(s -> s.snapshotsTaken).sum();
+        long totalFailed = metrics.stream().mapToLong(s -> s.snapshotsFailed).sum();
+        long totalDeleted = metrics.stream().mapToLong(s -> s.snapshotsDeleted).sum();
+        long totalDeleteFailures = metrics.stream().mapToLong(s -> s.snapshotDeleteFailures).sum();
         builder.field(TOTAL_TAKEN.getPreferredName(), totalTaken);
         builder.field(TOTAL_FAILED.getPreferredName(), totalFailed);
         builder.field(TOTAL_DELETIONS.getPreferredName(), totalDeleted);
@@ -267,10 +273,10 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(
-            retentionRunCount.count(),
-            retentionFailedCount.count(),
-            retentionTimedOut.count(),
-            retentionTimeMs.count(),
+            retentionRunCount,
+            retentionFailedCount,
+            retentionTimedOut,
+            retentionTimeMs,
             policyStats
         );
     }
@@ -284,10 +290,10 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             return false;
         }
         SnapshotLifecycleStats other = (SnapshotLifecycleStats) obj;
-        return Objects.equals(retentionRunCount.count(), other.retentionRunCount.count())
-            && Objects.equals(retentionFailedCount.count(), other.retentionFailedCount.count())
-            && Objects.equals(retentionTimedOut.count(), other.retentionTimedOut.count())
-            && Objects.equals(retentionTimeMs.count(), other.retentionTimeMs.count())
+        return Objects.equals(retentionRunCount, other.retentionRunCount)
+            && Objects.equals(retentionFailedCount, other.retentionFailedCount)
+            && Objects.equals(retentionTimedOut, other.retentionTimedOut)
+            && Objects.equals(retentionTimeMs, other.retentionTimeMs)
             && Objects.equals(policyStats, other.policyStats);
     }
 
@@ -298,10 +304,10 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
     public static class SnapshotPolicyStats implements Writeable, ToXContentFragment {
         private final String policyId;
-        private final CounterMetric snapshotsTaken = new CounterMetric();
-        private final CounterMetric snapshotsFailed = new CounterMetric();
-        private final CounterMetric snapshotsDeleted = new CounterMetric();
-        private final CounterMetric snapshotDeleteFailures = new CounterMetric();
+        private final long snapshotsTaken;
+        private final long snapshotsFailed;
+        private final long snapshotsDeleted;
+        private final long snapshotDeleteFailures;
 
         public static final ParseField POLICY_ID = new ParseField("policy");
         public static final ParseField SNAPSHOTS_TAKEN = new ParseField("snapshots_taken");
@@ -331,57 +337,49 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         }
 
         public SnapshotPolicyStats(String slmPolicy) {
-            this.policyId = slmPolicy;
+            this(slmPolicy, 0, 0, 0, 0);
         }
 
         public SnapshotPolicyStats(String policyId, long snapshotsTaken, long snapshotsFailed, long deleted, long failedDeletes) {
             this.policyId = policyId;
-            this.snapshotsTaken.inc(snapshotsTaken);
-            this.snapshotsFailed.inc(snapshotsFailed);
-            this.snapshotsDeleted.inc(deleted);
-            this.snapshotDeleteFailures.inc(failedDeletes);
+            this.snapshotsTaken = snapshotsTaken;
+            this.snapshotsFailed = snapshotsFailed;
+            this.snapshotsDeleted = deleted;
+            this.snapshotDeleteFailures = failedDeletes;
         }
 
         public SnapshotPolicyStats(StreamInput in) throws IOException {
-            this.policyId = in.readString();
-            this.snapshotsTaken.inc(in.readVLong());
-            this.snapshotsFailed.inc(in.readVLong());
-            this.snapshotsDeleted.inc(in.readVLong());
-            this.snapshotDeleteFailures.inc(in.readVLong());
+            this(in.readString(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
         }
 
         public SnapshotPolicyStats merge(SnapshotPolicyStats other) {
             return new SnapshotPolicyStats(
                 this.policyId,
-                this.snapshotsTaken.count() + other.snapshotsTaken.count(),
-                this.snapshotsFailed.count() + other.snapshotsFailed.count(),
-                this.snapshotsDeleted.count() + other.snapshotsDeleted.count(),
-                this.snapshotDeleteFailures.count() + other.snapshotDeleteFailures.count()
+                this.snapshotsTaken + other.snapshotsTaken,
+                this.snapshotsFailed + other.snapshotsFailed,
+                this.snapshotsDeleted + other.snapshotsDeleted,
+                this.snapshotDeleteFailures + other.snapshotDeleteFailures
             );
         }
 
         public long getSnapshotTakenCount() {
-            return snapshotsTaken.count();
+            return snapshotsTaken;
         }
 
-        public long getSnapshotFailedCount() {
-            return snapshotsFailed.count();
+        SnapshotPolicyStats withSnapshotTakenInc() {
+            return new SnapshotPolicyStats(policyId, snapshotsTaken + 1, snapshotsFailed, snapshotsDeleted, snapshotDeleteFailures);
         }
 
-        void snapshotTaken() {
-            snapshotsTaken.inc();
+        SnapshotPolicyStats withSnapshotFailedInc() {
+            return new SnapshotPolicyStats(policyId, snapshotsTaken, snapshotsFailed + 1, snapshotsDeleted, snapshotDeleteFailures);
         }
 
-        void snapshotFailed() {
-            snapshotsFailed.inc();
+        SnapshotPolicyStats withSnapshotDeletedInc() {
+            return new SnapshotPolicyStats(policyId, snapshotsTaken, snapshotsFailed, snapshotsDeleted + 1, snapshotDeleteFailures);
         }
 
-        void snapshotDeleted() {
-            snapshotsDeleted.inc();
-        }
-
-        void snapshotDeleteFailure() {
-            snapshotDeleteFailures.inc();
+        SnapshotPolicyStats withSnapshotDeleteFailuresInc() {
+            return new SnapshotPolicyStats(policyId, snapshotsTaken, snapshotsFailed, snapshotsDeleted, snapshotDeleteFailures + 1);
         }
 
         public String getPolicyId() {
@@ -391,20 +389,20 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(policyId);
-            out.writeVLong(snapshotsTaken.count());
-            out.writeVLong(snapshotsFailed.count());
-            out.writeVLong(snapshotsDeleted.count());
-            out.writeVLong(snapshotDeleteFailures.count());
+            out.writeVLong(snapshotsTaken);
+            out.writeVLong(snapshotsFailed);
+            out.writeVLong(snapshotsDeleted);
+            out.writeVLong(snapshotDeleteFailures);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
                 policyId,
-                snapshotsTaken.count(),
-                snapshotsFailed.count(),
-                snapshotsDeleted.count(),
-                snapshotDeleteFailures.count()
+                snapshotsTaken,
+                snapshotsFailed,
+                snapshotsDeleted,
+                snapshotDeleteFailures
             );
         }
 
@@ -418,19 +416,19 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             }
             SnapshotPolicyStats other = (SnapshotPolicyStats) obj;
             return Objects.equals(policyId, other.policyId)
-                && Objects.equals(snapshotsTaken.count(), other.snapshotsTaken.count())
-                && Objects.equals(snapshotsFailed.count(), other.snapshotsFailed.count())
-                && Objects.equals(snapshotsDeleted.count(), other.snapshotsDeleted.count())
-                && Objects.equals(snapshotDeleteFailures.count(), other.snapshotDeleteFailures.count());
+                && Objects.equals(snapshotsTaken, other.snapshotsTaken)
+                && Objects.equals(snapshotsFailed, other.snapshotsFailed)
+                && Objects.equals(snapshotsDeleted, other.snapshotsDeleted)
+                && Objects.equals(snapshotDeleteFailures, other.snapshotDeleteFailures);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(SnapshotPolicyStats.POLICY_ID.getPreferredName(), policyId);
-            builder.field(SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName(), snapshotsTaken.count());
-            builder.field(SnapshotPolicyStats.SNAPSHOTS_FAILED.getPreferredName(), snapshotsFailed.count());
-            builder.field(SnapshotPolicyStats.SNAPSHOTS_DELETED.getPreferredName(), snapshotsDeleted.count());
-            builder.field(SnapshotPolicyStats.SNAPSHOT_DELETION_FAILURES.getPreferredName(), snapshotDeleteFailures.count());
+            builder.field(SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName(), snapshotsTaken);
+            builder.field(SnapshotPolicyStats.SNAPSHOTS_FAILED.getPreferredName(), snapshotsFailed);
+            builder.field(SnapshotPolicyStats.SNAPSHOTS_DELETED.getPreferredName(), snapshotsDeleted);
+            builder.field(SnapshotPolicyStats.SNAPSHOT_DELETION_FAILURES.getPreferredName(), snapshotDeleteFailures);
             return builder;
         }
     }

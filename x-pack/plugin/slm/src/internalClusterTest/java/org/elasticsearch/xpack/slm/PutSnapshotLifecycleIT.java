@@ -6,14 +6,10 @@
  */
 package org.elasticsearch.xpack.slm;
 
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -69,6 +65,7 @@ public class PutSnapshotLifecycleIT extends AbstractSnapshotIntegTestCase  {
         assertEquals(Map.of(), SnapshotLifecycleMetadata.EMPTY.getStats().getMetrics());
         disableRepoConsistencyCheck("nothing stored in repo");
     }
+
     private GetSnapshotLifecycleStatsAction.Response getPolicyStats() {
         try {
             final var req = new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);

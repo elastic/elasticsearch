@@ -45,10 +45,11 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         )
         .setting(
             "azure.client.integration_test.endpoint_suffix",
-            () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
+            () -> "ignored;DefaultEndpointsProtocol=https;BlobEndpoint=" + fixture.getAddress(),
             s -> USE_FIXTURE
         )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
+        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getAddress(), s -> USE_FIXTURE)
         .build();
 
     @ClassRule

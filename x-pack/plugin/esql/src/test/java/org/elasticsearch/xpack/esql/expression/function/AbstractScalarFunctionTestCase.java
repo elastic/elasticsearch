@@ -33,12 +33,9 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -73,10 +70,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         boolean entirelyNullPreservesType,
-        List<TestCaseSupplier> suppliers
+        List<TestCaseSupplier> suppliers,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)))
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)),
+                positionalErrorMessageSupplier
+            )
         );
     }
 
@@ -479,8 +480,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * Adds test cases containing unsupported parameter types that assert
      * that they throw type errors.
      */
-    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
-        return errorsForCasesWithoutExamples(testCaseSuppliers, AbstractScalarFunctionTestCase::typeErrorMessage);
+    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
+        List<TestCaseSupplier> testCaseSuppliers,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
+    ) {
+        return errorsForCasesWithoutExamples(
+            testCaseSuppliers,
+            (i, v, t) -> AbstractScalarFunctionTestCase.typeErrorMessage(i, v, t, positionalErrorMessageSupplier)
+        );
     }
 
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
@@ -514,10 +521,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     public static String errorMessageStringForBinaryOperators(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
-        List<DataType> types
+        List<DataType> types,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, positionalErrorMessageSupplier);
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             if (types.get(0).equals(DataType.UNSIGNED_LONG)) {
@@ -616,12 +624,33 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
     }
 
+    @FunctionalInterface
+    protected interface PositionalErrorMessageSupplier {
+        /**
+         * This interface defines functions to supply error messages for incorrect types in specific positions.  Functions which have
+         * the same type requirements for all positions can simplify this with a lambda returning a string constant.
+         *
+         * @param validForPosition - the set of {@link DataType}s that the test infrastructure believes to be allowable in the
+         *                         given position.
+         * @param position - the zero-index position in the list of parameters the function has detected the bad argument to be.
+         * @return The string describing the acceptable parameters for that position.  Note that this function should not return
+         *         the full error string; that will be constructed by the test.  Just return the type string for that position.
+         */
+        String apply(Set<DataType> validForPosition, int position);
+    }
+
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
-        List<DataType> types
+        List<DataType> types,
+        PositionalErrorMessageSupplier errorMessageSupplier
     ) {
-        return typeErrorSupplier(includeOrdinal, validPerPosition, types, AbstractScalarFunctionTestCase::typeErrorMessage);
+        return typeErrorSupplier(
+            includeOrdinal,
+            validPerPosition,
+            types,
+            (o, v, t) -> AbstractScalarFunctionTestCase.typeErrorMessage(o, v, t, errorMessageSupplier)
+        );
     }
 
     /**
@@ -646,7 +675,12 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     /**
      * Build the expected error message for an invalid type signature.
      */
-    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+    protected static String typeErrorMessage(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> types,
+        PositionalErrorMessageSupplier expectedTypeSupplier
+    ) {
         int badArgPosition = -1;
         for (int i = 0; i < types.size(); i++) {
             if (validPerPosition.get(i).contains(types.get(i)) == false) {
@@ -660,209 +694,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             );
         }
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
-        String expectedType = expectedType(validPerPosition.get(badArgPosition));
+        String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
         String name = types.get(badArgPosition).typeName();
-        return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
-    }
-
-    private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
-        Map.entry(
-            Set.of(DataType.DATE_PERIOD, DataType.DOUBLE, DataType.INTEGER, DataType.LONG, DataType.TIME_DURATION, DataType.NULL),
-            "numeric, date_period or time_duration"
-        ),
-        Map.entry(Set.of(DataType.DATETIME, DataType.NULL), "datetime"),
-        Map.entry(Set.of(DataType.DOUBLE, DataType.NULL), "double"),
-        Map.entry(Set.of(DataType.INTEGER, DataType.NULL), "integer"),
-        Map.entry(Set.of(DataType.IP, DataType.NULL), "ip"),
-        Map.entry(Set.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE, DataType.NULL), "numeric"),
-        Map.entry(Set.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE), "numeric"),
-        Map.entry(Set.of(DataType.KEYWORD, DataType.TEXT, DataType.VERSION, DataType.NULL), "string or version"),
-        Map.entry(Set.of(DataType.KEYWORD, DataType.TEXT, DataType.NULL), "string"),
-        Map.entry(Set.of(DataType.IP, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "ip or string"),
-        Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
-        Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial"),
-        Map.entry(
-            Set.of(
-                DataType.BOOLEAN,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
-            ),
-            "boolean or numeric or string"
-        ),
-        Map.entry(
-            Set.of(
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
-            ),
-            "datetime or numeric or string"
-        ),
-        // What Add accepts
-        Map.entry(
-            Set.of(
-                DataType.DATE_PERIOD,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.LONG,
-                DataType.NULL,
-                DataType.TIME_DURATION,
-                DataType.UNSIGNED_LONG
-            ),
-            "datetime or numeric"
-        ),
-        Map.entry(
-            Set.of(
-                DataType.BOOLEAN,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
-            ),
-            "boolean or datetime or numeric or string"
-        ),
-        // to_int
-        Map.entry(
-            Set.of(
-                DataType.BOOLEAN,
-                DataType.COUNTER_INTEGER,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
-            ),
-            "boolean or counter_integer or datetime or numeric or string"
-        ),
-        // to_long
-        Map.entry(
-            Set.of(
-                DataType.BOOLEAN,
-                DataType.COUNTER_INTEGER,
-                DataType.COUNTER_LONG,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
-            ),
-            "boolean or counter_integer or counter_long or datetime or numeric or string"
-        ),
-        // to_double
-        Map.entry(
-            Set.of(
-                DataType.BOOLEAN,
-                DataType.COUNTER_DOUBLE,
-                DataType.COUNTER_INTEGER,
-                DataType.COUNTER_LONG,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
-            ),
-            "boolean or counter_double or counter_integer or counter_long or datetime or numeric or string"
-        ),
-        Map.entry(
-            Set.of(
-                DataType.BOOLEAN,
-                DataType.CARTESIAN_POINT,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.GEO_POINT,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
-            ),
-            "boolean or cartesian_point or datetime or geo_point or numeric or string"
-        ),
-        Map.entry(
-            Set.of(
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.IP,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.VERSION,
-                DataType.NULL
-            ),
-            "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
-        ),
-        Map.entry(
-            Set.of(
-                DataType.BOOLEAN,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.GEO_POINT,
-                DataType.GEO_SHAPE,
-                DataType.INTEGER,
-                DataType.IP,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.VERSION,
-                DataType.NULL
-            ),
-            "cartesian_point or datetime or geo_point or numeric or string"
-        ),
-        Map.entry(Set.of(DataType.GEO_POINT, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "geo_point or string"),
-        Map.entry(Set.of(DataType.CARTESIAN_POINT, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "cartesian_point or string"),
-        Map.entry(
-            Set.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.KEYWORD, DataType.TEXT, DataType.NULL),
-            "geo_point or geo_shape or string"
-        ),
-        Map.entry(
-            Set.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE, DataType.KEYWORD, DataType.TEXT, DataType.NULL),
-            "cartesian_point or cartesian_shape or string"
-        ),
-        Map.entry(Set.of(DataType.GEO_POINT, DataType.CARTESIAN_POINT, DataType.NULL), "geo_point or cartesian_point"),
-        Map.entry(Set.of(DataType.DATE_PERIOD, DataType.TIME_DURATION, DataType.NULL), "dateperiod or timeduration")
-    );
-
-    // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
-    private static String expectedType(Set<DataType> validTypes) {
-        String named = NAMED_EXPECTED_TYPES.get(validTypes);
-        if (named == null) {
-            /*
-             * Note for anyone who's test lands here - it's likely that you
-             * don't have a test case covering explicit `null` arguments in
-             * this position. Generally you can get that with anyNullIsNull.
-             */
-            throw new UnsupportedOperationException(
-                "can't guess expected types for " + validTypes.stream().sorted(Comparator.comparing(t -> t.typeName())).toList()
-            );
-        }
-        return named;
+        return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
     }
 
     protected static Stream<DataType> representable() {

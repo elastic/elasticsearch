@@ -110,7 +110,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 equalTo(arg.negated())
             );
         })));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "numeric, date_period or time_duration");
     }
 
     @Override

@@ -34,19 +34,19 @@ public class Median extends AggregateFunction implements SurrogateExpression {
     // TODO: Add the compression parameter
     @FunctionInfo(
         returnType = "double",
-        description = "The value that is greater than half of all values and less than half of all values, " +
-            "also known as the 50% <<esql-percentile>>.",
+        description = "The value that is greater than half of all values and less than half of all values, "
+            + "also known as the 50% <<esql-percentile>>.",
         note = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.",
         isAggregation = true,
         examples = {
-        @Example(file = "stats_percentile", tag = "median"),
-        @Example(
-            description = "The expression can use inline functions. For example, to calculate the median of " +
-                "the maximum values of a multivalued column, first use `MV_MAX` to get the " +
-                "maximum value per row, and use the result with the `MEDIAN` function:",
-            file = "stats_percentile",
-            tag = "docsStatsMedianNestedExpression"
-        ), }
+            @Example(file = "stats_percentile", tag = "median"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate the median of "
+                    + "the maximum values of a multivalued column, first use `MV_MAX` to get the "
+                    + "maximum value per row, and use the result with the `MEDIAN` function:",
+                file = "stats_percentile",
+                tag = "docsStatsMedianNestedExpression"
+            ), }
     )
     public Median(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);

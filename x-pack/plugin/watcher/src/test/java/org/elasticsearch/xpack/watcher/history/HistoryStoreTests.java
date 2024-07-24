@@ -153,12 +153,14 @@ public class HistoryStoreTests extends ESTestCase {
         watchRecord.result().actionsResults().put(JiraAction.TYPE, result);
 
         ArgumentCaptor<BulkRequest> requestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        AtomicBoolean historyItemIndexed = new AtomicBoolean(false);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
 
             IndexResponse indexResponse = mock(IndexResponse.class);
             listener.onResponse(new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1));
+            historyItemIndexed.set(true);
             return null;
         }).when(client).bulk(requestCaptor.capture(), any());
 
@@ -167,7 +169,7 @@ public class HistoryStoreTests extends ESTestCase {
         } else {
             historyStore.forcePut(watchRecord);
         }
-
+        assertThat(historyItemIndexed.get(), equalTo(true));
         assertThat(requestCaptor.getAllValues(), hasSize(1));
         assertThat(requestCaptor.getValue().requests().get(0), instanceOf(IndexRequest.class));
         IndexRequest capturedIndexRequest = (IndexRequest) requestCaptor.getValue().requests().get(0);

@@ -263,6 +263,14 @@ public final class EngineConfig {
     }
 
     /**
+     * @return the {@link CodecProvider}
+     */
+    @Deprecated // to avoid breaking serverless, just temporary
+    public CodecProvider getCodecService() {
+        return codecProvider;
+    }
+
+    /**
      * Returns a thread-pool mainly used to get estimated time stamps from
      * {@link org.elasticsearch.threadpool.ThreadPool#relativeTimeInMillis()} and to schedule
      * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool

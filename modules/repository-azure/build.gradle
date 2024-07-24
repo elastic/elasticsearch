@@ -1,5 +1,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -299,6 +300,16 @@ tasks.named("yamlRestTest") {
   systemProperty 'test.azure.sas_token', azureSasToken
 }
 
+tasks.register("managedIdentityYamlRestTest", RestIntegTestTask) {
+}
+
+tasks.named("managedIdentityYamlRestTest") {
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  // omitting key and sas_token so that we use a bearer token from the metadata service
+}
+
 tasks.register("azureThirdPartyUnitTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
@@ -319,4 +330,5 @@ tasks.register('azureThirdPartyTest') {
 
 tasks.named("check") {
   dependsOn("azureThirdPartyUnitTest")
+  dependsOn("managedIdentityYamlRestTest")
 }

@@ -55,9 +55,19 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_BOOLEAN_SUPPORT,
 
         /**
+         * Support for ips in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
          * Support for booleans in {@code TOP} aggregation.
          */
         AGG_TOP_BOOLEAN_SUPPORT,
+
+        /**
+         * Support for ips in {@code TOP} aggregation.
+         */
+        AGG_TOP_IP_SUPPORT,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713

@@ -25,8 +25,8 @@ public class RandomBasedArbitrary implements Arbitrary {
 
     @Override
     public boolean generateNestedObject() {
-        // Using a static 1% change, this is just a chosen value that can be tweaked.
-        return randomDouble() <= 0.01;
+        // Using a static 10% change, this is just a chosen value that can be tweaked.
+        return randomDouble() <= 0.1;
     }
 
     @Override

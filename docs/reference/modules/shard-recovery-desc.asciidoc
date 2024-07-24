@@ -13,4 +13,4 @@ Recovery automatically occurs during the following processes:
 * A <<indices-clone-index,clone>>, <<indices-shrink-index,shrink>>, or
 <<indices-split-index,split>> operation.
 
-You can determine the cause of a shard recovery using the <<indices-recovery,recovery>> <<cat-recovery,cat recovery>> APIs.
+You can determine the cause of a shard recovery using the <<indices-recovery,recovery>> or  <<cat-recovery,cat recovery>> APIs.

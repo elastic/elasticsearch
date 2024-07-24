@@ -1,0 +1,6 @@
+pr: 111186
+summary: "ES|QL: reduce max expression depth to 400"
+area: ES|QL
+type: bug
+issues:
+ - 109846

@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.file.ProjectLayout
+import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.tasks.Internal
 import org.gradle.process.ExecOperations
 
@@ -24,14 +25,17 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
     AntFixture fixture
 
     @Inject
-    AntFixtureStop(ProjectLayout projectLayout, ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
-       super(projectLayout, execOperations, fileSystemOperations)
+    AntFixtureStop(ProjectLayout projectLayout,
+                   ExecOperations execOperations,
+                   FileSystemOperations fileSystemOperations,
+                   ProviderFactory providerFactory) {
+        super(projectLayout, execOperations, fileSystemOperations, providerFactory)
     }
 
     void setFixture(AntFixture fixture) {
         assert this.fixture == null
         this.fixture = fixture;
-        final Object pid = "${ -> this.fixture.pid }"
+        final Object pid = "${-> this.fixture.pid}"
         onlyIf("pidFile exists") { fixture.pidFile.exists() }
         doFirst {
             logger.info("Shutting down ${fixture.name} with pid ${pid}")

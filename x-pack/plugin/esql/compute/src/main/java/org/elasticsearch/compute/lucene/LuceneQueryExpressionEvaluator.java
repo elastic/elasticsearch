@@ -17,6 +17,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -67,6 +68,36 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         }
     }
 
+    /**
+     * Evaluate {@link DocVector#singleSegmentNonDecreasing()} documents.
+     * <p>
+     *     ESQL receives documents in DocVector, and they can be in one of two
+     *     states. Either the DocVector contains documents from a single segment
+     *     non-decreasing order, or it doesn't. that first case is much more like
+     *     how Lucene likes to process documents. and it's much more common. So we
+     *     optimize for it.
+     * <p>
+     *     Vectors that are {@link DocVector#singleSegmentNonDecreasing()}
+     *     represent many documents from a single Lucene segment. In Elasticsearch
+     *     terms that's a segment in a single shard. And the document ids are in
+     *     non-decreasing order. Probably just {@code 0, 1, 2, 3, 4, 5...}.
+     *     But maybe something like {@code 0, 5, 6, 10, 10, 10}. Both of those are
+     *     very like how lucene "natively" processes documents and this optimizes
+     *     those accesses.
+     * </p>
+     * <p>
+     *     If the documents are literally {@code 0, 1, ... n} then we use
+     *     {@link BulkScorer#score(LeafCollector, Bits, int, int)} which processes
+     *     a whole range. This should be quite common in the case where we don't
+     *     have deleted documents because that's the order that
+     *     {@link LuceneSourceOperator} produces them.
+     * </p>
+     * <p>
+     *     If there are gaps in the sequence we use {@link Scorer} calls to
+     *     score the sequence. This'll be less fast but isn't going be particularly
+     *     common.
+     * </p>
+     */
     private BooleanVector evalSingleSegmentNonDecreasing(DocVector docs) throws IOException {
         ShardState shardState = shardState(docs.shards().getInt(0));
         SegmentState segmentState = shardState.segmentState(docs.segments().getInt(0));
@@ -79,6 +110,20 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         return segmentState.scoreSparse(docs.docs());
     }
 
+    /**
+     * Evaluate non-{@link DocVector#singleSegmentNonDecreasing()} documents. See
+     * {@link #evalSingleSegmentNonDecreasing} for the meaning of
+     * {@link DocVector#singleSegmentNonDecreasing()} and how we can efficiently
+     * evaluate those segments.
+     * <p>
+     *     This processes the worst case blocks of documents. These can be from any
+     *     number of shards and any number of segments and in any order. We do this
+     *     by iterating the docs in {@code shard ASC, segment ASC, doc ASC} order.
+     *     So, that's segment by segment, docs ascending. We build a boolean block
+     *     out of that. Then we <strong>sort</strong> that to put the booleans in
+     *     the order that the {@link DocVector} came in.
+     * </p>
+     */
     private BooleanVector evalSlow(DocVector docs) throws IOException {
         int[] map = docs.shardSegmentDocMapForwards();
         // Clear any state flags from the previous run
@@ -97,6 +142,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 ShardState shardState = shardState(docs.shards().getInt(docs.shards().getInt(map[i])));
                 SegmentState segmentState = shardState.segmentState(docs.segments().getInt(map[i]));
+                // NOCOMMIT I think we don't need this boolean because we're going in ascending order by segment
                 if (segmentState.initializedForCurrentBlock == false) {
                     segmentState.initScorer(docs.docs().getInt(map[i]));
                 }

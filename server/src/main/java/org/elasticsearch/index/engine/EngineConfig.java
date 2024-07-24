@@ -23,7 +23,7 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.CodecSupplier;
+import org.elasticsearch.index.codec.CodecProvided;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,7 +60,7 @@ public final class EngineConfig {
     private final MergePolicy mergePolicy;
     private final Analyzer analyzer;
     private final Similarity similarity;
-    private final CodecSupplier codecService;
+    private final CodecProvided codecProvided;
     private final Engine.EventListener eventListener;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
@@ -148,7 +148,7 @@ public final class EngineConfig {
         MergePolicy mergePolicy,
         Analyzer analyzer,
         Similarity similarity,
-        CodecSupplier codecService,
+        CodecProvided codecProvided,
         Engine.EventListener eventListener,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
@@ -176,7 +176,7 @@ public final class EngineConfig {
         this.mergePolicy = mergePolicy;
         this.analyzer = analyzer;
         this.similarity = similarity;
-        this.codecService = codecService;
+        this.codecProvided = codecProvided;
         this.eventListener = eventListener;
         codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
         this.mapperService = mapperService;
@@ -252,14 +252,14 @@ public final class EngineConfig {
      * </p>
      */
     public Codec getCodec() {
-        return codecService.codec(codecName);
+        return codecProvided.codec(codecName);
     }
 
     /**
-     * @return the {@link CodecSupplier}
+     * @return the {@link CodecProvided}
      */
-    public CodecSupplier getCodecService() {
-        return codecService;
+    public CodecProvided getCodecProvider() {
+        return codecProvided;
     }
 
     /**

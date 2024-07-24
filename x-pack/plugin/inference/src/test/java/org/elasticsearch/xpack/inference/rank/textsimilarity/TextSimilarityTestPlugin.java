@@ -115,9 +115,10 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             }
 
             assert request instanceof InferenceAction.Request;
-            boolean shouldThrow = (boolean) ((InferenceAction.Request) request).getTaskSettings().getOrDefault("throwing", false);
-            boolean hasInvalidInferenceResultCount = (boolean) ((InferenceAction.Request) request).getTaskSettings()
-                .getOrDefault("invalidInferenceResultCount", false);
+            Map<String, Object> taskSettings = ((InferenceAction.Request) request).getTaskSettings();
+            boolean shouldThrow = (boolean) taskSettings.getOrDefault("throwing", false);
+            boolean hasInvalidInferenceResultCount = (boolean) taskSettings.getOrDefault("invalidInferenceResultCount", false);
+            boolean hasInvalidDocumentIndices = (boolean) taskSettings.getOrDefault("invalidDocumentIndices", false);
 
             if (shouldThrow) {
                 listener.onFailure(new UnsupportedOperationException("simulated failure"));
@@ -126,7 +127,13 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                 List<String> inputs = ((InferenceAction.Request) request).getInput();
                 int resultCount = hasInvalidInferenceResultCount ? inputs.size() - 1 : inputs.size();
                 for (int i = 0; i < resultCount; i++) {
-                    rankedDocsResults.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(inputs.get(i)), inputs.get(i)));
+                    rankedDocsResults.add(
+                        new RankedDocsResults.RankedDoc(
+                            hasInvalidDocumentIndices ? i * 2 : i,
+                            Float.parseFloat(inputs.get(i)),
+                            inputs.get(i)
+                        )
+                    );
                 }
                 ActionResponse response = new InferenceAction.Response(new RankedDocsResults(rankedDocsResults));
                 listener.onResponse((Response) response);

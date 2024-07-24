@@ -204,8 +204,8 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String typeErrorString =
-        "boolean, cartesian_point, cartesian_shape, datetime, double, geo_point, geo_shape, integer, ip, keyword, long, text, " +
-            "unsigned_long or version";
+        "boolean, cartesian_point, cartesian_shape, datetime, double, geo_point, geo_shape, integer, ip, keyword, long, text, "
+            + "unsigned_long or version";
 
     @Override
     protected Expression build(Source source, List<Expression> args) {

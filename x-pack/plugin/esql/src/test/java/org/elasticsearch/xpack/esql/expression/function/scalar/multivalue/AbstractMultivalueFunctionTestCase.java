@@ -388,7 +388,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         }
     }
 
-
     protected static void dateNanos(
         List<TestCaseSupplier> cases,
         String name,

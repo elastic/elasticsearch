@@ -58,9 +58,6 @@ tests:
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
-- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
-  method: testLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/110244
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/95384
@@ -91,21 +88,12 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
-  method: testLoadAllStatusAllInOnePage
-  issue: https://github.com/elastic/elasticsearch/issues/111048
 - class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
   method: testKnnSearchAction
   issue: https://github.com/elastic/elasticsearch/issues/111072
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testKnnQuantizedFlatVectorsFormat
-  issue: https://github.com/elastic/elasticsearch/issues/111044
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/111084
-- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
-  method: testEnterpriseDownloaderTask
-  issue: https://github.com/elastic/elasticsearch/issues/111002
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownCartesianPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/110982
@@ -123,9 +111,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDisableFieldNameField {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111141
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test600Interrupt
+  issue: https://github.com/elastic/elasticsearch/issues/111132
+- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
+  method: testAuthenticateWithImplicitFlow
+  issue: https://github.com/elastic/elasticsearch/issues/111191
 
 # Examples:
 #

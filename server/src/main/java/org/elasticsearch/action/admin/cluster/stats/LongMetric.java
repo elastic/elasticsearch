@@ -64,7 +64,7 @@ public class LongMetric {
             ByteBuffer bb = ByteBuffer.wrap(b);
             try {
                 // TODO: not sure what is the good value for minBarForHighestToLowestValueRatio here?
-                DoubleHistogram dh = DoubleHistogram.decodeFromCompressedByteBuffer(bb, 1_000_000);
+                DoubleHistogram dh = DoubleHistogram.decodeFromCompressedByteBuffer(bb, 1);
                 return new LongMetricValue(dh);
             } catch (DataFormatException e) {
                 throw new IOException(e);

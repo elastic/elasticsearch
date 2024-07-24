@@ -70,10 +70,16 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             assertThat(snapshot.getTook().avg(), closeTo(took1));
             assertThat(snapshot.getTook().max(), lessThanOrEqualTo(took1));
             if (minimizeRoundTrips) {
+                assertThat(snapshot.getTookMrtTrue().count(), equalTo(1L));
                 assertThat(snapshot.getTookMrtTrue().avg(), greaterThan(0L));
+                assertThat(snapshot.getTookMrtTrue().avg(), closeTo(took1));
+                assertThat(snapshot.getTookMrtFalse().count(), equalTo(0L));
                 assertThat(snapshot.getTookMrtFalse().max(), equalTo(0L));
             } else {
+                assertThat(snapshot.getTookMrtFalse().count(), equalTo(1L));
                 assertThat(snapshot.getTookMrtFalse().avg(), greaterThan(0L));
+                assertThat(snapshot.getTookMrtFalse().avg(), closeTo(took1));
+                assertThat(snapshot.getTookMrtTrue().count(), equalTo(0L));
                 assertThat(snapshot.getTookMrtTrue().max(), equalTo(0L));
             }
             assertThat(snapshot.getClientCounts().get("unknown"), equalTo(1L));

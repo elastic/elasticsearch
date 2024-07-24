@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -52,7 +53,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
     }
 
     public Map<String, Long> getFailureReasons() {
-        return failureReasons;
+        return Collections.unmodifiableMap(failureReasons);
     }
 
     public LongMetricValue getTook() {
@@ -80,15 +81,15 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
     }
 
     public Map<String, Long> getFeatureCounts() {
-        return featureCounts;
+        return Collections.unmodifiableMap(featureCounts);
     }
 
     public Map<String, Long> getClientCounts() {
-        return clientCounts;
+        return Collections.unmodifiableMap(clientCounts);
     }
 
     public Map<String, PerClusterCCSTelemetry> getByRemoteCluster() {
-        return byRemoteCluster;
+        return Collections.unmodifiableMap(byRemoteCluster);
     }
 
     public static class PerClusterCCSTelemetry implements Writeable, ToXContentFragment {
@@ -128,9 +129,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.field("total", count);
             builder.field("skipped", skippedCount);
-            publishLatency(builder, took, "took");
+            publishLatency(builder, "took", took);
+            builder.endObject();
             return builder;
         }
 
@@ -144,6 +147,23 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
         public LongMetricValue getTook() {
             return took;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            PerClusterCCSTelemetry that = (PerClusterCCSTelemetry) o;
+            return count == that.count && skippedCount == that.skippedCount && Objects.equals(took, that.took);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(count, skippedCount, took);
         }
     }
 
@@ -182,6 +202,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
      * Creates a new empty stats instance, that will get additional stats added through {@link #add(CCSTelemetrySnapshot)}
      */
     public CCSTelemetrySnapshot() {
+        // Note this produces modifyable maps, so other snapshots can be added to it
         failureReasons = new HashMap<>();
         featureCounts = new HashMap<>();
         clientCounts = new HashMap<>();
@@ -238,7 +259,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         tookMrtFalse.add(stats.tookMrtFalse);
         remotesPerSearchMax = Math.max(remotesPerSearchMax, stats.remotesPerSearchMax);
         // Weighted average
-        remotesPerSearchAvg = (double) (remotesPerSearchMax * oldCount + stats.remotesPerSearchMax * stats.totalCount) / totalCount;
+        if (totalCount > 0) {
+            remotesPerSearchAvg = (remotesPerSearchAvg * oldCount + stats.remotesPerSearchAvg * stats.totalCount) / totalCount;
+        } else {
+            remotesPerSearchAvg = 0;
+        }
         stats.byRemoteCluster.forEach((r, v) -> byRemoteCluster.merge(r, v, PerClusterCCSTelemetry::add));
     }
 
@@ -251,7 +276,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
      *      "p90": 2570
      * }
      */
-    public static void publishLatency(XContentBuilder builder, LongMetricValue took, String name) throws IOException {
+    public static void publishLatency(XContentBuilder builder, String name, LongMetricValue took) throws IOException {
         builder.startObject(name);
         {
             builder.field("max", took.max());
@@ -268,22 +293,20 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
             builder.field("total", totalCount);
             builder.field("success", successCount);
             builder.field("skipped", skippedRemotes);
-            publishLatency(builder, took, "took");
-            publishLatency(builder, tookMrtTrue, "took_mrt_true");
-            publishLatency(builder, tookMrtFalse, "took_mrt_false");
+            publishLatency(builder, "took", took);
+            publishLatency(builder, "took_mrt_true", tookMrtTrue);
+            publishLatency(builder, "took_mrt_false", tookMrtFalse);
             builder.field("remotes_per_search_max", remotesPerSearchMax);
             builder.field("remotes_per_search_avg", remotesPerSearchAvg);
             builder.field("failure_reasons", failureReasons);
-            builder.field("feature_counts", featureCounts);
-            builder.field("client_counts", clientCounts);
+            builder.field("features", featureCounts);
+            builder.field("clients", clientCounts);
             builder.startObject("remote_clusters");
             {
                 builder.field("count", byRemoteCluster.size());
                 byRemoteCluster.forEach((name, clusterData) -> {
                     try {
-                        builder.startObject(name);
-                        clusterData.toXContent(builder, params);
-                        builder.endObject();
+                        builder.field(name, clusterData);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -291,6 +314,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
             }
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 

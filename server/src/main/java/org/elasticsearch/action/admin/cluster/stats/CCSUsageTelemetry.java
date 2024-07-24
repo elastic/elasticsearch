@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.common.util.Maps;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -198,22 +199,22 @@ public class CCSUsageTelemetry {
         Map<String, Long> reasonsMap = Maps.newMapWithExpectedSize(failureReasons.size());
         failureReasons.forEach((k, v) -> reasonsMap.put(k.getName(), v.longValue()));
 
-        // TODO: should we use immutable maps here?
-        // Since we return copies anyway it's no big deal if anybody modifies them, but it may be cleaner to return immutable.
         LongMetric.LongMetricValue remotes = remotesPerSearch.getValue();
+
+        // Maps returned here are unmodifyable, but the empty ctor produces modifyable maps
         return new CCSTelemetrySnapshot(
             totalCount.longValue(),
             successCount.longValue(),
-            reasonsMap,
+            Collections.unmodifiableMap(reasonsMap),
             took.getValue(),
             tookMrtTrue.getValue(),
             tookMrtFalse.getValue(),
             remotes.max(),
             remotes.avg(),
             skippedRemotes.longValue(),
-            Maps.transformValues(featureCounts, LongAdder::longValue),
-            Maps.transformValues(clientCounts, LongAdder::longValue),
-            Maps.transformValues(byRemoteCluster, PerClusterCCSTelemetry::getSnapshot)
+            Collections.unmodifiableMap(Maps.transformValues(featureCounts, LongAdder::longValue)),
+            Collections.unmodifiableMap(Maps.transformValues(clientCounts, LongAdder::longValue)),
+            Collections.unmodifiableMap(Maps.transformValues(byRemoteCluster, PerClusterCCSTelemetry::getSnapshot))
         );
     }
 }

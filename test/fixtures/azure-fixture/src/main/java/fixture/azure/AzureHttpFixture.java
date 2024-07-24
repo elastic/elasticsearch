@@ -25,7 +25,6 @@ import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Objects;
-
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 
@@ -39,6 +38,7 @@ public class AzureHttpFixture extends ExternalResource {
     private final String account;
     private final String container;
     private HttpServer server;
+    private HttpServer metadataServer;
 
     public enum Protocol {
         NONE,
@@ -64,9 +64,19 @@ public class AzureHttpFixture extends ExternalResource {
         return scheme() + "://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
     }
 
+    public String getMetadataAddress() {
+        return "http://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
+    }
+
     @Override
     protected void before() {
         try {
+            if (protocol != Protocol.NONE) {
+                this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                metadataServer.createContext("/", new AzureMetadataServiceHttpHandler());
+                metadataServer.start();
+            }
+
             switch (protocol) {
                 case NONE -> {
                 }
@@ -119,6 +129,7 @@ public class AzureHttpFixture extends ExternalResource {
     protected void after() {
         if (protocol != Protocol.NONE) {
             server.stop(0);
+            metadataServer.stop(0);
         }
     }
 }

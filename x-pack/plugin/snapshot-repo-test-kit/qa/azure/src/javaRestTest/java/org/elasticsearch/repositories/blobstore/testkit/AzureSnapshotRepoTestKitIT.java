@@ -61,6 +61,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
                 c.systemProperty("test.repository_test_kit.skip_cas", "true");
             }
         })
+        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
 

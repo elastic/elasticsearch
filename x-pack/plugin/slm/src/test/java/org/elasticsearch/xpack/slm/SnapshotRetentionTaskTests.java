@@ -350,28 +350,20 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 )
             );
 
-
             AtomicReference<SnapshotLifecycleStats> slmStats = new AtomicReference<>(new SnapshotLifecycleStats());
-
             AtomicBoolean onFailureCalled = new AtomicBoolean(false);
-            task.deleteSnapshot(
-                "policy",
-                "foo",
-                new SnapshotId("name", "uuid"),
-                slmStats,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        logger.info("--> forcing failure");
-                        throw new ElasticsearchException("forced failure");
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onFailureCalled.set(true);
-                    }
+            task.deleteSnapshot("policy", "foo", new SnapshotId("name", "uuid"), slmStats, new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    logger.info("--> forcing failure");
+                    throw new ElasticsearchException("forced failure");
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    onFailureCalled.set(true);
+                }
+            });
 
             assertThat(onFailureCalled.get(), equalTo(true));
 

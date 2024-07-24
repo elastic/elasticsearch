@@ -556,10 +556,10 @@
               url:
                 type: keyword
   - do:
-      search_shards:
-        index:  index1
+      cluster.state: {}
+
   - set:
-      shards.0.0.node: node_id
+      routing_table.indices.index1.shards.0.0.node: node_id
 
   - do:
       nodes.stats: { metric: _all, level: "indices", human: true }

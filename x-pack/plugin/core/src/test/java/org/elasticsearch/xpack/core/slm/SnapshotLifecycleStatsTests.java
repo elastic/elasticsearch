@@ -30,10 +30,12 @@ public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTest
             SnapshotLifecycleStats stats = new SnapshotLifecycleStats();
             assertThrows(UnsupportedOperationException.class, () -> stats.getMetrics().put("new_policy", null));
         }
+
         {
             SnapshotLifecycleStats stats = new SnapshotLifecycleStats(0, 0, 0, 0, new HashMap<>());
             assertThrows(UnsupportedOperationException.class, () -> stats.getMetrics().put("new_policy", null));
         }
+
         {
             SnapshotLifecycleStats stats1 = new SnapshotLifecycleStats(1, 0, 0, 0, new HashMap<>());
             SnapshotLifecycleStats stats2 = new SnapshotLifecycleStats(0, 1, 0, 0, new HashMap<>());
@@ -68,7 +70,9 @@ public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTest
             .withFailedIncremented(policy)
             .withDeleteFailuresIncremented(policy);
 
-        SnapshotLifecycleStats expected = new SnapshotLifecycleStats(1, 1, 1, TimeValue.ONE_MINUTE.millis(), Map.of(policy, new SnapshotLifecycleStats.SnapshotPolicyStats(policy, 1, 1, 1, 1)));
+
+        var policyStats = Map.of(policy, new SnapshotLifecycleStats.SnapshotPolicyStats(policy, 1, 1, 1, 1));
+        SnapshotLifecycleStats expected = new SnapshotLifecycleStats(1, 1, 1, TimeValue.ONE_MINUTE.millis(), policyStats);
         assertEquals(expected, updated);
     }
 

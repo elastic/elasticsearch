@@ -367,18 +367,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             });
 
             assertThat(onFailureCalled.get(), equalTo(true));
-            assertThat(
-                slmStats.get(),
-                equalTo(
-                    new SnapshotLifecycleStats(
-                        0,
-                        0,
-                        0,
-                        0,
-                        Map.of(policyId, new SnapshotLifecycleStats.SnapshotPolicyStats(policyId, 0, 0, 1, 1))
-                    )
-                )
-            );
+
+            var expectedPolicyStats = Map.of(policyId, new SnapshotLifecycleStats.SnapshotPolicyStats(policyId, 0, 0, 1, 1));
+            assertThat(slmStats.get(), equalTo(new SnapshotLifecycleStats(0, 0, 0, 0, expectedPolicyStats)));
         } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);

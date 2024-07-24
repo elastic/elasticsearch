@@ -498,6 +498,17 @@ A value of `-1` indicates that this is not available.
 `listeners`::
 (integer) Number of refresh listeners.
 
+`last_refresh_timestamp`::
+(integer) Time of the last internal refresh.
+Recorded in milliseconds since the {wikipedia}/Unix_time[Unix Epoch].
+
+`last_external_refresh_timestamp`::
+(integer) Time of the last external refresh.
+Recorded in milliseconds since the {wikipedia}/Unix_time[Unix Epoch].
+
+`has_unwritten_changes`::
+(Boolean) Whether there are changes that require a refresh to be written to disk.
+
 =======
 
 `flush`::

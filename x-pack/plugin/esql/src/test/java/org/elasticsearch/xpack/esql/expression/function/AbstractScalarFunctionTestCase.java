@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.Abstra
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -50,7 +49,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -89,7 +88,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             assertTypeResolutionFailure(expression);
             return;
         }
-        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
+        assumeTrue("Expected type must be representable to build an evaluator", DataType.isRepresentable(testCase.expectedType()));
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
@@ -190,7 +189,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
+        assumeTrue("Expected type must be representable to build an evaluator", DataType.isRepresentable(testCase.expectedType()));
         int positions = between(1, 1024);
         List<TestCaseSupplier.TypedData> data = testCase.getData();
         Page onePositionPage = row(testCase.getDataValues());
@@ -293,7 +292,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
+        assumeTrue("Expected type must be representable to build an evaluator", DataType.isRepresentable(testCase.expectedType()));
         int count = 10_000;
         int threads = 5;
         var evalSupplier = evaluator(expression);
@@ -867,7 +866,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     protected static Stream<DataType> representable() {
-        return DataType.types().stream().filter(EsqlDataTypes::isRepresentable);
+        return DataType.types().stream().filter(DataType::isRepresentable);
     }
 
     protected static DataType[] representableTypes() {

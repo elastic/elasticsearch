@@ -250,7 +250,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -282,7 +282,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -314,7 +314,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -670,7 +670,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (localCheckpointTrackerSupplier == null) {
             return new InternalTestEngine(config) {
                 @Override
-                IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+                protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null)
                         ? indexWriterFactory.createWriter(directory, iwc)
                         : super.createWriter(directory, iwc);
@@ -686,7 +686,7 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
                 @Override
-                IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+                protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null)
                         ? indexWriterFactory.createWriter(directory, iwc)
                         : super.createWriter(directory, iwc);

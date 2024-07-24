@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -239,7 +238,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 long t = foldToLong(to);
                 preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
             } else {
-                assert EsqlDataTypes.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
+                assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
                 preparedRounding = DateTrunc.createRounding(buckets.fold(), DEFAULT_TZ);
             }
             return DateTrunc.evaluator(source(), toEvaluator.apply(field), preparedRounding);
@@ -323,7 +322,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         if (fieldType == DataType.DATETIME) {
             TypeResolution resolution = isType(
                 buckets,
-                dt -> dt.isWholeNumber() || EsqlDataTypes.isTemporalAmount(dt),
+                dt -> dt.isWholeNumber() || DataType.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
                 "integral",

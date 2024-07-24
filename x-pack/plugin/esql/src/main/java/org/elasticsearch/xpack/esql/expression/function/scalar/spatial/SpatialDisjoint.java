@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -163,7 +162,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
                         SpatialDisjointGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -195,7 +194,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
                         SpatialDisjointCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(

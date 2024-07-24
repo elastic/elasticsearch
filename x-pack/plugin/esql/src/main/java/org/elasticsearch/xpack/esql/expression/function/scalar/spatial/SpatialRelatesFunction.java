@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Map;
@@ -78,7 +77,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         return exp instanceof FieldAttribute fa
             && fa.getExactInfo().hasExact()
             && isAggregatable.test(fa)
-            && EsqlDataTypes.isSpatial(fa.dataType());
+            && DataType.isSpatial(fa.dataType());
     }
 
     @Override

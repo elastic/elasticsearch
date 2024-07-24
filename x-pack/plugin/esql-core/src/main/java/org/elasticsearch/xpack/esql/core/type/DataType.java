@@ -217,8 +217,12 @@ public enum DataType {
         return t == KEYWORD || t == TEXT;
     }
 
+    public static boolean isPrimitiveAndSupported(DataType t) {
+        return isPrimitive(t) && t != UNSUPPORTED;
+    }
+
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED && t != UNSUPPORTED;
+        return t != OBJECT && t != NESTED;
     }
 
     public static boolean isNull(DataType t) {
@@ -231,6 +235,65 @@ public enum DataType {
 
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
+    }
+
+    public static boolean isNullOrTimeDuration(DataType t) {
+        return t == TIME_DURATION || isNull(t);
+    }
+
+    public static boolean isNullOrDatePeriod(DataType t) {
+        return t == DATE_PERIOD || isNull(t);
+    }
+
+    public static boolean isTemporalAmount(DataType t) {
+        return t == DATE_PERIOD || t == TIME_DURATION;
+    }
+
+    public static boolean isNullOrTemporalAmount(DataType t) {
+        return isTemporalAmount(t) || isNull(t);
+    }
+
+    public static boolean isDateTimeOrTemporal(DataType t) {
+        return isDateTime(t) || isTemporalAmount(t);
+    }
+
+    public static boolean areCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
+        }
+    }
+
+    /**
+     * Supported types that can be contained in a block.
+     */
+    public static boolean isRepresentable(DataType t) {
+        return t != OBJECT
+            && t != NESTED
+            && t != UNSUPPORTED
+            && t != DATE_PERIOD
+            && t != TIME_DURATION
+            && t != BYTE
+            && t != SHORT
+            && t != FLOAT
+            && t != SCALED_FLOAT
+            && t != SOURCE
+            && t != HALF_FLOAT
+            && t != PARTIAL_AGG
+            && t.isCounter() == false;
+    }
+
+    public static boolean isSpatialPoint(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
+    }
+
+    public static boolean isSpatialGeo(DataType t) {
+        return t == GEO_POINT || t == GEO_SHAPE;
+    }
+
+    public static boolean isSpatial(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
     public String nameUpper() {

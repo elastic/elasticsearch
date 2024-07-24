@@ -284,7 +284,7 @@ log10         |Returns the logarithm of a value to base 10. The input can be any
 ltrim         |Removes leading whitespaces from a string.
 max           |The maximum value of a field.
 median        |The value that is greater than half of all values and less than half of all values, also known as the 50% <<esql-percentile>>.
-median_absolut|The median absolute deviation, a measure of variability.
+median_absolut|"Returns the median absolute deviation, a measure of variability. It is a robust statistic, meaning that it is useful for describing data that may have outliers, or may not be normally distributed. For such data it can be more descriptive than standard deviation.  It is calculated as the median of each data point's deviation from the median of the entire sample. That is, for a random variable `X`, the median absolute deviation is `median(|median(X) - X|)`."
 min           |The minimum value of a field.
 mv_append     |Concatenates values of two multi-value fields.
 mv_avg        |Converts a multivalued field into a single valued field containing the average of all of the values.

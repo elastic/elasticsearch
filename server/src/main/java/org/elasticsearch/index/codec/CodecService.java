@@ -107,5 +107,9 @@ public class CodecService implements CodecSupplier {
             return deduplicatingFieldInfosFormat;
         }
 
+        public final Codec delegate() {
+            return delegate;
+        }
+
     }
 }

@@ -17,7 +17,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
+import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -99,7 +99,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void contenderSettings(Settings.Builder builder) {
-        builder.put("index.mode", "logs");
+        builder.put("index.mode", "logsdb");
         settings(builder);
     }
 
@@ -125,113 +125,107 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     @SuppressWarnings("unchecked")
-    public void testMatchAllQuery() throws IOException, MatcherException {
+    public void testMatchAllQuery() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
             .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testTermsQuery() throws IOException, MatcherException {
+    public void testTermsQuery() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String method = randomFrom("put", "post", "get");
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
             .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testHistogramAggregation() throws IOException, MatcherException {
+    public void testHistogramAggregation() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments)
             .aggregation(new HistogramAggregationBuilder("agg").field("memory_usage_bytes").interval(100.0D));
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testTermsAggregation() throws IOException, MatcherException {
+    public void testTermsAggregation() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(0)
             .aggregation(new TermsAggregationBuilder("agg").field("host.name"));
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testDateHistogramAggregation() throws IOException, MatcherException {
+    public void testDateHistogramAggregation() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .aggregation(AggregationBuilders.dateHistogram("agg").field("@timestamp").calendarInterval(DateHistogramInterval.SECOND))
             .size(0);
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
     private static XContentBuilder generateDocument(final Instant timestamp) throws IOException {
@@ -259,6 +253,12 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final Map<String, Object> aggs = (Map<String, Object>) map.get("aggregations");
         final Map<String, Object> agg = (Map<String, Object>) aggs.get(aggName);
         return (List<Map<String, Object>>) agg.get("buckets");
+    }
+
+    private void assertDocumentIndexing(List<XContentBuilder> documents) throws IOException {
+        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
+        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
     }
 
 }

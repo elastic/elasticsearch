@@ -125,7 +125,7 @@ public class AutoscalingNodeInfoService {
         };
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(
             missingNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new)
-        ).clear().addMetric(NodesStatsRequestParameters.Metric.OS.metricName()).timeout(fetchTimeout);
+        ).clear().addMetric(NodesStatsRequestParameters.Metric.OS).timeout(fetchTimeout);
         nodesStatsRequest.setIncludeShardsStats(false);
         client.admin()
             .cluster()

@@ -1834,13 +1834,13 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
-            line 2:39: argument of [max(x)] must be [boolean, datetime or numeric except unsigned_long or counter types],\
+            line 2:39: argument of [max(x)] must be [boolean, datetime, ip or numeric except unsigned_long or counter types],\
              found value [max(x)] type [unsigned_long]
             line 2:47: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
-            line 2:88: argument of [min(x)] must be [boolean, datetime or numeric except unsigned_long or counter types],\
+            line 2:88: argument of [min(x)] must be [boolean, datetime, ip or numeric except unsigned_long or counter types],\
              found value [min(x)] type [unsigned_long]
             line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
              found value [x] type [unsigned_long]
@@ -1854,13 +1854,13 @@ public class AnalyzerTests extends ESTestCase {
             Found 7 problems
             line 2:10: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:18: argument of [max(x)] must be [boolean, datetime or numeric except unsigned_long or counter types],\
+            line 2:18: argument of [max(x)] must be [boolean, datetime, ip or numeric except unsigned_long or counter types],\
              found value [max(x)] type [version]
             line 2:26: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:67: argument of [min(x)] must be [boolean, datetime or numeric except unsigned_long or counter types],\
+            line 2:67: argument of [min(x)] must be [boolean, datetime, ip or numeric except unsigned_long or counter types],\
              found value [min(x)] type [version]
             line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
             line 2:94: argument of [sum(x)] must be [numeric except unsigned_long or counter types], found value [x] type [version]""");

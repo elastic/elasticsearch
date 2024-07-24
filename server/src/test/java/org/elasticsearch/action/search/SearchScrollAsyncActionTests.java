@@ -62,7 +62,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 new Thread(() -> {
                     SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult = new SearchAsyncActionTests.TestSearchPhaseResult(
@@ -159,7 +159,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 new Thread(() -> {
                     SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult = new SearchAsyncActionTests.TestSearchPhaseResult(
@@ -232,7 +232,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 try {
                     assertNotEquals("node2 is not available", "node2", connection.getNode().getId());
@@ -317,7 +317,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 new Thread(() -> {
                     if (internalRequest.contextId().getId() == 17) {
@@ -420,7 +420,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 new Thread(() -> searchActionListener.onFailure(new IllegalArgumentException("BOOM on shard"))).start();
             }

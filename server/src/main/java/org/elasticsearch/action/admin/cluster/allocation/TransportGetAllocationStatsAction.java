@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -36,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 
 public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAction<
@@ -76,7 +78,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (clusterService.state().getMinTransportVersion().before(TransportVersions.ALLOCATION_STATS)) {
+        if (clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_14_0)) {
             // The action is not available before ALLOCATION_STATS
             listener.onResponse(new Response(Map.of(), null));
             return;
@@ -88,10 +90,11 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         listener.onResponse(
             new Response(
-                allocationStatsService.stats(),
-                featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
-                    ? diskThresholdSettings
-                    : null
+                request.metrics().contains(Metric.ALLOCATIONS) ? allocationStatsService.stats() : Map.of(),
+                request.metrics().contains(Metric.FS)
+                    && featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
+                        ? diskThresholdSettings
+                        : null
             )
         );
     }
@@ -103,19 +106,32 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public Request(TimeValue masterNodeTimeout, TaskId parentTaskId) {
+        private final EnumSet<Metric> metrics;
+
+        public Request(TimeValue masterNodeTimeout, TaskId parentTaskId, EnumSet<Metric> metrics) {
             super(masterNodeTimeout);
             setParentTask(parentTaskId);
+            this.metrics = metrics;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            this.metrics = in.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)
+                ? in.readEnumSet(Metric.class)
+                : EnumSet.of(Metric.ALLOCATIONS, Metric.FS);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersions.ALLOCATION_STATS);
+            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0);
             super.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.MASTER_NODE_METRICS)) {
+                out.writeEnumSet(metrics);
+            }
+        }
+
+        public EnumSet<Metric> metrics() {
+            return metrics;
         }
 
         @Override

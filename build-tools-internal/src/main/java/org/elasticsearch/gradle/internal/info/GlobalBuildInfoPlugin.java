@@ -48,7 +48,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -316,47 +315,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     @NotNull
-    private String resolveJavaHomeFromEnvVariable(String javaHomeEnvVar) {
-        Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv");
-        // Provide a useful error if we're looking for a Java home version that we haven't told Gradle about yet
-        Arrays.stream(javaHomeNames.get().split(","))
-            .filter(s -> s.equals(javaHomeEnvVar))
-            .findFirst()
-            .orElseThrow(
-                () -> new GradleException(
-                    "Environment variable '"
-                        + javaHomeEnvVar
-                        + "' is not registered with Gradle installation supplier. Ensure 'org.gradle.java.installations.fromEnv' is "
-                        + "updated in gradle.properties file."
-                )
-            );
-        String versionedJavaHome = System.getenv(javaHomeEnvVar);
-        if (versionedJavaHome == null) {
-            final String exceptionMessage = String.format(
-                Locale.ROOT,
-                "$%s must be set to build Elasticsearch. "
-                    + "Note that if the variable was just set you "
-                    + "might have to run `./gradlew --stop` for "
-                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.",
-                javaHomeEnvVar
-            );
-            throw new GradleException(exceptionMessage);
-        }
-        return versionedJavaHome;
-    }
-
-    @NotNull
     private File resolveJavaHomeFromToolChainService(String version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
         Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(javaToolchainSpec -> {
             javaToolchainSpec.getLanguageVersion().value(value);
-            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
         });
         return javaLauncherProvider.get().getMetadata().getInstallationPath().getAsFile();
-    }
-
-    private static String getJavaHomeEnvVarName(String version) {
-        return "JAVA" + version + "_HOME";
     }
 
     public static String getResourceContents(String resourcePath) {

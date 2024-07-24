@@ -314,7 +314,7 @@ sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric funct
 sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
 split         |Split a single valued string into multiple strings.
 sqrt          |Returns the square root of a number. The input can be any numeric value, the return value is always a double. Square roots of negative numbers and infinities are null.
-st_centroid_ag|The centroid of a spatial field.
+st_centroid_ag|Calculate the spatial centroid over a field with spatial point geometry type.
 st_contains   |Returns whether the first geometry contains the second geometry. This is the inverse of the <<esql-st_within,ST_WITHIN>> function.
 st_disjoint   |Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the <<esql-st_intersects,ST_INTERSECTS>> function. In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅
 st_distance   |Computes the distance between two points. For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates. For geographic geometries, this is the circular distance along the great circle in meters.

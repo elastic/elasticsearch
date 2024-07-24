@@ -112,6 +112,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -2422,5 +2423,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    public static void ensureAllContextsReleased(SearchService searchService) {
+        try {
+            assertBusy(() -> {
+                assertThat(searchService.getActiveContexts(), equalTo(0));
+                assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+            });
+        } catch (Exception e) {
+            throw new AssertionError("Failed to verify search contexts", e);
+        }
     }
 }

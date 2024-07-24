@@ -58,12 +58,13 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                         equalTo(BytesRefs.toBytesRef("2023"))
                     )
                 )
-            )
-        , (v, p) -> switch (p) {
+            ),
+            (v, p) -> switch (p) {
                 case 0 -> "string";
                 case 1 -> "datetime";
                 default -> "";
-            });
+            }
+        );
     }
 
     @Override

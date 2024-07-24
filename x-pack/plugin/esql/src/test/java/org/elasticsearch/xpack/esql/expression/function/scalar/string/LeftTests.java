@@ -167,7 +167,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch(p) {
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
             case 0 -> "string";
             case 1 -> "integer";
             default -> "";

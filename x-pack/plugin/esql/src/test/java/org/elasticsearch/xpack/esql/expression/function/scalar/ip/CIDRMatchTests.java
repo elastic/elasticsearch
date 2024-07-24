@@ -84,7 +84,7 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch(p) {
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
             case 0 -> "ip";
             case 1 -> "string";
             default -> "";

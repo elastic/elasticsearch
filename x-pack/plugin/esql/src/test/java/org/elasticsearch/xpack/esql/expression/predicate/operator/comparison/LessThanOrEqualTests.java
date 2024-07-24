@@ -138,8 +138,9 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
                     v,
                     t,
                     (l, p) -> "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+                )
             )
-        ));
+        );
     }
 
     @Override

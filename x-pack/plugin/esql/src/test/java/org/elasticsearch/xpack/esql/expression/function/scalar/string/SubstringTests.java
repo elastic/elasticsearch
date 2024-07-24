@@ -86,12 +86,13 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                         equalTo(new BytesRef(""))
                     );
                 })
-            )
-        , (v, p) -> switch(p) {
+            ),
+            (v, p) -> switch (p) {
                 case 0 -> "string";
                 case 1, 2 -> "integer";
                 default -> "";
-            });
+            }
+        );
     }
 
     public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {

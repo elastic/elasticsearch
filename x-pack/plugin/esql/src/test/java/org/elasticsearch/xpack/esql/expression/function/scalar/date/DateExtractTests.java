@@ -84,12 +84,13 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                         )
                         .withFoldingException(InvalidArgumentException.class, "invalid date field for []: not a unit")
                 )
-            )
-        , (v, p) -> switch(p) {
+            ),
+            (v, p) -> switch (p) {
                 case 0 -> "string";
                 case 1 -> "datetime";
                 default -> "";
-        });
+            }
+        );
     }
 
     public void testAllChronoFields() {

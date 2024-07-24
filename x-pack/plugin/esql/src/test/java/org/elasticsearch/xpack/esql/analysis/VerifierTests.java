@@ -639,7 +639,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertEquals(
-            "1:19: MATCH requires a text of keyword field, but [salary] has type [integer]",
+            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
             error("from test | where salary match \"100\"")
         );
 

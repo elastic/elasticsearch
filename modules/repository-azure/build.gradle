@@ -16,85 +16,24 @@ esplugin {
   classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
-// netty-buffer-4.1.110.Final.jar
-// netty-codec-4.1.110.Final.jar
-// netty-codec-dns-4.1.109.Final.jar
-// netty-codec-http-4.1.110.Final.jar
-// netty-codec-http2-4.1.110.Final.jar
-// netty-codec-socks-4.1.110.Final.jar
-// netty-common-4.1.110.Final.jar
-// netty-handler-4.1.110.Final.jar
-// netty-handler-proxy-4.1.110.Final.jar
-// netty-resolver-4.1.110.Final.jar
-// netty-resolver-dns-4.1.109.Final.jar
-// netty-resolver-dns-classes-macos-4.1.109.Final.jar
-// netty-resolver-dns-native-macos-4.1.109.Final-osx-x86_64.jar
-// netty-tcnative-boringssl-static-2.0.65.Final-linux-aarch_64.jar
-// netty-tcnative-boringssl-static-2.0.65.Final-linux-x86_64.jar
-// netty-tcnative-boringssl-static-2.0.65.Final-osx-aarch_64.jar
-// netty-tcnative-boringssl-static-2.0.65.Final-osx-x86_64.jar
-// netty-tcnative-boringssl-static-2.0.65.Final-windows-x86_64.jar
-// netty-tcnative-boringssl-static-2.0.65.Final.jar
-// netty-tcnative-classes-2.0.65.Final.jar
-// netty-transport-4.1.110.Final.jar
-// netty-transport-classes-epoll-4.1.110.Final.jar
-// netty-transport-classes-kqueue-4.1.110.Final.jar
-// netty-transport-native-epoll-4.1.110.Final-linux-x86_64.jar
-// netty-transport-native-kqueue-4.1.110.Final-osx-x86_64.jar
-// netty-transport-native-unix-common-4.1.110.Final.jar
-
-// accessors-smart-2.5.0.jar
-// asm-9.3.jar
-// content-type-2.3.jar
-// jackson-annotations-2.13.5.jar
-// jackson-core-2.13.5.jar
-// jackson-databind-2.13.5.jar
-// jackson-dataformat-xml-2.13.5.jar
-// jackson-datatype-jsr310-2.13.5.jar
-// jcip-annotations-1.0-1.jar
-// jna-5.13.0.jar
-// jna-platform-5.6.0.jar
-// json-smart-2.5.0.jar
-// lang-tag-1.7.jar
-// nimbus-jose-jwt-9.37.3.jar
-// oauth2-oidc-sdk-11.9.1.jar
-// reactive-streams-1.0.4.jar
-// reactor-core-3.4.38.jar
-// reactor-netty-core-1.0.45.jar
-// reactor-netty-http-1.0.45.jar
-// slf4j-api-1.7.36.jar
-// stax2-api-4.2.1.jar
-// woodstox-core-6.4.0.jar
-
-// azure-core-1.49.1.jar
-// azure-core-http-netty-1.15.1.jar
-// azure-identity-1.13.0.jar
-// azure-json-1.1.0.jar
-// azure-storage-blob-12.26.1.jar
-// azure-storage-common-12.25.1.jar
-// azure-storage-internal-avro-12.11.1.jar
-// azure-xml-1.0.0.jar
-// msal4j-1.15.1.jar
-// msal4j-persistence-extension-1.3.0.jar
-
 versions << [
-  'azureJackson': '2.15.0', // Maven says 2.13.5
-  'azureNetty': '4.1.109.Final', // Maven says 4.1.110.Final
+  'azureJackson': '2.15.0', // Maven says 2.13.5 but this aligns with the Elasticsearch-wide version
+  'azureNetty': '4.1.109.Final', // Maven says 4.1.110.Final but this aligns with the Elasticsearch-wide version
   'azureReactorNetty': '1.0.45',
 ]
 
 dependencies {
   api "com.azure:azure-storage-blob:12.26.1"
-  api "com.azure:azure-storage-common:12.26.0" // Maven says 12.25.1
+  api "com.azure:azure-storage-common:12.26.0" // Maven says 12.25.1 but that doesn't work?
   api "com.azure:azure-core-http-netty:1.15.1"
-  api "com.azure:azure-core:1.50.0" // Maven says 1.49.1
+  api "com.azure:azure-core:1.50.0" // Maven says 1.49.1 but that doesn't work?
   api "com.azure:azure-identity:1.13.1"
   api "com.azure:azure-json:1.1.0"
   api "com.azure:azure-xml:1.0.0"
-  api "com.microsoft.azure:msal4j:1.16.1" // Maven says 1.15.1?
+  api "com.microsoft.azure:msal4j:1.16.1" // Maven says 1.15.1 but that doesn't work?
   api "com.microsoft.azure:msal4j-persistence-extension:1.3.0"
-  api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0
-  api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0
+  api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
+  api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
   api "net.minidev:accessors-smart:2.5.0"
   api "net.minidev:json-smart:2.5.0"
   api "org.ow2.asm:asm:9.3"
@@ -134,9 +73,9 @@ dependencies {
   api "org.reactivestreams:reactive-streams:1.0.4"
 
   implementation project(":modules:transport-netty4")
-  runtimeOnly("org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}") // https://github.com/elastic/elasticsearch/issues/93714
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
-//  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+//  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
 
   testImplementation project(':test:fixtures:azure-fixture')
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')
@@ -226,7 +165,7 @@ tasks.named("thirdPartyAudit").configure {
     // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
     'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
     // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
-    'org.slf4j.ext.EventData', // - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
+    //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
 
     // tbd
     'com.azure.storage.common.implementation.StorageSeekableByteChannel$ReadBehavior',

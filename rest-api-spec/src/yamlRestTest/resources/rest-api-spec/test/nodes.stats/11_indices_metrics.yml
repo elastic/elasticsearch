@@ -509,6 +509,94 @@
   - match: { nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead_in_bytes: 28672 }
 
 ---
+"Lucene segment level fields stats":
+
+  - requires:
+      cluster_features: ["mapper.segment_level_fields_stats"]
+      reason: "segment level fields stats"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            routing.rebalance.enable: none
+          mappings:
+            runtime:
+              a_source_field:
+                type: keyword
+            properties:
+              "@timestamp":
+                type: date
+              authors:
+                properties:
+                  age:
+                    type: long
+                  company:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                        ignore_above: 256
+                  name:
+                    properties:
+                      first_name:
+                        type: keyword
+                      full_name:
+                        type: text
+                      last_name:
+                        type: keyword
+              link:
+                type: alias
+                path: url
+              title:
+                type: text
+              url:
+                type: keyword
+  - do:
+      cluster.state: {}
+
+  - set:
+      routing_table.indices.index1.shards.0.0.node: node_id
+
+  - do:
+      nodes.stats: { metric: _all, level: "indices", human: true }
+
+  - do:
+      index:
+        index:  index1
+        body:   { "title": "foo", "@timestamp": "2023-10-15T14:12:12" }
+  - do:
+      indices.flush:
+        index: index1
+  - do:
+      nodes.stats: { metric: _all, level: "indices", human: true }
+
+  - match: { nodes.$node_id.indices.mappings.total_count: 28 }
+  - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - match: { nodes.$node_id.indices.mappings.total_segments: 1 }
+  - match: { nodes.$node_id.indices.mappings.total_segment_fields: 28 }
+  - match: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
+
+  - do:
+      index:
+        index:  index1
+        body:   { "title": "bar", "@timestamp": "2023-11-15T14:12:12" }
+  - do:
+      indices.flush:
+        index: index1
+  - do:
+      nodes.stats: { metric: _all, level: "indices", human: true }
+
+  - match: { nodes.$node_id.indices.mappings.total_count: 28 }
+  - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - match: { nodes.$node_id.indices.mappings.total_segments: 2 }
+  - match: { nodes.$node_id.indices.mappings.total_segment_fields: 56 }
+  - match: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
+---
+
 "indices mappings does not exist in shards level":
 
   - requires:

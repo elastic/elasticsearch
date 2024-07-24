@@ -1,0 +1,94 @@
+---
+stored _source mode is not supported:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [logsdb_index_mode]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.15.0"
+          fixed_by: "gte_v8.16.0"
+      reason: "Development of logs index mode spans 8.15 and 8.16"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-stored-source
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+
+---
+disabled _source is not supported:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [logsdb_index_mode]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.15.0"
+          fixed_by: "gte_v8.16.0"
+      reason: "Development of logs index mode spans 8.15 and 8.16"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-disabled-source
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              enabled: false
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-disabled-source
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              mode: disabled
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }

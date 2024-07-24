@@ -85,7 +85,7 @@ versions << [
 
 dependencies {
   api "com.azure:azure-storage-blob:12.26.1"
-  api "com.azure:azure-storage-common:12.25.1"
+  api "com.azure:azure-storage-common:12.26.0" // Maven says 12.25.1
   api "com.azure:azure-core-http-netty:1.15.1"
   api "com.azure:azure-core:1.49.1"
   api "com.azure:azure-identity:1.13.1"

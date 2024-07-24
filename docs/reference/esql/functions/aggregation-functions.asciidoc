@@ -13,7 +13,7 @@ The <<esql-stats-by>> command supports these aggregate functions:
 * <<esql-agg-count-distinct>>
 * <<esql-max>>
 * <<esql-median>>
-* <<esql-median-absolute-deviation>>
+* <<esql-median_absolute_deviation>>
 * <<esql-min>>
 * <<esql-percentile>>
 * experimental:[] <<esql-agg-st-centroid>>
@@ -29,7 +29,7 @@ include::st_centroid_agg.asciidoc[]
 include::layout/avg.asciidoc[]
 include::layout/max.asciidoc[]
 include::layout/median.asciidoc[]
-include::layout/median-absolute-deviation.asciidoc[]
+include::layout/median_absolute_deviation.asciidoc[]
 include::layout/min.asciidoc[]
 include::layout/percentile.asciidoc[]
 include::layout/sum.asciidoc[]

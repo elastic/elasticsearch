@@ -57,7 +57,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     }
 
     public DriverProfile(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.tookNanos = in.readVLong();
             this.cpuNanos = in.readVLong();
             this.iterations = in.readVLong();
@@ -71,7 +71,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeVLong(tookNanos);
             out.writeVLong(cpuNanos);
             out.writeVLong(iterations);

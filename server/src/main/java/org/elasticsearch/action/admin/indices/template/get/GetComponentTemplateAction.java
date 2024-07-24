@@ -132,7 +132,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             } else {
                 rolloverConfiguration = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
             } else {
                 globalRetention = null;
@@ -171,7 +171,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
         }

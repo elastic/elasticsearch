@@ -1159,6 +1159,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Supplier test case data for {@link Version} fields.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.
+     * </p>
      */
     public static List<TypedDataSupplier> versionCases(String prefix) {
         return List.of(

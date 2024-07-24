@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -316,6 +317,33 @@ public final class MultiRowTestCaseSupplier {
                 "<v6 ips>",
                 () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(false)))),
                 DataType.IP,
+                false,
+                true
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> versionCases(int minRows, int maxRows) {
+        return List.of(
+            new TypedDataSupplier(
+                "<major versions>",
+                () -> randomList(minRows, maxRows, () -> new Version(Integer.toString(ESTestCase.between(0, 100))).toBytesRef()),
+                DataType.VERSION,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<major.minor versions>",
+                () -> randomList(minRows, maxRows, () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100)).toBytesRef()),
+                DataType.VERSION,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<major.minor.patch versions>",
+                () -> randomList(minRows, maxRows, () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100))
+                    .toBytesRef()),
+                DataType.VERSION,
                 false,
                 true
             )

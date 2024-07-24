@@ -984,7 +984,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * }
      * </pre>.
      *
-     * In an ideal world we'd promote the {@code short} to an {@code integer} and just go.
+     * We promote the {@code short} to an {@code integer} and run the query as though
+     * there were all {@code integer}.
      */
     public void testIntegerShortConflict() throws IOException {
         assumeTrue(
@@ -998,21 +999,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"emp_no": 2}""");
 
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT emp_no | LIMIT 3"));
-        String err = EntityUtils.toString(e.getResponse().getEntity());
-        assertThat(
-            deyaml(err),
-            containsString(
-                "Cannot use field [emp_no] due to ambiguities being "
-                    + "mapped as [2] incompatible types: [integer] in [test1], [short] in [test2]"
-            )
-        );
-
-        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
+        Map<String, Object> result = runEsql("FROM test* | SORT emp_no ASC | LIMIT 3");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
-                .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
+            matchesMap().entry("columns", List.of(columnInfo("emp_no", "integer")))
+                .entry("values", List.of(matchesList().item(1), matchesList().item(2)))
         );
     }
 

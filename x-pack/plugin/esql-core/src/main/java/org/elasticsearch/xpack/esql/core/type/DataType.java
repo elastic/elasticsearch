@@ -45,13 +45,8 @@ public enum DataType {
 
     LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
     INTEGER(builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
-    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
-    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
     UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues()),
     DOUBLE(builder().esType("double").estimatedSize(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
-    FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
-    HALF_FLOAT(builder().esType("half_float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
-    SCALED_FLOAT(builder().esType("scaled_float").estimatedSize(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
 
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
     TEXT(builder().esType("text").unknownSize()),
@@ -105,12 +100,6 @@ public enum DataType {
     private final boolean isCounter;
 
     /**
-     * If this is a "small" numeric type this contains the type ESQL will
-     * widen it into, otherwise this is {@code null}.
-     */
-    private final DataType widenSmallNumeric;
-
-    /**
      * If this is a representable numeric this will be the counter "version"
      * of this numeric, otherwise this is {@code null}.
      */
@@ -127,7 +116,6 @@ public enum DataType {
         this.isRationalNumber = builder.isRationalNumber;
         this.docValues = builder.docValues;
         this.isCounter = builder.isCounter;
-        this.widenSmallNumeric = builder.widenSmallNumeric;
         this.counter = builder.counter;
     }
 
@@ -146,6 +134,12 @@ public enum DataType {
         // ES calls this 'point', but ESQL calls it 'cartesian_point'
         map.put("point", DataType.CARTESIAN_POINT);
         map.put("shape", DataType.CARTESIAN_SHAPE);
+        // We "widen" some numeric types
+        map.put("byte", DataType.INTEGER);
+        map.put("short", DataType.INTEGER);
+        map.put("float", DataType.DOUBLE);
+        map.put("half_float", DataType.DOUBLE);
+        map.put("scaled_float", DataType.DOUBLE);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -191,13 +185,13 @@ public enum DataType {
             return DOUBLE;
         }
         if (value instanceof Float) {
-            return FLOAT;
+            return DOUBLE;
         }
         if (value instanceof Byte) {
-            return BYTE;
+            return INTEGER;
         }
         if (value instanceof Short) {
-            return SHORT;
+            return INTEGER;
         }
         if (value instanceof ZonedDateTime) {
             return DATETIME;
@@ -274,12 +268,7 @@ public enum DataType {
             && t != UNSUPPORTED
             && t != DATE_PERIOD
             && t != TIME_DURATION
-            && t != BYTE
-            && t != SHORT
-            && t != FLOAT
-            && t != SCALED_FLOAT
             && t != SOURCE
-            && t != HALF_FLOAT
             && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
@@ -356,14 +345,6 @@ public enum DataType {
     }
 
     /**
-     * If this is a "small" numeric type this contains the type ESQL will
-     * widen it into, otherwise this returns {@code this}.
-     */
-    public DataType widenSmallNumeric() {
-        return widenSmallNumeric == null ? this : widenSmallNumeric;
-    }
-
-    /**
      * If this is a representable numeric this will be the counter "version"
      * of this numeric, otherwise this is {@code null}.
      */
@@ -433,12 +414,6 @@ public enum DataType {
         private boolean isCounter;
 
         /**
-         * If this is a "small" numeric type this contains the type ESQL will
-         * widen it into, otherwise this is {@code null}.
-         */
-        private DataType widenSmallNumeric;
-
-        /**
          * If this is a representable numeric this will be the counter "version"
          * of this numeric, otherwise this is {@code null}.
          */
@@ -483,11 +458,6 @@ public enum DataType {
 
         Builder counter() {
             this.isCounter = true;
-            return this;
-        }
-
-        Builder widenSmallNumeric(DataType widenSmallNumeric) {
-            this.widenSmallNumeric = widenSmallNumeric;
             return this;
         }
 

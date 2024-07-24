@@ -65,7 +65,7 @@ public class AvgTests extends AbstractAggregationTestCase {
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
 
-            Object expected = switch (fieldTypedData.type().widenSmallNumeric()) {
+            Object expected = switch (fieldTypedData.type()) {
                 case INTEGER -> fieldTypedData.multiRowData()
                     .stream()
                     .map(v -> (Integer) v)

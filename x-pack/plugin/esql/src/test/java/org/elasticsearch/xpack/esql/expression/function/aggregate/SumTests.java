@@ -92,7 +92,7 @@ public class SumTests extends AbstractAggregationTestCase {
             Object expected;
 
             try {
-                expected = switch (fieldTypedData.type().widenSmallNumeric()) {
+                expected = switch (fieldTypedData.type()) {
                     case INTEGER -> fieldTypedData.multiRowData()
                         .stream()
                         .map(v -> (Integer) v)

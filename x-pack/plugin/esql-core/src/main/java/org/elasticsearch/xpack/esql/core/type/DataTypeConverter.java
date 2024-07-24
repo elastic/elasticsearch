@@ -23,16 +23,13 @@ import java.util.function.DoubleFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -152,15 +149,6 @@ public final class DataTypeConverter {
         }
         if (to == INTEGER) {
             return conversionToInt(from);
-        }
-        if (to == SHORT) {
-            return conversionToShort(from);
-        }
-        if (to == BYTE) {
-            return conversionToByte(from);
-        }
-        if (to == FLOAT) {
-            return conversionToFloat(from);
         }
         if (to == DOUBLE) {
             return conversionToDouble(from);
@@ -446,12 +434,6 @@ public final class DataTypeConverter {
     public static Number toInteger(double x, DataType dataType) {
         long l = safeDoubleToLong(x);
 
-        if (dataType == BYTE) {
-            return safeToByte(l);
-        }
-        if (dataType == SHORT) {
-            return safeToShort(l);
-        }
         if (dataType == INTEGER) {
             return safeToInt(l);
         }

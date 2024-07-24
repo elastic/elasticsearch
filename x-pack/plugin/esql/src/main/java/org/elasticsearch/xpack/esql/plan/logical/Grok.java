@@ -35,7 +35,7 @@ public class Grok extends RegexExtract {
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
                 // promote small numeric types, since Grok can produce float values
-                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type()).widenSmallNumeric()))
+                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type())))
                 .collect(Collectors.toList());
         }
 
@@ -44,8 +44,7 @@ public class Grok extends RegexExtract {
                 case STRING -> DataType.KEYWORD;
                 case INTEGER -> DataType.INTEGER;
                 case LONG -> DataType.LONG;
-                case FLOAT -> DataType.FLOAT;
-                case DOUBLE -> DataType.DOUBLE;
+                case FLOAT, DOUBLE -> DataType.DOUBLE;
                 case BOOLEAN -> DataType.BOOLEAN;
             };
         }

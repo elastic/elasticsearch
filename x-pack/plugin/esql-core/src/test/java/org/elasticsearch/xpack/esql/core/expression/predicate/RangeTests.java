@@ -19,11 +19,9 @@ import java.util.Arrays;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
@@ -220,7 +218,7 @@ public class RangeTests extends ESTestCase {
     }
 
     private static DataType randomNumericType() {
-        return randomFrom(INTEGER, SHORT, LONG, UNSIGNED_LONG, FLOAT, DOUBLE);
+        return randomFrom(INTEGER, LONG, UNSIGNED_LONG, DOUBLE);
     }
 
     private static DataType randomTextType() {

@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.ClassModel;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -139,15 +138,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public static Literal randomLiteral(DataType type) {
         return new Literal(Source.EMPTY, switch (type) {
             case BOOLEAN -> randomBoolean();
-            case BYTE -> randomByte();
-            case SHORT -> randomShort();
             case INTEGER, COUNTER_INTEGER -> randomInt();
             case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
             case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case DATETIME -> randomMillisUpToYear9999();
-            case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
-            case FLOAT -> randomFloat();
-            case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
+            case DOUBLE, COUNTER_DOUBLE -> randomDouble();
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days

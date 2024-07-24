@@ -22,13 +22,10 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     static class ValueAndCompatibleTypes {
@@ -49,12 +46,12 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
      */
     private static final List<ValueAndCompatibleTypes> GENERATORS = Arrays.asList(
         new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomByte, BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomShort, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomInt, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomLong, LONG, FLOAT, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomFloat, FLOAT, LONG, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomDouble, DOUBLE, LONG, FLOAT, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomByte, INTEGER, LONG, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomShort, INTEGER, LONG, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomInt, INTEGER, LONG, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomLong, LONG, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomFloat, LONG, DOUBLE, BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomDouble, DOUBLE, LONG, BOOLEAN),
         new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), KEYWORD)
     );
 
@@ -131,7 +128,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     private static List<DataType> validReplacementDataTypes(Object value, DataType type) {
         List<DataType> validDataTypes = new ArrayList<>();
-        List<DataType> options = Arrays.asList(BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN);
+        List<DataType> options = Arrays.asList(INTEGER, LONG, DOUBLE, BOOLEAN);
         for (DataType candidate : options) {
             try {
                 Converter c = DataTypeConverter.converterFor(type, candidate);

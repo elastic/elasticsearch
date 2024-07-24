@@ -1388,8 +1388,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(matchField.name(), equalTo("j"));
     }
 
-    public void testInlineConvertUnsupportedType() {
-        expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
+    public void testInlineConvertUnknownType() {
+        expectError("ROW 3::BYTE", "line 1:9: Unknown data type named [BYTE]");
     }
 
     public void testMetricsWithoutStats() {

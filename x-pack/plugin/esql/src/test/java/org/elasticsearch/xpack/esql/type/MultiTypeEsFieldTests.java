@@ -147,7 +147,6 @@ public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiT
             DataType.BOOLEAN,
             DataType.DATETIME,
             DataType.DOUBLE,
-            DataType.FLOAT,
             DataType.INTEGER,
             DataType.IP,
             DataType.KEYWORD,
@@ -168,7 +167,7 @@ public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiT
             return switch (toType) {
                 case BOOLEAN -> new ToBoolean(Source.EMPTY, fromField);
                 case DATETIME -> new ToDatetime(Source.EMPTY, fromField);
-                case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField);
+                case DOUBLE -> new ToDouble(Source.EMPTY, fromField);
                 case INTEGER -> new ToInteger(Source.EMPTY, fromField);
                 case LONG -> new ToLong(Source.EMPTY, fromField);
                 case IP -> new ToIP(Source.EMPTY, fromField);

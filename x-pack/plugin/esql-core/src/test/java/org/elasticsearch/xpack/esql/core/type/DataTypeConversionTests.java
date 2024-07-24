@@ -18,16 +18,13 @@ import java.math.BigInteger;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -179,62 +176,8 @@ public class DataTypeConversionTests extends ESTestCase {
         }
     }
 
-    public void testConversionToFloat() {
-        DataType to = FLOAT;
-        {
-            Converter conversion = converterFor(DOUBLE, to);
-            assertNull(conversion.convert(null));
-            assertEquals(10.0f, (float) conversion.convert(10.0d), 0.00001);
-            assertEquals(10.1f, (float) conversion.convert(10.1d), 0.00001);
-            assertEquals(10.6f, (float) conversion.convert(10.6d), 0.00001);
-        }
-        {
-            Converter conversion = converterFor(UNSIGNED_LONG, to);
-            assertNull(conversion.convert(null));
-
-            BigInteger bi = randomBigInteger();
-            assertEquals(bi.floatValue(), (float) conversion.convert(bi), 0);
-        }
-        {
-            Converter conversion = converterFor(INTEGER, to);
-            assertNull(conversion.convert(null));
-            assertEquals(10.0f, (float) conversion.convert(10), 0.00001);
-            assertEquals(-134.0f, (float) conversion.convert(-134), 0.00001);
-        }
-        {
-            Converter conversion = converterFor(BOOLEAN, to);
-            assertNull(conversion.convert(null));
-            assertEquals(1.0f, (float) conversion.convert(true), 0);
-            assertEquals(0.0f, (float) conversion.convert(false), 0);
-        }
-        {
-            Converter conversion = converterFor(DATETIME, to);
-            assertNull(conversion.convert(null));
-            assertEquals(1.23456789101E11f, (float) conversion.convert(asDateTime(123456789101L)), 0);
-            assertEquals(-1.23456789101E11f, (float) conversion.convert(asDateTime(-123456789101L)), 0);
-            // Nanos are ignored, only millis are used
-            assertEquals(1.5883284E12f, conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z")));
-        }
-        {
-            Converter conversion = converterFor(KEYWORD, to);
-            assertNull(conversion.convert(null));
-            assertEquals(1.0f, (float) conversion.convert("1"), 0);
-            assertEquals(0.0f, (float) conversion.convert("-0"), 0);
-            assertEquals(12.776f, (float) conversion.convert("12.776"), 0.00001);
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [float]", e.getMessage());
-        }
-    }
-
     public void testConversionToDouble() {
         DataType to = DOUBLE;
-        {
-            Converter conversion = converterFor(FLOAT, to);
-            assertNull(conversion.convert(null));
-            assertEquals(10.0, (double) conversion.convert(10.0f), 0.00001);
-            assertEquals(10.1, (double) conversion.convert(10.1f), 0.00001);
-            assertEquals(10.6, (double) conversion.convert(10.6f), 0.00001);
-        }
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);
             assertNull(conversion.convert(null));
@@ -275,13 +218,6 @@ public class DataTypeConversionTests extends ESTestCase {
 
     public void testConversionToBoolean() {
         DataType to = BOOLEAN;
-        {
-            Converter conversion = converterFor(FLOAT, to);
-            assertNull(conversion.convert(null));
-            assertEquals(true, conversion.convert(10.0f));
-            assertEquals(true, conversion.convert(-10.0f));
-            assertEquals(false, conversion.convert(0.0f));
-        }
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);
             assertNull(conversion.convert(null));
@@ -435,72 +371,6 @@ public class DataTypeConversionTests extends ESTestCase {
         }
     }
 
-    public void testConversionToShort() {
-        DataType to = SHORT;
-        {
-            Converter conversion = converterFor(DOUBLE, to);
-            assertNull(conversion.convert(null));
-            assertEquals((short) 10, conversion.convert(10.0));
-            assertEquals((short) 10, conversion.convert(10.1));
-            assertEquals((short) 11, conversion.convert(10.6));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Integer.MAX_VALUE));
-            assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
-        }
-        {
-            Converter conversion = converterFor(UNSIGNED_LONG, to);
-            assertNull(conversion.convert(null));
-            BigInteger bi = BigInteger.valueOf(randomIntBetween(0, Short.MAX_VALUE));
-            assertEquals(bi.shortValueExact(), conversion.convert(bi));
-
-            BigInteger bip = BigInteger.valueOf(randomLongBetween(Short.MAX_VALUE, Long.MAX_VALUE));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(bip));
-            assertEquals("[" + bip + "] out of [short] range", e.getMessage());
-        }
-        {
-            Converter conversion = converterFor(DATETIME, to);
-            assertNull(conversion.convert(null));
-            assertEquals((short) 12345, conversion.convert(asDateTime(12345L)));
-            assertEquals((short) -12345, conversion.convert(asDateTime(-12345L)));
-            // Nanos are ignored, only millis are used
-            assertEquals((short) 1123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:00:01.123456789Z")));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
-            assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
-        }
-    }
-
-    public void testConversionToByte() {
-        DataType to = BYTE;
-        {
-            Converter conversion = converterFor(DOUBLE, to);
-            assertNull(conversion.convert(null));
-            assertEquals((byte) 10, conversion.convert(10.0));
-            assertEquals((byte) 10, conversion.convert(10.1));
-            assertEquals((byte) 11, conversion.convert(10.6));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Short.MAX_VALUE));
-            assertEquals("[" + Short.MAX_VALUE + "] out of [byte] range", e.getMessage());
-        }
-        {
-            Converter conversion = converterFor(UNSIGNED_LONG, to);
-            assertNull(conversion.convert(null));
-            BigInteger bi = BigInteger.valueOf(randomIntBetween(0, Byte.MAX_VALUE));
-            assertEquals(bi.byteValueExact(), conversion.convert(bi));
-
-            BigInteger bip = BigInteger.valueOf(randomLongBetween(Byte.MAX_VALUE, Long.MAX_VALUE));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(bip));
-            assertEquals("[" + bip + "] out of [byte] range", e.getMessage());
-        }
-        {
-            Converter conversion = converterFor(DATETIME, to);
-            assertNull(conversion.convert(null));
-            assertEquals((byte) 123, conversion.convert(asDateTime(123L)));
-            assertEquals((byte) -123, conversion.convert(asDateTime(-123L)));
-            // Nanos are ignored, only millis are used
-            assertEquals((byte) 123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:00:00.123456789Z")));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
-            assertEquals("[" + Integer.MAX_VALUE + "] out of [byte] range", e.getMessage());
-        }
-    }
-
     public void testConversionToNull() {
         Converter conversion = converterFor(DOUBLE, NULL);
         assertNull(conversion.convert(null));
@@ -526,12 +396,7 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(NULL, commonType(NULL, NULL));
         assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
         assertEquals(LONG, commonType(TEXT, LONG));
-        assertEquals(SHORT, commonType(SHORT, BYTE));
-        assertEquals(FLOAT, commonType(BYTE, FLOAT));
-        assertEquals(FLOAT, commonType(FLOAT, INTEGER));
         assertEquals(UNSIGNED_LONG, commonType(UNSIGNED_LONG, LONG));
-        assertEquals(DOUBLE, commonType(DOUBLE, FLOAT));
-        assertEquals(FLOAT, commonType(FLOAT, UNSIGNED_LONG));
 
         // strings
         assertEquals(TEXT, commonType(TEXT, KEYWORD));

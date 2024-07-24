@@ -306,13 +306,7 @@ public final class EsqlExpressionTranslators {
             // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
             BigDecimal minValue;
             BigDecimal maxValue;
-            if (numericFieldDataType == DataType.BYTE) {
-                minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
-                maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
-            } else if (numericFieldDataType == DataType.SHORT) {
-                minValue = BigDecimal.valueOf(Short.MIN_VALUE);
-                maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
-            } else if (numericFieldDataType == DataType.INTEGER) {
+            if (numericFieldDataType == DataType.INTEGER) {
                 minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
             } else if (numericFieldDataType == DataType.LONG) {
@@ -321,14 +315,7 @@ public final class EsqlExpressionTranslators {
             } else if (numericFieldDataType == DataType.UNSIGNED_LONG) {
                 minValue = BigDecimal.ZERO;
                 maxValue = UNSIGNED_LONG_MAX;
-            } else if (numericFieldDataType == DataType.HALF_FLOAT) {
-                minValue = HALF_FLOAT_MAX.negate();
-                maxValue = HALF_FLOAT_MAX;
-            } else if (numericFieldDataType == DataType.FLOAT) {
-                minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
-                maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
-            } else if (numericFieldDataType == DataType.DOUBLE || numericFieldDataType == DataType.SCALED_FLOAT) {
-                // Scaled floats are represented as doubles in ESQL.
+            } else if (numericFieldDataType == DataType.DOUBLE) {
                 minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Double.MAX_VALUE);
             } else {

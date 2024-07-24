@@ -68,8 +68,7 @@ public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTest
             .withTakenIncremented(policy)
             .withDeletedIncremented(policy)
             .withFailedIncremented(policy)
-            .withDeleteFailuresIncremented(policy);
-
+            .withDeleteFailureIncremented(policy);
 
         var policyStats = Map.of(policy, new SnapshotLifecycleStats.SnapshotPolicyStats(policy, 1, 1, 1, 1));
         SnapshotLifecycleStats expected = new SnapshotLifecycleStats(1, 1, 1, TimeValue.ONE_MINUTE.millis(), policyStats);
@@ -125,7 +124,7 @@ public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTest
             case 4 -> instance.withTakenIncremented(policy);
             case 5 -> instance.withFailedIncremented(policy);
             case 6 -> instance.withDeletedIncremented(policy);
-            default -> instance.withDeleteFailuresIncremented(policy);
+            default -> instance.withDeleteFailureIncremented(policy);
         };
     }
 

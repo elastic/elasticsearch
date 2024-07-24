@@ -319,7 +319,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             }, e -> {
                 try {
                     logger.warn(() -> format("[%s] failed to delete snapshot [%s] for retention", repo, snapshot), e);
-                    slmStats.getAndUpdate(s -> s.withDeleteFailuresIncremented(slmPolicy));
+                    slmStats.getAndUpdate(s -> s.withDeleteFailureIncremented(slmPolicy));
                 } finally {
                     listener.onFailure(e);
                 }

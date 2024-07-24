@@ -174,7 +174,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returned new stats with the amount of time taken for deleting snapshots during SLM retention updated
+     * Return new stats with the amount of time taken for deleting snapshots during SLM retention updated
      */
     public SnapshotLifecycleStats withDeletionTimeUpdated(TimeValue elapsedTime) {
         final long newRetentionTimeMs = retentionTimeMs + elapsedTime.millis();
@@ -205,8 +205,8 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     /**
      * Return new stats with the per-policy snapshot deletion failure count for the given policy id incremented
      */
-    public SnapshotLifecycleStats withDeleteFailuresIncremented(String slmPolicy) {
-        return merge(new SnapshotLifecycleStats(Map.of(slmPolicy, SnapshotPolicyStats.failedDelete(slmPolicy))));
+    public SnapshotLifecycleStats withDeleteFailureIncremented(String slmPolicy) {
+        return merge(new SnapshotLifecycleStats(Map.of(slmPolicy, SnapshotPolicyStats.deleteFailure(slmPolicy))));
     }
 
     @Override
@@ -254,13 +254,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            retentionRun,
-            retentionFailed,
-            retentionTimedOut,
-            retentionTimeMs,
-            policyStats
-        );
+        return Objects.hash(retentionRun, retentionFailed, retentionTimedOut, retentionTimeMs, policyStats);
     }
 
     @Override
@@ -356,7 +350,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             return new SnapshotPolicyStats(policyId, 0, 0, 1, 0);
         }
 
-        private static SnapshotPolicyStats failedDelete(String policyId) {
+        private static SnapshotPolicyStats deleteFailure(String policyId) {
             return new SnapshotPolicyStats(policyId, 0, 0, 0, 1);
         }
 
@@ -375,13 +369,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
         @Override
         public int hashCode() {
-            return Objects.hash(
-                policyId,
-                snapshotsTaken,
-                snapshotsFailed,
-                snapshotsDeleted,
-                snapshotDeleteFailures
-            );
+            return Objects.hash(policyId, snapshotsTaken, snapshotsFailed, snapshotsDeleted, snapshotDeleteFailures);
         }
 
         @Override

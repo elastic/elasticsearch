@@ -48,7 +48,9 @@ public abstract class WatchRecord implements ToXContentObject {
     private static final ParseField EXECUTION_RESULT = new ParseField("result");
     private static final ParseField EXCEPTION = new ParseField("exception");
     private static final ParseField USER = new ParseField("user");
-    public static final String TRUNCATED_MESSAGE = "truncated for size";
+    public static final String TRUNCATED_RECORD_KEY = "truncated";
+    public static final String TRUNCATED_RECORD_VALUE = "Watch history record exceeded the value of the "
+        + "`xpack.watcher.max.history.record.size' setting";
 
     protected final Wid id;
     protected final Watch watch;
@@ -444,14 +446,15 @@ public abstract class WatchRecord implements ToXContentObject {
         return new ExecutableInput<>(new Input() {
             @Override
             public String type() {
-                return TRUNCATED_MESSAGE;
+                return TRUNCATED_RECORD_KEY;
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                builder.field(TRUNCATED_MESSAGE, true);
-                builder.endObject();
+                builder.value(TRUNCATED_RECORD_VALUE);
+                // builder.startObject();
+                // builder.field(TRUNCATED_RECORD_KEY, TRUNCATED_RECORD_VALUE);
+                // builder.endObject();
                 return builder;
             }
         }) {
@@ -509,7 +512,7 @@ public abstract class WatchRecord implements ToXContentObject {
                     watchRecord.executionResult.executionTime()
                 );
                 builder.field(Field.EXECUTION_DURATION.getPreferredName(), watchRecord.executionResult.executionDurationMs());
-                builder.field(TRUNCATED_MESSAGE, true);
+                builder.field(TRUNCATED_RECORD_KEY, TRUNCATED_RECORD_VALUE);
                 builder.endObject();
                 return builder;
             }

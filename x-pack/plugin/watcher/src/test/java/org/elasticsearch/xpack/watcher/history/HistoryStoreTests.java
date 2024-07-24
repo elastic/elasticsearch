@@ -85,7 +85,7 @@ public class HistoryStoreTests extends ESTestCase {
         BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build();
         Settings.Builder settingsBuilder = Settings.builder();
         if (maxHistoryRecordSize != null) {
-            settingsBuilder.put(HistoryStore.MAX_HISTORY_SIZE.getKey(), maxHistoryRecordSize);
+            settingsBuilder.put(HistoryStore.MAX_HISTORY_SIZE_SETTING.getKey(), maxHistoryRecordSize);
         }
         Settings settings = settingsBuilder.build();
         return new HistoryStore(bulkProcessor, settings);
@@ -123,8 +123,6 @@ public class HistoryStoreTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutLargeHistory() throws Exception {
-        ZonedDateTime now = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC);
-
         IndexResponse indexResponse = mock(IndexResponse.class);
         AtomicBoolean historyRedacted = new AtomicBoolean(false);
         doAnswer(invocation -> {
@@ -134,9 +132,17 @@ public class HistoryStoreTests extends ESTestCase {
             Map<String, Object> sourceMap = indexRequest.sourceAsMap();
             if (indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(HistoryStoreField.DATA_STREAM)) {
                 if (sourceMap.containsKey("input")
-                    && ((Map<String, Object>) sourceMap.get("input")).containsKey(WatchRecord.TRUNCATED_MESSAGE)
+                    && ((Map<String, Object>) sourceMap.get("input")).containsKey(WatchRecord.TRUNCATED_RECORD_KEY)
                     && sourceMap.containsKey("result")
-                    && ((Map<String, Object>) sourceMap.get("result")).containsKey(WatchRecord.TRUNCATED_MESSAGE)) {
+                    && ((Map<String, Object>) sourceMap.get("result")).containsKey(WatchRecord.TRUNCATED_RECORD_KEY)) {
+                    assertThat(
+                        ((Map<String, Object>) sourceMap.get("input")).get(WatchRecord.TRUNCATED_RECORD_KEY),
+                        equalTo(WatchRecord.TRUNCATED_RECORD_VALUE)
+                    );
+                    assertThat(
+                        ((Map<String, Object>) sourceMap.get("result")).get(WatchRecord.TRUNCATED_RECORD_KEY),
+                        equalTo(WatchRecord.TRUNCATED_RECORD_VALUE)
+                    );
                     historyRedacted.set(true);
                 }
                 listener.onResponse(
@@ -171,6 +177,7 @@ public class HistoryStoreTests extends ESTestCase {
              * Now make sure that we don't blow up when the input and result are null
              */
             historyRedacted.set(false);
+            ZonedDateTime now = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC);
             Wid wid = new Wid("_name", now);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), now, now);
             WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(

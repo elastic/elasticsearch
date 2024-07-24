@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioExceptio
 public class HistoryStore {
 
     private static final Logger logger = LogManager.getLogger(HistoryStore.class);
-    public static final Setting<ByteSizeValue> MAX_HISTORY_SIZE = Setting.byteSizeSetting(
+    public static final Setting<ByteSizeValue> MAX_HISTORY_SIZE_SETTING = Setting.byteSizeSetting(
         "xpack.watcher.max.history.record.size",
         ByteSizeValue.ofMb(10),
         NodeScope
@@ -42,7 +42,7 @@ public class HistoryStore {
 
     public HistoryStore(BulkProcessor2 bulkProcessor, Settings settings) {
         this.bulkProcessor = bulkProcessor;
-        maxHistoryRecordSize = MAX_HISTORY_SIZE.get(settings);
+        maxHistoryRecordSize = MAX_HISTORY_SIZE_SETTING.get(settings);
     }
 
     /**

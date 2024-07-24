@@ -40,7 +40,7 @@ double e()
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
 "boolean|double|integer|long|date|ip max(field:boolean|double|integer|long|date|ip)"
-"double|integer|long median(number:double|integer|long)"
+"double median(number:double|integer|long)"
 "double|integer|long median_absolute_deviation(number:double|integer|long)"
 "boolean|double|integer|long|date|ip min(field:boolean|double|integer|long|date|ip)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(field1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, field2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
@@ -406,7 +406,7 @@ log           |double                                                           
 log10         |double                                                                                                                      |false                       |false           |false
 ltrim         |"keyword|text"                                                                                                              |false                       |false           |false
 max           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
-median        |"double|integer|long"                                                                                                       |false                       |false           |true
+median        |double                                                                                                       |false                       |false           |true
 median_absolut|"double|integer|long"                                                                                                       |false                       |false           |true
 min           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
 mv_append     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false]              |false 		     |false

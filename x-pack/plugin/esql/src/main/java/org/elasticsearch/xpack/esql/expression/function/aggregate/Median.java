@@ -32,7 +32,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
     // TODO: Add the compression parameter
     @FunctionInfo(
-        returnType = { "double", "integer", "long" },
+        returnType = "double",
         description = "The value that is greater than half of all values and less than half of all values.",
         isAggregation = true
     )

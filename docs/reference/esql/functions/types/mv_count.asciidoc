@@ -8,6 +8,7 @@ field | result
 boolean | integer
 cartesian_point | integer
 cartesian_shape | integer
+date_nanos | integer
 datetime | integer
 double | integer
 geo_point | integer

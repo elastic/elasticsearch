@@ -100,9 +100,9 @@ public class HistoryStoreTests extends ESTestCase {
         IndexResponse indexResponse = mock(IndexResponse.class);
 
         doAnswer(invocation -> {
-            BulkRequest request = (BulkRequest) invocation.getArguments()[0];
+            BulkRequest request = (BulkRequest) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             if (indexRequest.id().equals(wid.value())
@@ -118,10 +118,7 @@ public class HistoryStoreTests extends ESTestCase {
         }).when(client).bulk(any(), any());
 
         historyStore.put(watchRecord);
-        ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client).bulk(bulkRequestArgumentCaptor.capture(), any());
-        BulkRequest historyRequest = bulkRequestArgumentCaptor.capture();
-        System.out.println(historyRequest);
+        verify(client).bulk(any(), any());
     }
 
     @SuppressWarnings("unchecked")

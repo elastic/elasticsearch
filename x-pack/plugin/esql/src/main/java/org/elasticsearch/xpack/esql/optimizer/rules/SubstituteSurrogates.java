@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -79,7 +80,7 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
                         var attr = aggFuncToAttr.get(af);
                         // the agg doesn't exist in the Aggregate, create an alias for it and save its attribute
                         if (attr == null) {
-                            var temporaryName = temporaryName(af, agg, counter[0]++);
+                            var temporaryName = LogicalPlanOptimizer.temporaryName(af, agg, counter[0]++);
                             // create a synthetic alias (so it doesn't clash with a user defined name)
                             var newAlias = new Alias(agg.source(), temporaryName, null, af, null, true);
                             attr = newAlias.toAttribute();
@@ -131,29 +132,5 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
         }
 
         return plan;
-    }
-
-    public static String temporaryName(Expression inner, Expression outer, int suffix) {
-        String in = toString(inner);
-        String out = toString(outer);
-        return rawTemporaryName(in, out, String.valueOf(suffix));
-    }
-
-    public static String rawTemporaryName(String inner, String outer, String suffix) {
-        return "$$" + inner + "$" + outer + "$" + suffix;
-    }
-
-    static int TO_STRING_LIMIT = 16;
-
-    static String toString(Expression ex) {
-        return ex instanceof AggregateFunction af ? af.functionName() : extractString(ex);
-    }
-
-    static String extractString(Expression ex) {
-        return ex instanceof NamedExpression ne ? ne.name() : limitToString(ex.sourceText()).replace(' ', '_');
-    }
-
-    static String limitToString(String string) {
-        return string.length() > 16 ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
     }
 }

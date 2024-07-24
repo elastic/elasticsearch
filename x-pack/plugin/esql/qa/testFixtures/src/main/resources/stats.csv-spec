@@ -31,6 +31,96 @@ MIN(languages):integer
 // end::min-result[]
 ;
 
+maxOfBoolean
+required_capability: agg_max_min_boolean_support
+from employees | stats s = max(still_hired);
+
+s:boolean
+true
+;
+
+maxOfBooleanExpression
+required_capability: agg_max_min_boolean_support
+from employees
+| eval x = salary is not null
+| where emp_no > 10050
+| stats a = max(salary is not null), b = max(x), c = max(case(salary is null, true, false)), d = max(is_rehired);
+
+a:boolean | b:boolean | c:boolean | d:boolean
+true      | true      | false     | true
+;
+
+maxOfIp
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats max(ip0), a = max(ip0), b = max(x), c = max(case(host == "beta", ip0, ip1));
+
+max(ip0):ip | a:ip | b:ip | c:ip
+fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0
+;
+
+
+maxOfIpGrouping
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats max(ip0), a = max(ip0), b = max(x), c = max(case(host == "beta", ip0, ip1)) by host
+| sort host asc;
+
+max(ip0):ip | a:ip | b:ip | c:ip | host:keyword
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1 | beta
+fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | epsilon
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe81::cae2:65ff:fece:feb9 | gamma
+;
+
+minOfBooleanExpression
+required_capability: agg_max_min_boolean_support
+from employees
+| eval x = salary is not null
+| where emp_no > 10050
+| stats a = min(salary is not null), b = min(x), c = min(case(salary is null, true, false)), d = min(is_rehired);
+
+a:boolean | b:boolean | c:boolean | d:boolean
+true      | true      | false     | false
+;
+
+minOfBoolean
+required_capability: agg_max_min_boolean_support
+from employees | stats s = min(still_hired);
+
+s:boolean
+false
+;
+
+minOfIp
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats min(ip0), a = min(ip0), b = min(x), c = min(case(host == "beta", ip0, ip1));
+
+min(ip0):ip | a:ip | b:ip | c:ip
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1
+;
+
+
+minOfIpGrouping
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats min(ip0), a = min(ip0), b = min(x), c = min(case(host == "beta", ip0, ip1)) by host
+| sort host asc;
+
+min(ip0):ip | a:ip | b:ip | c:ip | host:keyword
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1 | beta
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | 127.0.0.1 | epsilon
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | 127.0.0.3 | gamma
+;
+
 maxOfShort
 // short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
 from employees | stats l = max(languages.short);
@@ -575,6 +665,65 @@ ca:l | cx:l | l:i
 1    | 1    | null
 ;
 
+///////////////////////////////////////////////////////////////
+// Test edge case interaction with push down past a rename
+// https://github.com/elastic/elasticsearch/issues/108008
+///////////////////////////////////////////////////////////////
+
+countSameFieldWithEval
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | eval b = gender | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithDissect
+required_capability: fixed_pushdown_past_project
+from employees | stats b = count(gender), c = count(gender) by gender | dissect gender "%{b}" | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithGrok
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | grok gender "%{USERNAME:b}" | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithEnrich
+required_capability: fixed_pushdown_past_project
+required_capability: enrich_load
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | null
+57  | M        | null
+;
+
+countSameFieldWithEnrichLimit0
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc | limit 0
+;
+
+c:l | gender:s | b:s
+;
+///////////////////////////////////////////////////////////////
+
 aggsWithoutStats
 from employees | stats by gender | sort gender;
 
@@ -1118,6 +1267,34 @@ ROW words="foo;bar;baz;qux;quux;foo"
 word_count:long
 6
 // end::docsCountWithExpression-result[]
+;
+
+count_where#[skip:-8.12.1,reason:implemented in 8.12]
+// tag::count-where[]
+ROW n=1
+| WHERE n < 0
+| STATS COUNT(n)
+// end::count-where[]
+;
+
+// tag::count-where-result[]
+COUNT(n):long
+            0
+// end::count-where-result[]
+;
+
+
+count_or_null#[skip:-8.14.1,reason:implemented in 8.14]
+// tag::count-or-null[]
+ROW n=1
+| STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)
+// end::count-or-null[]
+;
+
+// tag::count-or-null-result[]
+COUNT(n > 0 OR NULL):long | COUNT(n < 0 OR NULL):long
+                        1 | 0
+// end::count-or-null-result[]
 ;
 
 countMultiValuesRow
@@ -1818,4 +1995,94 @@ warning:Line 3:17: java.lang.ArithmeticException: / by zero
 
 w_avg:double
 null
+;
+
+shadowingInternal
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no)
+;
+
+x:integer
+10001
+;
+
+shadowingInternalWithGroup#[skip:-8.14.1,reason:implemented in 8.14]
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no) BY x = gender
+| SORT x ASC
+;
+
+x:keyword
+F
+M
+null
+;
+
+shadowingTheGroup
+FROM employees
+| STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender
+| SORT gender ASC
+;
+
+gender:keyword
+F
+M
+null
+;
+
+docsStatsMvGroup
+// tag::mv-group[]
+ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC
+// end::mv-group[]
+;
+
+// tag::mv-group-result[]
+MIN(i):integer | a:keyword
+             1 | a
+             1 | b
+// end::mv-group-result[]
+;
+
+docsStatsMultiMvGroup
+// tag::multi-mv-group[]
+ROW i=1, a=["a", "b"], b=[2, 3] | STATS MIN(i) BY a, b | SORT a ASC, b ASC
+// end::multi-mv-group[]
+;
+
+// tag::multi-mv-group-result[]
+MIN(i):integer | a:keyword | b:integer
+             1 | a         | 2
+             1 | a         | 3
+             1 | b         | 2
+             1 | b         | 3
+// end::multi-mv-group-result[]
+;
+
+statsByConstant#[skip:-8.14.1,reason:implemented in 8.14]
+from employees
+| stats m = max(salary), a = round(avg(salary)) by 0
+;
+
+m:integer |a:double |0:integer
+74999     |48249.0  |0
+;
+
+statsByConstantFromStats#[skip:-8.12.1,reason:implemented in 8.12]
+from employees
+| stats c = count(languages)
+| stats a = count(*) by c
+;
+
+a:long |c:long
+1      |90
+;
+
+statsByConstantFromEval#[skip:-8.14.1,reason:implemented in 8.14]
+from employees
+| eval x = 0
+| stats m = max(salary), a = round(avg(salary)) by x
+;
+
+m:integer |a:double |x:integer
+74999     |48249.0  |0
 ;

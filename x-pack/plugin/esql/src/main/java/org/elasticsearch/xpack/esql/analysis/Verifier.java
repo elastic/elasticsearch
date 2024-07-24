@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -57,6 +56,10 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 
+/**
+ * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
+ * step does type resolution and fails queries based on invalid type expressions.
+ */
 public class Verifier {
 
     private final Metrics metrics;
@@ -343,7 +346,7 @@ public class Verifier {
         if (p instanceof RegexExtract re) {
             Expression expr = re.input();
             DataType type = expr.dataType();
-            if (EsqlDataTypes.isString(type) == false) {
+            if (DataType.isString(type) == false) {
                 failures.add(
                     fail(
                         expr,
@@ -360,7 +363,7 @@ public class Verifier {
     private static void checkRow(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Row row) {
             row.fields().forEach(a -> {
-                if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
+                if (DataType.isRepresentable(a.dataType()) == false) {
                     failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
                 }
             });
@@ -372,7 +375,7 @@ public class Verifier {
             eval.fields().forEach(field -> {
                 // check supported types
                 DataType dataType = field.dataType();
-                if (EsqlDataTypes.isRepresentable(dataType) == false) {
+                if (DataType.isRepresentable(dataType) == false) {
                     failures.add(
                         fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
                     );
@@ -524,7 +527,7 @@ public class Verifier {
         if (p instanceof OrderBy ob) {
             ob.forEachExpression(Attribute.class, attr -> {
                 DataType dataType = attr.dataType();
-                if (EsqlDataTypes.isSpatial(dataType)) {
+                if (DataType.isSpatial(dataType)) {
                     localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
                 }
             });

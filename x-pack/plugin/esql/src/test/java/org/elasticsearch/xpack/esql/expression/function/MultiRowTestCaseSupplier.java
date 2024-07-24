@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -277,5 +280,45 @@ public final class MultiRowTestCaseSupplier {
         );
 
         return cases;
+    }
+
+    public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
+        return List.of(
+            new TypedDataSupplier("<true booleans>", () -> randomList(minRows, maxRows, () -> true), DataType.BOOLEAN, false, true),
+            new TypedDataSupplier("<false booleans>", () -> randomList(minRows, maxRows, () -> false), DataType.BOOLEAN, false, true),
+            new TypedDataSupplier(
+                "<random booleans>",
+                () -> randomList(minRows, maxRows, ESTestCase::randomBoolean),
+                DataType.BOOLEAN,
+                false,
+                true
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> ipCases(int minRows, int maxRows) {
+        return List.of(
+            new TypedDataSupplier(
+                "<127.0.0.1 ips>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")))),
+                DataType.IP,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<v4 ips>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(true)))),
+                DataType.IP,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<v6 ips>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(false)))),
+                DataType.IP,
+                false,
+                true
+            )
+        );
     }
 }

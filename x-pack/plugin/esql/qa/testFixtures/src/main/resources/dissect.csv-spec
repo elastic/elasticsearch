@@ -26,6 +26,19 @@ first_name:keyword | left:keyword | full_name:keyword | right:keyword | last_nam
 Georgi             | left         |    Georgi Facello | right         | Facello
 ;
 
+shadowingSubfields
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| DISSECT city.name "%{city.country.continent.planet.name} %{?}"
+| SORT city.name
+;
+
+city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword
+Netherlands               | Amsterdam         | null
+United States of America  | San Francisco     | San
+Japan                     | Tokyo             | null
+;
+
 shadowingSelf
 FROM employees
 | KEEP first_name, last_name
@@ -48,6 +61,51 @@ FROM employees
 
 last_name:keyword | left:keyword | foo:keyword             | middle:keyword | right:keyword | bar:keyword  | first_name:keyword | last_name_again:keyword
 Facello           | left         | Georgi1 Georgi2 Facello | middle         | right         | Georgi1      | Georgi2            | Facello
+;
+
+shadowingInternal
+FROM employees
+| KEEP first_name, last_name
+| WHERE last_name == "Facello"
+| EVAL name = concat(first_name, "1 ", last_name)
+| DISSECT name "%{foo} %{foo}"
+;
+
+first_name:keyword | last_name:keyword | name:keyword    | foo:keyword
+Georgi             | Facello           | Georgi1 Facello | Facello
+;
+
+shadowingWhenPushedDownPastRename
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
+| RENAME city AS c
+| DISSECT long_city_name "Zurich, the %{city} city in Switzerland"
+;
+
+c:keyword | long_city_name:keyword                  | city:keyword
+Zürich    | Zurich, the largest city in Switzerland | largest
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
+| RENAME city AS c
+| DISSECT long_city_name "Zurich, the %{city} city in %{foo}"
+;
+
+c:keyword | long_city_name:keyword                  | city:keyword | foo:keyword
+Zürich    | Zurich, the largest city in Switzerland | largest      | Switzerland
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
+| RENAME long_city_name AS c
+| DISSECT c "Zurich, the %{long_city_name} city in Switzerland"
+;
+
+city:keyword | c:keyword                               | long_city_name:keyword
+Zürich       | Zurich, the largest city in Switzerland | largest
 ;
 
 

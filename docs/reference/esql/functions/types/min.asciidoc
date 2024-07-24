@@ -4,9 +4,11 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-number | result
+field | result
+boolean | boolean
 datetime | datetime
 double | double
 integer | integer
+ip | ip
 long | long
 |===

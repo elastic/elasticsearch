@@ -55,7 +55,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         super(in);
         this.seed = in.readInt();
         this.probability = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.shardSeed = in.readOptionalInt();
         } else {
             this.shardSeed = null;
@@ -67,7 +67,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         super.doWriteTo(out);
         out.writeInt(seed);
         out.writeDouble(probability);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalInt(shardSeed);
         }
     }

@@ -19,9 +19,8 @@ dependencies {
 }
 
 def supportedVersion = bwcVersion -> {
-  // This test is less restricted than the actual CCS compatibility matrix that we are supporting.
-  // CCQ is available on 8.13 or later
-  return bwcVersion.onOrAfter(Version.fromString("8.13.0"));
+  // ESQL requires its own resolve_fields API
+  return bwcVersion.onOrAfter(Version.fromString("8.16.0"));
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

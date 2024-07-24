@@ -51,6 +51,19 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 
+/**
+ * Static class used to convert aggregate expressions to the named expressions that represent their intermediate state.
+ * <p>
+ *     At class load time, the mapper is populated with all supported aggregate functions and their intermediate state.
+ * </p>
+ * <p>
+ *     Reflection is used to call the {@code intermediateStateDesc()}` static method of the aggregate functions,
+ *     but the function classes are found based on the exising information within this class.
+ * </p>
+ * <p>
+ *     This class must be updated when aggregations are created or updated, by adding the new aggs or types to the corresponding methods.
+ * </p>
+ */
 final class AggregateMapper {
 
     private static final List<String> NUMERIC = List.of("Int", "Long", "Double");
@@ -146,6 +159,8 @@ final class AggregateMapper {
         List<String> extraConfigs = List.of("");
         if (NumericAggregate.class.isAssignableFrom(clazz)) {
             types = NUMERIC;
+        } else if (Max.class.isAssignableFrom(clazz) || Min.class.isAssignableFrom(clazz)) {
+            types = List.of("Boolean", "Int", "Long", "Double", "Ip");
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
         } else if (SpatialAggregateFunction.class.isAssignableFrom(clazz)) {
@@ -155,7 +170,7 @@ final class AggregateMapper {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else if (Top.class.isAssignableFrom(clazz)) {
-            types = List.of("Int", "Long", "Double");
+            types = List.of("Boolean", "Int", "Long", "Double", "Ip");
         } else if (Rate.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
         } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {
@@ -264,7 +279,7 @@ final class AggregateMapper {
             case INT -> DataType.INTEGER;
             case LONG -> DataType.LONG;
             case DOUBLE -> DataType.DOUBLE;
-            default -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
+            case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
         };
     }
 
@@ -275,6 +290,12 @@ final class AggregateMapper {
         }
         if (aggClass == ToPartial.class || aggClass == FromPartial.class) {
             return "";
+        }
+        if ((aggClass == Max.class || aggClass == Min.class) && type.equals(DataType.IP)) {
+            return "Ip";
+        }
+        if (aggClass == Top.class && type.equals(DataType.IP)) {
+            return "Ip";
         }
         if (type.equals(DataType.BOOLEAN)) {
             return "Boolean";

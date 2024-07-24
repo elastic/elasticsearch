@@ -29,6 +29,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
@@ -45,7 +46,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE,
+        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
         System.getProperty("test.azure.account"),
         System.getProperty("test.azure.container")
     );
@@ -178,5 +179,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             blobContainer.delete(randomPurpose());
         }));
         future.get();
+    }
+
+    public void testReadFromPositionLargerThanBlobLength() {
+        testReadFromPositionLargerThanBlobLength(
+            e -> asInstanceOf(BlobStorageException.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED
+                .getStatus()
+        );
     }
 }

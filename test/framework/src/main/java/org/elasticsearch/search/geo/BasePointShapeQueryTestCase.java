@@ -32,16 +32,12 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -66,11 +62,6 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
     protected abstract SpatialQueryBuilders<T> queryBuilder();
 
     protected abstract String fieldTypeName();
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
-    }
 
     protected abstract void createMapping(String indexName, String fieldName, Settings settings) throws Exception;
 

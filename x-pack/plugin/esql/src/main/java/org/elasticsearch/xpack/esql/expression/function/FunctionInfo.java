@@ -25,7 +25,7 @@ public @interface FunctionInfo {
 
     /**
      * The description of the function rendered in {@code META FUNCTIONS}
-     * and the docs.
+     * and the docs. These should be complete sentences.
      */
     String description() default "";
 
@@ -38,6 +38,11 @@ public @interface FunctionInfo {
      * A {@code NOTE} that's added after the {@link #description} in the docs.
      */
     String note() default "";
+
+    /**
+     * Extra information rendered at the bottom of the function docs.
+     */
+    String appendix() default "";
 
     /**
      * Is this an aggregation (true) or a scalar function (false).

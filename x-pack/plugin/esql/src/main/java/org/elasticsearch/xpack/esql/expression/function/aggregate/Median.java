@@ -43,7 +43,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
             @Example(
                 description = "The expression can use inline functions. For example, to calculate the median of "
                     + "the maximum values of a multivalued column, first use `MV_MAX` to get the "
-                    + "maximum value per row, and use the result with the `MEDIAN` function:",
+                    + "maximum value per row, and use the result with the `MEDIAN` function",
                 file = "stats_percentile",
                 tag = "docsStatsMedianNestedExpression"
             ), }

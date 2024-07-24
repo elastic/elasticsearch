@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.stats.LongMetric.LongMetricValue;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import static org.hamcrest.Matchers.equalTo;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,6 +19,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
+
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<CCSTelemetrySnapshot> {
 
@@ -32,7 +34,11 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
     }
 
     private CCSTelemetrySnapshot.PerClusterCCSTelemetry randomPerClusterCCSTelemetry() {
-        return new CCSTelemetrySnapshot.PerClusterCCSTelemetry(randomNonNegativeLong(), randomNonNegativeLong(), randomLongMetricValue());
+        return new CCSTelemetrySnapshot.PerClusterCCSTelemetry(
+            randomLongBetween(0, 1_000_000),
+            randomLongBetween(0, 1_000_000),
+            randomLongMetricValue()
+        );
     }
 
     @Override
@@ -46,15 +52,15 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
 
     private CCSTelemetrySnapshot randomCCSTelemetrySnapshot() {
         return new CCSTelemetrySnapshot(
-            randomLongBetween(0, 1_000_000_000),
-            randomLongBetween(0, 1_000_000_000),
+            randomLongBetween(0, 1_000_000),
+            randomLongBetween(0, 1_000_000),
             Map.of(),
             randomLongMetricValue(),
             randomLongMetricValue(),
             randomLongMetricValue(),
-            randomLongBetween(0, 1_000_000_000),
+            randomLongBetween(0, 1_000_000),
             randomDoubleBetween(0.0, 100.0, false),
-            randomLongBetween(0, 1_000_000_000),
+            randomLongBetween(0, 1_000_000),
             Map.of(),
             Map.of(),
             randomMap(1, 10, () -> new Tuple<>(randomAlphaOfLengthBetween(5, 10), randomPerClusterCCSTelemetry()))
@@ -172,6 +178,25 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         CCSTelemetrySnapshot full = randomCCSTelemetrySnapshot();
         empty.add(full);
         assertThat(empty, equalTo(full));
+        // Add again
+        empty.add(full);
+        assertThat(empty.getTotalCount(), equalTo(full.getTotalCount() * 2));
+        assertThat(empty.getSuccessCount(), equalTo(full.getSuccessCount() * 2));
+        // check that each element of the map is doubled
+        empty.getFailureReasons().forEach((k, v) -> assertThat(v, equalTo(full.getFailureReasons().get(k) * 2)));
+        assertThat(empty.getTook().count(), equalTo(full.getTook().count() * 2));
+        assertThat(empty.getTookMrtTrue().count(), equalTo(full.getTookMrtTrue().count() * 2));
+        assertThat(empty.getTookMrtFalse().count(), equalTo(full.getTookMrtFalse().count() * 2));
+        assertThat(empty.getSkippedRemotes(), equalTo(full.getSkippedRemotes() * 2));
+        assertThat(empty.getRemotesPerSearchMax(), equalTo(full.getRemotesPerSearchMax()));
+        assertThat(empty.getRemotesPerSearchAvg(), closeTo(full.getRemotesPerSearchAvg(), 0.01));
+        empty.getFeatureCounts().forEach((k, v) -> assertThat(v, equalTo(full.getFeatureCounts().get(k) * 2)));
+        empty.getClientCounts().forEach((k, v) -> assertThat(v, equalTo(full.getClientCounts().get(k) * 2)));
+        empty.getByRemoteCluster().forEach((k, v) -> {
+            assertThat(v.getCount(), equalTo(full.getByRemoteCluster().get(k).getCount() * 2));
+            assertThat(v.getSkippedCount(), equalTo(full.getByRemoteCluster().get(k).getSkippedCount() * 2));
+            assertThat(v.getTook().count(), equalTo(full.getByRemoteCluster().get(k).getTook().count() * 2));
+        });
     }
 
     private LongMetricValue manyValuesHistogram(long startingWith) {

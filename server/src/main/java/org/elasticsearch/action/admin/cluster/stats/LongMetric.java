@@ -51,6 +51,10 @@ public class LongMetric {
             this.values = values.copy();
         }
 
+        public LongMetricValue(LongMetricValue v) {
+            this.values = v.values.copy();
+        }
+
         LongMetricValue() {
             this.values = new DoubleHistogram(SIGNIFICANT_DIGITS);
         }

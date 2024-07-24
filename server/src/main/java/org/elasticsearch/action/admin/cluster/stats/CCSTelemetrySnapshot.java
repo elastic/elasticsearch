@@ -107,6 +107,12 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
             this.count = count;
         }
 
+        public PerClusterCCSTelemetry(PerClusterCCSTelemetry other) {
+            this.count = other.count;
+            this.skippedCount = other.skippedCount;
+            this.took = new LongMetricValue(other.took);
+        }
+
         public PerClusterCCSTelemetry(StreamInput in) throws IOException {
             this.count = in.readVLong();
             this.skippedCount = in.readVLong();
@@ -258,13 +264,15 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         tookMrtTrue.add(stats.tookMrtTrue);
         tookMrtFalse.add(stats.tookMrtFalse);
         remotesPerSearchMax = Math.max(remotesPerSearchMax, stats.remotesPerSearchMax);
-        // Weighted average
-        if (totalCount > 0) {
+        if (totalCount > 0 && oldCount > 0) {
+            // Weighted average
             remotesPerSearchAvg = (remotesPerSearchAvg * oldCount + stats.remotesPerSearchAvg * stats.totalCount) / totalCount;
         } else {
-            remotesPerSearchAvg = 0;
+            // If we didn't have any old value, we just take the new one
+            remotesPerSearchAvg = stats.remotesPerSearchAvg;
         }
-        stats.byRemoteCluster.forEach((r, v) -> byRemoteCluster.merge(r, v, PerClusterCCSTelemetry::add));
+        // we copy the object here since we'll be modifying it later on subsequent adds
+        stats.byRemoteCluster.forEach((r, v) -> byRemoteCluster.merge(r, new PerClusterCCSTelemetry(v), PerClusterCCSTelemetry::add));
     }
 
     /**

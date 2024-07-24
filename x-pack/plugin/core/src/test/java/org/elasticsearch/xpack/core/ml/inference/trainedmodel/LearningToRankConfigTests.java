@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.License;
@@ -169,27 +170,41 @@ public class LearningToRankConfigTests extends InferenceConfigItemTestCase<Learn
         for (Map.Entry<License.OperationMode, Boolean> entry : licenseTestValues.entrySet()) {
             var licenseStatus = new XPackLicenseStatus(entry.getKey(), true, "");
             var licenseState = new XPackLicenseState(currentTime::get, licenseStatus);
-            assertThat(config.isLicenseAllowedForAction(RestRequest.Method.PUT, licenseState), is(entry.getValue()));
+            assertThat(
+                Strings.format("Expected license state for [%s] to be [%s]", entry.getKey(), entry.getValue()),
+                config.isLicenseAllowedForAction(RestRequest.Method.PUT, licenseState),
+                is(entry.getValue())
+            );
         }
     }
 
-    public void testLicenseSupport_ForGetAction_RequiresBasic() {
+    public void testLicenseSupport_ForGetAction_RequiresPlatinum() {
         var config = randomLearningToRankConfig();
         AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
 
-        var licenseTestValues = List.of(
+        var licenseTestValues = Map.of(
             License.OperationMode.TRIAL,
+            true,
             License.OperationMode.BASIC,
+            false,
             License.OperationMode.STANDARD,
+            false,
             License.OperationMode.GOLD,
+            false,
             License.OperationMode.PLATINUM,
-            License.OperationMode.ENTERPRISE
+            true,
+            License.OperationMode.ENTERPRISE,
+            true
         );
 
-        for (License.OperationMode opMode : licenseTestValues) {
-            var licenseStatus = new XPackLicenseStatus(opMode, true, "");
+        for (Map.Entry<License.OperationMode, Boolean> entry : licenseTestValues.entrySet()) {
+            var licenseStatus = new XPackLicenseStatus(entry.getKey(), true, "");
             var licenseState = new XPackLicenseState(currentTime::get, licenseStatus);
-            assertThat(config.isLicenseAllowedForAction(RestRequest.Method.GET, licenseState), is(true));
+            assertThat(
+                Strings.format("Expected license state for [%s] to be [%s]", entry.getKey(), entry.getValue()),
+                config.isLicenseAllowedForAction(RestRequest.Method.GET, licenseState),
+                is(entry.getValue())
+            );
         }
     }
 

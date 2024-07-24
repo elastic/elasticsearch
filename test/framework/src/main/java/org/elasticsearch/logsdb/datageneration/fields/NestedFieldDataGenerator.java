@@ -9,26 +9,21 @@
 package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class ObjectFieldDataGenerator implements FieldDataGenerator {
+public class NestedFieldDataGenerator implements FieldDataGenerator {
     private final GenericSubObjectFieldDataGenerator delegate;
 
-    public ObjectFieldDataGenerator(DataGeneratorSpecification specification) {
-        this(new Context(specification));
-    }
-
-    ObjectFieldDataGenerator(Context context) {
+    public NestedFieldDataGenerator(Context context) {
         this.delegate = new GenericSubObjectFieldDataGenerator(context);
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return delegate.mappingWriter(b -> {});
+        return delegate.mappingWriter(b -> b.field("type", "nested"));
     }
 
     @Override

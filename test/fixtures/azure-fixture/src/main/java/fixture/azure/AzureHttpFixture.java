@@ -30,59 +30,75 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.hamcrest.Matchers.hasSize;
 
 public class AzureHttpFixture extends ExternalResource {
 
-    private final boolean enabled;
+    private final Protocol protocol;
     private final String account;
     private final String container;
-    private HttpsServer server;
-    private HttpServer metadataServer;
+    private HttpServer server;
 
-    public AzureHttpFixture(boolean enabled, String account, String container) {
-        this.enabled = enabled;
+    public enum Protocol {
+        NONE,
+        HTTP,
+        HTTPS
+    }
+
+    public AzureHttpFixture(Protocol protocol, String account, String container) {
+        this.protocol = protocol;
         this.account = account;
         this.container = container;
     }
 
-    public String getAddress() {
-        return "https://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
+    private String scheme() {
+        return switch (protocol) {
+            case NONE -> fail(null, "fixture is disabled");
+            case HTTP -> "http";
+            case HTTPS -> "https";
+        };
     }
 
-    public String getMetadataAddress() {
-        return "http://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
+    public String getAddress() {
+        return scheme() + "://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
     }
 
     @Override
     protected void before() {
-        if (enabled) {
-            try {
-                this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                metadataServer.createContext("/", new AzureMetadataServiceHttpHandler());
-                metadataServer.start();
-
-                this.server = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                final var tmpdir = ESTestCase.createTempDir();
-                final var certificates = PemUtils.readCertificates(List.of(copyResource(tmpdir, "azure-http-fixture.pem")));
-                assertThat(certificates, hasSize(1));
-                final SSLContext sslContext = SSLContext.getInstance("TLS");
-                sslContext.init(
-                    new KeyManager[] {
-                        KeyStoreUtil.createKeyManager(
-                            new Certificate[] { certificates.get(0) },
-                            PemUtils.readPrivateKey(copyResource(tmpdir, "azure-http-fixture.key"), () -> null),
-                            null
-                        ) },
-                    null,
-                    new SecureRandom()
-                );
-                server.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                server.createContext("/" + account, new AzureHttpHandler(account, container));
-                server.start();
-            } catch (Exception e) {
-                throw new AssertionError("unexpected", e);
+        try {
+            switch (protocol) {
+                case NONE -> {
+                }
+                case HTTP -> {
+                    server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                    server.createContext("/" + account, new AzureHttpHandler(account, container));
+                    server.start();
+                }
+                case HTTPS -> {
+                    final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                    this.server = httpsServer;
+                    final var tmpdir = ESTestCase.createTempDir();
+                    final var certificates = PemUtils.readCertificates(List.of(copyResource(tmpdir, "azure-http-fixture.pem")));
+                    assertThat(certificates, hasSize(1));
+                    final SSLContext sslContext = SSLContext.getInstance("TLS");
+                    sslContext.init(
+                        new KeyManager[] {
+                            KeyStoreUtil.createKeyManager(
+                                new Certificate[] { certificates.get(0) },
+                                PemUtils.readPrivateKey(copyResource(tmpdir, "azure-http-fixture.key"), () -> null),
+                                null
+                            ) },
+                        null,
+                        new SecureRandom()
+                    );
+                    httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
+                    httpsServer.createContext("/" + account, new AzureHttpHandler(account, container));
+                    httpsServer.start();
+                }
             }
+        } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
         }
     }
 
@@ -101,9 +117,8 @@ public class AzureHttpFixture extends ExternalResource {
 
     @Override
     protected void after() {
-        if (enabled) {
+        if (protocol != Protocol.NONE) {
             server.stop(0);
-            metadataServer.stop(0);
         }
     }
 }

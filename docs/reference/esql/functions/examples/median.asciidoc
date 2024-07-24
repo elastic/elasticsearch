@@ -10,7 +10,7 @@ include::{esql-specs}/stats_percentile.csv-spec[tag=median]
 |===
 include::{esql-specs}/stats_percentile.csv-spec[tag=median-result]
 |===
-The expression can use inline functions. For example, to calculate the median of the maximum values of a multivalued column, first use `MV_MAX` to get the maximum value per row, and use the result with the `MEDIAN` function:
+The expression can use inline functions. For example, to calculate the median of the maximum values of a multivalued column, first use `MV_MAX` to get the maximum value per row, and use the result with the `MEDIAN` function
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/stats_percentile.csv-spec[tag=docsStatsMedianNestedExpression]

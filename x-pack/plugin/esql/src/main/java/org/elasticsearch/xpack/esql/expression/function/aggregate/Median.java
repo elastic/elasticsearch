@@ -37,6 +37,12 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         description = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.",
         note = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.",
+        appendix = """
+            [WARNING]
+            ====
+            `MEDIAN` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
+            This means you can get slightly different results using the same data.
+            ====""",
         isAggregation = true,
         examples = {
             @Example(file = "stats_percentile", tag = "median"),

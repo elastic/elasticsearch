@@ -1,0 +1,6 @@
+pr: 111238
+summary: Fix validation of TEXT fields with case insensitive comparison
+area: EQL
+type: bug
+issues:
+ - 111235

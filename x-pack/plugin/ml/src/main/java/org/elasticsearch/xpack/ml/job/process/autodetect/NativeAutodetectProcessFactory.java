@@ -25,12 +25,10 @@ import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
-import org.elasticsearch.xpack.ml.utils.FileUtils;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -112,19 +110,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             nativeController,
             processPipes,
             numberOfFields,
-            (job.keepJobData() == false) ? filesToDelete : new ArrayList<>(),
+            filesToDelete,
             resultsParser,
             onProcessCrash
         );
-
         try {
-            // check if jobs'custom settings contain the setting 'keep_job_data'
-            // and if it is set to true, then we create the autodetect controll message file
-            if (job.keepJobData()) {
-                FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
-                Path controlMsgFile = Files.createTempFile(env.tmpFile(), "autodetect_control_msg", ".json");
-                autodetect.setControlMessageFilePath(controlMsgFile);
-            }
             autodetect.start(executorService, stateProcessor);
             return autodetect;
         } catch (IOException | EsRejectedExecutionException e) {

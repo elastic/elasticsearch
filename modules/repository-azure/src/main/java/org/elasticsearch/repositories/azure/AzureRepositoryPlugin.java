@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.core.util.serializer.JacksonAdapter;
-import com.azure.core.util.serializer.SerializerAdapter;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,9 +44,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     public static final String NETTY_EVENT_LOOP_THREAD_POOL_NAME = "azure_event_loop";
 
     static {
-        // Trigger static initialization with the plugin class loader
-        // so we have access to the proper xml parser
-        AccessController.doPrivileged((PrivilegedAction<SerializerAdapter>) JacksonAdapter::createDefaultSerializerAdapter);
+        // Trigger static initialization with the plugin class loader so we have access to the proper xml parser
+        AccessController.doPrivileged((PrivilegedAction<Object>) JacksonAdapter::createDefaultSerializerAdapter);
     }
 
     // protected for testing

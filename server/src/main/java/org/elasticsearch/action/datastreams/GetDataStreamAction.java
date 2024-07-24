@@ -511,7 +511,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this(
                 in.readCollectionAsList(DataStreamInfo::new),
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
                     ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
                     : null
             );
@@ -537,7 +537,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
         }

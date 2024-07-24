@@ -153,7 +153,7 @@ public class LearningToRankConfigTests extends InferenceConfigItemTestCase<Learn
 
         var licenseTestValues = Map.of(
             License.OperationMode.TRIAL,
-            false,
+            true,
             License.OperationMode.BASIC,
             false,
             License.OperationMode.STANDARD,
@@ -189,7 +189,7 @@ public class LearningToRankConfigTests extends InferenceConfigItemTestCase<Learn
         for (License.OperationMode opMode : licenseTestValues) {
             var licenseStatus = new XPackLicenseStatus(opMode, true, "");
             var licenseState = new XPackLicenseState(currentTime::get, licenseStatus);
-            assertThat(config.isLicenseAllowedForAction(RestRequest.Method.PUT, licenseState), is(true));
+            assertThat(config.isLicenseAllowedForAction(RestRequest.Method.GET, licenseState), is(true));
         }
     }
 

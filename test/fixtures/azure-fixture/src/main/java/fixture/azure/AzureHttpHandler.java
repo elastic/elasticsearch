@@ -82,27 +82,27 @@ public class AzureHttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         if (isValidAuthHeader(exchange) == false) {
-            try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                xcb.startObject();
-                xcb.field("method", exchange.getRequestMethod());
-                xcb.field("uri", exchange.getRequestURI().toString());
-                xcb.field("predicate", authHeaderPredicate.toString());
-                xcb.field("authorization", Objects.toString(getAuthHeader(exchange)));
-                xcb.startObject("headers");
+            try (exchange; var builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.startObject();
+                builder.field("method", exchange.getRequestMethod());
+                builder.field("uri", exchange.getRequestURI().toString());
+                builder.field("predicate", authHeaderPredicate.toString());
+                builder.field("authorization", Objects.toString(getAuthHeader(exchange)));
+                builder.startObject("headers");
                 for (final var header : exchange.getRequestHeaders().entrySet()) {
                     if (header.getValue() == null) {
-                        xcb.nullField(header.getKey());
+                        builder.nullField(header.getKey());
                     } else {
-                        xcb.startArray(header.getKey());
+                        builder.startArray(header.getKey());
                         for (final var value : header.getValue()) {
-                            xcb.value(value);
+                            builder.value(value);
                         }
-                        xcb.endArray();
+                        builder.endArray();
                     }
                 }
-                xcb.endObject();
-                xcb.endObject();
-                final var responseBytes = BytesReference.bytes(xcb);
+                builder.endObject();
+                builder.endObject();
+                final var responseBytes = BytesReference.bytes(builder);
                 exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
                 exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), responseBytes.length());
                 responseBytes.writeTo(exchange.getResponseBody());

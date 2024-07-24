@@ -30,7 +30,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
-        AzureHttpFixture.startsWithPredicate("SharedKey " + AZURE_TEST_ACCOUNT + ":")
+        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
     );
 
     private static TestTrustStore trustStore = new TestTrustStore(

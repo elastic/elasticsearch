@@ -163,7 +163,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
 
     @Override
     public LogicalPlan nextPhase(List<Attribute> schema, List<Page> firstPhaseResult) {
-        if (firstPhase().output().equals(schema) == false) {
+        if (equalsAndSemanticEquals(firstPhase().output(), schema) == false) {
             throw new IllegalStateException("Unexpected first phase outputs: " + firstPhase().output() + " vs " + schema);
         }
         if (groupings.isEmpty()) {
@@ -187,6 +187,18 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
             values.add(new Alias(source(), s.name(), null, new Literal(source(), value, s.dataType()), aggregates.get(i).id()));
         }
         return new Eval(source(), child(), values);
+    }
+
+    private static boolean equalsAndSemanticEquals(List<Attribute> left, List<Attribute> right) {
+        if (left.equals(right) == false) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i).semanticEquals(right.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private LogicalPlan groupedNextPhase(List<Attribute> schema, List<Page> firstPhaseResult) {

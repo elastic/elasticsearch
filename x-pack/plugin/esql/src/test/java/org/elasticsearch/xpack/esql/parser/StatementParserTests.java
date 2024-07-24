@@ -311,6 +311,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
+        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -327,6 +328,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithoutGroups() {
+        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
         assertEquals(
             new InlineStats(
                 EMPTY,

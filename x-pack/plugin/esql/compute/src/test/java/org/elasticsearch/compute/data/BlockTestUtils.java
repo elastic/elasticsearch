@@ -17,6 +17,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
@@ -31,7 +32,7 @@ public class BlockTestUtils {
         return switch (e) {
             case INT -> randomInt();
             case LONG -> randomLong();
-            case FLOAT -> Float.intBitsToFloat(randomInt());
+            case FLOAT -> randomFloat();
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();

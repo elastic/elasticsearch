@@ -15,7 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.nio.charset.StandardCharsets;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link Locate} function.
  */
-public class LocateTests extends AbstractFunctionTestCase {
+public class LocateTests extends AbstractScalarFunctionTestCase {
     public LocateTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -78,7 +78,12 @@ public class LocateTests extends AbstractFunctionTestCase {
             }
         }
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers));
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), (v, p) -> {
+            if (p == 0 || p == 1) {
+                return "string";
+            }
+            return "integer";
+        });
 
         // Here follows some non-randomized examples that we want to cover on every run
         suppliers.add(supplier("a tiger", "a t", null, 1));

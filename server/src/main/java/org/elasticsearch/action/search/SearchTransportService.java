@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -108,11 +110,13 @@ public class SearchTransportService {
      */
     public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match][n]";
 
+    private static final Logger logger = LogManager.getLogger(SearchTransportService.class);
+
     private final TransportService transportService;
     private final NodeClient client;
     private final BiFunction<
         Transport.Connection,
-        SearchActionListener<? super SearchPhaseResult>,
+        ActionListener<? super SearchPhaseResult>,
         ActionListener<? super SearchPhaseResult>> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
@@ -121,13 +125,20 @@ public class SearchTransportService {
         NodeClient client,
         BiFunction<
             Transport.Connection,
-            SearchActionListener<? super SearchPhaseResult>,
+            ActionListener<? super SearchPhaseResult>,
             ActionListener<? super SearchPhaseResult>> responseWrapper
     ) {
         this.transportService = transportService;
         this.client = client;
         this.responseWrapper = responseWrapper;
     }
+
+    private static final ActionListenerResponseHandler<SearchFreeContextResponse> SEND_FREE_CONTEXT_LISTENER =
+        new ActionListenerResponseHandler<>(
+            ActionListener.noop(),
+            SearchFreeContextResponse::readFrom,
+            TransportResponseHandler.TRANSPORT_WORKER
+        );
 
     public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
         transportService.sendRequest(
@@ -136,11 +147,7 @@ public class SearchTransportService {
             new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY,
             // no need to respond if it was freed or not
-            new ActionListenerResponseHandler<>(
-                ActionListener.noop(),
-                SearchFreeContextResponse::new,
-                TransportResponseHandler.TRANSPORT_WORKER
-            )
+            SEND_FREE_CONTEXT_LISTENER
         );
     }
 
@@ -154,7 +161,7 @@ public class SearchTransportService {
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::readFrom, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 
@@ -169,7 +176,6 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NODE_NAME,
             request,
             task,
-            TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
@@ -180,11 +186,7 @@ public class SearchTransportService {
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             new ClearScrollContextsRequest(),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                listener,
-                (in) -> TransportResponse.Empty.INSTANCE,
-                TransportResponseHandler.TRANSPORT_WORKER
-            )
+            new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 
@@ -192,7 +194,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
-        final SearchActionListener<DfsSearchResult> listener
+        final ActionListener<DfsSearchResult> listener
     ) {
         transportService.sendChildRequest(
             connection,
@@ -207,7 +209,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
-        final SearchActionListener<? super SearchPhaseResult> listener
+        final ActionListener<SearchPhaseResult> listener
     ) {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
@@ -229,7 +231,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final QuerySearchRequest request,
         SearchTask task,
-        final SearchActionListener<QuerySearchResult> listener
+        final ActionListener<QuerySearchResult> listener
     ) {
         transportService.sendChildRequest(
             connection,
@@ -244,7 +246,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final InternalScrollSearchRequest request,
         SearchTask task,
-        final SearchActionListener<ScrollQuerySearchResult> listener
+        final ActionListener<ScrollQuerySearchResult> listener
     ) {
         transportService.sendChildRequest(
             connection,
@@ -259,7 +261,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final RankFeatureShardRequest request,
         SearchTask task,
-        final SearchActionListener<RankFeatureResult> listener
+        final ActionListener<RankFeatureResult> listener
     ) {
         transportService.sendChildRequest(
             connection,
@@ -274,7 +276,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final InternalScrollSearchRequest request,
         SearchTask task,
-        final SearchActionListener<ScrollQueryFetchSearchResult> listener
+        final ActionListener<ScrollQueryFetchSearchResult> listener
     ) {
         transportService.sendChildRequest(
             connection,
@@ -289,7 +291,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardFetchSearchRequest request,
         SearchTask task,
-        final SearchActionListener<FetchSearchResult> listener
+        final ActionListener<FetchSearchResult> listener
     ) {
         sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
     }
@@ -298,7 +300,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardFetchRequest request,
         SearchTask task,
-        final SearchActionListener<FetchSearchResult> listener
+        final ActionListener<FetchSearchResult> listener
     ) {
         sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
     }
@@ -308,7 +310,7 @@ public class SearchTransportService {
         String action,
         final ShardFetchRequest request,
         SearchTask task,
-        final SearchActionListener<FetchSearchResult> listener
+        final ActionListener<FetchSearchResult> listener
     ) {
         transportService.sendChildRequest(
             connection,
@@ -416,13 +418,20 @@ public class SearchTransportService {
 
     public static class SearchFreeContextResponse extends TransportResponse {
 
+        private static final SearchFreeContextResponse FREED = new SearchFreeContextResponse(true);
+        private static final SearchFreeContextResponse NOT_FREED = new SearchFreeContextResponse(false);
+
         private final boolean freed;
 
-        SearchFreeContextResponse(StreamInput in) throws IOException {
-            freed = in.readBoolean();
+        static SearchFreeContextResponse readFrom(StreamInput in) throws IOException {
+            return of(in.readBoolean());
         }
 
-        SearchFreeContextResponse(boolean freed) {
+        static SearchFreeContextResponse of(boolean freed) {
+            return freed ? FREED : NOT_FREED;
+        }
+
+        private SearchFreeContextResponse(boolean freed) {
             this.freed = freed;
         }
 
@@ -442,8 +451,9 @@ public class SearchTransportService {
         SearchTransportAPMMetrics searchTransportMetrics
     ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
+            logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
-            channel.sendResponse(new SearchFreeContextResponse(freed));
+            channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
@@ -451,7 +461,12 @@ public class SearchTransportService {
             ScrollFreeContextRequest::new,
             instrumentedHandler(FREE_CONTEXT_SCROLL_ACTION_METRIC, transportService, searchTransportMetrics, freeContextHandler)
         );
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, false, SearchFreeContextResponse::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            FREE_CONTEXT_SCROLL_ACTION_NAME,
+            false,
+            SearchFreeContextResponse::readFrom
+        );
 
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,
@@ -459,7 +474,7 @@ public class SearchTransportService {
             SearchFreeContextRequest::new,
             instrumentedHandler(FREE_CONTEXT_ACTION_METRIC, transportService, searchTransportMetrics, freeContextHandler)
         );
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::readFrom);
 
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,

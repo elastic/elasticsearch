@@ -50,6 +50,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
@@ -543,10 +544,11 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * is an instance of this class, null otherwise.
      */
     public static FieldSortBuilder getPrimaryFieldSortOrNull(SearchSourceBuilder source) {
-        if (source == null || source.sorts() == null || source.sorts().isEmpty()) {
+        final List<SortBuilder<?>> sorts;
+        if (source == null || (sorts = source.sorts()) == null || sorts.isEmpty()) {
             return null;
         }
-        return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
+        return sorts.get(0) instanceof FieldSortBuilder fieldSortBuilder ? fieldSortBuilder : null;
     }
 
     /**

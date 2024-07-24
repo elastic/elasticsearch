@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.API_EMBEDDINGS_PATH;
 
@@ -51,21 +50,9 @@ public class MistralEmbeddingsModel extends Model {
         );
     }
 
-    public MistralEmbeddingsModel(MistralEmbeddingsModel model, TaskSettings taskSettings, RateLimitSettings rateLimitSettings) {
-        super(model, taskSettings);
-        this.model = Objects.requireNonNull(model.model);
-        this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
-        setEndpointUrl();
-    }
-
     public MistralEmbeddingsModel(MistralEmbeddingsModel model, MistralEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
         setPropertiesFromServiceSettings(serviceSettings);
-    }
-
-    protected MistralEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets);
-        setPropertiesFromServiceSettings((MistralEmbeddingsServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     public MistralEmbeddingsModel(
@@ -84,7 +71,7 @@ public class MistralEmbeddingsModel extends Model {
     }
 
     private void setPropertiesFromServiceSettings(MistralEmbeddingsServiceSettings serviceSettings) {
-        this.model = serviceSettings.model();
+        this.model = serviceSettings.modelId();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
         setEndpointUrl();
     }

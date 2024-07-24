@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
 
@@ -176,6 +177,23 @@ class S3BlobStore implements BlobStore {
             final int numberOfAwsErrors = Optional.ofNullable(awsRequestMetrics.getProperty(AWSRequestMetrics.Field.AWSErrorCode))
                 .map(List::size)
                 .orElse(0);
+
+            if (exceptionCount > 0) {
+                final List<Object> statusCodes = Objects.requireNonNullElse(
+                    awsRequestMetrics.getProperty(AWSRequestMetrics.Field.StatusCode),
+                    List.of()
+                );
+                // REQUESTED_RANGE_NOT_SATISFIED errors are expected errors due to RCO
+                // TODO Add more expected client error codes?
+                final long amountOfRequestRangeNotSatisfiedErrors = statusCodes.stream()
+                    .filter(e -> (Integer) e == REQUESTED_RANGE_NOT_SATISFIED.getStatus())
+                    .count();
+                if (amountOfRequestRangeNotSatisfiedErrors > 0) {
+                    s3RepositoriesMetrics.common()
+                        .requestRangeNotSatisfiedExceptionCounter()
+                        .incrementBy(amountOfRequestRangeNotSatisfiedErrors, attributes);
+                }
+            }
 
             s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
             if (numberOfAwsErrors == requestCount) {

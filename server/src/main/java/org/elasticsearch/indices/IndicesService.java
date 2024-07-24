@@ -683,9 +683,6 @@ public class IndicesService extends AbstractLifecycleComponent
         CheckedFunction<IndexService, T, E> indexServiceConsumer
     ) throws IOException, E {
         final Index index = indexMetadata.getIndex();
-        if (hasIndex(index)) {
-            throw new ResourceAlreadyExistsException(index);
-        }
         List<IndexEventListener> finalListeners = List.of(
             // double check that shard is not created.
             new IndexEventListener() {

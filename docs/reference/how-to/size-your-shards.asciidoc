@@ -501,6 +501,7 @@ POST _reindex
 Here’s how to resolve common shard-related errors.
 
 [discrete]
+[[troubleshooting-max-shards-open]]
 ==== this action would add [x] total shards, but this cluster currently has [y]/[z] maximum shards open;
 
 The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
@@ -544,3 +545,42 @@ PUT _cluster/settings
   }
 }
 ----
+
+[discrete]
+[[troubleshooting-max-docs-limit]]
+==== Number of documents in the shard cannot exceed [2147483519]
+
+Each {es} shard is a separate Lucene index, so it shares Lucene's
+https://github.com/apache/lucene/issues/5176[`MAX_DOC` limit] of having at most
+2,147,483,519 (`(2^31)-129`) documents. This per-shard limit applies to the sum
+of `docs.count` plus `docs.deleted` as reported by the <<indices-stats,Index
+stats API>>. Exceeding this limit will result in errors like the following:
+
+[source,txt]
+----
+Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the shard cannot exceed [2147483519]]
+----
+
+TIP: This calculation may differ from the <<search-count,Count API's>>
+calculation, because the Count API does not include nested documents and does
+not count deleted documents.
+
+This limit is much higher than the <<shard-size-recommendation,recommended
+maximum document count>> of approximately 200M documents per shard.
+
+If you encounter this problem, try to mitigate it by using the
+<<indices-forcemerge,Force Merge API>> to merge away some deleted docs. For
+example:
+
+[source,console]
+----
+POST my-index-000001/_forcemerge?only_expunge_deletes=true
+----
+// TEST[setup:my_index]
+
+This will launch an asynchronous task which can be monitored via the
+<<tasks,Task Management API>>.
+
+It may also be helpful to <<docs-delete-by-query,delete unneeded documents>>,
+or to <<indices-split-index,split>> or <<docs-reindex,reindex>> the index into
+one with a larger number of shards.

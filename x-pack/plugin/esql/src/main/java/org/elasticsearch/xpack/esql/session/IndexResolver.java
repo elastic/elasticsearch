@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -75,7 +76,8 @@ public class IndexResolver {
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
     public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
-        client.fieldCaps(
+        client.execute(
+            EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
@@ -225,26 +227,10 @@ public class IndexResolver {
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);
                 }
-                typesToIndices.computeIfAbsent(type.esType(), _key -> new TreeSet<>()).add(ir.getIndexName());
+                typesToIndices.computeIfAbsent(type.typeName(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
-        StringBuilder errorMessage = new StringBuilder();
-        errorMessage.append("mapped as [");
-        errorMessage.append(typesToIndices.size());
-        errorMessage.append("] incompatible types: ");
-        boolean first = true;
-        for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
-            if (first) {
-                first = false;
-            } else {
-                errorMessage.append(", ");
-            }
-            errorMessage.append("[");
-            errorMessage.append(e.getKey());
-            errorMessage.append("] in ");
-            errorMessage.append(e.getValue());
-        }
-        return new InvalidMappedField(name, errorMessage.toString());
+        return new InvalidMappedField(name, typesToIndices);
     }
 
     private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {

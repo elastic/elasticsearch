@@ -15,14 +15,11 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.Comparator;
 import java.util.List;
@@ -33,12 +30,12 @@ public class Grok extends RegexExtract {
 
     public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
 
-        private List<Attribute> extractedFields() {
+        public List<Attribute> extractedFields() {
             return grok.captureConfig()
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
                 // promote small numeric types, since Grok can produce float values
-                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), EsqlDataTypes.widenSmallNumericTypes(toDataType(x.type()))))
+                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type()).widenSmallNumeric()))
                 .collect(Collectors.toList());
         }
 
@@ -104,6 +101,11 @@ public class Grok extends RegexExtract {
     @Override
     public List<Attribute> output() {
         return NamedExpressions.mergeOutputAttributes(extractedFields, child().output());
+    }
+
+    @Override
+    public Grok withGeneratedNames(List<String> newNames) {
+        return new Grok(source(), child(), input, parser, renameExtractedFields(newNames));
     }
 
     @Override

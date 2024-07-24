@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MulTests extends AbstractFunctionTestCase {
+public class MulTests extends AbstractScalarFunctionTestCase {
     public MulTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -56,7 +56,8 @@ public class MulTests extends AbstractFunctionTestCase {
             )
         );
 
-        suppliers.add(new TestCaseSupplier("Double * Double", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+        // Double
+        suppliers.addAll(List.of(new TestCaseSupplier("Double * Double", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             double rhs = randomDouble();
             double lhs = randomDouble();
             return new TestCaseSupplier.TestCase(
@@ -68,7 +69,37 @@ public class MulTests extends AbstractFunctionTestCase {
                 DataType.DOUBLE,
                 equalTo(lhs * rhs)
             );
-        }));
+        }),
+
+            // Overflows
+            new TestCaseSupplier(
+                List.of(DataType.DOUBLE, DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                        new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                    ),
+                    "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                    DataType.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+            ),
+            new TestCaseSupplier(
+                List.of(DataType.DOUBLE, DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                        new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                    ),
+                    "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                    DataType.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+            )
+        ));
+
         suppliers.add(
             arithmeticExceptionOverflowCase(
                 DataType.INTEGER,

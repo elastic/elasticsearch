@@ -17,11 +17,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,6 +35,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractExpressionSerializationTests<T extends Expression> extends AbstractWireTestCase<T> {
+    /**
+     * We use a single random config for all serialization because it's pretty
+     * heavy to build, especially in {@link #testConcurrentSerialization()}.
+     */
+    private EsqlConfiguration config;
+
     public static Source randomSource() {
         int lineNumber = between(0, EXAMPLE_QUERY.length - 1);
         int offset = between(0, EXAMPLE_QUERY[lineNumber].length() - 2);
@@ -46,7 +55,6 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
 
     @Override
     protected final T copyInstance(T instance, TransportVersion version) throws IOException {
-        EsqlConfiguration config = EsqlConfigurationSerializationTests.randomConfiguration(String.join("\n", EXAMPLE_QUERY), Map.of());
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
@@ -70,15 +78,22 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
         return false;
     }
 
-    protected abstract List<NamedWriteableRegistry.Entry> getNamedWriteables();
+    public EsqlConfiguration configuration() {
+        return config;
+    }
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpression.getNamedWriteables());
+        entries.addAll(Expression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
+        entries.addAll(EsqlScalarFunction.getNamedWriteables());
+        entries.addAll(AggregateFunction.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
+        entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY);
+        entries.add(UnsupportedAttribute.EXPRESSION_ENTRY);
         entries.addAll(EsField.getNamedWriteables());
-        entries.addAll(getNamedWriteables());
+        entries.add(org.elasticsearch.xpack.esql.expression.Order.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 
@@ -91,4 +106,9 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
         "I understand equations, both the simple and quadratical,",
         "About binomial theorem I'm teeming with a lot o' news,",
         "With many cheerful facts about the square of the hypotenuse." };
+
+    @Before
+    public void initConfig() {
+        config = EsqlConfigurationSerializationTests.randomConfiguration(String.join("\n", EXAMPLE_QUERY), Map.of());
+    }
 }

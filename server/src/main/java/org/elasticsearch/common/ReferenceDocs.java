@@ -73,6 +73,12 @@ public enum ReferenceDocs {
     UNASSIGNED_SHARDS,
     EXECUTABLE_JNA_TMPDIR,
     NETWORK_THREADING_MODEL,
+    ALLOCATION_EXPLAIN_API,
+    NETWORK_BINDING_AND_PUBLISHING,
+    SNAPSHOT_REPOSITORY_ANALYSIS,
+    S3_COMPATIBLE_REPOSITORIES,
+    LUCENE_MAX_DOCS_LIMIT,
+    MAX_SHARDS_PER_NODE,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

@@ -8,26 +8,20 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.queries.function.FunctionQuery;
-import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
+import java.util.Arrays;
 
 public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQueryBuilder> {
 
@@ -51,11 +45,6 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
             new CompressedXContent(Strings.toString(builder)),
             MapperService.MergeReason.MAPPING_UPDATE
         );
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -86,22 +75,18 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
 
     @Override
     protected void doAssertLuceneQuery(ExactKnnQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertTrue(query instanceof BooleanQuery);
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-        boolean foundFunction = false;
-        for (BooleanClause clause : booleanQuery) {
-            if (clause.getQuery() instanceof FunctionQuery functionQuery) {
-                foundFunction = true;
-                assertTrue(functionQuery.getValueSource() instanceof FloatVectorSimilarityFunction);
-                String description = functionQuery.getValueSource().description().toLowerCase(Locale.ROOT);
-                if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)) {
-                    assertTrue(description, description.contains("dot_product"));
-                } else {
-                    assertTrue(description, description.contains("cosine"));
-                }
-            }
+        assertTrue(query instanceof DenseVectorQuery.Floats);
+        DenseVectorQuery.Floats denseVectorQuery = (DenseVectorQuery.Floats) query;
+        assertEquals(VECTOR_FIELD, denseVectorQuery.field);
+        float[] expected = Arrays.copyOf(queryBuilder.getQuery().asFloatVector(), queryBuilder.getQuery().asFloatVector().length);
+        float magnitude = VectorUtil.dotProduct(expected, expected);
+        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)
+            && DenseVectorFieldMapper.isNotUnitVector(magnitude)) {
+            VectorUtil.l2normalize(expected);
+            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
+        } else {
+            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
         }
-        assertTrue("Unable to find FloatVectorSimilarityFunction in created BooleanQuery", foundFunction);
     }
 
     @Override

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -13,45 +14,23 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public enum DataType {
-    UNSUPPORTED("UNSUPPORTED", null, 0, false, false, false),
-    NULL("null", 0, false, false, false),
-    BOOLEAN("boolean", 1, false, false, false),
-    BYTE("byte", Byte.BYTES, true, false, true),
-    SHORT("short", Short.BYTES, true, false, true),
-    INTEGER("integer", Integer.BYTES, true, false, true),
-    LONG("long", Long.BYTES, true, false, true),
-    UNSIGNED_LONG("unsigned_long", Long.BYTES, true, false, true),
-    DOUBLE("double", Double.BYTES, false, true, true),
-    FLOAT("float", Float.BYTES, false, true, true),
-    HALF_FLOAT("half_float", Float.BYTES, false, true, true),
-    SCALED_FLOAT("scaled_float", Long.BYTES, false, true, true),
-    KEYWORD("keyword", Integer.MAX_VALUE, false, false, true),
-    TEXT("text", Integer.MAX_VALUE, false, false, false),
-    DATETIME("DATETIME", "date", Long.BYTES, false, false, true),
-    IP("ip", 45, false, false, true),
-    VERSION("version", Integer.MAX_VALUE, false, false, true),
-    OBJECT("object", 0, false, false, false),
-    NESTED("nested", 0, false, false, false),
-    SOURCE(SourceFieldMapper.NAME, SourceFieldMapper.NAME, Integer.MAX_VALUE, false, false, false),
-    DATE_PERIOD("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false),
-    TIME_DURATION("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false),
-    GEO_POINT("geo_point", Double.BYTES * 2, false, false, true),
-    CARTESIAN_POINT("cartesian_point", Double.BYTES * 2, false, false, true),
-    CARTESIAN_SHAPE("cartesian_shape", Integer.MAX_VALUE, false, false, true),
-    GEO_SHAPE("geo_shape", Integer.MAX_VALUE, false, false, true),
+    UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
+    NULL(builder().esType("null").estimatedSize(0)),
+    BOOLEAN(builder().esType("boolean").estimatedSize(1)),
 
     /**
      * These are numeric fields labeled as metric counters in time-series indices. Although stored
@@ -60,11 +39,42 @@ public enum DataType {
      * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
      * parent numeric type.
      */
-    COUNTER_LONG("counter_long", Long.BYTES, false, false, true),
-    COUNTER_INTEGER("counter_integer", Integer.BYTES, false, false, true),
-    COUNTER_DOUBLE("counter_double", Double.BYTES, false, false, true),
-    DOC_DATA_TYPE("_doc", Integer.BYTES * 3, false, false, false),
-    TSID_DATA_TYPE("_tsid", Integer.MAX_VALUE, false, false, true);
+    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter()),
+    COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
+    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
+
+    LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
+    INTEGER(builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
+    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues()),
+    DOUBLE(builder().esType("double").estimatedSize(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
+    FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    HALF_FLOAT(builder().esType("half_float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    SCALED_FLOAT(builder().esType("scaled_float").estimatedSize(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+
+    KEYWORD(builder().esType("keyword").unknownSize().docValues()),
+    TEXT(builder().esType("text").unknownSize()),
+    DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues()),
+    // IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
+    IP(builder().esType("ip").estimatedSize(16).docValues()),
+    // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
+    VERSION(builder().esType("version").estimatedSize(15).docValues()),
+    OBJECT(builder().esType("object").unknownSize()),
+    NESTED(builder().esType("nested").unknownSize()),
+    SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
+    DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES)),
+    TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES)),
+    // WKB for points is typically 21 bytes.
+    GEO_POINT(builder().esType("geo_point").estimatedSize(21).docValues()),
+    CARTESIAN_POINT(builder().esType("cartesian_point").estimatedSize(21).docValues()),
+    // wild estimate for size, based on some test data (airport_city_boundaries)
+    CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
+    GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
+
+    DOC_DATA_TYPE(builder().esType("_doc").estimatedSize(Integer.BYTES * 3)),
+    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
+    PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
 
     private final String typeName;
 
@@ -72,77 +82,70 @@ public enum DataType {
 
     private final String esType;
 
-    private final int size;
+    private final Optional<Integer> estimatedSize;
 
     /**
-     * True if the type represents an integer number
+     * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
      */
-    private final boolean isInteger;
+    private final boolean isWholeNumber;
 
     /**
-     * True if the type represents a rational number
+     * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
      */
-    private final boolean isRational;
+    private final boolean isRationalNumber;
 
     /**
      * True if the type supports doc values by default
      */
     private final boolean docValues;
 
-    DataType(String esName, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
-        this(null, esName, size, isInteger, isRational, hasDocValues);
-    }
+    /**
+     * {@code true} if this is a TSDB counter, {@code false} otherwise.
+     */
+    private final boolean isCounter;
 
-    DataType(String typeName, String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
-        String typeString = typeName != null ? typeName : esType;
+    /**
+     * If this is a "small" numeric type this contains the type ESQL will
+     * widen it into, otherwise this is {@code null}.
+     */
+    private final DataType widenSmallNumeric;
+
+    /**
+     * If this is a representable numeric this will be the counter "version"
+     * of this numeric, otherwise this is {@code null}.
+     */
+    private final DataType counter;
+
+    DataType(Builder builder) {
+        String typeString = builder.typeName != null ? builder.typeName : builder.esType;
+        assert builder.estimatedSize != null : "Missing size for type " + typeString;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
         this.name = typeString.toUpperCase(Locale.ROOT);
-        this.esType = esType;
-        this.size = size;
-        this.isInteger = isInteger;
-        this.isRational = isRational;
-        this.docValues = hasDocValues;
+        this.esType = builder.esType;
+        this.estimatedSize = builder.estimatedSize;
+        this.isWholeNumber = builder.isWholeNumber;
+        this.isRationalNumber = builder.isRationalNumber;
+        this.docValues = builder.docValues;
+        this.isCounter = builder.isCounter;
+        this.widenSmallNumeric = builder.widenSmallNumeric;
+        this.counter = builder.counter;
     }
 
-    private static final Collection<DataType> TYPES = Stream.of(
-        UNSUPPORTED,
-        NULL,
-        BOOLEAN,
-        BYTE,
-        SHORT,
-        INTEGER,
-        LONG,
-        UNSIGNED_LONG,
-        DOUBLE,
-        FLOAT,
-        HALF_FLOAT,
-        SCALED_FLOAT,
-        KEYWORD,
-        TEXT,
-        DATETIME,
-        IP,
-        VERSION,
-        OBJECT,
-        NESTED,
-        SOURCE,
-        DATE_PERIOD,
-        TIME_DURATION,
-        GEO_POINT,
-        CARTESIAN_POINT,
-        CARTESIAN_SHAPE,
-        GEO_SHAPE,
-        COUNTER_LONG,
-        COUNTER_INTEGER,
-        COUNTER_DOUBLE
-    ).sorted(Comparator.comparing(DataType::typeName)).toList();
+    private static final Collection<DataType> TYPES = Arrays.stream(values())
+        .filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+        .sorted(Comparator.comparing(DataType::typeName))
+        .toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
-    private static Map<String, DataType> ES_TO_TYPE;
+    private static final Map<String, DataType> ES_TO_TYPE;
 
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
-        map.put("date_nanos", DATETIME);
+        // TODO: Why don't we use the names ES uses as the esType field for these?
+        // ES calls this 'point', but ESQL calls it 'cartesian_point'
+        map.put("point", DataType.CARTESIAN_POINT);
+        map.put("shape", DataType.CARTESIAN_SHAPE);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -199,7 +202,7 @@ public enum DataType {
         if (value instanceof ZonedDateTime) {
             return DATETIME;
         }
-        if (value instanceof String || value instanceof Character) {
+        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
             return KEYWORD;
         }
 
@@ -214,8 +217,12 @@ public enum DataType {
         return t == KEYWORD || t == TEXT;
     }
 
+    public static boolean isPrimitiveAndSupported(DataType t) {
+        return isPrimitive(t) && t != UNSUPPORTED;
+    }
+
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED && t != UNSUPPORTED;
+        return t != OBJECT && t != NESTED;
     }
 
     public static boolean isNull(DataType t) {
@@ -226,23 +233,67 @@ public enum DataType {
         return t.isNumeric() || isNull(t);
     }
 
-    public static boolean isSigned(DataType t) {
-        return t.isNumeric() && t.equals(UNSIGNED_LONG) == false;
-    }
-
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
+    }
+
+    public static boolean isNullOrTimeDuration(DataType t) {
+        return t == TIME_DURATION || isNull(t);
+    }
+
+    public static boolean isNullOrDatePeriod(DataType t) {
+        return t == DATE_PERIOD || isNull(t);
+    }
+
+    public static boolean isTemporalAmount(DataType t) {
+        return t == DATE_PERIOD || t == TIME_DURATION;
+    }
+
+    public static boolean isNullOrTemporalAmount(DataType t) {
+        return isTemporalAmount(t) || isNull(t);
+    }
+
+    public static boolean isDateTimeOrTemporal(DataType t) {
+        return isDateTime(t) || isTemporalAmount(t);
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;
         } else {
-            return (left == NULL || right == NULL)
-                || (isString(left) && isString(right))
-                || (left.isNumeric() && right.isNumeric())
-                || (isDateTime(left) && isDateTime(right));
+            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
         }
+    }
+
+    /**
+     * Supported types that can be contained in a block.
+     */
+    public static boolean isRepresentable(DataType t) {
+        return t != OBJECT
+            && t != NESTED
+            && t != UNSUPPORTED
+            && t != DATE_PERIOD
+            && t != TIME_DURATION
+            && t != BYTE
+            && t != SHORT
+            && t != FLOAT
+            && t != SCALED_FLOAT
+            && t != SOURCE
+            && t != HALF_FLOAT
+            && t != PARTIAL_AGG
+            && t.isCounter() == false;
+    }
+
+    public static boolean isSpatialPoint(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
+    }
+
+    public static boolean isSpatialGeo(DataType t) {
+        return t == GEO_POINT || t == GEO_SHAPE;
+    }
+
+    public static boolean isSpatial(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
     public String nameUpper() {
@@ -257,24 +308,67 @@ public enum DataType {
         return esType;
     }
 
-    public boolean isInteger() {
-        return isInteger;
+    /**
+     * The name we give to types on the response.
+     */
+    public String outputType() {
+        return esType == null ? "unsupported" : esType;
     }
 
-    public boolean isRational() {
-        return isRational;
+    /**
+     * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
+     */
+    public boolean isWholeNumber() {
+        return isWholeNumber;
     }
 
+    /**
+     * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
+     */
+    public boolean isRationalNumber() {
+        return isRationalNumber;
+    }
+
+    /**
+     * Does this data type represent <strong>any</strong> number?
+     */
     public boolean isNumeric() {
-        return isInteger || isRational;
+        return isWholeNumber || isRationalNumber;
     }
 
-    public int size() {
-        return size;
+    /**
+     * @return the estimated size, in bytes, of this data type.  If there's no reasonable way to estimate the size,
+     *         the optional will be empty.
+     */
+    public Optional<Integer> estimatedSize() {
+        return estimatedSize;
     }
 
     public boolean hasDocValues() {
         return docValues;
+    }
+
+    /**
+     * {@code true} if this is a TSDB counter, {@code false} otherwise.
+     */
+    public boolean isCounter() {
+        return isCounter;
+    }
+
+    /**
+     * If this is a "small" numeric type this contains the type ESQL will
+     * widen it into, otherwise this returns {@code this}.
+     */
+    public DataType widenSmallNumeric() {
+        return widenSmallNumeric == null ? this : widenSmallNumeric;
+    }
+
+    /**
+     * If this is a representable numeric this will be the counter "version"
+     * of this numeric, otherwise this is {@code null}.
+     */
+    public DataType counter() {
+        return counter;
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -301,5 +395,106 @@ public enum DataType {
     public static DataType fromNameOrAlias(String typeName) {
         DataType type = NAME_OR_ALIAS_TO_TYPE.get(typeName.toLowerCase(Locale.ROOT));
         return type != null ? type : UNSUPPORTED;
+    }
+
+    static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Named parameters with default values. It's just easier to do this with
+     * a builder in java....
+     */
+    private static class Builder {
+        private String esType;
+
+        private String typeName;
+
+        private Optional<Integer> estimatedSize;
+
+        /**
+         * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
+         */
+        private boolean isWholeNumber;
+
+        /**
+         * True if the type represents a "rational number", as in, <strong>does</strong> have a decimal part.
+         */
+        private boolean isRationalNumber;
+
+        /**
+         * True if the type supports doc values by default
+         */
+        private boolean docValues;
+
+        /**
+         * {@code true} if this is a TSDB counter, {@code false} otherwise.
+         */
+        private boolean isCounter;
+
+        /**
+         * If this is a "small" numeric type this contains the type ESQL will
+         * widen it into, otherwise this is {@code null}.
+         */
+        private DataType widenSmallNumeric;
+
+        /**
+         * If this is a representable numeric this will be the counter "version"
+         * of this numeric, otherwise this is {@code null}.
+         */
+        private DataType counter;
+
+        Builder() {}
+
+        Builder esType(String esType) {
+            this.esType = esType;
+            return this;
+        }
+
+        Builder typeName(String typeName) {
+            this.typeName = typeName;
+            return this;
+        }
+
+        Builder estimatedSize(int size) {
+            this.estimatedSize = Optional.of(size);
+            return this;
+        }
+
+        Builder unknownSize() {
+            this.estimatedSize = Optional.empty();
+            return this;
+        }
+
+        Builder wholeNumber() {
+            this.isWholeNumber = true;
+            return this;
+        }
+
+        Builder rationalNumber() {
+            this.isRationalNumber = true;
+            return this;
+        }
+
+        Builder docValues() {
+            this.docValues = true;
+            return this;
+        }
+
+        Builder counter() {
+            this.isCounter = true;
+            return this;
+        }
+
+        Builder widenSmallNumeric(DataType widenSmallNumeric) {
+            this.widenSmallNumeric = widenSmallNumeric;
+            return this;
+        }
+
+        Builder counter(DataType counter) {
+            assert counter.isCounter;
+            this.counter = counter;
+            return this;
+        }
     }
 }

@@ -12,12 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
-import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
-import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
-
-public class MultilingualE5SmallModel extends ElasticsearchModel {
+public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
 
     public MultilingualE5SmallModel(
         String inferenceEntityId,
@@ -34,20 +31,7 @@ public class MultilingualE5SmallModel extends ElasticsearchModel {
     }
 
     @Override
-    StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
-        var startRequest = new StartTrainedModelDeploymentAction.Request(
-            this.getServiceSettings().getModelId(),
-            this.getInferenceEntityId()
-        );
-        startRequest.setNumberOfAllocations(this.getServiceSettings().getNumAllocations());
-        startRequest.setThreadsPerAllocation(this.getServiceSettings().getNumThreads());
-        startRequest.setWaitForState(STARTED);
-
-        return startRequest;
-    }
-
-    @Override
-    ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
+    public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
         Model model,
         ActionListener<Boolean> listener
     ) {

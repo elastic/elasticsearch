@@ -51,6 +51,8 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         assertOK(client().performRequest(new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME)));
+        // Initialize the failure store.
+        assertOK(client().performRequest(new Request("POST", DATA_STREAM_NAME + "/_rollover?target_failure_store")));
         ensureGreen(DATA_STREAM_NAME);
 
         final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));

@@ -10,7 +10,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -92,12 +91,14 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public boolean expressionsResolved() {
+        // For unresolved expressions to exist in EsRelation is fine, as long as they are not used in later operations
+        // This allows for them to be converted to null@unsupported fields in final output, an important feature of ES|QL
         return true;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, indexMode, frozen);
+        return Objects.hash(index, indexMode, frozen, attrs);
     }
 
     @Override
@@ -111,7 +112,10 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index) && indexMode == other.indexMode() && frozen == other.frozen;
+        return Objects.equals(index, other.index)
+            && indexMode == other.indexMode()
+            && frozen == other.frozen
+            && Objects.equals(attrs, other.attrs);
     }
 
     @Override

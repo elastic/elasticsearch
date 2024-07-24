@@ -1,5 +1,5 @@
 ---
-"Put index template":
+"Auto-create data stream":
   - requires:
       cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
@@ -48,7 +48,7 @@
   - is_true: acknowledged
 
 ---
-"Put index template with failure store":
+"Don't initialize failure store during data stream auto-creation on successful index":
   - requires:
       cluster_features: ["gte_v8.15.0"]
       reason: "data stream failure stores REST structure changed in 8.15+"
@@ -92,8 +92,7 @@
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.0.failure_store.enabled: true }
-  - length: { data_streams.0.failure_store.indices: 1 }
-  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 0 }
 
   - do:
       indices.delete_data_stream:

@@ -1,0 +1,10 @@
+pr: 110829
+summary: deprecate `edge_ngram` side parameter
+area: Analysis
+type: deprecation
+issues: []
+deprecation:
+  title: deprecate `edge_ngram` side parameter
+  area: Analysis
+  details: edge_ngram will no longer accept the side parameter.
+  impact: Users will need to update any usage of edge_ngram token filter that utilizes `side`. If the `back` value was used, they can achieve the same behavior by using the `reverse` token filter.

@@ -86,7 +86,7 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ADD_DATA_STREAM_GLOBAL_RETENTION;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override

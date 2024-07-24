@@ -192,7 +192,9 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     public void testPutRepositoryVerificationFails() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
-        var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(true);
+        var request = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name(repoName)
+            .type(VerificationFailRepository.TYPE)
+            .verify(true);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
         repositoriesService.registerRepository(request, resultListener);
         var failure = safeAwaitFailure(resultListener);
@@ -203,14 +205,18 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     public void testPutRepositoryVerificationFailsOnExisting() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
-        var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE).verify(true);
+        var request = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name(repoName)
+            .type(TestRepository.TYPE)
+            .verify(true);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
         repositoriesService.registerRepository(request, resultListener);
         var ackResponse = safeAwait(resultListener);
         assertTrue(ackResponse.isAcknowledged());
 
         // try to update existing repository with faulty repo and make sure it is not applied
-        request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(true);
+        request = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name(repoName)
+            .type(VerificationFailRepository.TYPE)
+            .verify(true);
         resultListener = new SubscribableListener<>();
         repositoriesService.registerRepository(request, resultListener);
         var failure = safeAwaitFailure(resultListener);
@@ -221,7 +227,9 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     public void testPutRepositorySkipVerification() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
-        var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(false);
+        var request = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name(repoName)
+            .type(VerificationFailRepository.TYPE)
+            .verify(false);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
         repositoriesService.registerRepository(request, resultListener);
         var ackResponse = safeAwait(resultListener);
@@ -280,7 +288,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     public void testRegisterRepositoryFailsForUnknownType() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
-        var request = new PutRepositoryRequest().name(repoName).type("unknown");
+        var request = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name(repoName).type("unknown");
 
         repositoriesService.registerRepository(request, new ActionListener<>() {
             @Override
@@ -359,7 +367,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertThat(repo, isA(InvalidRepository.class));
 
         // 2. repository creation successfully when current node become master node and repository is put again
-        var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE);
+        var request = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name(repoName).type(TestRepository.TYPE);
 
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
         repositoriesService.registerRepository(request, resultListener);
@@ -385,7 +393,13 @@ public class RepositoriesServiceTests extends ESTestCase {
     }
 
     private void assertThrowsOnRegister(String repoName) {
-        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(new PutRepositoryRequest(repoName), null));
+        expectThrows(
+            RepositoryException.class,
+            () -> repositoriesService.registerRepository(
+                new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName),
+                null
+            )
+        );
     }
 
     private static class TestRepository implements Repository {

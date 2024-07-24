@@ -17,10 +17,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrDatePeriod;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTimeDuration;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;
 
 public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
@@ -35,21 +35,24 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
-        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
-            return EsqlDataTypes.getCounterType(typeName);
-        } else {
-            return EsqlDataTypes.fromName(typeName);
-        }
+        DataType type = DataType.fromEs(typeName);
+        /*
+         * If we're handling a time series COUNTER type field then convert it
+         * into it's counter. But *first* we have to widen it because we only
+         * have time series counters for `double`, `long` and `int`, not `float`
+         * and `half_float`, etc.
+         */
+        return metricType == TimeSeriesParams.MetricType.COUNTER ? type.widenSmallNumeric().counter() : type;
     }
 
     @Override
     public DataType fromJava(Object value) {
-        return EsqlDataTypes.fromJava(value);
+        return DataType.fromJava(value);
     }
 
     @Override
     public boolean isUnsupported(DataType type) {
-        return EsqlDataTypes.isUnsupported(type);
+        return type == DataType.UNSUPPORTED;
     }
 
     @Override

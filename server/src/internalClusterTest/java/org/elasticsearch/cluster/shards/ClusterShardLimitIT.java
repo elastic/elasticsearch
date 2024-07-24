@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.IndexVersion;
@@ -152,7 +153,9 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 + firstShardCount
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum normal shards open;";
+                + "] maximum normal shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE
+                + ";";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();
@@ -211,7 +214,9 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 + totalShardsBefore
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum normal shards open;";
+                + "] maximum normal shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE
+                + ";";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();
@@ -253,7 +258,13 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         repoSettings.put("compress", randomBoolean());
         repoSettings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
 
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(repoSettings.build()));
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
+                .setType("fs")
+                .setSettings(repoSettings.build())
+        );
 
         int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
@@ -270,7 +281,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("snapshot-index")
             .get();
@@ -282,7 +293,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
         List<SnapshotInfo> snapshotInfos = client.admin()
             .cluster()
-            .prepareGetSnapshots("test-repo")
+            .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo")
             .setSnapshots("test-snap")
             .get()
             .getSnapshots();
@@ -310,7 +321,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         try {
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
                 .cluster()
-                .prepareRestoreSnapshot("test-repo", "test-snap")
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
                 .setWaitForCompletion(true)
                 .setIndices("snapshot-index")
                 .get();
@@ -397,7 +408,9 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             + currentShards
             + "]/["
             + maxShards
-            + "] maximum normal shards open;";
+            + "] maximum normal shards open; for more information, see "
+            + ReferenceDocs.MAX_SHARDS_PER_NODE
+            + ";";
         assertEquals(expectedError, e.getMessage());
     }
 

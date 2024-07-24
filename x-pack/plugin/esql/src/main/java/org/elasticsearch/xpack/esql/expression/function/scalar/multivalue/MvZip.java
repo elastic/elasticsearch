@@ -9,22 +9,27 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -38,6 +43,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * Combines the values from two multivalued fields with a delimiter that joins them together.
  */
 public class MvZip extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvZip", MvZip::new);
+
     private final Expression mvLeft, mvRight, delim;
     private static final Literal COMMA = new Literal(Source.EMPTY, ",", DataType.TEXT);
 
@@ -60,7 +67,29 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
         super(source, delim == null ? Arrays.asList(mvLeft, mvRight, COMMA) : Arrays.asList(mvLeft, mvRight, delim));
         this.mvLeft = mvLeft;
         this.mvRight = mvRight;
-        this.delim = delim == null ? COMMA : delim;
+        this.delim = delim;
+    }
+
+    private MvZip(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(mvLeft);
+        out.writeNamedWriteable(mvRight);
+        out.writeOptionalNamedWriteable(delim);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -104,7 +133,12 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        return new MvZipEvaluator.Factory(source(), toEvaluator.apply(mvLeft), toEvaluator.apply(mvRight), toEvaluator.apply(delim));
+        return new MvZipEvaluator.Factory(
+            source(),
+            toEvaluator.apply(mvLeft),
+            toEvaluator.apply(mvRight),
+            toEvaluator.apply(delim == null ? COMMA : delim)
+        );
     }
 
     @Override
@@ -194,5 +228,17 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
             rightIndex++;
         }
         builder.endPositionEntry();
+    }
+
+    Expression mvLeft() {
+        return mvLeft;
+    }
+
+    Expression mvRight() {
+        return mvRight;
+    }
+
+    Expression delim() {
+        return delim;
     }
 }

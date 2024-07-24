@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitiveAndSupported;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.inUnsignedLongRange;
@@ -77,24 +77,26 @@ public final class DataTypeConverter {
             return right;
         }
         if (left.isNumeric() && right.isNumeric()) {
+            int lsize = left.estimatedSize().orElseThrow();
+            int rsize = right.estimatedSize().orElseThrow();
             // if one is int
-            if (left.isInteger()) {
+            if (left.isWholeNumber()) {
                 // promote the highest int
-                if (right.isInteger()) {
+                if (right.isWholeNumber()) {
                     if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
                         return UNSIGNED_LONG;
                     }
-                    return left.size() > right.size() ? left : right;
+                    return lsize > rsize ? left : right;
                 }
                 // promote the rational
                 return right;
             }
             // try the other side
-            if (right.isInteger()) {
+            if (right.isWholeNumber()) {
                 return left;
             }
             // promote the highest rational
-            return left.size() > right.size() ? left : right;
+            return lsize > rsize ? left : right;
         }
         if (isString(left)) {
             if (right.isNumeric()) {
@@ -124,7 +126,7 @@ public final class DataTypeConverter {
             return true;
         }
         // only primitives are supported so far
-        return isPrimitive(from) && isPrimitive(to) && converterFor(from, to) != null;
+        return isPrimitiveAndSupported(from) && isPrimitiveAndSupported(to) && converterFor(from, to) != null;
     }
 
     /**
@@ -200,10 +202,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToUnsignedLong(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_UNSIGNED_LONG;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_UNSIGNED_LONG;
         }
         if (from == BOOLEAN) {
@@ -219,10 +221,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToLong(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_LONG;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_LONG;
         }
         if (from == BOOLEAN) {
@@ -238,10 +240,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToInt(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_INT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_INT;
         }
         if (from == BOOLEAN) {
@@ -257,10 +259,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToShort(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_SHORT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_SHORT;
         }
         if (from == BOOLEAN) {
@@ -276,10 +278,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToByte(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_BYTE;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_BYTE;
         }
         if (from == BOOLEAN) {
@@ -295,10 +297,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToFloat(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_FLOAT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_FLOAT;
         }
         if (from == BOOLEAN) {
@@ -314,10 +316,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToDouble(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_DOUBLE;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_DOUBLE;
         }
         if (from == BOOLEAN) {
@@ -333,10 +335,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToDateTime(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_DATETIME;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_DATETIME;
         }
         if (from == BOOLEAN) {
@@ -628,6 +630,6 @@ public final class DataTypeConverter {
             return dataType;
         }
 
-        return dataType.isInteger() ? dataType : LONG;
+        return dataType.isWholeNumber() ? dataType : LONG;
     }
 }

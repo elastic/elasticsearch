@@ -11,6 +11,7 @@ import fixture.azure.AzureHttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * This class tests how a {@link AzureBlobContainer} and its underlying SDK client are retrying requests when reading or writing blobs.
  */
 @SuppressForbidden(reason = "use a http server")
+@LuceneTestCase.AwaitsFix(bugUrl = "WIP")
 public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase {
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {

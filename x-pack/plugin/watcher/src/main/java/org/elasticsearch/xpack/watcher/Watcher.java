@@ -490,7 +490,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .setBulkSize(SETTING_BULK_SIZE.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, settings);
 
         // schedulers
         final Set<Schedule.Parser<?>> scheduleParsers = new HashSet<>();

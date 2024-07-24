@@ -23,7 +23,6 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "WIP")
 public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
     private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");

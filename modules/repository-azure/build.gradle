@@ -301,6 +301,8 @@ tasks.named("yamlRestTest") {
 }
 
 tasks.register("managedIdentityYamlRestTest", RestIntegTestTask) {
+  testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+  classpath = sourceSets.yamlRestTest.runtimeClasspath
 }
 
 tasks.named("managedIdentityYamlRestTest") {

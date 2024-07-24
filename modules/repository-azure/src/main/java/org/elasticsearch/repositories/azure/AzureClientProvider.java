@@ -144,6 +144,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, NettyAllocator.getAllocator());
     }
 
+    private static final Logger logger = LogManager.getLogger(AzureClientProvider.class);
+
     AzureBlobServiceClient createClient(
         AzureStorageSettings settings,
         LocationMode locationMode,
@@ -165,10 +167,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
 
         final String connectionString = settings.getConnectString();
+        logger.info("--> connection string {}", connectionString);
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
-            .credential(new DefaultAzureCredentialBuilder().executorService(eventLoopGroup).build())
             .httpClient(httpClient)
             .retryOptions(retryOptions);
+
+        if (settings.hasCredentials() == false) {
+            builder.credential(new DefaultAzureCredentialBuilder().executorService(eventLoopGroup).build());
+        }
 
         if (successfulRequestConsumer != null) {
             builder.addPolicy(new SuccessfulRequestTracker(successfulRequestConsumer));

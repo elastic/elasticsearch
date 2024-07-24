@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Stats;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -399,8 +400,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof Aggregate agg) {
-                return resolveAggregate(agg, childrenOutput);
+            if (plan instanceof Stats stats) {
+                return resolveStats(stats, childrenOutput);
             }
 
             if (plan instanceof Drop d) {
@@ -434,11 +435,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
-        private LogicalPlan resolveAggregate(Aggregate a, List<Attribute> childrenOutput) {
+        private LogicalPlan resolveStats(Stats stats, List<Attribute> childrenOutput) {
             // if the grouping is resolved but the aggs are not, use the former to resolve the latter
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);
-            List<Expression> groupings = a.groupings();
+            List<Expression> groupings = stats.groupings();
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             if (Resolvables.resolved(groupings) == false) {
@@ -452,12 +453,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    a = new Aggregate(a.source(), a.child(), a.aggregateType(), newGroupings, a.aggregates());
+                    stats = stats.with(newGroupings, stats.aggregates());
                     changed.set(false);
                 }
             }
 
-            if (a.expressionsResolved() == false) {
+            if (stats.expressionsResolved() == false) {
                 AttributeMap<Expression> resolved = new AttributeMap<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
@@ -468,7 +469,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
                 List<NamedExpression> newAggregates = new ArrayList<>();
 
-                for (NamedExpression aggregate : a.aggregates()) {
+                for (NamedExpression aggregate : stats.aggregates()) {
                     var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
                         Expression ne = ua;
                         Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
@@ -481,10 +482,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                a = changed.get() ? new Aggregate(a.source(), a.child(), a.aggregateType(), groupings, newAggregates) : a;
+                stats = changed.get() ? stats.with(groupings, newAggregates) : stats;
             }
 
-            return a;
+            return (LogicalPlan) stats;
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -1122,6 +1123,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
             // Now that we have resolved those, we need to re-resolve the aggregates.
             if (plan instanceof Aggregate agg) {
+                // TODO once inlinestats supports expressions in groups we'll likely need the same sort of extraction here
                 // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
                 plan = agg.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
 

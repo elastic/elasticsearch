@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -331,6 +332,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
+        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG.isEnabled()) {
+            throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
+        }
         List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);

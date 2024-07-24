@@ -45,6 +45,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * Support for the {@code INLINESTATS} syntax.
+         */
+        INLINESTATS(true),
+
+        /**
          * Support for aggregation function {@code TOP}.
          */
         AGG_TOP,

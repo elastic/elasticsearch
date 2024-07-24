@@ -627,6 +627,16 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     @FunctionalInterface
     protected interface PositionalErrorMessageSupplier {
+        /**
+         * This interface defines functions to supply error messages for incorrect types in specific positions.  Functions which have
+         * the same type requirements for all positions can simplify this with a lambda returning a string constant.
+         *
+         * @param validForPosition - the set of {@link DataType}s that the test infrastructure believes to be allowable in the
+         *                         given position.
+         * @param position - the zero-index position in the list of parameters the function has detected the bad argument to be.
+         * @return The string describing the acceptable parameters for that position.  Note that this function should not return
+         *         the full error string; that will be constructed by the test.  Just return the type string for that position.
+         */
         String apply(Set<DataType> validForPosition, int position);
     }
 

@@ -23,30 +23,19 @@ versions << [
 ]
 
 dependencies {
-  api "com.azure:azure-storage-blob:12.26.1"
-  api "com.azure:azure-storage-common:12.26.0" // Maven says 12.25.1 but that doesn't work?
+  // Microsoft deps
   api "com.azure:azure-core-http-netty:1.15.1"
   api "com.azure:azure-core:1.50.0" // Maven says 1.49.1 but that doesn't work?
   api "com.azure:azure-identity:1.13.1"
   api "com.azure:azure-json:1.1.0"
-  api "com.azure:azure-xml:1.0.0"
-  api "com.microsoft.azure:msal4j:1.16.1" // Maven says 1.15.1 but that doesn't work?
-  api "com.microsoft.azure:msal4j-persistence-extension:1.3.0"
-  api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
-  api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
-  api "net.minidev:accessors-smart:2.5.0"
-  api "net.minidev:json-smart:2.5.0"
-  api "org.ow2.asm:asm:9.3"
-  api "com.nimbusds:content-type:2.3"
-  api "com.nimbusds:lang-tag:1.7"
-  api "com.nimbusds:nimbus-jose-jwt:9.37.3"
-  api "com.nimbusds:oauth2-oidc-sdk:11.9.1"
-  api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
-  api "com.fasterxml.woodstox:woodstox-core:6.4.0"
-  api "org.codehaus.woodstox:stax2-api:4.2.1"
+  api "com.azure:azure-storage-blob:12.26.1"
+  api "com.azure:azure-storage-common:12.26.0" // Maven says 12.25.1 but that doesn't work?
   api "com.azure:azure-storage-internal-avro:12.11.1"
+  api "com.azure:azure-xml:1.0.0"
+  api "com.microsoft.azure:msal4j-persistence-extension:1.3.0"
+  api "com.microsoft.azure:msal4j:1.16.1" // Maven says 1.15.1 but that doesn't work?
 
-  // jackson
+  // Jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
@@ -54,7 +43,7 @@ dependencies {
   api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.azureJackson}"
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.azureJackson}"
 
-  // netty
+  // Netty
   api "io.netty:netty-common:${versions.azureNetty}"
   api "io.netty:netty-buffer:${versions.azureNetty}"
   api "io.netty:netty-handler:${versions.azureNetty}"
@@ -66,11 +55,25 @@ dependencies {
   api "io.netty:netty-handler-proxy:${versions.azureNetty}"
   api "io.netty:netty-resolver-dns:${versions.azureNetty}"
 
-  // reactor
+  // Reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
   api "io.projectreactor:reactor-core:3.4.38"
   api "org.reactivestreams:reactive-streams:1.0.4"
+
+  // Others
+  api "com.fasterxml.woodstox:woodstox-core:6.4.0"
+  api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
+  api "com.nimbusds:content-type:2.3"
+  api "com.nimbusds:lang-tag:1.7"
+  api "com.nimbusds:nimbus-jose-jwt:9.37.3"
+  api "com.nimbusds:oauth2-oidc-sdk:11.9.1"
+  api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
+  api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
+  api "net.minidev:accessors-smart:2.5.0"
+  api "net.minidev:json-smart:2.5.0"
+  api "org.codehaus.woodstox:stax2-api:4.2.1"
+  api "org.ow2.asm:asm:9.3"
 
   implementation project(":modules:transport-netty4")
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")

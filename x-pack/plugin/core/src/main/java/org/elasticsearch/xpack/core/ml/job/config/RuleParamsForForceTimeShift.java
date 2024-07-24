@@ -75,8 +75,4 @@ public class RuleParamsForForceTimeShift implements ToXContentObject, Writeable 
     public int hashCode() {
         return Long.hashCode(timeShiftAmount);
     }
-
-    public long getTimeShiftAmount() {
-        return timeShiftAmount;
-    }
 }

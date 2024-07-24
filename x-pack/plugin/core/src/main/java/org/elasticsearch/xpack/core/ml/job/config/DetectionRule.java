@@ -31,7 +31,6 @@ public class DetectionRule implements ToXContentObject, Writeable {
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
     public static final ParseField SCOPE_FIELD = new ParseField("scope");
     public static final ParseField CONDITIONS_FIELD = new ParseField("conditions");
-
     public static final ParseField PARAMS_FIELD = new ParseField("params");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
@@ -56,7 +55,6 @@ public class DetectionRule implements ToXContentObject, Writeable {
     private final EnumSet<RuleAction> actions;
     private final RuleScope scope;
     private final List<RuleCondition> conditions;
-
     private final RuleParams params;
 
     private DetectionRule(EnumSet<RuleAction> actions, RuleScope scope, List<RuleCondition> conditions, RuleParams params) {
@@ -150,7 +148,6 @@ public class DetectionRule implements ToXContentObject, Writeable {
         private EnumSet<RuleAction> actions = EnumSet.of(RuleAction.SKIP_RESULT);
         private RuleScope scope = new RuleScope();
         private List<RuleCondition> conditions = Collections.emptyList();
-
         private RuleParams params = new RuleParams();
 
         public Builder(RuleScope.Builder scope) {

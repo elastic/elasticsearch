@@ -315,21 +315,11 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             InputType.UNSPECIFIED,
                             InferenceAction.Request.DEFAULT_TIMEOUT
                         );
-                    } else if (version.before(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+                    } else if (version.before(TransportVersions.V_8_14_0)) {
                         return new InferenceAction.Request(
                             instance.getTaskType(),
                             instance.getInferenceEntityId(),
                             null,
-                            instance.getInput(),
-                            instance.getTaskSettings(),
-                            instance.getInputType(),
-                            InferenceAction.Request.DEFAULT_TIMEOUT
-                        );
-                    } else if (version.before(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
-                        return new InferenceAction.Request(
-                            instance.getTaskType(),
-                            instance.getInferenceEntityId(),
-                            instance.getQuery(),
                             instance.getInput(),
                             instance.getTaskSettings(),
                             instance.getInputType(),

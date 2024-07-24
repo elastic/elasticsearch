@@ -106,7 +106,11 @@ public class IpPrefixTests extends AbstractScalarFunctionTestCase {
             })
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
+            case 0 -> "ip";
+            case 1, 2 -> "integer";
+            default -> "";
+        });
     }
 
     @Override

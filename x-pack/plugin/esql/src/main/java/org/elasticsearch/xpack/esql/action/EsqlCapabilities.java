@@ -173,6 +173,12 @@ public class EsqlCapabilities {
         UNIQUE_NAMES,
 
         /**
+         * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
+         * https://github.com/elastic/elasticsearch/issues/108008
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT,
+
+        /**
          * Support for nanosecond dates as a data type
          */
         DATE_NANOS_TYPE;

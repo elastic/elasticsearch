@@ -63,7 +63,7 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
         );
 
         // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "ip or string");
     }
 
     @Override

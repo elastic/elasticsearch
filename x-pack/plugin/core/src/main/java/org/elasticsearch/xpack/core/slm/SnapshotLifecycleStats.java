@@ -177,7 +177,8 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
      * Returned new stats with the amount of time taken for deleting snapshots during SLM retention updated
      */
     public SnapshotLifecycleStats withDeletionTimeUpdated(TimeValue elapsedTime) {
-        return new SnapshotLifecycleStats(retentionRun, retentionFailed, retentionTimedOut, retentionTimeMs + elapsedTime.millis(), policyStats);
+        final long newRetentionTimeMs = retentionTimeMs + elapsedTime.millis();
+        return new SnapshotLifecycleStats(retentionRun, retentionFailed, retentionTimedOut, newRetentionTimeMs, policyStats);
     }
 
     /**

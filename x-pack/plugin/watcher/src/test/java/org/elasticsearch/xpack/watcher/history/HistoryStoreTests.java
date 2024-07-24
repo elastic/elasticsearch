@@ -98,11 +98,11 @@ public class HistoryStoreTests extends ESTestCase {
         WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null, randomAlphaOfLength(10));
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-
+        AtomicBoolean historyItemIndexed = new AtomicBoolean(false);
         doAnswer(invocation -> {
-            BulkRequest request = (BulkRequest) invocation.getArguments()[1];
+            BulkRequest request = (BulkRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             if (indexRequest.id().equals(wid.value())
@@ -111,14 +111,17 @@ public class HistoryStoreTests extends ESTestCase {
                 listener.onResponse(
                     new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1)
                 );
+                historyItemIndexed.set(true);
             } else {
                 listener.onFailure(new ElasticsearchException("test issue"));
+                fail("Unexpected indexRequest");
             }
             return null;
         }).when(client).bulk(any(), any());
 
         historyStore.put(watchRecord);
         verify(client).bulk(any(), any());
+        assertThat(historyItemIndexed.get(), equalTo(true));
     }
 
     @SuppressWarnings("unchecked")
@@ -254,12 +257,14 @@ public class HistoryStoreTests extends ESTestCase {
         watchRecord.result().actionsResults().put(JiraAction.TYPE, result);
 
         ArgumentCaptor<BulkRequest> requestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        AtomicBoolean historyItemIndexed = new AtomicBoolean(false);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
 
             IndexResponse indexResponse = mock(IndexResponse.class);
             listener.onResponse(new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1));
+            historyItemIndexed.set(true);
             return null;
         }).when(client).bulk(requestCaptor.capture(), any());
 
@@ -268,7 +273,7 @@ public class HistoryStoreTests extends ESTestCase {
         } else {
             historyStore.forcePut(watchRecord);
         }
-
+        assertThat(historyItemIndexed.get(), equalTo(true));
         assertThat(requestCaptor.getAllValues(), hasSize(1));
         assertThat(requestCaptor.getValue().requests().get(0), instanceOf(IndexRequest.class));
         IndexRequest capturedIndexRequest = (IndexRequest) requestCaptor.getValue().requests().get(0);

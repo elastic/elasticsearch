@@ -133,7 +133,12 @@ public class GreaterThanOrEqualTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(
                 anyNullIsNull(true, suppliers),
-                AbstractScalarFunctionTestCase::errorMessageStringForBinaryOperators
+                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(
+                    o,
+                    v,
+                    t,
+                    (l, p) -> "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+                )
             )
         );
     }

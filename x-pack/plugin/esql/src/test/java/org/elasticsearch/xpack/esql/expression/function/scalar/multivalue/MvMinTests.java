@@ -38,7 +38,7 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
         longs(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsLong()));
         unsignedLongs(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.reduce(BigInteger::min).get()));
         dateTimes(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsLong()));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "representableNonSpatial");
     }
 
     @Override

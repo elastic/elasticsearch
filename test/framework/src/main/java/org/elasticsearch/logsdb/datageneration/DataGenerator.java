@@ -22,7 +22,7 @@ public class DataGenerator {
     private final FieldDataGenerator topLevelGenerator;
 
     public DataGenerator(DataGeneratorSpecification specification) {
-        this.topLevelGenerator = new ObjectFieldDataGenerator(specification, 0);
+        this.topLevelGenerator = new ObjectFieldDataGenerator(specification);
     }
 
     public void writeMapping(XContentBuilder mapping) throws IOException {

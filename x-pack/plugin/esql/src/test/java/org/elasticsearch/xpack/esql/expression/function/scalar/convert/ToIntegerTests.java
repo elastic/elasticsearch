@@ -268,7 +268,11 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true,
+            suppliers,
+            (v, p) -> "boolean or counter_integer or datetime or numeric or string"
+        );
     }
 
     @Override

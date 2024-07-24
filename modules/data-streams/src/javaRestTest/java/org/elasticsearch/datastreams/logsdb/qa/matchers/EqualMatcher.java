@@ -9,22 +9,18 @@
 package org.elasticsearch.datastreams.logsdb.qa.matchers;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
-import org.elasticsearch.datastreams.logsdb.qa.exceptions.MismatchTypeMatcherException;
-import org.elasticsearch.datastreams.logsdb.qa.exceptions.UncomparableMatcherException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.util.Arrays;
 import java.util.List;
 
 class EqualMatcher<T> extends Matcher {
-    private final XContentBuilder actualMappings;
-    private final Settings.Builder actualSettings;
-    private final XContentBuilder expectedMappings;
-    private final Settings.Builder expectedSettings;
-    private final T actual;
-    private final T expected;
-    private final boolean ignoringSort;
+    protected final XContentBuilder actualMappings;
+    protected final Settings.Builder actualSettings;
+    protected final XContentBuilder expectedMappings;
+    protected final Settings.Builder expectedSettings;
+    protected final T actual;
+    protected final T expected;
+    protected final boolean ignoringSort;
 
     EqualMatcher(
         XContentBuilder actualMappings,
@@ -44,65 +40,54 @@ class EqualMatcher<T> extends Matcher {
         this.ignoringSort = ignoringSort;
     }
 
-    @SuppressWarnings("unchecked")
-    public boolean match() throws MatcherException {
+    public MatchResult match() {
         if (actual == null) {
             if (expected == null) {
-                throw new UncomparableMatcherException(
+
+                return MatchResult.noMatch(
+                    formatErrorMessage(
+                        actualMappings,
+                        actualSettings,
+                        expectedMappings,
+                        expectedSettings,
+                        "Both 'actual' and 'expected' are null"
+                    )
+                );
+            }
+            return MatchResult.noMatch(
+                formatErrorMessage(actualMappings, actualSettings, expectedMappings, expectedSettings, "Expected is null but actual is not")
+            );
+        }
+        if (expected == null) {
+            return MatchResult.noMatch(
+                formatErrorMessage(actualMappings, actualSettings, expectedMappings, expectedSettings, "Actual is null but expected is not")
+            );
+        }
+        if (actual.getClass().equals(expected.getClass()) == false) {
+            return MatchResult.noMatch(
+                formatErrorMessage(
                     actualMappings,
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "Both 'actual' and 'expected' are null"
-                );
-            }
-            return false;
+                    "Unable to match " + actual.getClass().getSimpleName() + " to " + expected.getClass().getSimpleName()
+                )
+            );
         }
-        if (expected == null) {
-            return false;
-        }
-        if (actual.getClass().equals(expected.getClass()) == false) {
-            throw new MismatchTypeMatcherException(
+        if (actual.getClass().isArray()) {
+            return new ArrayEqualMatcher(
                 actualMappings,
                 actualSettings,
                 expectedMappings,
                 expectedSettings,
-                "Unable to match " + actual.getClass().getSimpleName() + " to " + expected.getClass().getSimpleName()
-            );
-        }
-        if (actual.getClass().isArray()) {
-            return matchArraysEqual((T[]) actual, (T[]) expected, ignoringSort);
+                (Object[]) actual,
+                (Object[]) expected,
+                ignoringSort
+            ).match();
         }
         if (actual instanceof List<?> act && expected instanceof List<?> exp) {
-            return matchArraysEqual((T[]) (act).toArray(), (T[]) (exp).toArray(), ignoringSort);
+            return new ListEqualMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings, act, exp, ignoringSort).match();
         }
-        return actual.equals(expected);
-    }
-
-    private boolean matchArraysEqual(final T[] actualArray, final T[] expectedArray, boolean ignoreSorting) {
-        if (actualArray.length != expectedArray.length) {
-            return false;
-        }
-        if (ignoreSorting) {
-            return matchArraysEqualIgnoringSorting(actualArray, expectedArray) != false;
-        } else {
-            return matchArraysEqualExact(actualArray, expectedArray) != false;
-        }
-    }
-
-    private static <T> boolean matchArraysEqualIgnoringSorting(T[] actualArray, T[] expectedArray) {
-        final List<T> actualList = Arrays.asList(actualArray);
-        final List<T> expectedList = Arrays.asList(expectedArray);
-        return actualList.containsAll(expectedList) && expectedList.containsAll(actualList);
-    }
-
-    private static <T> boolean matchArraysEqualExact(T[] actualArray, T[] expectedArray) {
-        for (int i = 0; i < actualArray.length; i++) {
-            boolean isEqual = actualArray[i].equals(expectedArray[i]);
-            if (isEqual == false) {
-                return true;
-            }
-        }
-        return false;
+        return new ObjectMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected).match();
     }
 }

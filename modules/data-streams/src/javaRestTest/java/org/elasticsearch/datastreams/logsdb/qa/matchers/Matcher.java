@@ -8,9 +8,8 @@
 
 package org.elasticsearch.datastreams.logsdb.qa.matchers;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
-import org.elasticsearch.datastreams.logsdb.qa.exceptions.NotEqualMatcherException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 /**
@@ -31,7 +30,7 @@ public abstract class Matcher {
     }
 
     public interface CompareStep<T> {
-        void isEqualTo(T actual) throws MatcherException;
+        MatchResult isEqualTo(T actual);
 
         CompareStep<T> ignoringSort(boolean ignoringSort);
     }
@@ -63,25 +62,9 @@ public abstract class Matcher {
         }
 
         @Override
-        public void isEqualTo(T actual) throws MatcherException {
-            boolean match = new EqualMatcher<>(
-                actualMappings,
-                actualSettings,
-                expectedMappings,
-                expectedSettings,
-                actual,
-                expected,
-                ignoringSort
-            ).match();
-            if (match == false) {
-                throw new NotEqualMatcherException(
-                    actualMappings,
-                    actualSettings,
-                    expectedMappings,
-                    expectedSettings,
-                    "actual [" + actual + "] not equal to [" + expected + "]"
-                );
-            }
+        public MatchResult isEqualTo(T actual) {
+            return new EqualMatcher<>(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected, ignoringSort)
+                .match();
         }
 
         @Override
@@ -95,6 +78,30 @@ public abstract class Matcher {
             this.expected = expected;
             return this;
         }
+    }
+
+    protected static String formatErrorMessage(
+        final XContentBuilder actualMappings,
+        final Settings.Builder actualSettings,
+        final XContentBuilder expectedMappings,
+        final Settings.Builder expectedSettings,
+        final String errorMessage
+    ) {
+        return "Error ["
+            + errorMessage
+            + "] "
+            + "actual mappings ["
+            + Strings.toString(actualMappings)
+            + "] "
+            + "actual settings ["
+            + Strings.toString(actualSettings.build())
+            + "] "
+            + "expected mappings ["
+            + Strings.toString(expectedMappings)
+            + "] "
+            + "expected settings ["
+            + Strings.toString(expectedSettings.build())
+            + "] ";
     }
 
 }

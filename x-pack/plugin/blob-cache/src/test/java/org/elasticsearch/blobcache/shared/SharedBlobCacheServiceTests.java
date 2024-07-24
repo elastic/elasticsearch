@@ -52,7 +52,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1448,6 +1450,118 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(invocationCounter.get(), equalTo(numberGaps));
             assertThat(region.tracker.checkAvailable(regionSizeInBytes), is(true));
             assertBusy(() -> assertThat(factoryClosed.get(), is(true)));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testReadFilledRangesDoesNotWriteEmptyGaps() throws Exception {
+        final long regionSizeInBytes = size(100);
+        final int numberOfRegions = randomIntBetween(2, 6);
+        final long cacheSize = regionSizeInBytes * numberOfRegions;
+        final Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final ThreadPool threadPool = new TestThreadPool("test");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            assertEquals(numberOfRegions, cacheService.freeRegionCount());
+            final var cacheKey = generateCacheKey();
+            final var cacheFile = cacheService.getCacheFile(cacheKey, cacheSize);
+
+            // Read disjoint ranges to create holes in the cache file regions
+            final long interval = regionSizeInBytes / between(5 * numberOfRegions, 20 * numberOfRegions);
+            for (var start = interval; start < cacheSize - 2 * SharedBytes.PAGE_SIZE; start += interval) {
+                final var range = ByteRange.of(start, start + SharedBytes.PAGE_SIZE);
+                cacheFile.populateAndRead(
+                    range,
+                    range,
+                    (channel, channelPos, relativePos, length) -> length,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> progressUpdater.accept(length)
+                );
+            }
+
+            // Method to calculate completed ranges (across the cache file)
+            Supplier<Set<ByteRange>> getCompletedRanges = () -> IntStream.range(0, numberOfRegions)
+                .mapToObj(i -> cacheService.get(cacheKey, cacheSize, i))
+                .<ByteRange>mapMulti(
+                    (region, emitter) -> region.tracker.getCompletedRanges()
+                        .forEach(
+                            r -> emitter.accept(
+                                ByteRange.of(
+                                    region.physicalStartOffset() + r.start(),
+                                    region.physicalStartOffset() + r.start() + r.length()
+                                )
+                            )
+                        )
+                )
+                .collect(Collectors.toUnmodifiableSet());
+
+            // Pick a random subset of the completed ranges
+            final var completedRanges = getCompletedRanges.get();
+            final var randomCompletedRanges = randomNonEmptySubsetOf(completedRanges);
+
+            // Method to concurrently read the randomCompletedRanges, potentially shifted by some bytes, and populate the cache file
+            final var numberOfThreads = randomIntBetween(1, randomCompletedRanges.size());
+            Consumer<Long> populateAndRead = shift -> {
+                try {
+                    runInParallel(numberOfThreads, thread -> {
+                        for (int j = thread; j < randomCompletedRanges.size(); j += numberOfThreads) {
+                            final var range = randomCompletedRanges.get(j).shift(shift);
+                            ByteRange rangeToRead;
+                            if (range.length() > 1L) {
+                                final long start = randomLongBetween(range.start(), range.end() - 1L);
+                                rangeToRead = ByteRange.of(start, randomLongBetween(start + 1L, range.end()));
+                            } else {
+                                rangeToRead = ByteRange.of(range.start(), range.end());
+                            }
+                            final var rangeToWrite = ByteRange.of(0, cacheSize);
+                            try {
+                                cacheFile.populateAndRead(
+                                    rangeToWrite,
+                                    rangeToRead,
+                                    (channel, channelPos, relativePos, length) -> length,
+                                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> progressUpdater.accept(
+                                        length
+                                    )
+                                );
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    });
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            };
+
+            // Now read each filled range, trying to populate the whole file. Since the ranges are immediately available,
+            // it should not try to write any empty gaps whatsoever.
+            populateAndRead.accept(0L);
+            final var completedRangesAfterReadingFilledRanges = getCompletedRanges.get();
+            assertThat("should not have written more gaps", completedRangesAfterReadingFilledRanges, equalTo(completedRanges));
+
+            // Now retry reading the ranges but shifted by some bytes. Since there are unavailable bytes to read, this should trigger the
+            // writing of gaps (which may be potentially written asynchronously, thus the assertBusy afterward).
+            populateAndRead.accept(randomLongBetween(1, SharedBytes.PAGE_SIZE));
+            assertBusy(() -> {
+                final var completedRangesAfterFillingGaps = getCompletedRanges.get();
+                final var expectedCompletedRanges = IntStream.range(0, numberOfRegions)
+                    .mapToObj(i -> ByteRange.of(i * regionSizeInBytes, (i + 1) * regionSizeInBytes))
+                    .collect(Collectors.toUnmodifiableSet());
+                assertThat("should have completed all regions", completedRangesAfterFillingGaps, equalTo(expectedCompletedRanges));
+            });
         } finally {
             threadPool.shutdown();
         }

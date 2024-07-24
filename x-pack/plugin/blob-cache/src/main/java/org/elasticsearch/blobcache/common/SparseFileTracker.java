@@ -186,9 +186,10 @@ public class SparseFileTracker {
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
 
         final List<Gap> gaps = new ArrayList<>();
-        final List<Range> pendingRanges = new ArrayList<>();
+        List<Range> pendingRangesForListener;
         final Range targetRange = new Range(range);
         synchronized (ranges) {
+            final List<Range> pendingRanges = new ArrayList<>();
             determineStartingRange(range, pendingRanges, targetRange);
 
             while (targetRange.start < range.end()) {
@@ -202,7 +203,6 @@ public class SparseFileTracker {
                         range.end(),
                         new ProgressListenableActionFuture(targetRange.start, range.end(), progressConsumer(targetRange.start))
                     );
-                    ranges.add(newPendingRange);
                     pendingRanges.add(newPendingRange);
                     gaps.add(new Gap(newPendingRange));
                     targetRange.start = range.end();
@@ -221,7 +221,6 @@ public class SparseFileTracker {
                             newPendingRangeEnd,
                             new ProgressListenableActionFuture(targetRange.start, newPendingRangeEnd, progressConsumer(targetRange.start))
                         );
-                        ranges.add(newPendingRange);
                         pendingRanges.add(newPendingRange);
                         gaps.add(new Gap(newPendingRange));
                         targetRange.start = newPendingRange.end;
@@ -232,19 +231,28 @@ public class SparseFileTracker {
             assert targetRange.start == range.end() : targetRange;
             assert invariant();
 
-            assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
             assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
             assert pendingRanges.size() != 1 || gaps.size() <= 1 : gaps;
+
+            // Pending ranges that need to be filled before executing the listener
+            pendingRangesForListener = new ArrayList<>(pendingRanges);
+            if (range.equals(subRange) == false) {
+                pendingRangesForListener.removeIf(
+                    pendingRange -> (pendingRange.start < subRange.end() && subRange.start() < pendingRange.end) == false
+                );
+            }
+
+            if (pendingRangesForListener.isEmpty()) {
+                // Do not return gaps to fill if the bytes to read are available and the listener can be invoked immediately.
+                gaps.clear();
+            } else {
+                ranges.addAll(pendingRanges);
+                assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
+            }
         }
 
-        // Pending ranges that needs to be filled before executing the listener
-        if (range.equals(subRange) == false) {
-            pendingRanges.removeIf(pendingRange -> (pendingRange.start < subRange.end() && subRange.start() < pendingRange.end) == false);
-            pendingRanges.sort(RANGE_START_COMPARATOR);
-        }
-
-        subscribeToCompletionListeners(pendingRanges, subRange.end(), wrappedListener);
-
+        pendingRangesForListener.sort(RANGE_START_COMPARATOR);
+        subscribeToCompletionListeners(pendingRangesForListener, subRange.end(), wrappedListener);
         return Collections.unmodifiableList(gaps);
     }
 

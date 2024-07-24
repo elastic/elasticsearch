@@ -37,11 +37,9 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = Stream.of(
-                MultiRowTestCaseSupplier.geoPointCases(1, 1000, true),
-                MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, true)
-            ).flatMap(List::stream)
-            .map(SpatialCentroidTests::makeSupplier)
-            .toList();
+            MultiRowTestCaseSupplier.geoPointCases(1, 1000, true),
+            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, true)
+        ).flatMap(List::stream).map(SpatialCentroidTests::makeSupplier).toList();
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.
         // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
@@ -53,9 +51,11 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
         return new SpatialCentroid(source, args.get(0));
     }
 
-    private static TestCaseSupplier makeSupplier(
-        TestCaseSupplier.TypedDataSupplier fieldSupplier
-    ) {
+    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+        if (fieldSupplier.type() != DataType.CARTESIAN_POINT && fieldSupplier.type() != DataType.GEO_POINT) {
+            throw new IllegalStateException("Unexpected type: " + fieldSupplier.type());
+        }
+
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
             var values = fieldTypedData.multiRowData();
@@ -64,22 +64,17 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
             var ySum = new CompensatedSum(0, 0);
             long count = 0;
 
-            if (fieldTypedData.type() == DataType.CARTESIAN_POINT || fieldTypedData.type() == DataType.GEO_POINT) {
-                for (var value : values) {
-                    var wkb = (BytesRef) value;
-                    var point = (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
-                    xSum.add(point.getX());
-                    ySum.add(point.getY());
-                    count++;
-                }
-            } else {
-                throw new IllegalStateException("Unexpected type: " + fieldTypedData.type());
+            for (var value : values) {
+                var wkb = (BytesRef) value;
+                var point = (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+                xSum.add(point.getX());
+                ySum.add(point.getY());
+                count++;
             }
 
-            Object expected = new BytesRef(WellKnownBinary.toWKB(
-                new Point(xSum.value() / count, ySum.value() / count),
-                ByteOrder.LITTLE_ENDIAN
-            ));
+            var expected = new BytesRef(
+                WellKnownBinary.toWKB(new Point(xSum.value() / count, ySum.value() / count), ByteOrder.LITTLE_ENDIAN)
+            );
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),

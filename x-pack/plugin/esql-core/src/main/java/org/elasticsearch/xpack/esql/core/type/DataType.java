@@ -217,12 +217,12 @@ public enum DataType {
         return t == KEYWORD || t == TEXT;
     }
 
-    public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED && t != UNSUPPORTED;
+    public static boolean isPrimitiveAndSupported(DataType t) {
+        return isPrimitive(t) && t != UNSUPPORTED;
     }
 
-    public static boolean isObjectOrNested(DataType t) {
-        return t == OBJECT || t == NESTED;
+    public static boolean isPrimitive(DataType t) {
+        return t != OBJECT && t != NESTED;
     }
 
     public static boolean isNull(DataType t) {

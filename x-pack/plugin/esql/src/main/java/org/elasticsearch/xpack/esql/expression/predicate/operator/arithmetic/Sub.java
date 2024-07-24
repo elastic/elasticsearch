@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -88,7 +87,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     protected TypeResolution resolveType() {
         TypeResolution resolution = super.resolveType();
         // As opposed to general date time arithmetics, we cannot subtract a datetime from something else.
-        if (resolution.resolved() && EsqlDataTypes.isDateTimeOrTemporal(dataType()) && DataType.isDateTime(right().dataType())) {
+        if (resolution.resolved() && DataType.isDateTimeOrTemporal(dataType()) && DataType.isDateTime(right().dataType())) {
             return new TypeResolution(
                 format(
                     null,

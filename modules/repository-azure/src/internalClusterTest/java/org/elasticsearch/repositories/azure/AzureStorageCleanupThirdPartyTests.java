@@ -46,7 +46,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE,
+        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
         System.getProperty("test.azure.account"),
         System.getProperty("test.azure.container")
     );

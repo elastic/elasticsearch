@@ -55,11 +55,7 @@ public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object,
         }
         resolution = TypeResolutions.isExact(e, op, paramOrdinal);
         if (resolution.unresolved()) {
-            String message = LoggerMessageFormat.format(
-                null,
-                "{}",
-                resolution.message()
-            );
+            String message = LoggerMessageFormat.format(null, "{}", resolution.message());
             resolution = new TypeResolution(message);
         }
         return resolution;

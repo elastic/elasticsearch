@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -125,7 +124,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         );
         if (unit != null) {
             resolution = resolution.and(
-                isType(unit, dt -> dt.isWholeNumber() || EsqlDataTypes.isTemporalAmount(dt), sourceText(), SECOND, "time_duration")
+                isType(unit, dt -> dt.isWholeNumber() || DataType.isTemporalAmount(dt), sourceText(), SECOND, "time_duration")
             );
         }
         return resolution;

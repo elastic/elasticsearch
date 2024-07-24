@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,7 +72,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
             if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.NULL) {
                 continue;
             }
-            if (EsqlDataTypes.isRepresentable(type) == false) {
+            if (DataType.isRepresentable(type) == false) {
                 continue;
             }
             cases.add(

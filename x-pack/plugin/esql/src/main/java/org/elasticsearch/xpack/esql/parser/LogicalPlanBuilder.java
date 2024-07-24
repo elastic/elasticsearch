@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
@@ -198,21 +197,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             try {
                 DissectParser parser = new DissectParser(pattern, appendSeparator);
+
                 Set<String> referenceKeys = parser.referenceKeys();
-                if (referenceKeys.size() > 0) {
+                if (referenceKeys.isEmpty() == false) {
                     throw new ParsingException(
                         src,
                         "Reference keys not supported in dissect patterns: [%{*{}}]",
                         referenceKeys.iterator().next()
                     );
                 }
-                List<Attribute> keys = new ArrayList<>();
-                for (var x : parser.outputKeys()) {
-                    if (x.isEmpty() == false) {
-                        keys.add(new ReferenceAttribute(src, x, DataType.KEYWORD));
-                    }
-                }
-                return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
+
+                Dissect.Parser esqlDissectParser = new Dissect.Parser(pattern, appendSeparator, parser);
+                List<Attribute> keys = esqlDissectParser.keyAttributes(src);
+
+                return new Dissect(src, p, expression(ctx.primaryExpression()), esqlDissectParser, keys);
             } catch (DissectException e) {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }

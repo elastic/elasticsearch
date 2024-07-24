@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -36,7 +35,7 @@ public class IsNotNullTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         for (DataType type : DataType.types()) {
-            if (false == EsqlDataTypes.isRepresentable(type)) {
+            if (false == DataType.isRepresentable(type)) {
                 continue;
             }
             if (type != DataType.NULL) {

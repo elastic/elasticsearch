@@ -463,9 +463,7 @@ public class EnrichLookupService {
             super(in);
             this.sessionId = in.readString();
             this.shardId = new ShardId(in);
-            String inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_INPUT_TYPE))
-                ? in.readString()
-                : "unknown";
+            String inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "unknown";
             this.inputDataType = DataType.fromTypeName(inputDataType);
             this.matchType = in.readString();
             this.matchField = in.readString();
@@ -482,7 +480,7 @@ public class EnrichLookupService {
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_INPUT_TYPE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeString(inputDataType.typeName());
             }
             out.writeString(matchType);

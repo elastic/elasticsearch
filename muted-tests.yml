@@ -58,9 +58,6 @@ tests:
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
-- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
-  method: testLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/110244
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/95384
@@ -91,21 +88,12 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
-  method: testLoadAllStatusAllInOnePage
-  issue: https://github.com/elastic/elasticsearch/issues/111048
 - class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
   method: testKnnSearchAction
   issue: https://github.com/elastic/elasticsearch/issues/111072
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testKnnQuantizedFlatVectorsFormat
-  issue: https://github.com/elastic/elasticsearch/issues/111044
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/111084
-- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
-  method: testEnterpriseDownloaderTask
-  issue: https://github.com/elastic/elasticsearch/issues/111002
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownCartesianPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/110982
@@ -123,9 +111,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDisableFieldNameField {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111141
+- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
+  method: testAuthenticateWithImplicitFlow
+  issue: https://github.com/elastic/elasticsearch/issues/111191
 
 # Examples:
 #
@@ -156,4 +144,12 @@ tests:
 #    method: "test {union_types.MultiIndexIpStringStatsInline}"
 #    issue: "https://github.com/elastic/elasticsearch/..."
 #  Note that this mutes for the unit-test-like CsvTests only.
-#  Muting for the integration tests needs to be done for each IT class individually.
+#  Muting all the integration tests can be done using the class "org.elasticsearch.xpack.esql.**".
+#  Consider however, that some tests are named as "test {file.test SYNC}" and "ASYNC" in the integration tests.
+#  To mute all 3 tests safely everywhere use:
+#  - class: "org.elasticsearch.xpack.esql.**"
+#    method: "test {union_types.MultiIndexIpStringStatsInline}"
+#    issue: "https://github.com/elastic/elasticsearch/..."
+#  - class: "org.elasticsearch.xpack.esql.**"
+#    method: "test {union_types.MultiIndexIpStringStatsInline *}"
+#    issue: "https://github.com/elastic/elasticsearch/..."

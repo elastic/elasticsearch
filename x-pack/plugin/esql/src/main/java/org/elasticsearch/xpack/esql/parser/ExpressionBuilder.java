@@ -89,9 +89,22 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private int expressionDepth = 0;
 
     /**
-     * Maximum depth for nested expressions
+     * Maximum depth for nested expressions.
+     * Avoids StackOverflowErrors at parse time with very convoluted expressions,
+     * eg. EVAL x = sin(sin(sin(sin(sin(sin(sin(sin(sin(....sin(x)....)
+     * ANTLR parser is recursive, so the only way to prevent a StackOverflow is to detect how
+     * deep we are in the expression parsing and abort the query execution after a threshold
+     *
+     * This value is defined empirically, but the actual stack limit is highly
+     * dependent on the JVM and on the JIT.
+     *
+     * A value of 500 proved to be right below the stack limit, but it still triggered
+     * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
+     * Even though we didn't manage to reproduce the problem in real conditions, we decided
+     * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
+     *
      */
-    public static final int MAX_EXPRESSION_DEPTH = 500;
+    public static final int MAX_EXPRESSION_DEPTH = 400;
 
     protected final QueryParams params;
 

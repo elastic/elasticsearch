@@ -144,8 +144,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle,
             failureStoreEnabled,
-            new DataStreamIndices(BACKING_INDEX_PREFIX, List.copyOf(indices), rolloverOnWrite, autoShardingEvent),
-            new DataStreamIndices(FAILURE_STORE_PREFIX, List.copyOf(failureIndices), false, null)
+            new DataStreamIndices(BACKING_INDEX_PREFIX, List.copyOf(indices), rolloverOnWrite, autoShardingEvent, List.of()),
+            new DataStreamIndices(FAILURE_STORE_PREFIX, List.copyOf(failureIndices), false, null, List.of())
         );
     }
 
@@ -212,6 +212,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             failureIndicesBuilder.setRolloverOnWrite(in.readBoolean())
                 .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TWO_PHASE_ROLLOVER)) {
+            backingIndicesBuilder.setPendingIndices(readIndices(in));
+            failureIndicesBuilder.setPendingIndices(readIndices(in));
+        }
+
         return new DataStream(
             name,
             generation,
@@ -1055,6 +1060,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeBoolean(failureIndices.rolloverOnWrite);
             out.writeOptionalWriteable(failureIndices.autoShardingEvent);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TWO_PHASE_ROLLOVER)) {
+            out.writeCollection(backingIndices.pendingIndices);
+            out.writeCollection(failureIndices.pendingIndices);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -1068,26 +1077,29 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
+    public static final ParseField PENDING_INDICES_FIELD = new ParseField("pending_indices");
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
     public static final ParseField FAILURE_INDICES_FIELD = new ParseField("failure_indices");
     public static final ParseField ROLLOVER_ON_WRITE_FIELD = new ParseField("rollover_on_write");
     public static final ParseField AUTO_SHARDING_FIELD = new ParseField("auto_sharding");
     public static final ParseField FAILURE_ROLLOVER_ON_WRITE_FIELD = new ParseField("failure_rollover_on_write");
     public static final ParseField FAILURE_AUTO_SHARDING_FIELD = new ParseField("failure_auto_sharding");
+    public static final ParseField FAILURE_PENDING_INDICES_FIELD = new ParseField("failure_pending_indices");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
         // Fields behind a feature flag need to be parsed last otherwise the parser will fail when the feature flag is disabled.
         // Until the feature flag is removed we keep them separately to be mindful of this.
-        boolean failureStoreEnabled = DataStream.isFailureStoreFeatureFlagEnabled() && args[12] != null && (boolean) args[12];
+        boolean failureStoreEnabled = DataStream.isFailureStoreFeatureFlagEnabled() && args[13] != null && (boolean) args[13];
         DataStreamIndices failureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
             ? new DataStreamIndices(
                 FAILURE_STORE_PREFIX,
-                args[13] != null ? (List<Index>) args[13] : List.of(),
-                args[14] != null && (boolean) args[14],
-                (DataStreamAutoShardingEvent) args[15]
+                args[14] != null ? (List<Index>) args[14] : List.of(),
+                args[15] != null && (boolean) args[15],
+                (DataStreamAutoShardingEvent) args[16],
+                args[17] != null ? (List<Index>) args[17] : List.of()
             )
-            : new DataStreamIndices(FAILURE_STORE_PREFIX, List.of(), false, null);
+            : new DataStreamIndices(FAILURE_STORE_PREFIX, List.of(), false, null, List.of());
         return new DataStream(
             (String) args[0],
             (Long) args[2],
@@ -1104,7 +1116,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 BACKING_INDEX_PREFIX,
                 (List<Index>) args[1],
                 args[10] != null && (boolean) args[10],
-                (DataStreamAutoShardingEvent) args[11]
+                (DataStreamAutoShardingEvent) args[11],
+                args[12] != null ? (List<Index>) args[12] : List.of()
             ),
             failureIndices
         );
@@ -1135,6 +1148,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (p, c) -> DataStreamAutoShardingEvent.fromXContent(p),
             AUTO_SHARDING_FIELD
         );
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> Index.fromXContent(p),
+            PENDING_INDICES_FIELD
+        );
         // The fields behind the feature flag should always be last.
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
@@ -1148,6 +1166,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> DataStreamAutoShardingEvent.fromXContent(p),
                 FAILURE_AUTO_SHARDING_FIELD
+            );
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> Index.fromXContent(p),
+                FAILURE_PENDING_INDICES_FIELD
             );
         }
     }
@@ -1177,6 +1200,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             .field(NAME_FIELD.getPreferredName(), TIMESTAMP_FIELD_NAME)
             .endObject();
         builder.xContentList(INDICES_FIELD.getPreferredName(), backingIndices.indices);
+        if (backingIndices.pendingIndices.isEmpty() == false) {
+            builder.xContentList(PENDING_INDICES_FIELD.getPreferredName(), backingIndices.pendingIndices);
+        }
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
         if (metadata != null) {
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
@@ -1189,6 +1215,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             builder.field(FAILURE_STORE_FIELD.getPreferredName(), failureStoreEnabled);
             if (failureIndices.indices.isEmpty() == false) {
                 builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices.indices);
+            }
+            if (failureIndices.pendingIndices.isEmpty() == false) {
+                builder.xContentList(FAILURE_PENDING_INDICES_FIELD.getPreferredName(), failureIndices.pendingIndices);
             }
             builder.field(FAILURE_ROLLOVER_ON_WRITE_FIELD.getPreferredName(), failureIndices.rolloverOnWrite);
             if (failureIndices.autoShardingEvent != null) {
@@ -1406,12 +1435,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         @Nullable
         private final DataStreamAutoShardingEvent autoShardingEvent;
         private Set<String> lookup;
+        private final List<Index> pendingIndices;
 
         protected DataStreamIndices(
             String namePrefix,
             List<Index> indices,
             boolean rolloverOnWrite,
-            DataStreamAutoShardingEvent autoShardingEvent
+            DataStreamAutoShardingEvent autoShardingEvent,
+            List<Index> pendingIndices
         ) {
             this.namePrefix = namePrefix;
             // The list of indices is expected to be an immutable list. We don't create an immutable copy here, as it might have
@@ -1419,6 +1450,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             this.indices = indices;
             this.rolloverOnWrite = rolloverOnWrite;
             this.autoShardingEvent = autoShardingEvent;
+            this.pendingIndices = pendingIndices;
 
             assert getLookup().size() == indices.size() : "found duplicate index entries in " + indices;
         }
@@ -1466,6 +1498,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return autoShardingEvent;
         }
 
+        public List<Index> getPendingIndices() {
+            return pendingIndices;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -1474,12 +1510,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return rolloverOnWrite == that.rolloverOnWrite
                 && Objects.equals(namePrefix, that.namePrefix)
                 && Objects.equals(indices, that.indices)
-                && Objects.equals(autoShardingEvent, that.autoShardingEvent);
+                && Objects.equals(autoShardingEvent, that.autoShardingEvent)
+                && Objects.equals(pendingIndices, that.pendingIndices);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(namePrefix, indices, rolloverOnWrite, autoShardingEvent);
+            return Objects.hash(namePrefix, indices, rolloverOnWrite, autoShardingEvent, pendingIndices);
         }
 
         public static class Builder {
@@ -1488,6 +1525,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             private boolean rolloverOnWrite = false;
             @Nullable
             private DataStreamAutoShardingEvent autoShardingEvent = null;
+            private List<Index> pendingIndices = List.of();
 
             private Builder(String namePrefix, List<Index> indices) {
                 this.namePrefix = namePrefix;
@@ -1509,6 +1547,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 return this;
             }
 
+            /**
+             * Set the list of pending indices. We always create an immutable copy as that's what the constructor expects.
+             */
+            public Builder setPendingIndices(List<Index> pendingIndices) {
+                this.pendingIndices = List.copyOf(pendingIndices);
+                return this;
+            }
+
             public Builder setRolloverOnWrite(boolean rolloverOnWrite) {
                 this.rolloverOnWrite = rolloverOnWrite;
                 return this;
@@ -1520,7 +1566,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             }
 
             public DataStreamIndices build() {
-                return new DataStreamIndices(namePrefix, indices, rolloverOnWrite, autoShardingEvent);
+                return new DataStreamIndices(namePrefix, indices, rolloverOnWrite, autoShardingEvent, pendingIndices);
             }
         }
     }

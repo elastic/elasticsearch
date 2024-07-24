@@ -23,15 +23,7 @@ public class PlanningMetrics {
 
     public void addCommand(LogicalPlan cmd) {
         FeatureMetric.set(cmd, legacyBitset);
-
-        // TODO remove this and refactor LogicalPlan to return its name
-        for (FeatureMetric metric : FeatureMetric.values()) {
-            if (metric.planCheck.test(cmd)) {
-                add(commands, metric.name().toLowerCase(Locale.ROOT));
-                return;
-            }
-        }
-        add(commands, cmd.nodeName().toLowerCase(Locale.ROOT));
+        add(commands, cmd.commandName());
     }
 
     public void addFunction(String name) {

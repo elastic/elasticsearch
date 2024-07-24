@@ -106,5 +106,9 @@ public class CodecService {
             return deduplicatingFieldInfosFormat;
         }
 
+        public final Codec delegate() {
+            return delegate;
+        }
+
     }
 }

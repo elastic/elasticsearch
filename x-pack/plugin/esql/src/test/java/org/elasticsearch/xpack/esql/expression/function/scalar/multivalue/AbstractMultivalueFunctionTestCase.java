@@ -388,6 +388,49 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         }
     }
 
+
+    protected static void dateNanos(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        cases.add(
+            new TestCaseSupplier(
+                name + "(epoch nanos)",
+                List.of(DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(0L), DataType.DATE_NANOS, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(1, LongStream.of(0L))
+                )
+            )
+        );
+        cases.add(new TestCaseSupplier(name + "(date_nanos)", List.of(DataType.DATE_NANOS), () -> {
+            long data = randomLong();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(data), DataType.DATE_NANOS, "field")),
+                evaluatorName + "[field=Attribute[channel=0]]",
+                expectedDataType,
+                matcher.apply(1, LongStream.of(data))
+            );
+        }));
+        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+            cases.add(new TestCaseSupplier(name + "(<dates_nanos>) " + ordering, List.of(DataType.DATE_NANOS), () -> {
+                List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
+                putInOrder(mvData, ordering);
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.DATE_NANOS, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
+                );
+            }));
+        }
+    }
+
     /**
      * Build many test cases with {@code geo_point} values.
      * This assumes that the function consumes {@code geo_point} values and produces {@code geo_point} values.

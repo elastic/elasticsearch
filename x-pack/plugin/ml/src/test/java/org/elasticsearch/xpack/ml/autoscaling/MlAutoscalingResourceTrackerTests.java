@@ -73,11 +73,11 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(0, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(0, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
 
@@ -95,11 +95,11 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(0, stats.existingPerNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(0, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(0, stats.currentPerNodeMemoryBytes());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(0, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
 
@@ -118,13 +118,13 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(0, stats.existingPerNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(0, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraModelMemoryBytes());
-                assertEquals(0, stats.extraPerNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(0, stats.currentPerNodeMemoryBytes());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(0, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraModelMemoryBytes());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -223,13 +223,13 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(extraProcessors, stats.extraProcessors());
-                assertEquals(expectedProcessorsPerNode, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraModelMemoryBytes());
-                assertEquals(0, stats.extraPerNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(extraProcessors, stats.wantedExtraProcessors());
+                assertEquals(expectedProcessorsPerNode, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraModelMemoryBytes());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -290,12 +290,12 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(Math.max(extraProcessors, 0), stats.extraProcessors());
-                assertEquals(extraProcessors > 0 ? 1 : 0, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraPerNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(Math.max(extraProcessors, 0), stats.wantedExtraProcessors());
+                assertEquals(extraProcessors > 0 ? 1 : 0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -355,16 +355,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(1, stats.minNodes());
-                assertEquals(0, stats.extraProcessors());
-                assertEquals(0, stats.existingTotalModelMemoryBytes());
-                assertEquals(0, stats.existingTotalProcessorsInUse());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(memory / 4, stats.extraPerNodeMemoryBytes());
-                assertEquals(memory / 4, stats.extraModelMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(1, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(0, stats.currentTotalModelMemoryBytes());
+                assertEquals(0, stats.currentTotalProcessorsInUse());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(memory / 4, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(memory / 4, stats.wantedExtraModelMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
 
@@ -382,16 +382,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(1, stats.minNodes());
-                assertEquals(0, stats.extraProcessors());
-                assertEquals(memory / 4, stats.existingTotalModelMemoryBytes());
-                assertEquals(0, stats.existingTotalProcessorsInUse());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(memory / 4, stats.extraPerNodeMemoryBytes());
-                assertEquals(memory / 4, stats.extraModelMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(1, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(memory / 4, stats.currentTotalModelMemoryBytes());
+                assertEquals(0, stats.currentTotalProcessorsInUse());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(memory / 4, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(memory / 4, stats.wantedExtraModelMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
 
@@ -409,16 +409,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(1, stats.minNodes());
-                assertEquals(0, stats.extraProcessors());
-                assertEquals(memory / 4, stats.existingTotalModelMemoryBytes());
-                assertEquals(1, stats.existingTotalProcessorsInUse());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(memory / 4, stats.extraPerNodeMemoryBytes());
-                assertEquals(memory / 4, stats.extraModelMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(1, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(memory / 4, stats.currentTotalModelMemoryBytes());
+                assertEquals(1, stats.currentTotalProcessorsInUse());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(memory / 4, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(memory / 4, stats.wantedExtraModelMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -481,14 +481,14 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(memory, stats.removeNodeMemoryBytes());
-                assertEquals(2, stats.existingTotalNodes());
-                assertEquals(0, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraPerNodeMemoryBytes());
-                assertEquals(0, stats.extraModelMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(memory, stats.unwantedNodeMemoryBytesToRemove());
+                assertEquals(2, stats.currentTotalNodes());
+                assertEquals(0, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(0, stats.wantedExtraModelMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -1243,12 +1243,12 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(1, stats.existingTotalNodes());
-                assertEquals(0, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(memory, stats.removeNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(1, stats.currentTotalNodes());
+                assertEquals(0, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(memory, stats.unwantedNodeMemoryBytesToRemove());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
 
@@ -1266,13 +1266,13 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(1, stats.existingTotalNodes());
-                assertEquals(0, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraProcessors());
-                assertEquals(memory, stats.removeNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(1, stats.currentTotalNodes());
+                assertEquals(0, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(memory, stats.unwantedNodeMemoryBytesToRemove());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
 
@@ -1290,12 +1290,12 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(3, stats.existingTotalNodes());
-                assertEquals(0, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(memory, stats.removeNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(3, stats.currentTotalNodes());
+                assertEquals(0, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(memory, stats.unwantedNodeMemoryBytesToRemove());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -1385,12 +1385,12 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(3, stats.existingTotalNodes());
-                assertEquals(1, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(memory, stats.removeNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(3, stats.currentTotalNodes());
+                assertEquals(1, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(memory, stats.unwantedNodeMemoryBytesToRemove());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -1488,12 +1488,12 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(3, stats.existingTotalNodes());
-                assertEquals(3, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.removeNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(3, stats.currentTotalNodes());
+                assertEquals(3, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.unwantedNodeMemoryBytesToRemove());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -1584,20 +1584,20 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(perNodeAvailableModelMemoryInBytes + 503318080, stats.existingTotalModelMemoryBytes()); // total model memory
-                                                                                                                     // is that
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(perNodeAvailableModelMemoryInBytes + 503318080, stats.currentTotalModelMemoryBytes()); // total model memory
+                                                                                                                    // is that
                 // configured in the dummy
                 // entity plus that used by the
                 // trained models.
-                assertEquals(5, stats.existingTotalProcessorsInUse()); // account for the extra processor from the dummy entity
-                assertEquals(3, stats.existingTotalNodes());
-                assertEquals(1, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraProcessors());
-                assertEquals(0, stats.extraModelMemoryBytes());
-                assertEquals(0, stats.extraPerNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(5, stats.currentTotalProcessorsInUse()); // account for the extra processor from the dummy entity
+                assertEquals(3, stats.currentTotalNodes());
+                assertEquals(1, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(0, stats.wantedExtraModelMemoryBytes());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -1688,16 +1688,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(503318080, stats.existingTotalModelMemoryBytes());
-                assertEquals(13, stats.existingTotalProcessorsInUse()); // account for the extra processors from the dummy entity
-                assertEquals(3, stats.existingTotalNodes());
-                assertEquals(1, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraProcessors());
-                assertEquals(0, stats.extraModelMemoryBytes());
-                assertEquals(0, stats.extraPerNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(503318080, stats.currentTotalModelMemoryBytes());
+                assertEquals(13, stats.currentTotalProcessorsInUse()); // account for the extra processors from the dummy entity
+                assertEquals(3, stats.currentTotalNodes());
+                assertEquals(1, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(0, stats.wantedExtraModelMemoryBytes());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }
@@ -1786,16 +1786,16 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 listener
             ),
             stats -> {
-                assertEquals(memory, stats.existingPerNodeMemoryBytes());
-                assertEquals(503318080, stats.existingTotalModelMemoryBytes());
-                assertEquals(4, stats.existingTotalProcessorsInUse());
-                assertEquals(3, stats.existingTotalNodes());
-                assertEquals(1, stats.minNodes());
-                assertEquals(0, stats.extraPerNodeNodeProcessors());
-                assertEquals(0, stats.extraProcessors());
-                assertEquals(0, stats.extraModelMemoryBytes());
-                assertEquals(0, stats.extraPerNodeMemoryBytes());
-                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadBytes());
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(503318080, stats.currentTotalModelMemoryBytes());
+                assertEquals(4, stats.currentTotalProcessorsInUse());
+                assertEquals(3, stats.currentTotalNodes());
+                assertEquals(1, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(0, stats.wantedExtraModelMemoryBytes());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );
     }

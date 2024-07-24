@@ -157,7 +157,7 @@ public final class MlAutoscalingResourceTracker {
             autoscalingContext.modelAssignments.size()
         );
 
-        // Start with `minNodes = 0`. If any ML job is started this will be increased to 1 in the loops below,
+        // Start with `wantedMinNodes = 0`. If any ML job is started this will be increased to 1 in the loops below,
         // and further adjustments are made for trained models depending on allocations.
         int minNodes = 0;
 
@@ -303,7 +303,7 @@ public final class MlAutoscalingResourceTracker {
 
                 // min(3, max(number of allocations over all deployed models)
                 // the minimum number of nodes is equal to the number of allocations, up to 3
-                // if the number of allocations is greater than 3, then minNodes is still 3
+                // if the number of allocations is greater than 3, then wantedMinNodes is still 3
                 // in theory this should help availability for 2-3 allocations
                 // the planner should split over all available nodes
                 minNodes = Math.min(3, Math.max(minNodes, numberOfRequestedAllocations));
@@ -389,7 +389,7 @@ public final class MlAutoscalingResourceTracker {
      * be accommodated on it.
      * <p>
      * If the calculation returns false then treat the case as for a single trained model job
-     * that is already assigned, i.e. increment modelMemoryBytesSum and existingTotalProcessorsInUse appropriately.
+     * that is already assigned, i.e. increment modelMemoryBytesSum and currentTotalProcessorsInUse appropriately.
      *
      * @param perNodeJobRequirements per Node lists of requirements
      * @param perNodeMemoryInBytes   total model memory available on every node

@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class FieldValuesTest extends ESTestCase {
+public class FieldValuesTests extends ESTestCase {
     public void testSanity() {
         Supplier<Object> values = () -> 100;
         var arbitrary = new RandomBasedArbitrary();

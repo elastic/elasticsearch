@@ -78,7 +78,8 @@ esplugin {
 // msal4j-persistence-extension-1.3.0.jar
 
 versions << [
-  'azureJackson': ${versions.jackson}, // Maven says 2.13.5
+  'azureJackson': '2.15.0', // Maven says 2.13.5
+  'azureNetty': '4.1.109.Final', // Maven says 4.1.110.Final
   'azureReactorNetty': '1.0.45',
 ]
 
@@ -115,16 +116,16 @@ dependencies {
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.azureJackson}"
 
   // netty
-  api "io.netty:netty-common:${versions.netty}"
-  api "io.netty:netty-buffer:${versions.netty}"
-  api "io.netty:netty-handler:${versions.netty}"
-  api "io.netty:netty-codec:${versions.netty}"
-  api "io.netty:netty-codec-dns:${versions.netty}"
-  api "io.netty:netty-codec-http:${versions.netty}"
-  api "io.netty:netty-codec-http2:${versions.netty}"
-  api "io.netty:netty-codec-socks:${versions.netty}"
-  api "io.netty:netty-handler-proxy:${versions.netty}"
-  api "io.netty:netty-resolver-dns:${versions.netty}"
+  api "io.netty:netty-common:${versions.azureNetty}"
+  api "io.netty:netty-buffer:${versions.azureNetty}"
+  api "io.netty:netty-handler:${versions.azureNetty}"
+  api "io.netty:netty-codec:${versions.azureNetty}"
+  api "io.netty:netty-codec-dns:${versions.azureNetty}"
+  api "io.netty:netty-codec-http:${versions.azureNetty}"
+  api "io.netty:netty-codec-http2:${versions.azureNetty}"
+  api "io.netty:netty-codec-socks:${versions.azureNetty}"
+  api "io.netty:netty-handler-proxy:${versions.azureNetty}"
+  api "io.netty:netty-resolver-dns:${versions.azureNetty}"
 
   // reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"

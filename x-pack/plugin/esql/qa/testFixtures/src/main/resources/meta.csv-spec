@@ -283,7 +283,7 @@ log           |Returns the logarithm of a value to a base. The input can be any 
 log10         |Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.  Logs of 0 and negative numbers return `null` as well as a warning.
 ltrim         |Removes leading whitespaces from a string.
 max           |The maximum value of a field.
-median        |The value that is greater than half of all values and less than half of all values.
+median        |The value that is greater than half of all values and less than half of all values, also known as the 50% <<esql-percentile>>.
 median_absolut|The median absolute deviation, a measure of variability.
 min           |The minimum value of a field.
 mv_append     |Concatenates values of two multi-value fields.

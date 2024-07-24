@@ -570,7 +570,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override

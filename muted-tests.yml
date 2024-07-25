@@ -111,6 +111,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {inlinestats.BeforeKeep ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/111257
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {inlinestats.BeforeKeep ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111259
 
 # Examples:
 #

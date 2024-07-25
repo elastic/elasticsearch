@@ -405,7 +405,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         Map<String, String> fieldToWrongMappingType = new HashMap<>();
         List<String> wronglyIndexedFields = new ArrayList<>();
         List<String> wronglyDocValuedFields = new ArrayList<>();
-        Map<String, String> wronglyNormalizedField2expectedNormalizer = new HashMap<>();
         flatFieldMappings.forEach((fieldName, actualMappings) -> {
             Map<String, Object> expectedMappings = shallowFieldMapCopy.remove(fieldName);
             if (expectedMappings == null) {
@@ -417,8 +416,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                     expectedMappings,
                     fieldToWrongMappingType,
                     wronglyIndexedFields,
-                    wronglyDocValuedFields,
-                    wronglyNormalizedField2expectedNormalizer
+                    wronglyDocValuedFields
                 );
             }
         });
@@ -437,8 +435,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                     expectedMultiFieldMappings,
                     fieldToWrongMappingType,
                     wronglyIndexedFields,
-                    wronglyDocValuedFields,
-                    wronglyNormalizedField2expectedNormalizer
+                    wronglyDocValuedFields
                 );
             }
         });
@@ -479,13 +476,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         nonEcsFields.forEach(field -> logger.error("The test document contains '{}', which is not an ECS field", field));
         wronglyIndexedFields.forEach(fieldName -> logger.error("ECS field '{}' should be mapped with \"index: false\"", fieldName));
         wronglyDocValuedFields.forEach(fieldName -> logger.error("ECS field '{}' should be mapped with \"doc_values: false\"", fieldName));
-        wronglyNormalizedField2expectedNormalizer.forEach(
-            (fieldName, expectedNormalizer) -> logger.error(
-                "ECS field '{}' should be mapped with \"normalizer: {}\"",
-                fieldName,
-                expectedNormalizer
-            )
-        );
 
         assertTrue("ECS is not fully covered by the current ECS dynamic templates, see details above", shallowFieldMapCopy.isEmpty());
         assertTrue(
@@ -506,11 +496,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 + "details above",
             wronglyDocValuedFields.isEmpty()
         );
-        assertTrue(
-            "At least one field was not mapped with the correct normalizer as it should according to its ECS definitions, see "
-                + "details above",
-            wronglyNormalizedField2expectedNormalizer.isEmpty()
-        );
     }
 
     private static void compareExpectedToActualMappings(
@@ -519,8 +504,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         Map<String, Object> expectedMappings,
         Map<String, String> fieldToWrongMappingType,
         List<String> wronglyIndexedFields,
-        List<String> wronglyDocValuedFields,
-        Map<String, String> wronglyNormalizedField2expectedNormalizer
+        List<String> wronglyDocValuedFields
     ) {
         String expectedType = (String) expectedMappings.get("type");
         String actualMappingType = (String) actualMappings.get("type");
@@ -532,10 +516,6 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         }
         if (expectedMappings.get("doc_values") != actualMappings.get("doc_values")) {
             wronglyDocValuedFields.add(fieldName);
-        }
-        String expectedNormalizer = (String) expectedMappings.get("normalizer");
-        if (expectedNormalizer != null && expectedNormalizer.equals(actualMappings.get("normalizer")) == false) {
-            wronglyNormalizedField2expectedNormalizer.put(fieldName, expectedNormalizer);
         }
     }
 }

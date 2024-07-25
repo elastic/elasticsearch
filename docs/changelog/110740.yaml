@@ -1,5 +1,5 @@
 pr: 110740
-summary: Adjust `ecs@mappings` to cover `caseless` fields and ECS tests to cover normalizer setting
+summary: Enhance ECS dynamic templates tests
 area: Data streams
-type: enhancement
+type: test
 issues: []

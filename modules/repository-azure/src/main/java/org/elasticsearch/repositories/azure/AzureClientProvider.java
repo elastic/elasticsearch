@@ -144,8 +144,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, NettyAllocator.getAllocator());
     }
 
-    private static final Logger logger = LogManager.getLogger(AzureClientProvider.class);
-
     AzureBlobServiceClient createClient(
         AzureStorageSettings settings,
         LocationMode locationMode,

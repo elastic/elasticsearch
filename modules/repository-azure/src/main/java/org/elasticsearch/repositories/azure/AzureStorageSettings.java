@@ -210,7 +210,7 @@ final class AzureStorageSettings {
         } else if (hasSasToken) {
             connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
         } else {
-            connectionStringBuilder.append(";AccountKey=none");
+            connectionStringBuilder.append(";AccountKey=none"); // required for validation, but ignored
         }
         final boolean hasEndpointSuffix = Strings.hasText(endpointSuffix);
         final boolean hasEndpoint = Strings.hasText(endpoint);

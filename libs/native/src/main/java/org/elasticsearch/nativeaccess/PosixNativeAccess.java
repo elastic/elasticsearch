@@ -149,8 +149,11 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     @Override
     public void tryPreallocate(Path file, long newSize) {
+        var absolutePath = file.toAbsolutePath();
+        var directory = absolutePath.getParent();
+        directory.toFile().mkdirs();
         // get fd and current size, then pass to OS variant
-        int fd = libc.open(file.toAbsolutePath().toString(), O_WRONLY, constants.O_CREAT());
+        int fd = libc.open(absolutePath.toString(), O_WRONLY | constants.O_CREAT(), 0644);
         if (fd == -1) {
             logger.warn("Could not open file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
             return;

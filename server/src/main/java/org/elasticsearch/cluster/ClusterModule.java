@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
@@ -357,6 +358,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new EnableAllocationDecider(clusterSettings));
+        addAllocationDecider(deciders, new IndexVersionAllocationDecider());
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());

@@ -47,6 +47,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
             MvSlice.ENTRY,
             MvSort.ENTRY,
             MvSum.ENTRY,
+            MvPSeriesWeightedSum.ENTRY,
             MvZip.ENTRY
         );
     }

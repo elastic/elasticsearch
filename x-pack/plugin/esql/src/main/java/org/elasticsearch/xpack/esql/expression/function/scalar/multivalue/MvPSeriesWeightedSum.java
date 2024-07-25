@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -24,8 +27,10 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -33,36 +38,46 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 
 /**
- * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the Riemann Zeta function.
+ * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the P series function.
  */
-public class MvRiemannZetaWeightedSum extends EsqlScalarFunction implements EvaluatorMapper {
+public class MvPSeriesWeightedSum extends EsqlScalarFunction implements EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MvPSeriesWeightedSum",
+        MvPSeriesWeightedSum::new
+    );
 
     private final Expression field, p;
 
     @FunctionInfo(
         returnType = { "double" },
-        description = "Converts a multivalued expression into a single valued column containing the weighted sum applying the Riemann Zeta function.",
-        examples = @Example(file = "math", tag = "mv_riemann_zeta_weighted_sum")
+
+        description = "Converts a multivalued expression into a single valued column "
+            + "containing the weighted sum applying the P series function.",
+        examples = @Example(file = "math", tag = "mv_p_series_weighted_sum")
     )
-    public MvRiemannZetaWeightedSum(
+    public MvPSeriesWeightedSum(
         Source source,
         @Param(name = "number", type = { "double" }, description = "Multivalue expression.") Expression field,
         @Param(
             name = "p",
             type = { "double" },
-            description = "It is the Riemann Zeta function parameter. "
-                + "It a constant number that define how the Riemann Zeta function grow. "
+            description = "It is the P parameter of the P series function. "
+                + "It a constant number that define how the P series function grow. "
                 + "It impacts every element contribution in the weighted sum."
-                + "p must be bigger than 0"
         ) Expression p
     ) {
         super(source, Arrays.asList(field, p));
         this.field = field;
         this.p = p;
+    }
+
+    private MvPSeriesWeightedSum(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -92,10 +107,8 @@ public class MvRiemannZetaWeightedSum extends EsqlScalarFunction implements Eval
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        // TODO validate p > 0
-
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case DOUBLE -> new MvRiemannZetaWeightedSumDoubleEvaluator.Factory(source(), toEvaluator.apply(field), toEvaluator.apply(p));
+            case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(source(), toEvaluator.apply(field), toEvaluator.apply(p));
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
 
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
@@ -104,12 +117,12 @@ public class MvRiemannZetaWeightedSum extends EsqlScalarFunction implements Eval
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MvRiemannZetaWeightedSum(source(), newChildren.get(0), newChildren.get(1));
+        return new MvPSeriesWeightedSum(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MvRiemannZetaWeightedSum::new, field, p);
+        return NodeInfo.create(this, MvPSeriesWeightedSum::new, field, p);
     }
 
     @Override
@@ -128,5 +141,25 @@ public class MvRiemannZetaWeightedSum extends EsqlScalarFunction implements Eval
             sum.add(current_score);
         }
         builder.appendDouble(sum.value());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(p);
+    }
+
+    Expression field() {
+        return field;
+    }
+
+    Expression p() {
+        return p;
     }
 }

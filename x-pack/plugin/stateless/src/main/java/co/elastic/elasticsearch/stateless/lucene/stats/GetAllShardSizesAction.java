@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,7 +57,7 @@ public class GetAllShardSizesAction {
             ActionFilters actionFilters,
             TransportService transportService
         ) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+            super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.reader = new ShardSizeStatsReader(clusterService, indicesService);
         }
 

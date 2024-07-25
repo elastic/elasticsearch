@@ -42,6 +42,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -127,7 +128,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer
     ) {
-        super(TYPE.name(), actionFilters, transportService.getTaskManager());
+        super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

@@ -84,7 +84,7 @@ public final class TransportConsistentClusterStateReadAction extends TransportAc
         ClusterService clusterService,
         StatelessClusterConsistencyService consistencyService
     ) {
-        super(NAME, actionFilters, transportService.getTaskManager());
+        super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.executor = EsExecutors.DIRECT_EXECUTOR_SERVICE;

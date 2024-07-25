@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -25,6 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -35,6 +38,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,10 +65,12 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL;
+import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
+import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.elasticsearch.cluster.metadata.Metadata.UNKNOWN_CLUSTER_UUID;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata> {
+public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent {
 
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
@@ -1930,6 +1936,35 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         static ProjectId fromClusterUUID(String clusterUUID) {
             return new ProjectId(clusterUUID);
         }
+    }
+
+    @Override
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
+        Metadata.XContentContext context = Metadata.XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+
+        Iterator<? extends ToXContent> indices = context == Metadata.XContentContext.API
+            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
+            : Collections.emptyIterator();
+
+        Iterator<ToXContent> customs = Iterators.flatMap(
+            customs().entrySet().iterator(),
+            entry -> entry.getValue().context().contains(context)
+                ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                : Collections.emptyIterator()
+        );
+
+        return Iterators.concat(
+            ChunkedToXContentHelper.wrapWithObject(
+                "templates",
+                Iterators.map(
+                    templates().values().iterator(),
+                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
+                )
+            ),
+            indices,
+            // For BWC, the API does not have an embedded "project:", but other contexts do
+            context == Metadata.XContentContext.API ? customs : ChunkedToXContentHelper.wrapWithObject("project", customs)
+        );
     }
 
     public static ProjectMetadata readFrom(StreamInput in) throws IOException {

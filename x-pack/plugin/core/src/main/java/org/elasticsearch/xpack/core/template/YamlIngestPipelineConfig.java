@@ -7,18 +7,25 @@
 
 package org.elasticsearch.xpack.core.template;
 
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
+
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedResourceUTF8;
 
 public class YamlIngestPipelineConfig extends IngestPipelineConfig {
     private final Class<?> clazz;
-    public YamlIngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies,
-                                    Class<?> clazz) {
+
+    public YamlIngestPipelineConfig(
+        String id,
+        String resource,
+        int version,
+        String versionProperty,
+        List<String> dependencies,
+        Class<?> clazz
+    ) {
         super(id, resource, version, versionProperty, dependencies);
         this.clazz = clazz;
     }

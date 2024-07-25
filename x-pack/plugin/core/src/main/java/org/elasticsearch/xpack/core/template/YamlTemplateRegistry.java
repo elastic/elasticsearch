@@ -78,17 +78,24 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 .stream()
                 .map(o -> (String) o)
                 .collect(Collectors.toMap(name -> name, name -> loadComponentTemplate(name, version)));
-            composableIndexTemplates =  Optional.ofNullable(indexTemplateNames)
+            composableIndexTemplates = Optional.ofNullable(indexTemplateNames)
                 .orElse(Collections.emptyList())
                 .stream()
                 .map(o -> (String) o)
                 .collect(Collectors.toMap(name -> name, name -> loadIndexTemplate(name, version)));
-            ingestPipelines =  Optional.ofNullable(ingestPipelineConfigs)
+            ingestPipelines = Optional.ofNullable(ingestPipelineConfigs)
                 .orElse(Collections.emptyList())
-                .stream().map(o -> (Map<String, Map<String, Object>>) o).map(map -> {
-                Map.Entry<String, Map<String, Object>> pipelineConfig = map.entrySet().iterator().next();
-                return loadIngestPipeline(pipelineConfig.getKey(), version, (List<String>) pipelineConfig.getValue().get("dependencies"));
-            }).collect(Collectors.toList());
+                .stream()
+                .map(o -> (Map<String, Map<String, Object>>) o)
+                .map(map -> {
+                    Map.Entry<String, Map<String, Object>> pipelineConfig = map.entrySet().iterator().next();
+                    return loadIngestPipeline(
+                        pipelineConfig.getKey(),
+                        version,
+                        (List<String>) pipelineConfig.getValue().get("dependencies")
+                    );
+                })
+                .collect(Collectors.toList());
             this.featureService = featureService;
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -161,25 +168,33 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
 
     private ComponentTemplate loadComponentTemplate(String name, int version) {
         try {
-            final byte[] content = loadVersionedResourceUTF8(this.getClass(), "/component-templates/"
-                + name + ".yaml", version, getVersionProperty());
+            final byte[] content = loadVersionedResourceUTF8(
+                this.getClass(),
+                "/component-templates/" + name + ".yaml",
+                version,
+                getVersionProperty()
+            );
             try (var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content)) {
                 return ComponentTemplate.parse(parser);
             }
         } catch (Exception e) {
-            throw new RuntimeException("failed to load " + getName() +  " Ingest plugin's component template: " + name, e);
+            throw new RuntimeException("failed to load " + getName() + " Ingest plugin's component template: " + name, e);
         }
     }
 
     private ComposableIndexTemplate loadIndexTemplate(String name, int version) {
         try {
-            final byte[] content = loadVersionedResourceUTF8(this.getClass(), "/index-templates/"
-                + name + ".yaml", version, getVersionProperty());
+            final byte[] content = loadVersionedResourceUTF8(
+                this.getClass(),
+                "/index-templates/" + name + ".yaml",
+                version,
+                getVersionProperty()
+            );
             try (var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content)) {
                 return ComposableIndexTemplate.parse(parser);
             }
         } catch (Exception e) {
-            throw new RuntimeException("failed to load " +  getName() + " Ingest plugin's index template: " + name, e);
+            throw new RuntimeException("failed to load " + getName() + " Ingest plugin's index template: " + name, e);
         }
     }
 

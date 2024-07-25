@@ -20,8 +20,14 @@ public class OtelIndexTemplateRegistry extends YamlTemplateRegistry {
 
     public static final String OTEL_TEMPLATE_VERSION_VARIABLE = "xpack.oteldata.template.version";
 
-    public OtelIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
-                                     NamedXContentRegistry xContentRegistry, FeatureService featureService) {
+    public OtelIndexTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
+    ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
     }
 

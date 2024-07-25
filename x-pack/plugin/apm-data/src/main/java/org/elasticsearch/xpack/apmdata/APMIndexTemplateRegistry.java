@@ -23,8 +23,14 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
 
     public static final String APM_TEMPLATE_VERSION_VARIABLE = "xpack.apmdata.template.version";
 
-    public APMIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
-                                    NamedXContentRegistry xContentRegistry, FeatureService featureService) {
+    public APMIndexTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
+    ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
     }
 

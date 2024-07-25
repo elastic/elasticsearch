@@ -120,6 +120,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {inlinestats.BeforeKeep SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/111262
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testInlineStatsProfile {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111263
 
 # Examples:
 #

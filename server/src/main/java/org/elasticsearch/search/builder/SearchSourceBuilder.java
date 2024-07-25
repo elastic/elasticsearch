@@ -2194,14 +2194,24 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     private void validate() throws ValidationException {
-        var exceptions = validate(null, false);
+        var exceptions = validate(null, false, false);
         if (exceptions != null) {
             throw exceptions;
         }
     }
 
-    public ActionRequestValidationException validate(ActionRequestValidationException validationException, boolean isScroll) {
+    public ActionRequestValidationException validate(
+        ActionRequestValidationException validationException,
+        boolean isScroll,
+        boolean allowPartialSearchResults
+    ) {
         if (retriever() != null) {
+            if (allowPartialSearchResults && retriever().isCompound()) {
+                validationException = addValidationError(
+                    "cannot specify a compound retriever and [allow_search_partial_results]",
+                    validationException
+                );
+            }
             List<String> specified = new ArrayList<>();
             if (subSearches().isEmpty() == false) {
                 specified.add(QUERY_FIELD.getPreferredName());

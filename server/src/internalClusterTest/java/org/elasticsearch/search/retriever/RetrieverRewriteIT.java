@@ -11,9 +11,16 @@ package org.elasticsearch.search.retriever;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.Plugin;
@@ -28,8 +35,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class RetrieverRewriteIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -64,6 +75,7 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         SearchRequestBuilder req = client().prepareSearch(INDEX_DOCS, INDEX_QUERIES).setSource(source);
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
             assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_0"));
@@ -76,10 +88,47 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         SearchRequestBuilder req = client().prepareSearch(INDEX_DOCS, INDEX_QUERIES).setSource(source);
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
             assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
             assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
         });
+    }
+
+    public void testRewriteCompoundRetrieverShouldThrowForPartialResults() throws Exception {
+        final String testIndex = "test";
+        createIndex(testIndex, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        for (int i = 0; i < 50; i++) {
+            index(testIndex, "doc_" + i, "{}");
+        }
+        refresh(testIndex);
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.retriever(new AssertingCompoundRetrieverBuilder("doc_0"));
+        final String randomDataNode = internalCluster().getNodeNameThat(
+            settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)
+        );
+        try {
+            ensureGreen(testIndex);
+            if (false == internalCluster().stopNode(randomDataNode)) {
+                throw new IllegalStateException("node did not stop");
+            }
+            assertBusy(() -> {
+                ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(testIndex)
+                    .setWaitForStatus(ClusterHealthStatus.RED) // we are now known red because the primary shard is missing
+                    .setWaitForEvents(Priority.LANGUID) // ensures that the update has occurred
+                    .execute()
+                    .actionGet();
+                assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
+            });
+            SearchPhaseExecutionException ex = expectThrows(
+                SearchPhaseExecutionException.class,
+                client().prepareSearch(testIndex).setSource(source)::get
+            );
+            assertThat(ex.getDetailedMessage(), containsString("Cannot execute [open_point_in_time] action due to missing shards"));
+        } finally {
+            internalCluster().restartNode(randomDataNode);
+        }
     }
 
     private static class AssertingRetrieverBuilder extends RetrieverBuilder {

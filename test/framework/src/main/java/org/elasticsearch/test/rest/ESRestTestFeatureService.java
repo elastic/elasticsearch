@@ -9,7 +9,6 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -28,7 +27,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,12 +50,9 @@ class ESRestTestFeatureService implements TestFeatureService {
     private final Set<String> knownHistoricalFeatureNames;
     private final Collection<Version> nodeVersions;
     private final Collection<Set<String>> nodeFeatures;
+    private final Collection<Set<String>> nodeHistoricalFeatures;
 
-    ESRestTestFeatureService(
-        List<FeatureSpecification> featureSpecs,
-        Collection<Version> nodeVersions,
-        Collection<Set<String>> nodeFeatures
-    ) {
+    ESRestTestFeatureService(List<FeatureSpecification> featureSpecs, Set<Version> nodeVersions, Collection<Set<String>> nodeFeatures) {
         List<FeatureSpecification> specs = new ArrayList<>(featureSpecs);
         specs.add(new RestTestLegacyFeatures());
         if (MetadataHolder.HISTORICAL_FEATURES != null) {
@@ -71,10 +66,11 @@ class ESRestTestFeatureService implements TestFeatureService {
             );
         this.knownHistoricalFeatureNames = featureData.getHistoricalFeatures().lastEntry().getValue();
         this.nodeVersions = nodeVersions;
-        // add historical features to the set of node features
-        Version minVersion = nodeVersions.stream().min(Comparator.naturalOrder()).orElse(Version.CURRENT);
-        Set<String> allHistoricalFeatures = featureData.getHistoricalFeatures().floorEntry(minVersion).getValue();
-        this.nodeFeatures = nodeFeatures.stream().map(fs -> Sets.union(fs, allHistoricalFeatures)).toList();
+        this.nodeFeatures = nodeFeatures;
+        this.nodeHistoricalFeatures = nodeVersions.stream()
+            .map(featureData.getHistoricalFeatures()::floorEntry)
+            .map(Map.Entry::getValue)
+            .toList();
     }
 
     public static boolean hasFeatureMetadata() {
@@ -87,7 +83,8 @@ class ESRestTestFeatureService implements TestFeatureService {
 
     @Override
     public boolean clusterHasFeature(String featureId, boolean any) {
-        if (checkCollection(nodeFeatures, s -> s.contains(featureId), any)) {
+        if (checkCollection(nodeFeatures, s -> s.contains(featureId), any)
+            || checkCollection(nodeHistoricalFeatures, s -> s.contains(featureId), any)) {
             return true;
         }
         if (MetadataHolder.FEATURE_NAMES.contains(featureId) || knownHistoricalFeatureNames.contains(featureId)) {

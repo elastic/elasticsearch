@@ -104,6 +104,11 @@ public class Grok extends RegexExtract {
     }
 
     @Override
+    public Grok withGeneratedNames(List<String> newNames) {
+        return new Grok(source(), child(), input, parser, renameExtractedFields(newNames));
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

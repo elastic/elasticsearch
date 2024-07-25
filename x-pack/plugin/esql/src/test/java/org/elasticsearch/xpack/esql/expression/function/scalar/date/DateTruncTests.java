@@ -54,7 +54,11 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
             ofDuration(Duration.ofSeconds(30), ts, "2023-02-17T10:25:30.00Z"),
             randomSecond()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
+            case 0 -> "dateperiod or timeduration";
+            case 1 -> "datetime";
+            default -> null;
+        });
     }
 
     public void testCreateRoundingDuration() {

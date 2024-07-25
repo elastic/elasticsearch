@@ -17,64 +17,50 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.20.1',
-  'azureCommon': '12.19.1',
-  'azureCore': '1.34.0',
-  'azureCoreHttpNetty': '1.12.7',
-  'azureJackson': '2.15.4',
-  'azureJacksonDatabind': '2.13.4.2',
-  'azureAvro': '12.5.3',
-
-  'jakartaActivation': '1.2.1',
-  'jakartaXMLBind': '2.3.2',
-  'stax2API': '4.2.1',
-  'woodstox': '6.4.0',
-
-  'reactorNetty': '1.0.39',
-  'reactorCore': '3.4.34',
-  'reactiveStreams': '1.0.4',
+  'azureReactorNetty': '1.0.45',
 ]
 
 dependencies {
-  api "com.azure:azure-storage-blob:${versions.azure}"
-  api "com.azure:azure-storage-common:${versions.azureCommon}"
-  api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
-  api "com.azure:azure-core:${versions.azureCore}"
-  // jackson
-  api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
+  // Microsoft
+  api "com.azure:azure-core-http-netty:1.15.1"
+  api "com.azure:azure-core:1.50.0"
+  api "com.azure:azure-json:1.1.0"
+  api "com.azure:azure-storage-blob:12.26.1"
+  api "com.azure:azure-storage-common:12.26.0"
+  api "com.azure:azure-storage-internal-avro:12.11.1"
+  api "com.azure:azure-xml:1.0.0"
 
-  // jackson xml
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.azureJackson}"
-  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.azureJackson}"
-  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.azureJackson}"
-  api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
-  // The SDK uses javax.xml bindings
-  api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
-  api "org.codehaus.woodstox:stax2-api:${versions.stax2API}"
-  api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
+  // Jackson
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
 
-  // netty
+  // Netty
   api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
   api "io.netty:netty-handler-proxy:${versions.netty}"
   api "io.netty:netty-resolver-dns:${versions.netty}"
 
-  // reactor
-  api "io.projectreactor.netty:reactor-netty-core:${versions.reactorNetty}"
-  api "io.projectreactor.netty:reactor-netty-http:${versions.reactorNetty}"
-  api "io.projectreactor:reactor-core:${versions.reactorCore}"
-  api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
+  // Reactor
+  api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
+  api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
+  api "io.projectreactor:reactor-core:3.4.38"
+  api "org.reactivestreams:reactive-streams:1.0.4"
+
+  // Others
+  api "com.fasterxml.woodstox:woodstox-core:6.4.0"
+  api "jakarta.activation:jakarta.activation-api:1.2.1"
+  api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
+  api "org.codehaus.woodstox:stax2-api:4.2.1"
 
   implementation project(":modules:transport-netty4")
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
 //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
-
-
-  runtimeOnly "com.azure:azure-storage-internal-avro:${versions.azureAvro}"
 
   testImplementation project(':test:fixtures:azure-fixture')
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')

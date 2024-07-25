@@ -366,7 +366,7 @@ public class EsqlFunctionRegistry {
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split"),
-                def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_p_series_weighted_sum") } };
+                def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

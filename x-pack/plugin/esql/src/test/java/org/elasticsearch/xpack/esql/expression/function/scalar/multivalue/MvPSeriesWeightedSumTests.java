@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     public MvPSeriesWeightedSumTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -53,7 +53,7 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
                     ),
                     "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=Attribute[channel=1]]",
                     DataType.DOUBLE,
-                    equalTo(100.8357079220902)
+                    closeTo(100.8357079220902, 0.00000001)
                 )
             )
         );

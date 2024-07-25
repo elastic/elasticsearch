@@ -1,10 +1,15 @@
 default
+// tag::example[]
 ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
 | EVAL score = MV_P_SERIES_WEIGHTED_SUM(data, 1.5)
-| KEEP score;
+| KEEP score
+// end::example[]
+;
 
+// tag::example-result[]
 score:double
 94.45465156212452
+// end::example-result[]
 ;
 
 one-element

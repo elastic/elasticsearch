@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -189,9 +188,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     private static final NamedDiffableValueSerializer<ClusterCustom> CLUSTER_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
         ClusterCustom.class
     );
-    private static final NamedDiffableValueSerializer<ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
-        ProjectCustom.class
-    );
+    private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
+        new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private static final NamedDiffableValueSerializer BWC_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer(MetadataCustom.class) {
@@ -604,10 +602,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private final Settings transientSettings;
         private final Settings persistentSettings;
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
-        private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
-        private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
+        private final ProjectMetadata.ProjectMetadataDiff projectMetadata;
         private final MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms;
-        private final MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>> projectCustoms;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
         /**
@@ -623,36 +619,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             coordinationMetadata = after.coordinationMetadata;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
+            projectMetadata = after.projectMetadata.diff(before.projectMetadata);
             if (empty) {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
-                indices = DiffableUtils.emptyDiff();
-                templates = DiffableUtils.emptyDiff();
                 clusterCustoms = DiffableUtils.emptyDiff();
-                projectCustoms = DiffableUtils.emptyDiff();
                 reservedStateMetadata = DiffableUtils.emptyDiff();
             } else {
                 hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
-                indices = DiffableUtils.diff(
-                    before.projectMetadata.indices,
-                    after.projectMetadata.indices,
-                    DiffableUtils.getStringKeySerializer()
-                );
-                templates = DiffableUtils.diff(
-                    before.projectMetadata.templates,
-                    after.projectMetadata.templates,
-                    DiffableUtils.getStringKeySerializer()
-                );
                 clusterCustoms = DiffableUtils.diff(
                     before.customs,
                     after.customs,
                     DiffableUtils.getStringKeySerializer(),
                     CLUSTER_CUSTOM_VALUE_SERIALIZER
-                );
-                projectCustoms = DiffableUtils.diff(
-                    before.projectMetadata.customs,
-                    after.projectMetadata.customs,
-                    DiffableUtils.getStringKeySerializer(),
-                    PROJECT_CUSTOM_VALUE_SERIALIZER
                 );
                 reservedStateMetadata = DiffableUtils.diff(
                     before.reservedStateMetadata,
@@ -682,11 +660,29 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             } else {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
             }
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
-            var bwcCustoms = readBwcCustoms(in);
-            clusterCustoms = bwcCustoms.v1();
-            projectCustoms = bwcCustoms.v2();
+            if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+                var indices = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    INDEX_METADATA_DIFF_VALUE_READER
+                );
+                var templates = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    TEMPLATES_DIFF_VALUE_READER
+                );
+                var bwcCustoms = readBwcCustoms(in);
+                clusterCustoms = bwcCustoms.v1();
+                var projectCustoms = bwcCustoms.v2();
+                projectMetadata = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms);
+            } else {
+                clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    CLUSTER_CUSTOM_VALUE_SERIALIZER
+                );
+                projectMetadata = new ProjectMetadata.ProjectMetadataDiff(in);
+            }
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata = DiffableUtils.readJdkMapDiff(
                     in,
@@ -736,9 +732,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
                 hashesOfConsistentSettings.writeTo(out);
             }
-            indices.writeTo(out);
-            templates.writeTo(out);
-            buildUnifiedCustomDiff().writeTo(out);
+            if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+                projectMetadata.indices.writeTo(out);
+                projectMetadata.templates.writeTo(out);
+                buildUnifiedCustomDiff().writeTo(out);
+            } else {
+                clusterCustoms.writeTo(out);
+                projectMetadata.writeTo(out);
+            }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata.writeTo(out);
             }
@@ -746,7 +747,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @SuppressWarnings("unchecked")
         private Diff<ImmutableOpenMap<String, ?>> buildUnifiedCustomDiff() {
-            return DiffableUtils.merge(clusterCustoms, projectCustoms, DiffableUtils.getStringKeySerializer(), BWC_CUSTOM_VALUE_SERIALIZER);
+            return DiffableUtils.merge(
+                clusterCustoms,
+                projectMetadata.customs,
+                DiffableUtils.getStringKeySerializer(),
+                BWC_CUSTOM_VALUE_SERIALIZER
+            );
         }
 
         @Override
@@ -756,8 +762,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
             // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating
             // mappings in the builder
-            final var updatedIndices = indices.apply(part.projectMetadata.indices);
-            Builder builder = new Builder(part.projectMetadata.mappingsByHash, updatedIndices.size());
+            Builder builder = new Builder();
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);
             builder.version(version);
@@ -765,15 +770,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
-            builder.indices(updatedIndices);
-            builder.templates(templates.apply(part.projectMetadata.templates));
+            builder.put(projectMetadata.apply(part.projectMetadata, clusterUUID));
             builder.customs(clusterCustoms.apply(part.customs));
-            builder.projectCustoms(projectCustoms.apply(part.projectMetadata.customs));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
-            if (part.projectMetadata.indices == updatedIndices
-                && builder.dataStreamMetadata() == part.projectMetadata.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
-                builder.projectMetadata.previousIndicesLookup = part.projectMetadata.indicesLookup;
-            }
             return builder.build(true);
         }
     }
@@ -791,26 +790,31 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         }
-        final Function<String, MappingMetadata> mappingLookup;
-        if (in.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
-            if (mappingMetadataMap.size() > 0) {
-                mappingLookup = mappingMetadataMap::get;
+        if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+            final Function<String, MappingMetadata> mappingLookup;
+            if (in.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
+                final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+                if (mappingMetadataMap.isEmpty() == false) {
+                    mappingLookup = mappingMetadataMap::get;
+                } else {
+                    mappingLookup = null;
+                }
             } else {
                 mappingLookup = null;
             }
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
+            }
+            size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                builder.put(IndexTemplateMetadata.readFrom(in));
+            }
+            readBwcCustoms(in, builder);
         } else {
-            mappingLookup = null;
+            readClusterCustoms(in, builder);
+            builder.put(ProjectMetadata.readFrom(in));
         }
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
-        }
-        size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.put(IndexTemplateMetadata.readFrom(in));
-        }
-        readBwcCustoms(in, builder);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
@@ -820,7 +824,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return builder.build();
     }
 
-    private static <T extends NamedWriteable> void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
+    private static void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
         final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
         final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
         final int count = in.readVInt();
@@ -838,6 +842,20 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
     }
 
+    private static void readClusterCustoms(StreamInput in, Builder builder) throws IOException {
+        Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
+        int count = in.readVInt();
+        for (int i = 0; i < count; i++) {
+            final String name = in.readString();
+            if (clusterScopedNames.contains(name)) {
+                ClusterCustom custom = in.readNamedWriteable(ClusterCustom.class, name);
+                builder.putCustom(custom.getWriteableName(), custom);
+            } else {
+                throw new IllegalArgumentException("Unknown cluster custom name [" + name + "]");
+            }
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
@@ -849,23 +867,28 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             hashesOfConsistentSettings.writeTo(out);
         }
-        // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
-        // we avoid writing duplicate mappings twice
-        if (out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            out.writeMapValues(projectMetadata.mappingsByHash);
+        if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+            // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
+            // we avoid writing duplicate mappings twice
+            if (out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
+                out.writeMapValues(projectMetadata.mappingsByHash);
+            }
+            out.writeVInt(projectMetadata.indices.size());
+            final boolean writeMappingsHash = out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
+            for (IndexMetadata indexMetadata : projectMetadata) {
+                indexMetadata.writeTo(out, writeMappingsHash);
+            }
+            out.writeCollection(projectMetadata.templates.values());
+            // It would be nice to do this as flattening iterable (rather than allocation a whole new list), but flattening
+            // Iterable<? extends VersionNamedWriteable> into Iterable<VersionNamedWriteable> is messy, so we can fix that later
+            List<VersionedNamedWriteable> merge = new ArrayList<>(customs.size() + projectMetadata.customs.size());
+            merge.addAll(customs.values());
+            merge.addAll(projectMetadata.customs.values());
+            VersionedNamedWriteable.writeVersionedWriteables(out, merge);
+        } else {
+            VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
+            projectMetadata.writeTo(out);
         }
-        out.writeVInt(projectMetadata.indices.size());
-        final boolean writeMappingsHash = out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
-        for (IndexMetadata indexMetadata : projectMetadata) {
-            indexMetadata.writeTo(out, writeMappingsHash);
-        }
-        out.writeCollection(projectMetadata.templates.values());
-        // It would be nice to do this as flattening iterable (rather than allocation a whole new list), but flattening
-        // Iterable<? extends VersionNamedWriteable> into Iterable<VersionNamedWriteable> is messy, so we can fix that later
-        List<VersionedNamedWriteable> merge = new ArrayList<>(customs.size() + projectMetadata.customs.size());
-        merge.addAll(customs.values());
-        merge.addAll(projectMetadata.customs.values());
-        VersionedNamedWriteable.writeVersionedWriteables(out, merge);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeCollection(reservedStateMetadata.values());
         }
@@ -897,8 +920,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, ClusterCustom> customs;
-
-        private final ProjectMetadata.Builder projectMetadata;
+        private ProjectMetadata.Builder projectMetadata;
 
         private final Map<String, ReservedStateMetadata> reservedStateMetadata;
 
@@ -927,6 +949,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             projectMetadata = new ProjectMetadata.Builder(mappingsByHash, indexCountHint, clusterUUID);
             reservedStateMetadata = new HashMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
+        }
+
+        Builder put(ProjectMetadata projectMetadata) {
+            // TODO: tighten this up when we remove all the methods delegating to ProjectMetadata.Builder
+            this.projectMetadata = ProjectMetadata.builder(projectMetadata);
+            return this;
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {

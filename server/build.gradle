@@ -40,8 +40,6 @@ dependencies {
   implementation project(":libs:elasticsearch-simdvec")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
-  // no compile dependency by server, but server defines security policy for this codebase so it i>
-  runtimeOnly project(":libs:elasticsearch-preallocate")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -70,7 +68,6 @@ dependencies {
 
   // access to native functions
   implementation project(':libs:elasticsearch-native')
-  api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"

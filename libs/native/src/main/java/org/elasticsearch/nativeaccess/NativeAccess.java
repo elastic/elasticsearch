@@ -8,7 +8,9 @@
 
 package org.elasticsearch.nativeaccess;
 
+import java.nio.file.Path;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * Provides access to native functionality needed by Elastisearch.
@@ -61,6 +63,16 @@ public interface NativeAccess {
      * @return an object used to compress and decompress bytes using zstd
      */
     Zstd getZstd();
+
+    /**
+     * Retrieves the actual number of bytes of disk storage used to store a specified file.
+     *
+     * @param path the path to the file
+     * @return an {@link OptionalLong} that contains the number of allocated bytes on disk for the file, or empty if the size is invalid
+     */
+    OptionalLong allocatedSizeInBytes(Path path);
+
+    void tryPreallocate(Path file, long size);
 
     /**
      * Returns an accessor for native functions only available on Windows, or {@code null} if not on Windows.

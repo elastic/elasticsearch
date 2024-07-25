@@ -44,7 +44,7 @@ public class PropagateNullableTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         And and = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
-        assertEquals(FALSE, new OptimizerRules.PropagateNullable().rule(and));
+        assertEquals(FALSE, new PropagateNullable().rule(and));
     }
 
     // a IS NULL AND b IS NOT NULL AND c IS NULL AND d IS NOT NULL AND e IS NULL AND a IS NOT NULL => false
@@ -57,7 +57,7 @@ public class PropagateNullableTests extends ESTestCase {
 
         And and = new And(EMPTY, andOne, new And(EMPTY, andThree, andTwo));
 
-        assertEquals(FALSE, new OptimizerRules.PropagateNullable().rule(and));
+        assertEquals(FALSE, new PropagateNullable().rule(and));
     }
 
     // a IS NULL AND a > 1 => a IS NULL AND false
@@ -66,7 +66,7 @@ public class PropagateNullableTests extends ESTestCase {
         IsNull isNull = new IsNull(EMPTY, fa);
 
         And and = new And(EMPTY, isNull, greaterThanOf(fa, ONE));
-        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new OptimizerRules.PropagateNullable().rule(and));
+        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new PropagateNullable().rule(and));
     }
 
     // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 => a IS NULL AND b < 1 AND c < 1
@@ -78,7 +78,7 @@ public class PropagateNullableTests extends ESTestCase {
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
-        Expression optimized = new OptimizerRules.PropagateNullable().rule(top);
+        Expression optimized = new PropagateNullable().rule(top);
         Expression expected = new And(EMPTY, and, nullOf(BOOLEAN));
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
@@ -96,7 +96,7 @@ public class PropagateNullableTests extends ESTestCase {
         Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
 
-        Expression optimized = new OptimizerRules.PropagateNullable().rule(and);
+        Expression optimized = new PropagateNullable().rule(and);
         Expression expected = new And(EMPTY, new And(EMPTY, nullOf(BOOLEAN), nullOf(BOOLEAN)), kept);
 
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
@@ -109,13 +109,13 @@ public class PropagateNullableTests extends ESTestCase {
 
         Or or = new Or(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
         Filter dummy = new Filter(EMPTY, relation(), or);
-        LogicalPlan transformed = new OptimizerRules.PropagateNullable().apply(dummy);
+        LogicalPlan transformed = new PropagateNullable().apply(dummy);
         assertSame(dummy, transformed);
         assertEquals(or, ((Filter) transformed).condition());
 
         or = new Or(EMPTY, new IsNull(EMPTY, fa), greaterThanOf(fa, ONE));
         dummy = new Filter(EMPTY, relation(), or);
-        transformed = new OptimizerRules.PropagateNullable().apply(dummy);
+        transformed = new PropagateNullable().apply(dummy);
         assertSame(dummy, transformed);
         assertEquals(or, ((Filter) transformed).condition());
     }
@@ -128,7 +128,6 @@ public class PropagateNullableTests extends ESTestCase {
         Or or = new Or(EMPTY, isNull, greaterThanOf(fa, THREE));
         And and = new And(EMPTY, new Add(EMPTY, fa, ONE), or);
 
-        assertEquals(and, new OptimizerRules.PropagateNullable().rule(and));
+        assertEquals(and, new PropagateNullable().rule(and));
     }
-
 }

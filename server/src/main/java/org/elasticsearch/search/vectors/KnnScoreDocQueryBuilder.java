@@ -44,16 +44,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
      * @param scoreDocs the docs and scores this query should match. The array must be
      *                  sorted in order of ascending doc IDs.
      */
-    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, float[] queryVector) {
-        this(scoreDocs, fieldName, VectorData.fromFloats(queryVector));
-    }
-
-    /**
-     * Creates a query builder.
-     *
-     * @param scoreDocs the docs and scores this query should match. The array must be
-     *                  sorted in order of ascending doc IDs.
-     */
     public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, VectorData queryVector) {
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;
@@ -66,7 +56,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.fieldName = in.readOptionalString();
             if (in.readBoolean()) {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                     this.queryVector = in.readOptionalWriteable(VectorData::new);
                 } else {
                     this.queryVector = VectorData.fromFloats(in.readFloatArray());
@@ -104,7 +94,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             out.writeOptionalString(fieldName);
             if (queryVector != null) {
                 out.writeBoolean(true);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                     out.writeOptionalWriteable(queryVector);
                 } else {
                     out.writeFloatArray(queryVector.asFloatVector());

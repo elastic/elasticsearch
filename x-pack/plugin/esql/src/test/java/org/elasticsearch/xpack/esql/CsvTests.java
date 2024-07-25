@@ -157,6 +157,7 @@ public class CsvTests extends ESTestCase {
     private final String testName;
     private final Integer lineNumber;
     private final CsvSpecReader.CsvTestCase testCase;
+    private final String instructions;
 
     private final EsqlConfiguration configuration = EsqlTestUtils.configuration(
         new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
@@ -211,17 +212,25 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    public CsvTests(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase) {
+    public CsvTests(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvSpecReader.CsvTestCase testCase,
+        String instructions
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+        this.instructions = instructions;
     }
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
              * are tested in integration tests.

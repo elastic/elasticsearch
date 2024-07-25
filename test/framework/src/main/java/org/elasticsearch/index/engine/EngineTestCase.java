@@ -64,7 +64,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -127,6 +126,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -250,7 +250,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -282,7 +282,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -314,7 +314,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -670,7 +670,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (localCheckpointTrackerSupplier == null) {
             return new InternalTestEngine(config) {
                 @Override
-                IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+                protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null)
                         ? indexWriterFactory.createWriter(directory, iwc)
                         : super.createWriter(directory, iwc);
@@ -686,7 +686,7 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
                 @Override
-                IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+                protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null)
                         ? indexWriterFactory.createWriter(directory, iwc)
                         : super.createWriter(directory, iwc);
@@ -1628,22 +1628,22 @@ public abstract class EngineTestCase extends ESTestCase {
         throws IOException {
         // This is an adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect exceptions to be
         // thrown directly, so we must undo the layers of wrapping added by future#get and friends.
+        final var future = new PlainActionFuture<Void>();
+        engine.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future);
         try {
-            PlainActionFuture.<Void, RuntimeException>get(
-                future -> engine.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future),
-                30,
-                TimeUnit.SECONDS
-            );
-        } catch (UncategorizedExecutionException e) {
-            if (e.getCause() instanceof ExecutionException executionException
-                && executionException.getCause() instanceof IOException ioException) {
+            future.get(30, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException ioException) {
                 throw ioException;
-            } else {
-                fail(e);
             }
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
+            if (e.getCause() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            fail(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e);
+        } catch (TimeoutException e) {
             fail(e);
         }
     }

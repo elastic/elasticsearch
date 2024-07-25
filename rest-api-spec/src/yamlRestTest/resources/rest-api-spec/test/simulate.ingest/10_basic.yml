@@ -114,6 +114,150 @@ setup:
   - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
 
 ---
+"Test mapping validation":
+
+  - skip:
+      features: headers
+
+  - requires:
+      cluster_features: ["simulate.mapping.validation"]
+      reason: "ingest simulate index mapping validation added in 8.16"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-final-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index:  strict_index
+        body:
+          settings:
+            default_pipeline: "my-pipeline"
+            final_pipeline: "my-final-pipeline"
+            number_of_shards: 2
+            number_of_replicas: 0
+          mappings:
+            dynamic: strict
+            properties:
+              foo:
+                type: text
+
+  - do:
+      indices.create:
+        index:  lenient_index
+        body:
+          settings:
+            default_pipeline: "my-pipeline"
+            final_pipeline: "my-final-pipeline"
+            number_of_shards: 2
+            number_of_replicas: 0
+          mappings:
+            dynamic: true
+            properties:
+              foo:
+                type: text
+
+  - do:
+      cluster.health:
+        index: lenient_index
+        wait_for_status: green
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "strict_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "strict_index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - not_exists: docs.1.doc.error
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "lenient_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "lenient_index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - not_exists: docs.0.doc.error
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - not_exists: docs.1.doc.error
+
+---
 "Test index templates with pipelines":
 
   - skip:

@@ -45,7 +45,13 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
-        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+        final BytesRef valueForSearch = indexedValueForSearch(value);
+        // check if valueForSearch is the same as an empty string
+        // if we have a length of zero, just do a regular term query
+        if (valueForSearch.length == 0) {
+            return termQuery(value, context);
+        }
+        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), valueForSearch));
     }
 
     @Override

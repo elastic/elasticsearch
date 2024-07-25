@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -141,26 +142,29 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         try {
             final long relativeStartNanos = System.nanoTime();
 
-            logAndWriteNotificationAtInfo(auditClient, modelId, "starting model import");
+            logAndWriteNotificationAtLevel(auditClient, modelId, "starting model import", Level.INFO);
 
             modelImporter.doImport();
 
             final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
-            logAndWriteNotificationAtInfo(
+            logAndWriteNotificationAtLevel(
                 auditClient,
                 modelId,
-                format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
+                format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos)),
+                Level.INFO
             );
+        } catch (TaskCancelledException e) {
+            recordError(auditClient, modelId, exceptionRef, e, Level.WARNING);
         } catch (ElasticsearchException e) {
-            recordError(auditClient, modelId, exceptionRef, e);
+            recordError(auditClient, modelId, exceptionRef, e, Level.ERROR);
         } catch (MalformedURLException e) {
-            recordError(auditClient, modelId, "an invalid URL", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+            recordError(auditClient, modelId, "an invalid URL", exceptionRef, e, Level.ERROR, RestStatus.INTERNAL_SERVER_ERROR);
         } catch (URISyntaxException e) {
-            recordError(auditClient, modelId, "an invalid URL syntax", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+            recordError(auditClient, modelId, "an invalid URL syntax", exceptionRef, e, Level.ERROR, RestStatus.INTERNAL_SERVER_ERROR);
         } catch (IOException e) {
-            recordError(auditClient, modelId, "an IOException", exceptionRef, e, RestStatus.SERVICE_UNAVAILABLE);
+            recordError(auditClient, modelId, "an IOException", exceptionRef, e, Level.ERROR, RestStatus.SERVICE_UNAVAILABLE);
         } catch (Exception e) {
-            recordError(auditClient, modelId, "an Exception", exceptionRef, e, RestStatus.INTERNAL_SERVER_ERROR);
+            recordError(auditClient, modelId, "an Exception", exceptionRef, e, Level.ERROR, RestStatus.INTERNAL_SERVER_ERROR);
         } finally {
             taskManager.unregister(task);
 
@@ -199,8 +203,15 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         }, false);
     }
 
-    private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, ElasticsearchException e) {
-        logAndWriteNotificationAtError(client, modelId, e.getDetailedMessage());
+    private static void recordError(
+        Client client,
+        String modelId,
+        AtomicReference<Exception> exceptionRef,
+        ElasticsearchException e,
+        Level level
+    ) {
+        String message = format("Model importing failed due to [%s]", e.getDetailedMessage());
+        logAndWriteNotificationAtLevel(client, modelId, message, level);
         exceptionRef.set(e);
     }
 
@@ -210,21 +221,17 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         String failureType,
         AtomicReference<Exception> exceptionRef,
         Exception e,
+        Level level,
         RestStatus status
     ) {
         String message = format("Model importing failed due to %s [%s]", failureType, e);
-        logAndWriteNotificationAtError(client, modelId, message);
+        logAndWriteNotificationAtLevel(client, modelId, message, level);
         exceptionRef.set(new ElasticsearchStatusException(message, status, e));
     }
 
-    private static void logAndWriteNotificationAtError(Client client, String modelId, String message) {
-        writeNotification(client, modelId, message, Level.ERROR);
-        logger.error(format("[%s] %s", modelId, message));
-    }
-
-    private static void logAndWriteNotificationAtInfo(Client client, String modelId, String message) {
-        writeNotification(client, modelId, message, Level.INFO);
-        logger.info(format("[%s] %s", modelId, message));
+    private static void logAndWriteNotificationAtLevel(Client client, String modelId, String message, Level level) {
+        writeNotification(client, modelId, message, level);
+        logger.log(level.log4jLevel(), format("[%s] %s", modelId, message));
     }
 
     private static void writeNotification(Client client, String modelId, String message, Level level) {

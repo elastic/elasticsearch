@@ -26,13 +26,13 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 public class FoldNullTests extends ESTestCase {
 
     public void testNullFoldingIsNull() {
-        OptimizerRules.FoldNull foldNull = new OptimizerRules.FoldNull();
+        FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
         assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
     }
 
     public void testGenericNullableExpression() {
-        OptimizerRules.FoldNull rule = new OptimizerRules.FoldNull();
+        FoldNull rule = new FoldNull();
         // arithmetic
         assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute(), NULL)));
         // comparison
@@ -42,7 +42,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
-        OptimizerRules.FoldNull rule = new OptimizerRules.FoldNull();
+        FoldNull rule = new FoldNull();
 
         Or or = new Or(EMPTY, NULL, TRUE);
         assertEquals(or, rule.rule(or));

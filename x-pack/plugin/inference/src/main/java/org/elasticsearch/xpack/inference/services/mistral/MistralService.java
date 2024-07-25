@@ -245,7 +245,7 @@ public class MistralService extends SenderService {
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
         MistralEmbeddingsServiceSettings serviceSettings = new MistralEmbeddingsServiceSettings(
-            embeddingServiceSettings.model(),
+            embeddingServiceSettings.modelId(),
             embeddingsSize,
             embeddingServiceSettings.maxInputTokens(),
             similarityToUse,

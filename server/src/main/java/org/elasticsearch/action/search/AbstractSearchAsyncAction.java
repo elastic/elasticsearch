@@ -319,7 +319,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
+                    executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
                         @Override
                         public void innerOnResponse(Result result) {
                             try {

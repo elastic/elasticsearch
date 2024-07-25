@@ -138,4 +138,12 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
         assertThat(averageLoadMean + averageLoadError, greaterThan(expectedLoad));
         assertThat(averageLoadError / averageLoadMean, lessThan(1 - AdaptiveAllocationsScaler.SCALE_UP_THRESHOLD));
     }
+
+    public void testAutoscaling_maxAllocationsSafeguard() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1_000_000, 10_000_000, 1, 0.05), 10, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(32));
+        adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(2, 77);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(77));
+    }
 }

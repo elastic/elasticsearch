@@ -15,11 +15,10 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.local.DefaultLocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.junit.BeforeClass;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -33,10 +32,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    @BeforeClass
-    public static void checkVersion() {
-        assumeTrue("Only valid when upgrading from pre-file settings", getOldClusterTestVersion().before(new Version(8, 4, 0)));
-    }
+    private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
+        () -> assumeTrue("Only valid when upgrading from pre-file settings", getOldClusterTestVersion().before(new Version(8, 4, 0)))
+    );
 
     private static final String settingsJSON = """
         {
@@ -53,7 +51,8 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
-    private static final ElasticsearchCluster cluster = new DefaultLocalClusterSpecBuilder().distribution(DistributionType.DEFAULT)
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
         .nodes(NODE_NUM)
         .setting("path.repo", new Supplier<>() {
@@ -69,7 +68,7 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(versionLimit).around(repoDirectory).around(cluster);
 
     public FileSettingsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

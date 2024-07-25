@@ -25,6 +25,8 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,8 +71,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         } catch (Exception e) {
             Throwable rootCause = Throwables.getRootCause(e);
             if (rootCause instanceof BlobStorageException blobStorageException) {
-                if (blobStorageException.getStatusCode() == 404) {
+                if (blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
                     throw new NoSuchFileException("Blob [" + blobKey + "] not found");
+                }
+                if (blobStorageException.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                    throw new RequestedRangeNotSatisfiedException(blobKey, position, length == null ? -1 : length, blobStorageException);
                 }
             }
             throw new IOException("Unable to get input stream for blob [" + blobKey + "]", e);

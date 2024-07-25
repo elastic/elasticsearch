@@ -55,6 +55,25 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      */
     int mlockall(int flags);
 
+    /** corresponds to struct stat64 */
+    interface Stat64 {
+        long st_size();
+
+        long st_blocks();
+    }
+
+    Stat64 newStat64(int sizeof, int stSizeOffset, int stBlocksOffset);
+
+    int open(String pathname, int flags, int mode);
+
+    int open(String pathname, int flags);
+
+    int close(int fd);
+
+    int fstat64(int fd, Stat64 stats);
+
+    int ftruncate(int fd, long length);
+
     interface FStore {
         void set_flags(int flags); /* IN: flags word */
 

@@ -2177,6 +2177,15 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         field.highlighterType("unified");
         assertNotHighlighted(prepareSearch("test").highlighter(new HighlightBuilder().field(field)), 0, "text");
+
+        // Check when the requested fragment size equals the size of the string
+        var anotherText = "I am unusual and don't end with your regular )token)";
+        indexDoc("test", "1", "text", anotherText);
+        refresh();
+        for (String type : new String[] { "plain", "unified", "fvh" }) {
+            field.highlighterType(type).noMatchSize(anotherText.length()).numOfFragments(0);
+            assertHighlight(prepareSearch("test").highlighter(new HighlightBuilder().field(field)), 0, "text", 0, 1, equalTo(anotherText));
+        }
     }
 
     public void testHighlightNoMatchSizeWithMultivaluedFields() throws IOException {

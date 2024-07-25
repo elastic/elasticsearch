@@ -74,7 +74,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" > date""", containsString("""
-            "esql_single_value":{"field":"date","next":{"range":{"date":{"lt":1196673330000,"time_zone":"Z","""));
+            "esql_single_value":{"field":"date","next":{"range":{"date":{"lt":"2007-12-03T09:15:30.000Z","time_zone":"Z","""));
 
         assertQueryTranslation("""
             FROM test | WHERE 2147483648::unsigned_long > unsigned_long""", containsString("""
@@ -94,7 +94,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" == date""", containsString("""
-            "esql_single_value":{"field":"date","next":{"term":{"date":{"value":1196673330000}"""));
+            "esql_single_value":{"field":"date","next":{"term":{"date":{"value":"2007-12-03T09:15:30.000Z"""));
 
         assertQueryTranslation("""
             FROM test | WHERE ip != "127.0.0.1\"""", containsString("""
@@ -135,12 +135,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", matchesRegex("""
             .*must.*esql_single_value":\\{"field":"date\"""" + """
-            .*"range":\\{"date":\\{"gt":1196673330000,.*"range":\\{"date":\\{"lt":1704100530000.*"""));
+            .*"range":\\{"date":\\{"gt":\"2007-12-03T09:15:30.000Z\",.*"range":\\{"date":\\{"lt":\"2024-01-01T09:15:30.000Z\".*"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", matchesRegex("""
             .*must.*esql_single_value":\\{"field":"date\"""" + """
-            .*"range":\\{"date":\\{"gte":1196673330000,.*"range":\\{"date":\\{"lte":1704100530000.*"""));
+            .*"range":\\{"date":\\{"gte":\"2007-12-03T09:15:30.000Z\",.*"range":\\{"date":\\{"lte":\"2024-01-01T09:15:30.000Z\".*"""));
 
         assertQueryTranslation("""
             FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long""", matchesRegex("""

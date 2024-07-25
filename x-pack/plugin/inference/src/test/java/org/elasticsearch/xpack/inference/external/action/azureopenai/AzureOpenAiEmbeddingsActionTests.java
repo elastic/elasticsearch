@@ -21,7 +21,11 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.AzureOpenAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -41,11 +45,11 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
-import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -197,7 +201,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is(format("Failed to send Azure OpenAI embeddings request to [%s]", getUrl(webServer))));
     }
 
-    private AzureOpenAiEmbeddingsAction createAction(
+    private ExecutableAction createAction(
         String resourceName,
         String deploymentId,
         String apiVersion,
@@ -210,8 +214,9 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         try {
             model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
             model.setUri(new URI(getUrl(webServer)));
-            var action = new AzureOpenAiEmbeddingsAction(sender, model, createWithEmptySettings(threadPool));
-            return action;
+            var requestCreator = new AzureOpenAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
+            var errorMessage = constructFailedToSendRequestMessage(model.getUri(), "Azure OpenAI embeddings");
+            return new SenderExecutableAction(sender, requestCreator, errorMessage);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

@@ -96,7 +96,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
                 var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
                 assertThat(settings.region(), is("region"));
-                assertThat(settings.model(), is("model"));
+                assertThat(settings.modelId(), is("model"));
                 assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
                 var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
                 assertThat(secretSettings.accessKey.toString(), is("access"));
@@ -290,7 +290,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
                 var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
                 assertThat(settings.region(), is("region"));
-                assertThat(settings.model(), is("model"));
+                assertThat(settings.modelId(), is("model"));
                 assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
                 var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
                 assertThat(secretSettings.accessKey.toString(), is("access"));
@@ -353,7 +353,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
             assertThat(secretSettings.accessKey.toString(), is("access"));
@@ -404,7 +404,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
             assertThat(secretSettings.accessKey.toString(), is("access"));
@@ -431,7 +431,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
             assertThat(secretSettings.accessKey.toString(), is("access"));
@@ -458,7 +458,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
             assertThat(secretSettings.accessKey.toString(), is("access"));
@@ -485,7 +485,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             var secretSettings = (AmazonBedrockSecretSettings) model.getSecretSettings();
             assertThat(secretSettings.accessKey.toString(), is("access"));
@@ -513,7 +513,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
             var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
             assertThat(taskSettings.temperature(), is(1.0));
@@ -539,7 +539,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             assertNull(model.getSecretSettings());
         }
@@ -558,7 +558,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
             var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
             assertThat(taskSettings.temperature(), is(1.0));
@@ -602,7 +602,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             assertNull(model.getSecretSettings());
         }
@@ -623,7 +623,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
             assertNull(model.getSecretSettings());
         }
@@ -643,7 +643,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
             assertThat(settings.region(), is("region"));
-            assertThat(settings.model(), is("model"));
+            assertThat(settings.modelId(), is("model"));
             assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
             var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
             assertThat(taskSettings.temperature(), is(1.0));

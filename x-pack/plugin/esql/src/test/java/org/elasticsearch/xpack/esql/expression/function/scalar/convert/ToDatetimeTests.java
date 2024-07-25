@@ -162,7 +162,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "datetime or numeric or string");
     }
 
     private static String randomDateString(long from, long to) {

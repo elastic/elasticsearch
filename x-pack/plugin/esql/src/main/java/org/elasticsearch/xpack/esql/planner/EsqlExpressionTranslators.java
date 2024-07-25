@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRe
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
@@ -49,16 +50,19 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.or;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
@@ -67,6 +71,7 @@ public final class EsqlExpressionTranslators {
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
+        new InComparisons(),
         // Ranges is redundant until we start combining binary comparisons (see CombineBinaryComparisons in ql's OptimizerRules)
         // or introduce a BETWEEN keyword.
         new ExpressionTranslators.Ranges(),
@@ -75,7 +80,6 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
-        new ExpressionTranslators.InComparisons(),
         new ExpressionTranslators.StringQueries(),
         new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
@@ -204,6 +208,8 @@ public final class EsqlExpressionTranslators {
             ZoneId zoneId = null;
             if (DataType.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
+                value = dateTimeToString((Long) value);
+                format = DEFAULT_DATE_TIME_FORMATTER.pattern();
             }
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);
@@ -399,6 +405,60 @@ public final class EsqlExpressionTranslators {
             } catch (IllegalArgumentException e) {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
             }
+        }
+    }
+
+    public static class InComparisons extends ExpressionTranslator<In> {
+
+        @Override
+        protected Query asQuery(In in, TranslatorHandler handler) {
+            return doTranslate(in, handler);
+        }
+
+        public static Query doTranslate(In in, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
+        }
+
+        private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
+            return DataType.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        }
+
+        private static Query translate(In in, TranslatorHandler handler) {
+            TypedAttribute attribute = checkIsPushableAttribute(in.value());
+
+            Set<Object> terms = new LinkedHashSet<>();
+            List<Query> queries = new ArrayList<>();
+
+            for (Expression rhs : in.list()) {
+                if (DataType.isNull(rhs.dataType()) == false) {
+                    if (needsTypeSpecificValueHandling(attribute.dataType())) {
+                        // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
+                        Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
+
+                        if (query instanceof TermQuery) {
+                            terms.add(((TermQuery) query).value());
+                        } else {
+                            queries.add(query);
+                        }
+                    } else {
+                        terms.add(valueOf(rhs));
+                    }
+                }
+            }
+
+            if (terms.isEmpty() == false) {
+                String fieldName = pushableAttributeName(attribute);
+                queries.add(new TermsQuery(in.source(), fieldName, terms));
+            }
+
+            return queries.stream().reduce((q1, q2) -> or(in.source(), q1, q2)).get();
+        }
+
+        public static Object valueOf(Expression e) {
+            if (e.foldable()) {
+                return e.fold();
+            }
+            throw new QlIllegalArgumentException("Cannot determine value for {}", e);
         }
     }
 }

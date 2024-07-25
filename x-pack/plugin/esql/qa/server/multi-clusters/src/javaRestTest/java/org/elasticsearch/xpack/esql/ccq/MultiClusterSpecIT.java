@@ -88,16 +88,29 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return testcases;
     }
 
-    public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
-        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
+    public MultiClusterSpecIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions, mode);
     }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
+        assumeTrue("CCS requires its own resolve_fields API", remoteFeaturesService().clusterHasFeature("esql.resolve_fields_api"));
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
-        assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
+        assumeTrue(
+            "Test " + testName + " is skipped on " + Clusters.oldVersion(),
+            isEnabled(testName, instructions, Clusters.oldVersion())
+        );
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats"));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

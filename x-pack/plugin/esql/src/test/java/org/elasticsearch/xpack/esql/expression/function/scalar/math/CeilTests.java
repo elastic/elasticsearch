@@ -66,7 +66,7 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "numeric");
     }
 
     @Override

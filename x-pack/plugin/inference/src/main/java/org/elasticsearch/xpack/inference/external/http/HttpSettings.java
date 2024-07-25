@@ -45,7 +45,7 @@ public class HttpSettings {
         this.maxResponseSize = maxResponseSize;
     }
 
-    public static List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettingsDefinitions() {
         return List.of(MAX_HTTP_RESPONSE_SIZE);
     }
 }

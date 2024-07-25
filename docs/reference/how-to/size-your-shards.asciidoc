@@ -187,7 +187,7 @@ index                                 prirep shard store
 
 If an index's shard is experiencing degraded performance from surpassing the 
 recommended 50GB size, you may consider fixing the index's shards' sizing. 
-Shards are immutable and therefore cannot their size cannot fixed in place, 
+Shards are immutable and therefore their size is fixed in place, 
 so indices must be copied with corrected settings. This requires first ensuring 
 sufficient disk to copy the data. Afterwards, you can copy the index's data 
 with corrected settings via one of the following options:

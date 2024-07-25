@@ -10,9 +10,16 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -29,6 +36,7 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.transport.Transports;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,7 +64,10 @@ import static org.elasticsearch.cluster.metadata.Metadata.ALL;
 import static org.elasticsearch.cluster.metadata.Metadata.UNKNOWN_CLUSTER_UUID;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class ProjectMetadata implements Iterable<IndexMetadata> {
+public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata> {
+
+    private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
+        new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
 
     final ProjectId projectId;
     final ImmutableOpenMap<String, IndexMetadata> indices;
@@ -1919,5 +1930,133 @@ public class ProjectMetadata implements Iterable<IndexMetadata> {
         static ProjectId fromClusterUUID(String clusterUUID) {
             return new ProjectId(clusterUUID);
         }
+    }
+
+    public static ProjectMetadata readFrom(StreamInput in) throws IOException {
+        Builder builder = builder();
+        Function<String, MappingMetadata> mappingLookup;
+        Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+        if (mappingMetadataMap.isEmpty() == false) {
+            mappingLookup = mappingMetadataMap::get;
+        } else {
+            mappingLookup = null;
+        }
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
+        }
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            builder.put(IndexTemplateMetadata.readFrom(in));
+        }
+        readProjectCustoms(in, builder);
+        return builder.build();
+    }
+
+    private static void readProjectCustoms(StreamInput in, Builder builder) throws IOException {
+        Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(Metadata.ProjectCustom.class).keySet();
+        int count = in.readVInt();
+        for (int i = 0; i < count; i++) {
+            String name = in.readString();
+            if (clusterScopedNames.contains(name)) {
+                Metadata.ProjectCustom custom = in.readNamedWriteable(Metadata.ProjectCustom.class, name);
+                builder.putCustom(custom.getWriteableName(), custom);
+            } else {
+                throw new IllegalArgumentException("Unknown project custom name [" + name + "]");
+            }
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // we write the mapping metadata first and then write the indices without metadata so that
+        // we avoid writing duplicate mappings twice
+        out.writeMapValues(mappingsByHash);
+        out.writeVInt(indices.size());
+        for (IndexMetadata indexMetadata : this) {
+            indexMetadata.writeTo(out, true);
+        }
+        out.writeCollection(templates.values());
+        VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
+    }
+
+    static class ProjectMetadataDiff implements Diff<ProjectMetadata> {
+
+        private static final DiffableUtils.DiffableValueReader<String, IndexMetadata> INDEX_METADATA_DIFF_VALUE_READER =
+            new DiffableUtils.DiffableValueReader<>(IndexMetadata::readFrom, IndexMetadata::readDiffFrom);
+        private static final DiffableUtils.DiffableValueReader<String, IndexTemplateMetadata> TEMPLATES_DIFF_VALUE_READER =
+            new DiffableUtils.DiffableValueReader<>(IndexTemplateMetadata::readFrom, IndexTemplateMetadata::readDiffFrom);
+
+        final DiffableUtils.MapDiff<String, IndexMetadata, ImmutableOpenMap<String, IndexMetadata>> indices;
+        final DiffableUtils.MapDiff<String, IndexTemplateMetadata, ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
+        final DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs;
+
+        private ProjectMetadataDiff(ProjectMetadata before, ProjectMetadata after) {
+            if (before == after) {
+                indices = DiffableUtils.emptyDiff();
+                templates = DiffableUtils.emptyDiff();
+                customs = DiffableUtils.emptyDiff();
+            } else {
+                indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
+                templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
+                customs = DiffableUtils.diff(
+                    before.customs,
+                    after.customs,
+                    DiffableUtils.getStringKeySerializer(),
+                    PROJECT_CUSTOM_VALUE_SERIALIZER
+                );
+            }
+        }
+
+        ProjectMetadataDiff(
+            DiffableUtils.MapDiff<String, IndexMetadata, ImmutableOpenMap<String, IndexMetadata>> indices,
+            DiffableUtils.MapDiff<String, IndexTemplateMetadata, ImmutableOpenMap<String, IndexTemplateMetadata>> templates,
+            DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs
+        ) {
+            this.indices = indices;
+            this.templates = templates;
+            this.customs = customs;
+        }
+
+        ProjectMetadataDiff(StreamInput in) throws IOException {
+            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
+            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), PROJECT_CUSTOM_VALUE_SERIALIZER);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            indices.writeTo(out);
+            templates.writeTo(out);
+            customs.writeTo(out);
+        }
+
+        @Override
+        public ProjectMetadata apply(ProjectMetadata part) {
+            // assume the cluster uuid isn't changing
+            return apply(part, part.projectId.id());
+        }
+
+        ProjectMetadata apply(ProjectMetadata part, String clusterUUID) {
+            if (indices.isEmpty() && templates.isEmpty() && customs.isEmpty()) {
+                // nothing to do
+                return part;
+            }
+            var updatedIndices = indices.apply(part.indices);
+            Builder builder = new Builder(part.mappingsByHash, updatedIndices.size(), clusterUUID);
+            builder.indices(updatedIndices);
+            builder.templates(templates.apply(part.templates));
+            builder.customs(customs.apply(part.customs));
+            if (part.indices == updatedIndices
+                && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
+                builder.previousIndicesLookup = part.indicesLookup;
+            }
+            return builder.build(true);
+        }
+    }
+
+    @Override
+    public ProjectMetadataDiff diff(ProjectMetadata previousState) {
+        return new ProjectMetadataDiff(previousState, this);
     }
 }

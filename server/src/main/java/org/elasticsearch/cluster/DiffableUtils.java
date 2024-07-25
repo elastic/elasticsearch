@@ -439,6 +439,13 @@ public final class DiffableUtils {
         }
 
         /**
+         * {@code true} if this diff results in no changes to the map
+         */
+        public boolean isEmpty() {
+            return deletes.isEmpty() && getDiffs().isEmpty() && getUpserts().isEmpty();
+        }
+
+        /**
          * The keys that, when this diff is applied to a map, should be removed from the map.
          *
          * @return the list of keys that are deleted

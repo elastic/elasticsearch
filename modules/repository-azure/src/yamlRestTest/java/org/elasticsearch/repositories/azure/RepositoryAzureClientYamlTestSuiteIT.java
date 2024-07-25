@@ -34,7 +34,7 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
-        Strings.hasText(AZURE_TEST_KEY)
+        Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
             ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
             : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
     );

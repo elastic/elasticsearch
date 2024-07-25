@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
@@ -147,6 +148,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         return OptionalLong.of(stats.st_blocks() * 512);
     }
 
+    @SuppressForbidden(reason = "Using mkdirs")
     @Override
     public void tryPreallocate(Path file, long newSize) {
         var absolutePath = file.toAbsolutePath();

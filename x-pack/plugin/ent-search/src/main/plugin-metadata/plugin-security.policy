@@ -1,0 +1,4 @@
+grant {
+  // needed for Jackson ObjectMapper
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};

@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -143,11 +145,17 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         ActionFuture<GetInferenceModelAction.Response> response = client.execute(GetInferenceModelAction.INSTANCE, request);
         ModelConfigurations modelConfigurations = response.actionGet().getEndpoints().get(0);
 
-        return modelConfigurations.getService().equals(CohereService.NAME)
+        if (modelConfigurations.getService().equals(CohereService.NAME)
             && modelConfigurations.getTaskType().equals(TaskType.RERANK)
-            && modelConfigurations.getTaskSettings() instanceof CohereRerankTaskSettings
-                ? ((CohereRerankTaskSettings) modelConfigurations.getTaskSettings()).getTopNDocumentsOnly()
-                : null;
+            && modelConfigurations.getTaskSettings() instanceof CohereRerankTaskSettings) {
+            return ((CohereRerankTaskSettings) modelConfigurations.getTaskSettings()).getTopNDocumentsOnly();
+        } else if (modelConfigurations.getService().equals(GoogleVertexAiService.NAME)
+            && modelConfigurations.getTaskType().equals(TaskType.RERANK)
+            && modelConfigurations.getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings) {
+            return ((GoogleVertexAiRerankTaskSettings) modelConfigurations.getTaskSettings()).topN();
+        }
+
+        return null;
     }
 
 }

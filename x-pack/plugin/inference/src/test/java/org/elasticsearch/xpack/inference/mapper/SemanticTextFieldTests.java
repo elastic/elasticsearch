@@ -195,7 +195,13 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return semanticTextFieldFromChunkedInferenceResults(fieldName, model, inputs, results, contentType);
     }
 
-    public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(String fieldName, Model model, List<String> inputs, ChunkedInferenceServiceResults results, XContentType contentType) {
+    public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(
+        String fieldName,
+        Model model,
+        List<String> inputs,
+        ChunkedInferenceServiceResults results,
+        XContentType contentType
+    ) {
         return new SemanticTextField(
             fieldName,
             inputs,

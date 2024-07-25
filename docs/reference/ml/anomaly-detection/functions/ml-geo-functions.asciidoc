@@ -52,6 +52,12 @@ detects anomalies where the geographic location of a credit card transaction is
 unusual for a particular customer’s credit card. An anomaly might indicate 
 fraud.
 
+A "typical" value indicates a centroid of a cluster of previously observed 
+locations that is closest to the "actual" location at that time. For example, 
+there may be one centroid near the person's home that is associated with the 
+cluster of local grocery stores and restaurants, and another centroid near the 
+person's work associated with the cluster of lunch and coffee places.   
+
 IMPORTANT: The `field_name` that you supply must be a single string that 
 contains two comma-separated numbers of the form `latitude,longitude`, a 
 `geo_point` field, a `geo_shape` field that contains point values, or a 

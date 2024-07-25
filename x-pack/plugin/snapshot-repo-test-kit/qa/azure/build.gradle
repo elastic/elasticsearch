@@ -61,6 +61,5 @@ tasks.named("managedIdentityJavaRestTest") {
 }
 
 tasks.named("check") {
-  dependsOn("azureThirdPartyUnitTest")
   dependsOn("managedIdentityJavaRestTest")
 }

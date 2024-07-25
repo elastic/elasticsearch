@@ -368,10 +368,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchPhaseProvider.apply(delegate)
                 );
             } else {
-                if (listener instanceof TelemetryListener tl) {
+                if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
                     tl.setRemotes(resolvedIndices.getRemoteClusterIndices().size());
                     if (isAsyncSearchTask(task)) {
                         tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
+                    }
+                    String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+                    if (client != null) {
+                        tl.setClient(client);
                     }
                     // TODO: is this the right way to check for wildcards?
                     if (Arrays.stream(original.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
@@ -380,7 +384,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    if (listener instanceof TelemetryListener tl) {
+                    if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
                         tl.setFeature(CCSUsageTelemetry.MRT_FEATURE);
                     }
                     final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
@@ -1830,6 +1834,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         void setRemotes(int count);
 
         void setFeature(String feature);
+
+        void setClient(String client);
     }
 
     private class SearchResponseActionListener implements ActionListener<SearchResponse>, TelemetryListener {
@@ -1857,6 +1863,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void setFeature(String feature) {
             usageBuilder.setFeature(feature);
+        }
+
+        @Override
+        public void setClient(String client) {
+            usageBuilder.setClient(client);
         }
 
         @Override

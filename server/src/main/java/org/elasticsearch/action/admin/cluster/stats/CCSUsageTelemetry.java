@@ -96,6 +96,10 @@ public class CCSUsageTelemetry {
     }
 
     public void updateUsage(CCSUsage ccsUsage) {
+        // Ignore empty usage objects, we only care for true cross-cluster requests
+        if (ccsUsage.getRemotesCount() == 0) {
+            return;
+        }
         // TODO: fork this to a background thread? if yes, could just pass in the SearchResponse to parse it off the response thread
         doUpdate(ccsUsage);
     }

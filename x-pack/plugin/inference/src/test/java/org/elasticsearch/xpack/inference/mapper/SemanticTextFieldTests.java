@@ -192,6 +192,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case SPARSE_EMBEDDING -> randomSparseEmbeddings(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
+        return semanticTextFieldFromChunkedInferenceResults(fieldName, model, inputs, results, contentType);
+    }
+
+    public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(String fieldName, Model model, List<String> inputs, ChunkedInferenceServiceResults results, XContentType contentType) {
         return new SemanticTextField(
             fieldName,
             inputs,

@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
@@ -55,8 +56,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.DEFAULT_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
+import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTestUtil.randomInputCasesForSemanticText;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSparseEmbeddings;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.toChunkedResult;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -331,16 +334,25 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         for (var entry : fieldInferenceMap.values()) {
             String field = entry.getName();
             var model = modelMap.get(entry.getInferenceId());
-            String text = randomAlphaOfLengthBetween(10, 20);
-            docMap.put(field, text);
-            expectedDocMap.put(field, text);
+            Object inputObject = randomInputCasesForSemanticText();
+            String inputText = inputObject.toString();
+            docMap.put(field, inputObject);
+            expectedDocMap.put(field, inputText);
             if (model == null) {
                 // ignore results, the doc should fail with a resource not found exception
                 continue;
             }
-            var result = randomSemanticText(field, model, List.of(text), requestContentType);
-            model.putResult(text, toChunkedResult(result));
-            expectedDocMap.put(field, result);
+
+            SemanticTextField semanticTextField;
+            if (model.hasResult(inputText)) {
+                ChunkedInferenceServiceResults results = model.getResults(inputText);
+                semanticTextField = semanticTextFieldFromChunkedInferenceResults(field, model, List.of(inputText), results, requestContentType);
+            } else {
+                semanticTextField = randomSemanticText(field, model, List.of(inputText), requestContentType);
+                model.putResult(inputText, toChunkedResult(semanticTextField));
+            }
+
+            expectedDocMap.put(field, semanticTextField);
         }
 
         int requestId = randomIntBetween(0, Integer.MAX_VALUE);
@@ -382,6 +394,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         void putResult(String text, ChunkedInferenceServiceResults result) {
             resultMap.put(text, result);
+        }
+
+        boolean hasResult(String text) {
+            return resultMap.containsKey(text);
         }
     }
 }

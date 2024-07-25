@@ -161,31 +161,18 @@ public class DynamicMappingIT extends ESIntegTestCase {
     private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings) throws Throwable {
         indicesAdmin().prepareCreate("index").setSettings(settings).get();
         ensureGreen("index");
-        final Thread[] indexThreads = new Thread[numberOfFieldsToCreate];
-        final CountDownLatch startLatch = new CountDownLatch(1);
         final AtomicReference<Throwable> error = new AtomicReference<>();
-        for (int i = 0; i < indexThreads.length; ++i) {
+        startInParallel(numberOfFieldsToCreate, i -> {
             final String id = Integer.toString(i);
-            indexThreads[i] = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        startLatch.await();
-                        assertEquals(
-                            DocWriteResponse.Result.CREATED,
-                            prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
-                        );
-                    } catch (Exception e) {
-                        error.compareAndSet(null, e);
-                    }
-                }
-            });
-            indexThreads[i].start();
-        }
-        startLatch.countDown();
-        for (Thread thread : indexThreads) {
-            thread.join();
-        }
+            try {
+                assertEquals(
+                    DocWriteResponse.Result.CREATED,
+                    prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
+                );
+            } catch (Exception e) {
+                error.compareAndSet(null, e);
+            }
+        });
         if (error.get() != null) {
             throw error.get();
         }

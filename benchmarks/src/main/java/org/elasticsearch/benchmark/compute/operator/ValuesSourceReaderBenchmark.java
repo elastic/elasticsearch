@@ -41,6 +41,7 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -187,6 +188,11 @@ public class ValuesSourceReaderBenchmark {
                 @Override
                 public String indexName() {
                     return "benchmark";
+                }
+
+                @Override
+                public IndexSettings indexSettings() {
+                    throw new UnsupportedOperationException();
                 }
 
                 @Override

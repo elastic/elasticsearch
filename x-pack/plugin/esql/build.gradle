@@ -25,6 +25,8 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:elasticsearch-dissect')
   implementation project(':libs:elasticsearch-grok')
+  implementation project('arrow')
+
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
@@ -34,11 +36,13 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('enrich'))
+  testImplementation project(path: xpackModule('spatial'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:ingest-common')
+  testImplementation project(path: ':modules:legacy-geo')
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
@@ -254,8 +258,8 @@ tasks.register("regen") {
 tasks.named("spotlessJava") { dependsOn stringTemplates }
 tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
-  exclude { it.file.toString().startsWith("${projectDir}/src/main/generated-src/generated") }
-  exclude { it.file.toString().startsWith("${projectDir}/src/main/generated") }
+  exclude { it.file.toString().contains("src/main/generated-src/generated") }
+  exclude { it.file.toString().contains("src/main/generated") }
 }
 
 def prop(Type, type, TYPE, BYTES, Array) {
@@ -307,8 +311,32 @@ tasks.named('stringTemplates').configure {
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBoolean.java"
   }
-}
 
-tasks.withType(CheckForbiddenApisTask).configureEach {
-  signaturesFiles += files('src/main/resources/forbidden/ql-signatures.txt')
+
+  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InEvaluator.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBooleanEvaluator.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InIntEvaluator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongEvaluator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InDoubleEvaluator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
+  }
 }

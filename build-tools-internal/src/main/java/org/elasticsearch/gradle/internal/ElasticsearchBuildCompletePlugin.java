@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
-import com.gradle.scan.plugin.BuildScanExtension;
+import com.gradle.develocity.agent.gradle.DevelocityConfiguration;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
@@ -64,7 +64,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
-            BuildScanExtension extension = target.getExtensions().getByType(BuildScanExtension.class);
+            DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);
             File daemonsLogDir = new File(target.getGradle().getGradleUserHomeDir(), "daemon/" + target.getGradle().getGradleVersion());
 
             getFlowScope().always(BuildFinishedFlowAction.class, spec -> {
@@ -125,7 +125,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ListProperty<File> getFilteredFiles();
 
             @Input
-            Property<BuildScanExtension> getBuildScan();
+            Property<DevelocityConfiguration> getBuildScan();
 
         }
 
@@ -198,7 +198,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                             + System.getenv("BUILDKITE_JOB_ID")
                             + "/artifacts/"
                             + artifactUuid;
-                        parameters.getBuildScan().get().link("Artifact Upload", targetLink);
+                        parameters.getBuildScan().get().getBuildScan().link("Artifact Upload", targetLink);
                     }
                 } catch (Exception e) {
                     System.out.println("Failed to upload buildkite artifact " + e.getMessage());

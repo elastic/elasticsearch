@@ -8,12 +8,9 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
@@ -49,7 +46,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             .build();
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
-            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
+            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) FilterDirectory.unwrap(directory);
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tim", newIOContext(random())));
@@ -66,29 +63,6 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
             assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
             assertTrue(preLoadMMapDirectory.useDelegate("foo.tmp"));
-        }
-    }
-
-    public void testDisableRandomAdvice() throws IOException {
-        Directory dir = new FilterDirectory(new ByteBuffersDirectory()) {
-            @Override
-            public IndexInput openInput(String name, IOContext context) throws IOException {
-                assertFalse(context.randomAccess);
-                return super.openInput(name, context);
-            }
-        };
-        Directory noRandomAccessDir = FsDirectoryFactory.disableRandomAdvice(dir);
-        try (IndexOutput out = noRandomAccessDir.createOutput("foo", IOContext.DEFAULT)) {
-            out.writeInt(42);
-        }
-        // Test the tester
-        expectThrows(AssertionError.class, () -> dir.openInput("foo", IOContext.RANDOM));
-
-        // The wrapped directory shouldn't fail regardless of the IOContext
-        for (IOContext context : Arrays.asList(IOContext.READ, IOContext.DEFAULT, IOContext.READONCE, IOContext.RANDOM)) {
-            try (IndexInput in = noRandomAccessDir.openInput("foo", context)) {
-                assertEquals(42, in.readInt());
-            }
         }
     }
 
@@ -109,15 +83,16 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         try (Directory dir = directory) {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
+            var mmapDirectory = FilterDirectory.unwrap(directory);
             if (preload.length == 0) {
-                assertTrue(directory.toString(), directory instanceof MMapDirectory);
-                assertFalse(((MMapDirectory) directory).getPreload());
+                assertTrue(directory.toString(), mmapDirectory instanceof MMapDirectory);
+                assertFalse(((MMapDirectory) mmapDirectory).getPreload());
             } else if (Arrays.asList(preload).contains("*")) {
-                assertTrue(directory.toString(), directory instanceof MMapDirectory);
-                assertTrue(((MMapDirectory) directory).getPreload());
+                assertTrue(directory.toString(), mmapDirectory instanceof MMapDirectory);
+                assertTrue(((MMapDirectory) mmapDirectory).getPreload());
             } else {
-                assertTrue(directory.toString(), directory instanceof FsDirectoryFactory.PreLoadMMapDirectory);
-                FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) directory;
+                assertTrue(directory.toString(), mmapDirectory instanceof FsDirectoryFactory.PreLoadMMapDirectory);
+                FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) mmapDirectory;
                 for (String ext : preload) {
                     assertTrue("ext: " + ext, preLoadMMapDirectory.useDelegate("foo." + ext));
                     assertTrue("ext: " + ext, preLoadMMapDirectory.getDelegate().getPreload());
@@ -166,7 +141,10 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
                 case MMAPFS:
-                    assertTrue(type + " " + directory.getClass().getName() + " " + directory, directory instanceof MMapDirectory);
+                    assertTrue(
+                        type + " " + directory.getClass().getName() + " " + directory,
+                        FilterDirectory.unwrap(directory) instanceof MMapDirectory
+                    );
                     break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {

@@ -37,6 +37,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -79,6 +82,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final String testName;
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
+    protected final String instructions;
     protected final Mode mode;
 
     public enum Mode {
@@ -86,7 +90,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ASYNC
     }
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s %6$s")
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s %7$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
@@ -105,12 +109,21 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return testcases;
     }
 
-    protected EsqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
+    protected EsqlSpecTestCase(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+        this.instructions = instructions;
         this.mode = mode;
     }
 
@@ -152,7 +165,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected void shouldSkipTest(String testName) throws IOException {
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
@@ -201,11 +214,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.tables(tables());
         }
 
-        Map<String, Object> answer = runEsql(
-            builder.query(testCase.query),
-            testCase.expectedWarnings(false),
-            testCase.expectedWarningsRegex()
-        );
+        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(), testCase.expectedWarningsRegex());
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -244,10 +253,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueMapper);
+        assertData(expected, actualValues, testCase.ignoreOrder, logger, this::valueMapper);
     }
 
-    private static Object valueMapper(CsvTestUtils.Type type, Object value) {
+    private Object valueMapper(CsvTestUtils.Type type, Object value) {
         if (value == null) {
             return "null";
         }
@@ -262,7 +271,28 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 } catch (Throwable ignored) {}
             }
         }
+        if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {
+            if (value instanceof List<?> vs) {
+                List<Object> values = new ArrayList<>();
+                for (Object v : vs) {
+                    values.add(valueMapper(type, v));
+                }
+                return values;
+            } else if (value instanceof Double d) {
+                return new BigDecimal(d).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+            } else if (value instanceof String s) {
+                return new BigDecimal(s).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+            }
+        }
         return value.toString();
+    }
+
+    /**
+     * Rounds double values when asserting double values returned in queries.
+     * By default, no rounding is performed.
+     */
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return false;
     }
 
     private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {

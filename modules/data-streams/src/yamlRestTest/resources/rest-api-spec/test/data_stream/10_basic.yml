@@ -211,7 +211,7 @@ setup:
 "Create data stream with failure store":
   - requires:
       cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
+      reason: "data stream failure stores default settings changed in 8.15+"
 
   - do:
       ingest.put_pipeline:
@@ -368,6 +368,7 @@ setup:
         expand_wildcards: hidden
   - is_false: .$fsidx0name.settings.index.default_pipeline
   - is_false: .$fsidx0name.settings.index.final_pipeline
+  - is_true: .$fsidx0name.settings.index.failure_store.version
 
   - do:
       indices.get_settings:
@@ -382,6 +383,7 @@ setup:
         expand_wildcards: hidden
   - is_false: .$fsidx1name.settings.index.default_pipeline
   - is_false: .$fsidx1name.settings.index.final_pipeline
+  - is_true: .$fsidx1name.settings.index.failure_store.version
 
   - do:
       indices.delete_data_stream:

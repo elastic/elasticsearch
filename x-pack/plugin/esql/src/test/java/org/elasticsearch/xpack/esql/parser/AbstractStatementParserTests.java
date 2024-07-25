@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -53,10 +52,6 @@ abstract class AbstractStatementParserTests extends ESTestCase {
 
     static UnresolvedAttribute attribute(String name) {
         return new UnresolvedAttribute(EMPTY, name);
-    }
-
-    static ReferenceAttribute referenceAttribute(String name, DataType type) {
-        return new ReferenceAttribute(EMPTY, name, type);
     }
 
     static Literal integer(int i) {

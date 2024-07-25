@@ -51,7 +51,6 @@ dependencies {
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
-  api "com.nimbusds:nimbus-jose-jwt:9.23"
 
   implementation project(":x-pack:plugin:core:template-resources")
 
@@ -135,27 +134,7 @@ tasks.named("thirdPartyAudit").configure {
     //commons-logging provided dependencies
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
-    'javax.jms.Message',
-    // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
-    'com.google.crypto.tink.subtle.Ed25519Sign',
-    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
-    'com.google.crypto.tink.subtle.Ed25519Verify',
-    'com.google.crypto.tink.subtle.X25519',
-    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
-    // optional dependencies for nimbus-jose-jwt
-    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
-    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
-    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
-    'org.bouncycastle.cert.X509CertificateHolder',
-    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
-    'org.bouncycastle.crypto.InvalidCipherTextException',
-    'org.bouncycastle.crypto.engines.AESEngine',
-    'org.bouncycastle.crypto.modes.GCMBlockCipher',
-    'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
-    'org.bouncycastle.openssl.PEMKeyPair',
-    'org.bouncycastle.openssl.PEMParser',
-    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'
+    'javax.jms.Message'
   )
 }
 

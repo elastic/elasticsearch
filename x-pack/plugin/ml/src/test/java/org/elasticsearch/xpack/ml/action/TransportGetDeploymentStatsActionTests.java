@@ -83,6 +83,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             "deployment1",
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
@@ -121,6 +122,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             "deployment1",
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
@@ -169,7 +171,8 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
                 Priority.NORMAL,
                 0L,
                 0L
-            )
+            ),
+            null
         ).build();
     }
 }

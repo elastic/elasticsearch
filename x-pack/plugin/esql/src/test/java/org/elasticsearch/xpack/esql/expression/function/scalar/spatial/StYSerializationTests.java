@@ -7,19 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
-import java.util.List;
 
 public class StYSerializationTests extends AbstractExpressionSerializationTests<StY> {
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return UnaryScalarFunction.getNamedWriteables();
-    }
-
     @Override
     protected StY createTestInstance() {
         return new StY(randomSource(), randomChild());

@@ -353,6 +353,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
+                      "shards" : [ ]
                     }
                   }
                 },
@@ -524,6 +527,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
+                      "shards" : [ ]
                     }
                   }
                 },
@@ -634,6 +640,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "mappings_updated_version" : %s,
                     "system" : false,
                     "timestamp_range" : {
+                      "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
                       "shards" : [ ]
                     }
                   }
@@ -771,6 +780,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "mappings_updated_version" : %s,
                     "system" : false,
                     "timestamp_range" : {
+                      "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
                       "shards" : [ ]
                     }
                   }

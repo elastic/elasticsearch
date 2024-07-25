@@ -32,11 +32,11 @@ GET my-index-000001/_search
 [[semantic-query-params]]
 ==== Top-level parameters for `semantic`
 
-field::
+`field`::
 (Required, string)
 The `semantic_text` field to perform the query on.
 
-query::
+`query`::
 (Required, string)
 The query text to be searched for on the field.
 

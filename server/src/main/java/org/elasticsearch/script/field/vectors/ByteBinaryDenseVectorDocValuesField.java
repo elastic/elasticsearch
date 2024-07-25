@@ -17,11 +17,11 @@ import java.io.IOException;
 
 public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
-    private final BinaryDocValues input;
-    private final int dims;
-    private final byte[] vectorValue;
-    private boolean decoded;
-    private BytesRef value;
+    protected final BinaryDocValues input;
+    protected final int dims;
+    protected final byte[] vectorValue;
+    protected boolean decoded;
+    protected BytesRef value;
 
     public ByteBinaryDenseVectorDocValuesField(BinaryDocValues input, String name, ElementType elementType, int dims) {
         super(name, elementType);
@@ -50,13 +50,17 @@ public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesFie
         return value == null;
     }
 
+    protected DenseVector getVector() {
+        return new ByteBinaryDenseVector(vectorValue, value, dims);
+    }
+
     @Override
     public DenseVector get() {
         if (isEmpty()) {
             return DenseVector.EMPTY;
         }
         decodeVectorIfNecessary();
-        return new ByteBinaryDenseVector(vectorValue, value, dims);
+        return getVector();
     }
 
     @Override
@@ -65,7 +69,7 @@ public class ByteBinaryDenseVectorDocValuesField extends DenseVectorDocValuesFie
             return defaultValue;
         }
         decodeVectorIfNecessary();
-        return new ByteBinaryDenseVector(vectorValue, value, dims);
+        return getVector();
     }
 
     @Override

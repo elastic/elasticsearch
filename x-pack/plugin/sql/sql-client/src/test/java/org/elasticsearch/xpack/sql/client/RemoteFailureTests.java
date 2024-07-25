@@ -61,7 +61,7 @@ public class RemoteFailureTests extends ESTestCase {
         assertEquals("missing authentication token for REST request [/?pretty&error_trace]", failure.reason());
         assertThat(failure.remoteTrace(), containsString("DefaultAuthenticationFailureHandler.missingToken"));
         assertNull(failure.cause());
-        assertEquals(singletonMap("WWW-Authenticate", "Basic realm=\"security\" charset=\"UTF-8\""), failure.headers());
+        assertEquals(singletonMap("WWW-Authenticate", "Basic realm=\"security\", charset=\"UTF-8\""), failure.headers());
     }
 
     public void testNoError() {

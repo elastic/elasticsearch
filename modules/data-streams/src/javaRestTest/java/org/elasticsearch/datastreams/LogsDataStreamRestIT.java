@@ -73,7 +73,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
           "template": {
             "settings": {
               "index": {
-                "mode": "logs"
+                "mode": "logsdb"
               }
             },
             "mappings": {
@@ -202,7 +202,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("logs", 0);
+        assertDataStreamBackingIndexMode("logsdb", 0);
         rolloverDataStream(client, DATA_STREAM_NAME);
         indexDocument(
             client,
@@ -217,7 +217,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("logs", 1);
+        assertDataStreamBackingIndexMode("logsdb", 1);
     }
 
     public void testLogsStandardIndexModeSwitch() throws IOException {
@@ -236,7 +236,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("logs", 0);
+        assertDataStreamBackingIndexMode("logsdb", 0);
 
         putTemplate(client, "custom-template", STANDARD_TEMPLATE);
         rolloverDataStream(client, DATA_STREAM_NAME);
@@ -323,7 +323,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("logs", 2);
+        assertDataStreamBackingIndexMode("logsdb", 2);
     }
 
     private void assertDataStreamBackingIndexMode(final String indexMode, int backingIndex) throws IOException {

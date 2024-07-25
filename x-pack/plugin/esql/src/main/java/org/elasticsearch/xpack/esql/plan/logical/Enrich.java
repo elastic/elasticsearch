@@ -10,27 +10,32 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Enrich extends UnaryPlan {
+public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
     private final Expression policyName;
     private final NamedExpression matchField;
     private final EnrichPolicy policy;
     private final Map<String, String> concreteIndices; // cluster -> enrich indices
+    // This could be simplified by just always using an Alias.
     private final List<NamedExpression> enrichFields;
     private List<Attribute> output;
 
@@ -126,6 +131,32 @@ public class Enrich extends UnaryPlan {
             this.output = mergeOutputAttributes(enrichFields(), child().output());
         }
         return output;
+    }
+
+    @Override
+    public List<Attribute> generatedAttributes() {
+        return asAttributes(enrichFields);
+    }
+
+    @Override
+    public Enrich withGeneratedNames(List<String> newNames) {
+        checkNumberOfNewNames(newNames);
+
+        List<NamedExpression> newEnrichFields = new ArrayList<>(enrichFields.size());
+        for (int i = 0; i < enrichFields.size(); i++) {
+            NamedExpression enrichField = enrichFields.get(i);
+            String newName = newNames.get(i);
+            if (enrichField.name().equals(newName)) {
+                newEnrichFields.add(enrichField);
+            } else if (enrichField instanceof ReferenceAttribute ra) {
+                newEnrichFields.add(new Alias(ra.source(), newName, ra.qualifier(), ra, new NameId(), ra.synthetic()));
+            } else if (enrichField instanceof Alias a) {
+                newEnrichFields.add(new Alias(a.source(), newName, a.qualifier(), a.child(), new NameId(), a.synthetic()));
+            } else {
+                throw new IllegalArgumentException("Enrich field must be Alias or ReferenceAttribute");
+            }
+        }
+        return new Enrich(source(), child(), mode(), policyName(), matchField(), policy(), concreteIndices(), newEnrichFields);
     }
 
     @Override

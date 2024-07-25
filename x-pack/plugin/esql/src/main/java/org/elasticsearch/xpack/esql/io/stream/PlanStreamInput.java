@@ -23,11 +23,10 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
@@ -92,11 +91,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         return readOptionalNamed(PhysicalPlan.class);
     }
 
-    @Override
-    public Expression readExpression() throws IOException {
-        return readNamed(Expression.class);
-    }
-
     public <T> T readNamed(Class<T> type) throws IOException {
         String name = readString();
         @SuppressWarnings("unchecked")
@@ -113,18 +107,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             T t = readNamed(type);
             if (t == null) {
                 throwOnNullOptionalRead(type);
-            }
-            return t;
-        } else {
-            return null;
-        }
-    }
-
-    public <T> T readOptionalWithReader(PlanReader<T> reader) throws IOException {
-        if (readBoolean()) {
-            T t = reader.read(this);
-            if (t == null) {
-                throwOnNullOptionalRead(reader);
             }
             return t;
         } else {
@@ -216,12 +198,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {
         final IOException e = new IOException("read optional named returned null which is not allowed, type:" + type);
-        assert false : e;
-        throw e;
-    }
-
-    static void throwOnNullOptionalRead(PlanReader<?> reader) throws IOException {
-        final IOException e = new IOException("read optional named returned null which is not allowed, reader:" + reader);
         assert false : e;
         throw e;
     }

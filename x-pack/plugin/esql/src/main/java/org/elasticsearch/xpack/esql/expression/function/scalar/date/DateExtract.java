@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -83,8 +81,8 @@ public class DateExtract extends EsqlConfigurationFunction {
     private DateExtract(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
             ((PlanStreamInput) in).configuration()
         );
     }
@@ -92,8 +90,8 @@ public class DateExtract extends EsqlConfigurationFunction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(datePart());
-        ((PlanStreamOutput) out).writeExpression(field());
+        out.writeNamedWriteable(datePart());
+        out.writeNamedWriteable(field());
     }
 
     Expression datePart() {
@@ -130,7 +128,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         if (chronoField == null) {
             Expression field = children().get(0);
             try {
-                if (field.foldable() && EsqlDataTypes.isString(field.dataType())) {
+                if (field.foldable() && DataType.isString(field.dataType())) {
                     chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold());
                 }
             } catch (Exception e) {

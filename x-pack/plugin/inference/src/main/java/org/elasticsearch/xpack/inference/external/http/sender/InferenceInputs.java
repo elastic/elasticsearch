@@ -7,4 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-public abstract class InferenceInputs {}
+import org.elasticsearch.common.Strings;
+
+public abstract class InferenceInputs {
+    public static IllegalArgumentException createUnsupportedTypeException(InferenceInputs inferenceInputs) {
+        return new IllegalArgumentException(Strings.format("Unsupported inference inputs type: [%s]", inferenceInputs.getClass()));
+    }
+}

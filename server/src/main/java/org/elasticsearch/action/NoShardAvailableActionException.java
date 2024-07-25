@@ -18,8 +18,6 @@ import java.io.PrintWriter;
 
 public final class NoShardAvailableActionException extends ElasticsearchException {
 
-    private static final StackTraceElement[] EMPTY_STACK_TRACE = new StackTraceElement[0];
-
     // This is set so that no StackTrace is serialized in the scenario when we wrap other shard failures.
     // It isn't necessary to serialize this field over the wire as the empty stack trace is serialized instead.
     private final boolean onShardFailureWrapper;
@@ -57,8 +55,8 @@ public final class NoShardAvailableActionException extends ElasticsearchExceptio
     }
 
     @Override
-    public StackTraceElement[] getStackTrace() {
-        return onShardFailureWrapper ? EMPTY_STACK_TRACE : super.getStackTrace();
+    public Throwable fillInStackTrace() {
+        return this; // this exception doesn't imply a bug, no need for a stack trace
     }
 
     @Override
@@ -67,7 +65,7 @@ public final class NoShardAvailableActionException extends ElasticsearchExceptio
             super.printStackTrace(s);
         } else {
             // Override to simply print the first line of the trace, which is the current exception.
-            // Since we aren't serializing the repetitive stacktrace onShardFailureWrapper, we shouldn't print it out either
+            // Note: This will also omit the cause chain or any suppressed exceptions.
             s.println(this);
         }
     }

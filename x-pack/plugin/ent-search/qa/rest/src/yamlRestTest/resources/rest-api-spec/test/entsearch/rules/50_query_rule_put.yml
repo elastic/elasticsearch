@@ -7,17 +7,17 @@ setup:
 ---
 teardown:
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-ruleset
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-rule-recreating
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: forbidden-query-ruleset
         ignore: 404
 
@@ -25,7 +25,7 @@ teardown:
 ---
 'Create query rule with nonexistant ruleset that is also created':
   - do:
-      query_rule.put:
+      query_rules.put_rule:
         ruleset_id: new-ruleset
         rule_id: query-rule-id
         body:
@@ -43,7 +43,7 @@ teardown:
   - match: { result: 'created' }
 
   - do:
-      query_rule.get:
+      query_rules.get_rule:
         ruleset_id: new-ruleset
         rule_id: query-rule-id
 
@@ -55,7 +55,7 @@ teardown:
 
   # Update the same rule in place
   - do:
-      query_rule.put:
+      query_rules.put_rule:
         ruleset_id: new-ruleset
         rule_id: query-rule-id
         body:
@@ -72,7 +72,7 @@ teardown:
   - match: { result: 'updated' }
 
   - do:
-      query_rule.get:
+      query_rules.get_rule:
         ruleset_id: new-ruleset
         rule_id: query-rule-id
 
@@ -86,7 +86,7 @@ teardown:
 'Create query rule with existing ruleset respecting priority order':
   # Start with 2 rules, one that specifies priority and one that does not (should go at the end)
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-ruleset
         body:
           rules:
@@ -115,7 +115,7 @@ teardown:
   - match: { result: 'created' }
 
   - do:
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-ruleset
 
   - match: { ruleset_id: test-ruleset }
@@ -145,7 +145,7 @@ teardown:
 
   # Next, add a rule with a priority 2 - this should go in the middle
   - do:
-      query_rule.put:
+      query_rules.put_rule:
         ruleset_id: test-ruleset
         rule_id: query-rule-id3
         body:
@@ -162,7 +162,7 @@ teardown:
   - match: { result: 'created' }
 
   - do:
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-ruleset
 
   - match: { ruleset_id: test-ruleset }
@@ -202,7 +202,7 @@ teardown:
 
   # Finally, add another single rule with no priority. This should be appended to the ruleset.
   - do:
-      query_rule.put:
+      query_rules.put_rule:
         ruleset_id: test-ruleset
         rule_id: query-rule-id4
         body:
@@ -218,7 +218,7 @@ teardown:
   - match: { result: 'created' }
 
   - do:
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-ruleset
 
   - match: { ruleset_id: test-ruleset }
@@ -269,7 +269,7 @@ teardown:
 ---
 'Create Query Rule - Resource already exists':
   - do:
-      query_rule.put:
+      query_rules.put_rule:
         ruleset_id: test-query-rule-recreating
         rule_id: abc
         body:
@@ -286,7 +286,7 @@ teardown:
   - match: { result: 'created' }
 
   - do:
-      query_rule.put:
+      query_rules.put_rule:
         ruleset_id: test-query-rule-recreating
         rule_id: abc
         body:
@@ -310,7 +310,7 @@ teardown:
   - do:
       catch: forbidden
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
-      query_rule.put:
+      query_rules.put_rule:
         ruleset_id: forbidden-query-ruleset
         rule_id: abc
         body:

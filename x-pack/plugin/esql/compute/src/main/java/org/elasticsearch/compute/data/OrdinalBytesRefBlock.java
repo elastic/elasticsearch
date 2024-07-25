@@ -192,6 +192,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        return ordinals.mayHaveMultivaluedFields();
+    }
+
+    @Override
     public MvOrdering mvOrdering() {
         return ordinals.mvOrdering();
     }

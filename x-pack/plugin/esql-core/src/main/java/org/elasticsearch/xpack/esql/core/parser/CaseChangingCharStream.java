@@ -18,27 +18,24 @@ import org.antlr.v4.runtime.misc.Interval;
 
 /**
  * This class supports case-insensitive lexing by wrapping an existing
- * {@link CharStream} and forcing the lexer to see either upper or
- * lowercase characters. Grammar literals should then be either upper or
- * lower case such as 'BEGIN' or 'begin'. The text of the character
- * stream is unaffected. Example: input 'BeGiN' would match lexer rule
- * 'BEGIN' if constructor parameter upper=true but getText() would return
- * 'BeGiN'.
+ * {@link CharStream} and forcing the lexer to see lowercase characters
+ * Grammar literals should then be lower case such as {@code begin}.
+ * The text of the character stream is unaffected.
+ * <p>Example: input {@code BeGiN} would match lexer rule {@code begin}
+ * but {@link CharStream#getText} will return {@code BeGiN}.
+ * </p>
  */
 public class CaseChangingCharStream implements CharStream {
 
     private final CharStream stream;
-    private final boolean upper;
 
     /**
      * Constructs a new CaseChangingCharStream wrapping the given {@link CharStream} forcing
      * all characters to upper case or lower case.
      * @param stream The stream to wrap.
-     * @param upper If true force each symbol to upper case, otherwise force to lower.
      */
-    public CaseChangingCharStream(CharStream stream, boolean upper) {
+    public CaseChangingCharStream(CharStream stream) {
         this.stream = stream;
-        this.upper = upper;
     }
 
     @Override
@@ -57,7 +54,7 @@ public class CaseChangingCharStream implements CharStream {
         if (c <= 0) {
             return c;
         }
-        return upper ? Character.toUpperCase(c) : Character.toLowerCase(c);
+        return Character.toLowerCase(c);
     }
 
     @Override

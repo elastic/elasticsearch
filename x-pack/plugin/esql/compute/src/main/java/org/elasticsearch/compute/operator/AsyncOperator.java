@@ -21,13 +21,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -40,7 +38,7 @@ public abstract class AsyncOperator implements Operator {
     private volatile SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Page> buffers = ConcurrentCollections.newConcurrentMap();
-    private final AtomicReference<Exception> failure = new AtomicReference<>();
+    private final FailureCollector failureCollector = new FailureCollector();
     private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
@@ -77,7 +75,7 @@ public abstract class AsyncOperator implements Operator {
 
     @Override
     public void addInput(Page input) {
-        if (failure.get() != null) {
+        if (failureCollector.hasFailure()) {
             input.releaseBlocks();
             return;
         }
@@ -90,7 +88,7 @@ public abstract class AsyncOperator implements Operator {
                 onSeqNoCompleted(seqNo);
             }, e -> {
                 releasePageOnAnyThread(input);
-                onFailure(e);
+                failureCollector.unwrapAndCollect(e);
                 onSeqNoCompleted(seqNo);
             });
             final long startNanos = System.nanoTime();
@@ -121,31 +119,12 @@ public abstract class AsyncOperator implements Operator {
 
     protected abstract void doClose();
 
-    private void onFailure(Exception e) {
-        failure.getAndUpdate(first -> {
-            if (first == null) {
-                return e;
-            }
-            // ignore subsequent TaskCancelledException exceptions as they don't provide useful info.
-            if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                return first;
-            }
-            if (ExceptionsHelper.unwrap(first, TaskCancelledException.class) != null) {
-                return e;
-            }
-            if (ExceptionsHelper.unwrapCause(first) != ExceptionsHelper.unwrapCause(e)) {
-                first.addSuppressed(e);
-            }
-            return first;
-        });
-    }
-
     private void onSeqNoCompleted(long seqNo) {
         checkpoint.markSeqNoAsProcessed(seqNo);
         if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint()) {
             notifyIfBlocked();
         }
-        if (closed || failure.get() != null) {
+        if (closed || failureCollector.hasFailure()) {
             discardPages();
         }
     }
@@ -164,7 +143,7 @@ public abstract class AsyncOperator implements Operator {
     }
 
     private void checkFailure() {
-        Exception e = failure.get();
+        Exception e = failureCollector.getFailure();
         if (e != null) {
             discardPages();
             throw ExceptionsHelper.convertToElastic(e);
@@ -340,7 +319,7 @@ public abstract class AsyncOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_ENRICH_OPERATOR_STATUS;
+            return TransportVersions.V_8_14_0;
         }
     }
 }

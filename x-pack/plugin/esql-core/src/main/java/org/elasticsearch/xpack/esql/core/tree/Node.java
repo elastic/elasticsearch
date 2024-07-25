@@ -254,7 +254,7 @@ public abstract class Node<T extends Node<T>> {
      * This always returns something of the same type as the current
      * node but since {@link Node} doesn't have a {@code SelfT} parameter
      * we return the closest thing we do have: {@code T}, which is the
-     * root of the hierarchy for the this node.
+     * root of the hierarchy for this node.
      */
     protected final <E> T transformNodeProps(Class<E> typeToken, Function<? super E, ? extends E> rule) {
         return info().transform(rule, typeToken);
@@ -262,6 +262,15 @@ public abstract class Node<T extends Node<T>> {
 
     /**
      * Return the information about this node.
+     * <p>
+     * Normally, you want to use one of the static {@code create} methods to implement this.
+     * <p>
+     * For {@link org.elasticsearch.xpack.esql.core.plan.QueryPlan}s, it is very important that
+     * the properties contain all of the expressions and references relevant to this node, and
+     * that all of the properties are used in the provided constructor; otherwise query plan
+     * transformations like
+     * {@link org.elasticsearch.xpack.esql.core.plan.QueryPlan#transformExpressionsOnly(Function)}
+     * will not have an effect.
      */
     protected abstract NodeInfo<? extends T> info();
 

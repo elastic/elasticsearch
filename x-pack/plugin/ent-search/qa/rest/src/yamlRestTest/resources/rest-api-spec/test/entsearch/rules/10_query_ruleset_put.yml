@@ -6,19 +6,19 @@ setup:
 ---
 teardown:
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-ruleset
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-recreating
         ignore: 404
 
 ---
 'Create Query Ruleset':
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-ruleset
         body:
           rules:
@@ -48,7 +48,7 @@ teardown:
   - match: { result: 'created' }
 
   - do:
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-ruleset
   - match: { ruleset_id: test-ruleset }
   - match:
@@ -79,7 +79,7 @@ teardown:
 ---
 'Create Query Ruleset - Resource already exists':
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-recreating
         body:
           rules:
@@ -96,7 +96,7 @@ teardown:
   - match: { result: 'created' }
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-recreating
         body:
           rules:
@@ -120,7 +120,7 @@ teardown:
   - do:
       catch: forbidden
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: forbidden-query-ruleset
         body:
           rules:

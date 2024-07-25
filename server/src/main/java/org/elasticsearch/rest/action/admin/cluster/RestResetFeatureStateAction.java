@@ -45,17 +45,17 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final var req = new ResetFeatureStateRequest(RestUtils.getMasterNodeTimeout(request));
-        return restChannel -> client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel, r -> {
-            long failures = r.getFeatureStateResetStatuses()
-                .stream()
-                .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
-                .count();
-            if (failures == 0) {
-                return RestStatus.OK;
-            } else if (failures == r.getFeatureStateResetStatuses().size()) {
-                return RestStatus.INTERNAL_SERVER_ERROR;
-            }
-            return RestStatus.MULTI_STATUS;
-        }));
+        return restChannel -> client.execute(
+            ResetFeatureStateAction.INSTANCE,
+            req,
+            new RestToXContentListener<>(
+                restChannel,
+                r -> r.getFeatureStateResetStatuses()
+                    .stream()
+                    .anyMatch(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                        ? RestStatus.INTERNAL_SERVER_ERROR
+                        : RestStatus.OK
+            )
+        );
     }
 }

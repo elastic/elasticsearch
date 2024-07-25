@@ -7,6 +7,19 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+
+  javaRestTestImplementation('org.apache.arrow:arrow-vector:16.1.0')
+  javaRestTestImplementation('org.apache.arrow:arrow-format:16.1.0')
+  javaRestTestImplementation('org.apache.arrow:arrow-memory-core:16.1.0')
+  javaRestTestImplementation('org.checkerframework:checker-qual:3.42.0')
+  javaRestTestImplementation('com.google.flatbuffers:flatbuffers-java:23.5.26')
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  javaRestTestImplementation("org.slf4j:slf4j-api:${versions.slf4j}")
+  javaRestTestImplementation("org.slf4j:slf4j-nop:${versions.slf4j}")
+  javaRestTestImplementation('org.apache.arrow:arrow-memory-unsafe:16.1.0')
+
   dependencies {
     clusterPlugins project(':plugins:mapper-size')
     clusterPlugins project(':plugins:mapper-murmur3')
@@ -25,6 +38,7 @@ restResources {
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
   maxParallelForks = 1
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
 tasks.named('yamlRestTest') {

@@ -128,6 +128,7 @@ public abstract class Engine implements Closeable {
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
+    public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
 
     protected final ShardId shardId;
     protected final Logger logger;

@@ -1,0 +1,5 @@
+pr: 110927
+summary: Fix leak in collapsing search results
+area: Search
+type: bug
+issues: []

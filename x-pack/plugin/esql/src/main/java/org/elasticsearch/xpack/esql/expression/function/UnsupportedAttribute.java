@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -39,6 +40,11 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     );
     public static final NamedWriteableRegistry.Entry NAMED_EXPRESSION_ENTRY = new NamedWriteableRegistry.Entry(
         NamedExpression.class,
+        ENTRY.name,
+        UnsupportedAttribute::new
+    );
+    public static final NamedWriteableRegistry.Entry EXPRESSION_ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
         ENTRY.name,
         UnsupportedAttribute::new
     );
@@ -96,6 +102,13 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     @Override
     public UnsupportedEsField field() {
         return (UnsupportedEsField) super.field();
+    }
+
+    @Override
+    public String fieldName() {
+        // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
+        // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
+        return name();
     }
 
     @Override

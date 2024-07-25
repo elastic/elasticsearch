@@ -1,0 +1,61 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compileOnly project(':server')
+  compileOnly project(':x-pack:plugin:esql:compute')
+  compileOnly project(':x-pack:plugin:esql-core')
+  compileOnly project(':x-pack:plugin:mapper-version')
+  implementation('org.apache.arrow:arrow-vector:16.1.0')
+  implementation('org.apache.arrow:arrow-format:16.1.0')
+  implementation('org.apache.arrow:arrow-memory-core:16.1.0')
+  implementation('org.checkerframework:checker-qual:3.42.0')
+  implementation('com.google.flatbuffers:flatbuffers-java:23.5.26')
+  // Needed for the json arrow serialization, and loaded even if we don't use it.
+  implementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  implementation("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
+  implementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  implementation("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+
+  testImplementation project(':test:framework')
+  testImplementation('org.apache.arrow:arrow-memory-unsafe:16.1.0')
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /slf4j-.*/, to: 'slf4j'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses sun.misc.Unsafe. Only used in tests.
+    'org.apache.arrow.memory.util.hash.SimpleHasher',
+    'org.apache.arrow.memory.util.hash.MurmurHasher',
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+    'org.apache.arrow.vector.DecimalVector',
+    'org.apache.arrow.vector.BaseFixedWidthVector',
+    'org.apache.arrow.vector.util.DecimalUtility',
+    'org.apache.arrow.vector.Decimal256Vector',
+    'org.apache.arrow.vector.util.VectorAppender',
+    'org.apache.arrow.memory.ArrowBuf',
+    'org.apache.arrow.vector.BitVectorHelper',
+    'org.apache.arrow.memory.util.ByteFunctionHelpers',
+  )
+  ignoreMissingClasses(
+    'org.apache.commons.codec.binary.Hex'
+  )
+}
+
+test {
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}

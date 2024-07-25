@@ -58,6 +58,10 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
         return block;
     }
 
+    public Page asPage() {
+        return new Page(positionCount, blocks);
+    }
+
     /**
      * Returns the number of blocks in this composite block.
      */
@@ -130,6 +134,14 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     @Override
     public boolean mayHaveMultivaluedFields() {
         return Arrays.stream(blocks).anyMatch(Block::mayHaveMultivaluedFields);
+    }
+
+    @Override
+    public boolean doesHaveMultivaluedFields() {
+        if (false == Arrays.stream(blocks).anyMatch(Block::mayHaveMultivaluedFields)) {
+            return false;
+        }
+        return Arrays.stream(blocks).anyMatch(Block::doesHaveMultivaluedFields);
     }
 
     @Override

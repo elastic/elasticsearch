@@ -160,11 +160,11 @@ public class PyTorchResultProcessor {
         }
 
         logger.debug(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
-        updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for inference [%s]", modelId, result.requestId()));
         } else {
+            updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
             pendingResult.listener.onResponse(result);
         }
     }

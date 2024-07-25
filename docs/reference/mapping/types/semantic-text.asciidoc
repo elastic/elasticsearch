@@ -8,7 +8,7 @@
 beta[]
 
 The `semantic_text` field type automatically generates embeddings for text
-content using an inference endpoint. 
+content using an inference endpoint.
 
 The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
 You can create the inference endpoint by using the <<put-inference-api>>.
@@ -24,7 +24,7 @@ PUT my-index-000001
 {
   "mappings": {
     "properties": {
-      "inference_field": { 
+      "inference_field": {
         "type": "semantic_text",
         "inference_id": "my-elser-endpoint"
       }
@@ -40,7 +40,7 @@ PUT my-index-000001
 ==== Parameters for `semantic_text` fields
 
 `inference_id`::
-(Required, string)  
+(Required, string)
 Inference endpoint that will be used to generate the embeddings for the field.
 Use the <<put-inference-api>> to create the endpoint.
 
@@ -137,8 +137,42 @@ field to collect the values of other fields for semantic search. Each value has
 its embeddings calculated separately; each field value is a separate set of chunk(s) in
 the resulting embeddings.
 
-This imposes a restriction on bulk updates to documents with `semantic_text`. 
-In bulk requests, all fields that are copied to a `semantic_text` field must have a value to ensure every embedding is calculated correctly.
+This imposes a restriction on bulk requests and ingestion pipelines that update documents with `semantic_text` fields.
+In these cases, all fields that are copied to a `semantic_text` field, including the `semantic_text` field value, must have a value to ensure every embedding is calculated correctly.
+
+For example, the following mapping:
+
+[source,console]
+------------------------------------------------------------
+PUT test-index
+{
+    "mappings": {
+        "properties": {
+            "infer_field": {
+                "type": "semantic_text",
+                "inference_id": "my-elser-endpoint"
+            },
+            "source_field": {
+                "type": "text",
+                "copy_to": "infer_field"
+            }
+        }
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+Will need the following bulk update request to ensure that `infer_field` is updated correctly:
+
+[source,console]
+------------------------------------------------------------
+PUT test-index/_bulk
+{"update": {"_id": "1"}}
+{"doc": {"infer_field": "updated inference field", "source_field": "updated source field"}}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+Notice that both the `semantic_text` field and the source field are updated in the bulk request.
 
 [discrete]
 [[limitations]]

@@ -1988,7 +1988,11 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
+        if (hasDocValues) {
+            return SyntheticSourceMode.NATIVE;
+        }
+
+        return SyntheticSourceMode.FALLBACK;
     }
 
     @Override
@@ -1996,21 +2000,16 @@ public class NumberFieldMapper extends FieldMapper {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value());
+        if (hasDocValues) {
+            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value());
+        }
+
+        return super.syntheticFieldLoader();
     }
 
     // For testing only:

@@ -3,7 +3,7 @@ setup:
       cluster_features: [ "gte_v8.10.0" ]
       reason: Introduced in 8.10.0
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-3
         body:
           rules:
@@ -29,7 +29,7 @@ setup:
                   - 'id4'
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-1
         body:
           rules:
@@ -65,7 +65,7 @@ setup:
                   - 'id6'
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-2
         body:
           rules:
@@ -112,29 +112,29 @@ setup:
 ---
 teardown:
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-1
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-2
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-3
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: a-test-query-ruleset-with-lots-of-criteria
         ignore: 404
 
 ---
 "List Query Rulesets":
   - do:
-      query_ruleset.list: { }
+      query_rules.list_rulesets: { }
 
   - match: { count: 3 }
 
@@ -154,7 +154,7 @@ teardown:
 ---
 "List Query Rulesets - with from":
   - do:
-      query_ruleset.list:
+      query_rules.list_rulesets:
         from: 1
 
   - match: { count: 3 }
@@ -171,7 +171,7 @@ teardown:
 ---
 "List Query Rulesets - with size":
   - do:
-      query_ruleset.list:
+      query_rules.list_rulesets:
         size: 2
 
   - match: { count: 3 }
@@ -188,26 +188,26 @@ teardown:
 ---
 "List Query Rulesets - empty":
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-1
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-2
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-3
 
   - do:
-      query_ruleset.list: { }
+      query_rules.list_rulesets: { }
 
   - match: { count: 0 }
 
 ---
 "List Query Rulesets with multiple rules":
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: a-test-query-ruleset-with-lots-of-criteria
         body:
           rules:
@@ -267,7 +267,7 @@ teardown:
                   - 'id10'
 
   - do:
-      query_ruleset.list:
+      query_rules.list_rulesets:
         from: 0
         size: 1
 
@@ -293,7 +293,7 @@ teardown:
   - do:
       catch: forbidden
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
-      query_ruleset.list: { }
+      query_rules.list_rulesets: { }
 
   - match: { error.type: 'security_exception' }
 

@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public class CountDistinctSerializationTests extends AbstractExpressionSerializationTests<CountDistinct> {
     @Override
@@ -27,19 +25,14 @@ public class CountDistinctSerializationTests extends AbstractExpressionSerializa
     @Override
     protected CountDistinct mutateInstance(CountDistinct instance) throws IOException {
         Source source = randomSource();
-        Expression field = randomChild();
-        Expression precision = randomBoolean() ? null : randomChild();
+        Expression field = instance.field();
+        Expression precision = instance.precision();
         if (randomBoolean()) {
             field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
         } else {
             precision = randomValueOtherThan(precision, () -> randomBoolean() ? null : randomChild());
         }
         return new CountDistinct(source, field, precision);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return AggregateFunction.getNamedWriteables();
     }
 
     @Override

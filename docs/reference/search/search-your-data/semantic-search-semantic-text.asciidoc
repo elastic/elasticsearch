@@ -24,7 +24,6 @@ This tutorial uses the <<inference-example-elser,`elser` service>> for demonstra
 To use the `semantic_text` field type, you must have an {infer} endpoint deployed in
 your cluster using the <<put-inference-api>>.
 
-
 [discrete]
 [[semantic-text-infer-endpoint]]
 ==== Create the {infer} endpoint
@@ -48,6 +47,13 @@ be used and ELSER creates sparse vectors. The `inference_id` is
 `my-elser-endpoint`.
 <2> The `elser` service is used in this example.
 
+[NOTE]
+====
+You might see a 502 bad gateway error in the response when using the {kib} Console.
+This error usually just reflects a timeout, while the model downloads in the background.
+You can check the download progress in the {ml-app} UI.
+If using the Python client, you can set the `timeout` parameter to a higher value.
+====
 
 [discrete]
 [[semantic-text-index-mapping]]

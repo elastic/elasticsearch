@@ -25,6 +25,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This base class provides the boilerplate to simplify the development of integration tests.
@@ -53,7 +54,7 @@ public abstract class AbstractDataStreamIT extends ESRestTestCase {
             } catch (ResponseException e) {
                 fail(e.getMessage());
             }
-        });
+        }, 15, TimeUnit.SECONDS);
     }
 
     static void createDataStream(RestClient client, String name) throws IOException {

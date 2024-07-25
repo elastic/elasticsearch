@@ -52,7 +52,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 9: Changed sort order for profiling-events-*
     // version 10: changed mapping profiling-events @timestamp to 'date_nanos' from 'date'
     // version 11: Added 'profiling.agent.protocol' keyword mapping to profiling-hosts
-    public static final int INDEX_TEMPLATE_VERSION = 11;
+    // version 12: Added 'profiling.agent.env_https_proxy' keyword mapping to profiling-hosts
+    public static final int INDEX_TEMPLATE_VERSION = 12;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 4;

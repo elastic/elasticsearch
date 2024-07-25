@@ -252,7 +252,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     replica.getPendingPrimaryTerm()
                 );
             } else {
-                translogUUIDtoUse = translogGeneration.translogUUID;
+                translogUUIDtoUse = translogGeneration.translogUUID();
             }
             try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
                 userData.put(Engine.HISTORY_UUID_KEY, historyUUIDtoUse);
@@ -444,7 +444,11 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             expectThrows(Exception.class, () -> group.recoverReplica(replica, (shard, sourceNode) -> {
                 return new RecoveryTarget(shard, sourceNode, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
-                    public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                    public void onRecoveryDone(
+                        RecoveryState state,
+                        ShardLongFieldRange timestampMillisFieldRange,
+                        ShardLongFieldRange eventIngestedMillisFieldRange
+                    ) {
                         throw new AssertionError("recovery must fail");
                     }
 

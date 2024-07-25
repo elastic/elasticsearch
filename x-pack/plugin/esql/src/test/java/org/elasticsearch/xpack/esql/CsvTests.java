@@ -31,7 +31,6 @@ import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -48,17 +47,16 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.CsvSpecReader;
 import org.elasticsearch.xpack.esql.core.SpecReader;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -73,7 +71,7 @@ import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -85,8 +83,9 @@ import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -101,6 +100,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -157,11 +157,12 @@ public class CsvTests extends ESTestCase {
     private final String testName;
     private final Integer lineNumber;
     private final CsvSpecReader.CsvTestCase testCase;
+    private final String instructions;
 
     private final EsqlConfiguration configuration = EsqlTestUtils.configuration(
         new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
     );
-    private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+    private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
@@ -211,17 +212,25 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    public CsvTests(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase) {
+    public CsvTests(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvSpecReader.CsvTestCase testCase,
+        String instructions
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+        this.instructions = instructions;
     }
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
              * are tested in integration tests.
@@ -240,6 +249,15 @@ public class CsvTests extends ESTestCase {
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.CAPABILITIES))
                 );
+            } else {
+                for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
+                    if (c.snapshotOnly()) {
+                        assumeFalse(
+                            c.capabilityName() + " is not supported in non-snapshot releases",
+                            testCase.requiredCapabilities.contains(c.capabilityName())
+                        );
+                    }
+                }
             }
 
             doTest();
@@ -322,16 +340,14 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    private PhysicalPlan physicalPlan(LogicalPlan parsed, CsvTestsDataLoader.TestsDataset dataset) {
+    private LogicalPlan analyzedPlan(LogicalPlan parsed, CsvTestsDataLoader.TestsDataset dataset) {
         var indexResolution = loadIndexResolution(dataset.mappingFileName(), dataset.indexName());
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
-        var analyzed = analyzer.analyze(parsed);
-        var logicalOptimized = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)).optimize(analyzed);
-        var physicalPlan = mapper.map(logicalOptimized);
-        var optimizedPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan));
-        opportunisticallyAssertPlanSerialization(physicalPlan, optimizedPlan); // comment out to disable serialization
-        return optimizedPlan;
+        LogicalPlan plan = analyzer.analyze(parsed);
+        plan.setAnalyzed();
+        LOGGER.debug("Analyzed plan:\n{}", plan);
+        return plan;
     }
 
     private static CsvTestsDataLoader.TestsDataset testsDataset(LogicalPlan parsed) {
@@ -373,90 +389,43 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        var parsed = parser.createStatement(testCase.query);
+        LogicalPlan parsed = parser.createStatement(testCase.query);
         var testDataset = testsDataset(parsed);
+        LogicalPlan analyzed = analyzedPlan(parsed, testDataset);
 
-        String sessionId = "csv-test";
-        BlockFactory blockFactory = new BlockFactory(
-            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
-            bigArrays,
-            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
-        );
-        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
-        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
-        LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
-            sessionId,
-            "",
-            new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
-            bigArrays,
-            blockFactory,
-            randomNodeSettings(),
+        EsqlSession session = new EsqlSession(
+            getTestName(),
             configuration,
-            exchangeSource,
-            exchangeSink,
-            Mockito.mock(EnrichLookupService.class),
-            testOperationProviders(testDataset)
+            null,
+            null,
+            null,
+            functionRegistry,
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)),
+            mapper,
+            TEST_VERIFIER
         );
-        //
-        // Keep in sync with ComputeService#execute
-        //
-        PhysicalPlan physicalPlan = physicalPlan(parsed, testDataset);
-        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
-            physicalPlan,
-            configuration
+        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
+
+        PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
+
+        session.executeAnalyzedPlan(
+            new EsqlQueryRequest(),
+            runPhase(bigArrays, physicalOperationProviders),
+            analyzed,
+            listener.delegateFailureAndWrap(
+                // Wrap so we can capture the warnings in the calling thread
+                (next, result) -> next.onResponse(
+                    new ActualResults(
+                        result.schema().stream().map(Attribute::name).toList(),
+                        result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
+                        result.schema().stream().map(Attribute::dataType).toList(),
+                        result.pages(),
+                        threadPool.getThreadContext().getResponseHeaders()
+                    )
+                )
+            )
         );
-        PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
-        PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
-
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("Coordinator plan\n" + coordinatorPlan);
-            LOGGER.trace("DataNode plan\n" + dataNodePlan);
-        }
-
-        List<String> columnNames = Expressions.names(coordinatorPlan.output());
-        List<String> dataTypes = new ArrayList<>(columnNames.size());
-        List<Type> columnTypes = coordinatorPlan.output()
-            .stream()
-            .peek(o -> dataTypes.add(EsqlDataTypes.outputType(o.dataType())))
-            .map(o -> Type.asType(o.dataType().nameUpper()))
-            .toList();
-
-        List<Driver> drivers = new ArrayList<>();
-        List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-
-        // replace fragment inside the coordinator plan
-        try {
-            LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
-            drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
-            if (dataNodePlan != null) {
-                var searchStats = new DisabledSearchStats();
-                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
-                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                    new LocalPhysicalOptimizerContext(configuration, searchStats)
-                );
-
-                var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
-                exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
-                LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
-                drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
-                Randomness.shuffle(drivers);
-            }
-            // Execute the driver
-            DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
-                @Override
-                protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
-                }
-            };
-            PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
-            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)).map(ignore -> {
-                var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
-                return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
-            }));
-            return future.actionGet(TimeValue.timeValueSeconds(30));
-        } finally {
-            Releasables.close(() -> Releasables.close(drivers));
-        }
+        return listener.get();
     }
 
     private Settings randomNodeSettings() {
@@ -479,17 +448,15 @@ public class CsvTests extends ESTestCase {
     }
 
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
-    private void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
-        for (var plan : plans) {
-            var tmp = plan;
-            do {
-                if (tmp instanceof LocalSourceExec) {
-                    return; // skip plans with localSourceExec
-                }
-            } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
+    private void opportunisticallyAssertPlanSerialization(PhysicalPlan plan) {
+        var tmp = plan;
+        do {
+            if (tmp instanceof LocalSourceExec) {
+                return; // skip plans with localSourceExec
+            }
+        } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
 
-            SerializationTestUtils.assertSerialization(plan, configuration);
-        }
+        SerializationTestUtils.assertSerialization(plan, configuration);
     }
 
     private void assertWarnings(List<String> warnings) {
@@ -501,6 +468,84 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(true), testCase.expectedWarningsRegex());
+        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(), testCase.expectedWarningsRegex());
+    }
+
+    BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase(
+        BigArrays bigArrays,
+        TestPhysicalOperationProviders physicalOperationProviders
+    ) {
+        return (physicalPlan, listener) -> runPhase(bigArrays, physicalOperationProviders, physicalPlan, listener);
+    }
+
+    void runPhase(
+        BigArrays bigArrays,
+        TestPhysicalOperationProviders physicalOperationProviders,
+        PhysicalPlan physicalPlan,
+        ActionListener<Result> listener
+    ) {
+        // Keep in sync with ComputeService#execute
+        opportunisticallyAssertPlanSerialization(physicalPlan);
+        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
+            physicalPlan,
+            configuration
+        );
+        PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
+        PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
+
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Coordinator plan\n" + coordinatorPlan);
+            LOGGER.trace("DataNode plan\n" + dataNodePlan);
+        }
+
+        BlockFactory blockFactory = new BlockFactory(
+            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
+            bigArrays,
+            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
+        );
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
+        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
+
+        LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
+            getTestName(),
+            "",
+            new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
+            bigArrays,
+            blockFactory,
+            randomNodeSettings(),
+            configuration,
+            exchangeSource,
+            exchangeSink,
+            Mockito.mock(EnrichLookupService.class),
+            physicalOperationProviders
+        );
+
+        List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+
+        // replace fragment inside the coordinator plan
+        List<Driver> drivers = new ArrayList<>();
+        LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
+        drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
+        if (dataNodePlan != null) {
+            var searchStats = new DisabledSearchStats();
+            var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
+            var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, searchStats));
+
+            var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
+            exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
+            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
+
+            drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));
+            Randomness.shuffle(drivers);
+        }
+        // Execute the drivers
+        DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
+            @Override
+            protected void start(Driver driver, ActionListener<Void> driverListener) {
+                Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
+            }
+        };
+        listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
+        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of())));
     }
 }

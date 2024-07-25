@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
 
 import java.util.List;
@@ -25,6 +26,10 @@ import java.util.List;
  */
 public interface DenseVector {
 
+    default void checkDimensions(int qvDims) {
+        checkDimensions(getDims(), qvDims);
+    }
+
     float[] getVector();
 
     float getMagnitude();
@@ -38,13 +43,13 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default double dotProduct(Object queryVector) {
         if (queryVector instanceof float[] floats) {
-            checkDimensions(getDims(), floats.length);
+            checkDimensions(floats.length);
             return dotProduct(floats);
         } else if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return dotProduct((List<Number>) list);
         } else if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return dotProduct(bytes);
         }
 
@@ -60,13 +65,13 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default double l1Norm(Object queryVector) {
         if (queryVector instanceof float[] floats) {
-            checkDimensions(getDims(), floats.length);
+            checkDimensions(floats.length);
             return l1Norm(floats);
         } else if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return l1Norm((List<Number>) list);
         } else if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return l1Norm(bytes);
         }
 
@@ -80,11 +85,11 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default int hamming(Object queryVector) {
         if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return hamming((List<Number>) list);
         }
         if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return hamming(bytes);
         }
 
@@ -100,13 +105,13 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default double l2Norm(Object queryVector) {
         if (queryVector instanceof float[] floats) {
-            checkDimensions(getDims(), floats.length);
+            checkDimensions(floats.length);
             return l2Norm(floats);
         } else if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return l2Norm((List<Number>) list);
         } else if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return l2Norm(bytes);
         }
 
@@ -150,13 +155,13 @@ public interface DenseVector {
     @SuppressWarnings("unchecked")
     default double cosineSimilarity(Object queryVector) {
         if (queryVector instanceof float[] floats) {
-            checkDimensions(getDims(), floats.length);
+            checkDimensions(floats.length);
             return cosineSimilarity(floats);
         } else if (queryVector instanceof List<?> list) {
-            checkDimensions(getDims(), list.size());
+            checkDimensions(list.size());
             return cosineSimilarity((List<Number>) list);
         } else if (queryVector instanceof byte[] bytes) {
-            checkDimensions(getDims(), bytes.length);
+            checkDimensions(bytes.length);
             return cosineSimilarity(bytes);
         }
 
@@ -182,6 +187,20 @@ public interface DenseVector {
             i++;
         }
         return (float) Math.sqrt(mag);
+    }
+
+    static float getBitMagnitude(byte[] vector, int dims) {
+        int count = 0;
+        int i = 0;
+        for (int upperBound = dims & -8; i < upperBound; i += 8) {
+            count += Long.bitCount((long) BitUtil.VH_NATIVE_LONG.get(vector, i));
+        }
+
+        while (i < dims) {
+            count += Integer.bitCount(vector[i] & 255);
+            ++i;
+        }
+        return (float) Math.sqrt(count);
     }
 
     static float getMagnitude(float[] vector) {

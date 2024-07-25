@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * A repository cleanup request entry. Part of the cluster state.
+ */
 public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
     public static final RepositoryCleanupInProgress EMPTY = new RepositoryCleanupInProgress(List.of());

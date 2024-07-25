@@ -27,6 +27,10 @@ base {
   archivesName = 'x-pack-inference'
 }
 
+versions << [
+  'awsbedrockruntime': '1.12.740'
+]
+
 dependencies {
   implementation project(path: ':libs:elasticsearch-logging')
   compileOnly project(":server")
@@ -38,14 +42,194 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   api "com.ibm.icu:icu4j:${versions.icu4j}"
+
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
+  implementation 'com.google.code.gson:gson:2.10'
+  implementation "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
+  implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  implementation 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
+  implementation 'com.google.auth:google-auth-library-credentials:1.11.0'
+  implementation 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
+  implementation "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
+  implementation 'com.google.api-client:google-api-client:2.1.1'
+  implementation 'com.google.http-client:google-http-client:1.42.3'
+  implementation 'com.google.http-client:google-http-client-gson:1.42.3'
+  implementation 'com.google.http-client:google-http-client-appengine:1.42.3'
+  implementation 'com.google.http-client:google-http-client-jackson2:1.42.3'
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  implementation "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
+  implementation 'com.google.api:gax-httpjson:0.105.1'
+  implementation 'io.grpc:grpc-context:1.49.2'
+  implementation 'io.opencensus:opencensus-api:0.31.1'
+  implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation "com.amazonaws:aws-java-sdk-bedrockruntime:${versions.awsbedrockruntime}"
+  implementation "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  implementation "com.amazonaws:jmespath-java:${versions.aws}"
+  implementation "joda-time:joda-time:2.10.10"
+  implementation 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.withType(Test).configureEach {
-    systemProperty 'es.semantic_text_feature_flag_enabled', 'true'
-  }
+tasks.named("dependencyLicenses").configure {
+  mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /protobuf.*/, to: 'protobuf'
+  mapping from: /proto-google.*/, to: 'proto-google'
+  mapping from: /jackson.*/, to: 'jackson'
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  )
+
+  ignoreMissingClasses(
+    'com.google.api.AnnotationsProto',
+    'com.google.api.ClientProto',
+    'com.google.api.FieldBehaviorProto',
+    'com.google.api.ResourceProto',
+    'com.google.api.core.AbstractApiFuture',
+    'com.google.api.core.ApiFunction',
+    'com.google.api.core.ApiFuture',
+    'com.google.api.core.ApiFutureCallback',
+    'com.google.api.core.ApiFutures',
+    'com.google.api.gax.core.BackgroundResource',
+    'com.google.api.gax.core.ExecutorProvider',
+    'com.google.api.gax.core.GaxProperties',
+    'com.google.api.gax.core.GoogleCredentialsProvider',
+    'com.google.api.gax.core.GoogleCredentialsProvider$Builder',
+    'com.google.api.gax.core.InstantiatingExecutorProvider',
+    'com.google.api.gax.core.InstantiatingExecutorProvider$Builder',
+    'com.google.api.gax.longrunning.OperationSnapshot',
+    'com.google.api.gax.paging.AbstractFixedSizeCollection',
+    'com.google.api.gax.paging.AbstractPage',
+    'com.google.api.gax.paging.AbstractPagedListResponse',
+    'com.google.api.gax.retrying.RetrySettings',
+    'com.google.api.gax.retrying.RetrySettings$Builder',
+    'com.google.api.gax.rpc.ApiCallContext',
+    'com.google.api.gax.rpc.ApiCallContext$Key',
+    'com.google.api.gax.rpc.ApiClientHeaderProvider',
+    'com.google.api.gax.rpc.ApiClientHeaderProvider$Builder',
+    'com.google.api.gax.rpc.ApiException',
+    'com.google.api.gax.rpc.ApiExceptionFactory',
+    'com.google.api.gax.rpc.BatchingCallSettings',
+    'com.google.api.gax.rpc.Callables',
+    'com.google.api.gax.rpc.ClientContext',
+    'com.google.api.gax.rpc.ClientSettings',
+    'com.google.api.gax.rpc.ClientSettings$Builder',
+    'com.google.api.gax.rpc.FixedHeaderProvider',
+    'com.google.api.gax.rpc.HeaderProvider',
+    'com.google.api.gax.rpc.LongRunningClient',
+    'com.google.api.gax.rpc.OperationCallSettings',
+    'com.google.api.gax.rpc.OperationCallable',
+    'com.google.api.gax.rpc.PageContext',
+    'com.google.api.gax.rpc.PagedCallSettings',
+    'com.google.api.gax.rpc.PagedCallSettings$Builder',
+    'com.google.api.gax.rpc.PagedListDescriptor',
+    'com.google.api.gax.rpc.PagedListResponseFactory',
+    'com.google.api.gax.rpc.ResponseObserver',
+    'com.google.api.gax.rpc.ServerStreamingCallSettings',
+    'com.google.api.gax.rpc.ServerStreamingCallable',
+    'com.google.api.gax.rpc.StateCheckingResponseObserver',
+    'com.google.api.gax.rpc.StatusCode',
+    'com.google.api.gax.rpc.StatusCode$Code',
+    'com.google.api.gax.rpc.StreamController',
+    'com.google.api.gax.rpc.StubSettings',
+    'com.google.api.gax.rpc.StubSettings$Builder',
+    'com.google.api.gax.rpc.TranslatingUnaryCallable',
+    'com.google.api.gax.rpc.TransportChannel',
+    'com.google.api.gax.rpc.TransportChannelProvider',
+    'com.google.api.gax.rpc.UnaryCallSettings',
+    'com.google.api.gax.rpc.UnaryCallSettings$Builder',
+    'com.google.api.gax.rpc.UnaryCallable',
+    'com.google.api.gax.rpc.internal.ApiCallContextOptions',
+    'com.google.api.gax.rpc.internal.Headers',
+    'com.google.api.gax.rpc.mtls.MtlsProvider',
+    'com.google.api.gax.tracing.ApiTracer',
+    'com.google.api.gax.tracing.BaseApiTracer',
+    'com.google.api.gax.tracing.SpanName',
+    'com.google.api.pathtemplate.PathTemplate',
+    'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
+    'com.google.common.util.concurrent.internal.InternalFutures',
+    'com.google.longrunning.CancelOperationRequest',
+    'com.google.longrunning.CancelOperationRequest$Builder',
+    'com.google.longrunning.DeleteOperationRequest',
+    'com.google.longrunning.DeleteOperationRequest$Builder',
+    'com.google.longrunning.GetOperationRequest',
+    'com.google.longrunning.GetOperationRequest$Builder',
+    'com.google.longrunning.ListOperationsRequest',
+    'com.google.longrunning.ListOperationsRequest$Builder',
+    'com.google.longrunning.ListOperationsResponse',
+    'com.google.longrunning.Operation',
+    'com.google.rpc.Code',
+    'com.google.rpc.Status',
+    'com.google.type.Expr',
+    'com.google.type.Expr$Builder',
+    'com.google.type.ExprOrBuilder',
+    'com.google.type.ExprProto',
+    'org.threeten.bp.Duration',
+    'org.threeten.bp.Instant',
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.appengine.api.datastore.Blob',
+    'com.google.appengine.api.datastore.DatastoreService',
+    'com.google.appengine.api.datastore.DatastoreServiceFactory',
+    'com.google.appengine.api.datastore.Entity',
+    'com.google.appengine.api.datastore.Key',
+    'com.google.appengine.api.datastore.KeyFactory',
+    'com.google.appengine.api.datastore.PreparedQuery',
+    'com.google.appengine.api.datastore.Query',
+    'com.google.appengine.api.memcache.Expiration',
+    'com.google.appengine.api.memcache.MemcacheService',
+    'com.google.appengine.api.memcache.MemcacheServiceFactory',
+    'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+    'com.google.appengine.api.urlfetch.FetchOptions',
+    'com.google.appengine.api.urlfetch.HTTPHeader',
+    'com.google.appengine.api.urlfetch.HTTPMethod',
+    'com.google.appengine.api.urlfetch.HTTPRequest',
+    'com.google.appengine.api.urlfetch.HTTPResponse',
+    'com.google.appengine.api.urlfetch.URLFetchService',
+    'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'software.amazon.ion.IonReader',
+    'software.amazon.ion.IonSystem',
+    'software.amazon.ion.IonType',
+    'software.amazon.ion.IonWriter',
+    'software.amazon.ion.Timestamp',
+    'software.amazon.ion.system.IonBinaryWriterBuilder',
+    'software.amazon.ion.system.IonSystemBuilder',
+    'software.amazon.ion.system.IonTextWriterBuilder',
+    'software.amazon.ion.system.IonWriterBuilder',
+    'javax.activation.DataHandler'
+  )
 }
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
+

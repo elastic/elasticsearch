@@ -22,7 +22,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.common.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -245,7 +245,7 @@ public class MistralService extends SenderService {
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
         MistralEmbeddingsServiceSettings serviceSettings = new MistralEmbeddingsServiceSettings(
-            embeddingServiceSettings.model(),
+            embeddingServiceSettings.modelId(),
             embeddingsSize,
             embeddingServiceSettings.maxInputTokens(),
             similarityToUse,

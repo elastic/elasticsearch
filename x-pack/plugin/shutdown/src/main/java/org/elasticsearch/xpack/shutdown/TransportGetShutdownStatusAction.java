@@ -83,6 +83,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     ) {
         super(
             GetShutdownStatusAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,

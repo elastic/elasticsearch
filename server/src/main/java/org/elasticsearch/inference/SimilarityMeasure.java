@@ -39,8 +39,7 @@ public enum SimilarityMeasure {
      * @return the similarity that is known to the version passed in
      */
     public static SimilarityMeasure translateSimilarity(SimilarityMeasure similarityMeasure, TransportVersion version) {
-        if (version.before(TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED)
-            && BEFORE_L2_NORM_ENUMS.contains(similarityMeasure) == false) {
+        if (version.before(TransportVersions.V_8_14_0) && BEFORE_L2_NORM_ENUMS.contains(similarityMeasure) == false) {
             return null;
         }
 

@@ -161,10 +161,10 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
             List<String> fields = new ArrayList<>();
             assertTrue(builder.supportsParallelCollection(field -> {
                 fields.add(field);
-                return randomIntBetween(0, 10);
+                return randomIntBetween(0, 9);
             }));
             assertEquals(List.of("field1", "field2"), fields);
-            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(11, 100)));
+            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(10, 100)));
             terms.terms(
                 List.of(
                     sourceBuilder1.build(),
@@ -183,14 +183,14 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
                 List.of(sourceBuilder1.build(), sourceBuilder2.build())
             );
             terms.shardSize(10);
-            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(0, 10)));
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(0, 9)));
             terms.subAggregation(new TermsAggregationBuilder("name") {
                 @Override
                 public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
                     return false;
                 }
             });
-            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(0, 10)));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(0, 9)));
         }
         {
             MultiValuesSourceFieldConfig.Builder sourceBuilder1 = new MultiValuesSourceFieldConfig.Builder();

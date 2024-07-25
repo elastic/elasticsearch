@@ -184,6 +184,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.mayHaveNulls(), is(false));
             assertThat(block.areAllValuesNull(), is(false));
             assertThat(block.mayHaveMultivaluedFields(), is(false));
+            assertThat(block.doesHaveMultivaluedFields(), is(false));
 
             initialBlock = block.asVector().asBlock();
         }

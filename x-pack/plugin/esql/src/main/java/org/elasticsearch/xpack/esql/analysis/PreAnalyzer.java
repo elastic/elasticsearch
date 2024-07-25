@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.core.analyzer.TableInfo;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
+ */
 public class PreAnalyzer {
 
     public static class PreAnalysis {
@@ -43,7 +46,7 @@ public class PreAnalyzer {
         List<TableInfo> indices = new ArrayList<>();
         List<Enrich> unresolvedEnriches = new ArrayList<>();
 
-        plan.forEachUp(EsqlUnresolvedRelation.class, p -> { indices.add(new TableInfo(p.table(), p.frozen())); });
+        plan.forEachUp(UnresolvedRelation.class, p -> indices.add(new TableInfo(p.table(), p.frozen())));
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)

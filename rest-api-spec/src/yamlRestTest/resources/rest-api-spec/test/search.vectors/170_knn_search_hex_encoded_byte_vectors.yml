@@ -116,8 +116,9 @@ setup:
 ---
 "Knn search with hex string for byte field - dimensions mismatch" :
   # [64, 10, -30, 10] - is encoded as '400ae20a'
+  # the error message has been adjusted in later versions
   - do:
-      catch: /the query vector has a different dimension \[4\] than the index vectors \[3\]/
+      catch: /dimension|dimensions \[4\] than the document|index vectors \[3\]/
       search:
         index: knn_hex_vector_index
         body:

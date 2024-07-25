@@ -38,8 +38,11 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
+import static org.elasticsearch.xpack.security.action.role.TransportQueryRoleAction.ROLE_NAME_RUNTIME_MAPPING_FIELD;
 
 public final class FieldNameTranslators {
+
+    public static final String FLATTENED_METADATA_INDEX_FIELD_NAME = "metadata_flattened";
 
     public static final FieldNameTranslators API_KEY_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
@@ -53,7 +56,7 @@ public final class FieldNameTranslators {
             new SimpleFieldNameTranslator("invalidation_time", "invalidation"),
             // allows querying on any non-wildcard sub-fields under the "metadata." prefix
             // also allows querying on the "metadata" field itself (including by specifying patterns)
-            new FlattenedFieldNameTranslator("metadata_flattened", "metadata")
+            new FlattenedFieldNameTranslator(FLATTENED_METADATA_INDEX_FIELD_NAME, "metadata")
         )
     );
 
@@ -65,6 +68,19 @@ public final class FieldNameTranslators {
             // the mapping for these fields does not support sorting (because their mapping does not store "fielddata" in the index)
             idemFieldNameTranslator("full_name", false),
             idemFieldNameTranslator("email", false)
+        )
+    );
+
+    public static final FieldNameTranslators ROLE_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
+        List.of(
+            new SimpleFieldNameTranslator(ROLE_NAME_RUNTIME_MAPPING_FIELD, "name"),
+            idemFieldNameTranslator("description"),
+            idemFieldNameTranslator("applications.application"),
+            idemFieldNameTranslator("applications.resources"),
+            idemFieldNameTranslator("applications.privileges"),
+            // allows querying on any non-wildcard sub-fields under the "metadata." prefix
+            // also allows querying on the "metadata" field itself (including by specifying patterns)
+            new FlattenedFieldNameTranslator(FLATTENED_METADATA_INDEX_FIELD_NAME, "metadata")
         )
     );
 

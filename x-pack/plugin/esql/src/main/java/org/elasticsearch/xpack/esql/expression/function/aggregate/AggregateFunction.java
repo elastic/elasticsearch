@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,10 +38,15 @@ public abstract class AggregateFunction extends Function {
             MedianAbsoluteDeviation.ENTRY,
             Min.ENTRY,
             Percentile.ENTRY,
+            Rate.ENTRY,
             SpatialCentroid.ENTRY,
             Sum.ENTRY,
-            TopList.ENTRY,
-            Values.ENTRY
+            Top.ENTRY,
+            Values.ENTRY,
+            // internal functions
+            ToPartial.ENTRY,
+            FromPartial.ENTRY,
+            WeightedAvg.ENTRY
         );
     }
 
@@ -60,13 +64,13 @@ public abstract class AggregateFunction extends Function {
     }
 
     protected AggregateFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), ((PlanStreamInput) in).readExpression());
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field());
+        out.writeNamedWriteable(field);
     }
 
     public Expression field() {
@@ -75,6 +79,14 @@ public abstract class AggregateFunction extends Function {
 
     public List<? extends Expression> parameters() {
         return parameters;
+    }
+
+    /**
+     * Returns the input expressions used in aggregation.
+     * Defaults to a list containing the only the input field.
+     */
+    public List<Expression> inputExpressions() {
+        return List.of(field);
     }
 
     @Override

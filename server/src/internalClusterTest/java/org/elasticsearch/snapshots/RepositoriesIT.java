@@ -482,7 +482,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         // We must wait for all the cleanup work to be enqueued (with the throttled runner at least) so we can be sure of exactly how it
         // will execute. The cleanup work is enqueued by the master service thread on completion of the cluster state update which increases
         // the root blob generation in the repo metadata, so it is sufficient to wait for another no-op task to run on the master service:
-        PlainActionFuture.get(fut -> clusterService.createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
+        safeAwait(listener -> clusterService.createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
             @Override
             public Tuple<ClusterState, Object> executeTask(ClusterStateTaskListener clusterStateTaskListener, ClusterState clusterState) {
                 return Tuple.tuple(clusterState, null);
@@ -490,9 +490,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
             @Override
             public void taskSucceeded(ClusterStateTaskListener clusterStateTaskListener, Object ignored) {
-                fut.onResponse(null);
+                listener.onResponse(null);
             }
-        }).submitTask("test", e -> fail(), null), 10, TimeUnit.SECONDS);
+        }).submitTask("test", e -> fail(), null));
 
         final IntSupplier queueLength = () -> threadPool.stats()
             .stats()

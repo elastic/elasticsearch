@@ -15,4 +15,4 @@ breaking:
     as SKIPPED in the search response metadata section and do not fail the entire search. If users want to ensure that a
     search returns a failure when a particular remote cluster is not available, `skip_unavailable` must be now be 
     set explicitly.    
-  notable: false
+  notable: true

@@ -31,7 +31,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 (Optional, integer) The offset from the first result to fetch. Defaults to `0`.
 
 `status`::
-(Optional, job status) A comma-separated list of job statuses to filter the results. Available statuses include: `canceling`, `canceled`, `completed`, `error`, `in_progress`, `pending`, `suspended`.
+(Optional, job status) A job status to filter the results for. Available statuses include: `canceling`, `canceled`, `completed`, `error`, `in_progress`, `pending`, `suspended`.
 
 `connector_id`::
 (Optional, string) The connector id the fetched sync jobs need to have.

@@ -461,7 +461,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 TopHits topHits = global.getAggregations().get("hits");
                 assertThat(topHits, notNullValue());

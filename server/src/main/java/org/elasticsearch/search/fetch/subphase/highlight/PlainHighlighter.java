@@ -218,6 +218,9 @@ public class PlainHighlighter implements Highlighter {
                 // Can't split on term boundaries without offsets
                 return -1;
             }
+            if (contents.length() <= noMatchSize) {
+                return contents.length();
+            }
             int end = -1;
             tokenStream.reset();
             while (tokenStream.incrementToken()) {

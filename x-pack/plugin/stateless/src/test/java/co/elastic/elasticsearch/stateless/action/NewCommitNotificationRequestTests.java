@@ -20,30 +20,23 @@ package co.elastic.elasticsearch.stateless.action;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -252,66 +245,6 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             nodeId
         );
         assertThat(request.toString(), request.isUploaded(), is(true));
-    }
-
-    public void testSerializationNewToOld() throws IOException {
-        final var instance = createTestInstance();
-        final TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(
-            NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID
-        );
-
-        var deserialized = copyInstance(instance, previousVersion);
-        try {
-            assertThat(deserialized.shardId(), equalTo(instance.shardId()));
-            assertThat(deserialized.getBatchedCompoundCommitGeneration(), equalTo(instance.getBatchedCompoundCommitGeneration()));
-            assertThat(deserialized.getCompoundCommit(), equalTo(instance.getCompoundCommit()));
-            assertThat(
-                deserialized.getLatestUploadedBatchedCompoundCommitTermAndGen(),
-                equalTo(instance.getLatestUploadedBatchedCompoundCommitTermAndGen())
-            );
-            assertThat(deserialized.getClusterStateVersion(), nullValue());
-            assertThat(deserialized.getNodeId(), nullValue());
-        } finally {
-            dispose(deserialized);
-        }
-    }
-
-    public void testDeserializationOldToNew() throws IOException {
-        try (var out = new BytesStreamOutput()) {
-            out.setTransportVersion(
-                TransportVersionUtils.getNextVersion(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID, true)
-            );
-            final var parentTaskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
-            final var instance = createTestInstance();
-
-            // old logic to serialize NewCommitNotificationRequest without node id
-            var broadcast = new BroadcastUnpromotableRequest(indexShardRoutingTable);
-            broadcast.setParentTask(parentTaskId);
-            broadcast.writeTo(out);
-            instance.getCompoundCommit().writeTo(out);
-            out.writeVLong(instance.getBatchedCompoundCommitGeneration());
-            out.writeOptionalWriteable(instance.getLatestUploadedBatchedCompoundCommitTermAndGen());
-
-            try (var in = out.bytes().streamInput()) {
-                in.setTransportVersion(
-                    TransportVersionUtils.getPreviousVersion(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID)
-                );
-                var deserialized = instanceReader().read(in);
-                try {
-                    assertThat(deserialized.shardId(), equalTo(instance.shardId()));
-                    assertThat(deserialized.getBatchedCompoundCommitGeneration(), equalTo(instance.getBatchedCompoundCommitGeneration()));
-                    assertThat(deserialized.getCompoundCommit(), equalTo(instance.getCompoundCommit()));
-                    assertThat(
-                        deserialized.getLatestUploadedBatchedCompoundCommitTermAndGen(),
-                        equalTo(instance.getLatestUploadedBatchedCompoundCommitTermAndGen())
-                    );
-                    assertThat(deserialized.getClusterStateVersion(), nullValue());
-                    assertThat(deserialized.getNodeId(), nullValue());
-                } finally {
-                    dispose(deserialized);
-                }
-            }
-        }
     }
 
     public static IndexShardRoutingTable randomIndexShardRoutingTable() {

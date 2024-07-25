@@ -18,7 +18,8 @@ public class ResourceUtils
         return loadVersionedResourceUTF8(clazz, name, version, versionProperty, Map.of());
     }
 
-    static byte[] loadVersionedResourceUTF8(Class<?> clazz, String name, int version, String versionProperty, Map<String, String> variables) {
+    static byte[] loadVersionedResourceUTF8(Class<?> clazz, String name, int version, String versionProperty,
+                                            Map<String, String> variables) {
         try {
             String content = loadResource(clazz, name);
             content = TemplateUtils.replaceVariables(content, String.valueOf(version), versionProperty, variables);

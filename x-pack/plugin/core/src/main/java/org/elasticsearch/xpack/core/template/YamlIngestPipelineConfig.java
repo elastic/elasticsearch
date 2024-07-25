@@ -17,7 +17,8 @@ import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedR
 
 public class YamlIngestPipelineConfig extends IngestPipelineConfig {
     private final Class<?> clazz;
-    public YamlIngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies, Class<?> clazz) {
+    public YamlIngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies,
+                                    Class<?> clazz) {
         super(id, resource, version, versionProperty, dependencies);
         this.clazz = clazz;
     }
@@ -31,6 +32,4 @@ public class YamlIngestPipelineConfig extends IngestPipelineConfig {
     public BytesReference loadConfig() {
         return new BytesArray(loadVersionedResourceUTF8(clazz, "/ingest-pipelines/" + id + ".yaml", version, versionProperty, variables));
     }
-
-
 }

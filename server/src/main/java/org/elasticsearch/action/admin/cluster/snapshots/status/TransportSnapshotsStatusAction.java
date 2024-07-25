@@ -329,8 +329,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
                         case FAILED -> SnapshotsInProgress.State.FAILED;
                         case SUCCESS, PARTIAL ->
-                            // Translating both PARTIAL and SUCCESS to SUCCESS for now
-                            // TODO: add the differentiation on the metadata level in the next major release
+                            // Both of these means the snapshot has completed.
                             SnapshotsInProgress.State.SUCCESS;
                         default -> throw new IllegalArgumentException("Unexpected snapshot state " + snapshotInfo.state());
                     };

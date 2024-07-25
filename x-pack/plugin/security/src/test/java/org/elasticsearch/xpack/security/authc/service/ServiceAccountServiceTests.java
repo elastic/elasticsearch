@@ -82,7 +82,6 @@ public class ServiceAccountServiceTests extends ESTestCase {
         indexServiceAccountTokenStore = mock(IndexServiceAccountTokenStore.class);
         when(fileServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.FILE);
         when(indexServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.INDEX);
-        final Settings.Builder builder = Settings.builder().put("xpack.security.enabled", true);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         serviceAccountService = new ServiceAccountService(client, fileServiceAccountTokenStore, indexServiceAccountTokenStore);
@@ -96,11 +95,17 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testGetServiceAccountPrincipals() {
         assertThat(
             ServiceAccountService.getServiceAccountPrincipals(),
-            containsInAnyOrder("elastic/enterprise-search-server", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
+            containsInAnyOrder(
+                "elastic/auto-ops",
+                "elastic/enterprise-search-server",
+                "elastic/fleet-server",
+                "elastic/fleet-server-remote",
+                "elastic/kibana"
+            )
         );
     }
 
-    public void testTryParseToken() throws IOException, IllegalAccessException {
+    public void testTryParseToken() throws IOException {
         // Null for null
         assertNull(ServiceAccountService.tryParseToken(null));
 

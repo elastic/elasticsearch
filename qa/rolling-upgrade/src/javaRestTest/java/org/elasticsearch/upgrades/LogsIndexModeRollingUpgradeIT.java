@@ -98,7 +98,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
           "template": {
             "settings": {
               "index": {
-                "mode": "logs"
+                "mode": "logsdb"
               }
             },
             "mappings": {
@@ -195,7 +195,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertIndexMappingsAndSettings(2, Matchers.nullValue(), matchesMap().extraOk());
             assertIndexMappingsAndSettings(
                 3,
-                Matchers.equalTo("logs"),
+                Matchers.equalTo("logsdb"),
                 matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic"))
             );
         }

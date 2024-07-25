@@ -97,7 +97,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
           "template": {
             "settings": {
               "index": {
-                "mode": "logs"
+                "mode": "logsdb"
               }
             },
             "mappings": {
@@ -171,7 +171,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             assertIndexMappingsAndSettings(0, Matchers.nullValue(), matchesMap().extraOk());
             assertIndexMappingsAndSettings(
                 1,
-                Matchers.equalTo("logs"),
+                Matchers.equalTo("logsdb"),
                 matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic"))
             );
         }

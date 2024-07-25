@@ -270,7 +270,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("logs", 2);
+        assertDataStreamBackingIndexMode("logsdb", 2);
     }
 
     public void testLogsTimeSeriesIndexModeSwitch() throws IOException {
@@ -289,7 +289,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("logs", 0);
+        assertDataStreamBackingIndexMode("logsdb", 0);
 
         putTemplate(client, "custom-template", TIME_SERIES_TEMPLATE);
         rolloverDataStream(client, DATA_STREAM_NAME);

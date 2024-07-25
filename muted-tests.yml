@@ -108,6 +108,9 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testReadNonexistentBlobThrowsNoSuchFileException
   issue: https://github.com/elastic/elasticsearch/issues/111233
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {inlinestats.BeforeKeep ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111257
 
 # Examples:
 #

@@ -2676,8 +2676,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    // pkg-private for testing
-    IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+    // protected for testing
+    protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
         if (Assertions.ENABLED) {
             return new AssertingIndexWriter(directory, iwc);
         } else {

@@ -152,7 +152,7 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
 
         @Inject
         public TestAction(TransportService transportService, ActionFilters actionFilters) {
-            super(TYPE.name(), actionFilters, transportService.getTaskManager());
+            super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             threadPool = transportService.getThreadPool();
         }
 

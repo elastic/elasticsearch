@@ -127,24 +127,18 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     private BooleanVector evalSlow(DocVector docs) throws IOException {
         int[] map = docs.shardSegmentDocMapForwards();
         // Clear any state flags from the previous run
-        for (ShardState shardState : perShardState) {
-            if (shardState == null) {
-                continue;
-            }
-            for (SegmentState segmentState : shardState.perSegmentState) {
-                if (segmentState == null) {
-                    continue;
-                }
-                segmentState.initializedForCurrentBlock = false;
-            }
-        }
+        int prevShard = -1;
+        int prevSegment = -1;
+        SegmentState segmentState = null;
         try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount())) {
             for (int i = 0; i < docs.getPositionCount(); i++) {
-                ShardState shardState = shardState(docs.shards().getInt(docs.shards().getInt(map[i])));
-                SegmentState segmentState = shardState.segmentState(docs.segments().getInt(map[i]));
-                // NOCOMMIT I think we don't need this boolean because we're going in ascending order by segment
-                if (segmentState.initializedForCurrentBlock == false) {
+                int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
+                int segment = docs.segments().getInt(map[i]);
+                if (segmentState == null || prevShard != shard || prevSegment != segment) {
+                    segmentState = shardState(shard).segmentState(segment);
                     segmentState.initScorer(docs.docs().getInt(map[i]));
+                    prevShard = shard;
+                    prevSegment = segment;
                 }
                 if (segmentState.noMatch) {
                     builder.appendBoolean(false);
@@ -215,8 +209,6 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
          */
         private boolean noMatch;
 
-        private boolean initializedForCurrentBlock;
-
         private SegmentState(Weight weight, LeafReaderContext ctx) {
             this.weight = weight;
             this.ctx = ctx;
@@ -249,16 +241,9 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
          * doc ids it'd be faster to use {@link #scoreDense}.
          */
         BooleanVector scoreSparse(IntVector docs) throws IOException {
+            initScorer(docs.getInt(0));
             if (noMatch) {
                 return blockFactory.newConstantBooleanVector(false, docs.getPositionCount());
-            }
-            if (scorer == null || scorer.iterator().docID() > docs.getInt(0)) {
-                // The previous block might have been beyond this one, reset the scorer and try again.
-                scorer = weight.scorer(ctx);
-                if (scorer == null) {
-                    noMatch = true;
-                    return blockFactory.newConstantBooleanVector(false, docs.getPositionCount());
-                }
             }
             try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount())) {
                 for (int i = 0; i < docs.getPositionCount(); i++) {
@@ -269,6 +254,9 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         }
 
         private void initScorer(int minDocId) throws IOException {
+            if (noMatch) {
+                return;
+            }
             if (scorer == null || scorer.iterator().docID() > minDocId) {
                 // The previous block might have been beyond this one, reset the scorer and try again.
                 scorer = weight.scorer(ctx);

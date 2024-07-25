@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTestCase<SnapshotLifecycleStats> {
 
@@ -120,7 +121,7 @@ public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTest
             case 0 -> instance.withRetentionRunIncremented();
             case 1 -> instance.withRetentionFailedIncremented();
             case 2 -> instance.withRetentionTimedOutIncremented();
-            case 3 -> instance.withDeletionTimeUpdated(randomTimeValue());
+            case 3 -> instance.withDeletionTimeUpdated(randomTimeValue(1, 1_000_000, TimeUnit.MILLISECONDS));
             case 4 -> instance.withTakenIncremented(policy);
             case 5 -> instance.withFailedIncremented(policy);
             case 6 -> instance.withDeletedIncremented(policy);

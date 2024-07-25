@@ -987,16 +987,17 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                 executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
                             }
                         } else {
-                            final List<Runnable> gapFillingTasks = gaps.stream()
-                                .map(gap -> fillGapRunnable(gap, writer, streamFactory, refs.acquireListener()))
-                                .toList();
-                            executor.execute(() -> {
-                                try (streamFactory) {
+                            var gapFillingListener = refs.acquireListener();
+                            try (var gfRefs = new RefCountingRunnable(ActionRunnable.run(gapFillingListener, streamFactory::close))) {
+                                final List<Runnable> gapFillingTasks = gaps.stream()
+                                    .map(gap -> fillGapRunnable(gap, writer, streamFactory, gfRefs.acquireListener()))
+                                    .toList();
+                                executor.execute(() -> {
                                     // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
                                     // gap will still be executed.
                                     gapFillingTasks.forEach(Runnable::run);
-                                }
-                            });
+                                });
+                            }
                         }
                     }
                 }

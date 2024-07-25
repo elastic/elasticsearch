@@ -15,12 +15,14 @@ import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.Structure.ByReference;
 import com.sun.jna.WString;
+import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.win32.StdCallLibrary;
 
 import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.util.List;
+import java.util.function.IntConsumer;
 
 class JnaKernel32Library implements Kernel32Library {
     private static class JnaHandle implements Handle {
@@ -158,6 +160,8 @@ class JnaKernel32Library implements Kernel32Library {
 
         boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
 
+        int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
+
         int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
 
         boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
@@ -230,6 +234,15 @@ class JnaKernel32Library implements Kernel32Library {
         assert handle instanceof JnaHandle;
         var jnaHandle = (JnaHandle) handle;
         return functions.SetProcessWorkingSetSize(jnaHandle.pointer, new SizeT(minSize), new SizeT(maxSize));
+    }
+
+    @Override
+    public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
+        var wideFileName = new WString(lpFileName);
+        var fileSizeHigh = new IntByReference();
+        int ret = functions.GetCompressedFileSizeW(wideFileName, fileSizeHigh);
+        lpFileSizeHigh.accept(fileSizeHigh.getValue());
+        return ret;
     }
 
     @Override

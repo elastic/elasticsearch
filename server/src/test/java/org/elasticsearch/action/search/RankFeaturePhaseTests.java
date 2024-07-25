@@ -106,7 +106,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1, 2 })) {
@@ -212,7 +212,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         // first shard
@@ -327,7 +327,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1, 2 })) {
@@ -419,7 +419,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         // first shard
@@ -511,7 +511,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1, 2 })) {
@@ -637,7 +637,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
 
                         RankFeatureResult rankFeatureResult = new RankFeatureResult();
@@ -779,7 +779,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        final SearchActionListener<RankFeatureResult> listener
+                        final ActionListener<RankFeatureResult> listener
                     ) {
                         RankFeatureResult rankFeatureResult = new RankFeatureResult();
                         // make sure to match the context id generated above, otherwise we throw

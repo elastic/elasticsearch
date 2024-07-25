@@ -20,6 +20,7 @@ import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
+import java.util.function.IntConsumer;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.MemoryLayout.paddingLayout;
@@ -56,6 +57,10 @@ class JdkKernel32Library implements Kernel32Library {
     private static final MethodHandle SetProcessWorkingSetSize$mh = downcallHandleWithError(
         "SetProcessWorkingSetSize",
         FunctionDescriptor.of(ADDRESS, JAVA_LONG, JAVA_LONG)
+    );
+    private static final MethodHandle GetCompressedFileSizeW$mh = downcallHandleWithError(
+        "GetCompressedFileSizeW",
+        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS)
     );
     private static final MethodHandle GetShortPathNameW$mh = downcallHandleWithError(
         "GetShortPathNameW",
@@ -271,6 +276,20 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkProcess = (JdkHandle) process;
         try {
             return (boolean) SetProcessWorkingSetSize$mh.invokeExact(lastErrorState, jdkProcess.address, minSize, maxSize);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena, lpFileName + "\0", StandardCharsets.UTF_16LE);
+            MemorySegment fileSizeHigh = arena.allocate(JAVA_INT);
+
+            int ret = (int) GetCompressedFileSizeW$mh.invokeExact(lastErrorState, wideFileName, fileSizeHigh);
+            lpFileSizeHigh.accept(fileSizeHigh.get(JAVA_INT, 0));
+            return ret;
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

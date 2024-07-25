@@ -116,10 +116,10 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         boolean resolved = resolution.resolved();
         resolution = isType(
             field(),
-            dt -> resolved && dt != DataType.UNSIGNED_LONG,
+            dt -> resolved && dt != DataType.UNSIGNED_LONG && dt != DataType.SOURCE,
             sourceText(),
             DEFAULT,
-            "any exact type except unsigned_long or counter types"
+            "any exact type except unsigned_long, _source, or counter types"
         );
         if (resolution.unresolved() || precision == null) {
             return resolution;

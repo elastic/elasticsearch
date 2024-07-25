@@ -56,7 +56,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
-        final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicBoolean tripped = new AtomicBoolean(false);
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
 
@@ -87,31 +86,21 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             CircuitBreaker.REQUEST
         );
         breakerRef.set(breaker);
-
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads[i] = new Thread(() -> {
-                for (int j = 0; j < BYTES_PER_THREAD; j++) {
-                    try {
-                        breaker.addEstimateBytesAndMaybeBreak(1L, "test");
-                    } catch (CircuitBreakingException e) {
-                        if (tripped.get()) {
-                            assertThat("tripped too many times", true, equalTo(false));
-                        } else {
-                            assertThat(tripped.compareAndSet(false, true), equalTo(true));
-                        }
-                    } catch (Exception e) {
-                        lastException.set(e);
+        runInParallel(NUM_THREADS, i -> {
+            for (int j = 0; j < BYTES_PER_THREAD; j++) {
+                try {
+                    breaker.addEstimateBytesAndMaybeBreak(1L, "test");
+                } catch (CircuitBreakingException e) {
+                    if (tripped.get()) {
+                        assertThat("tripped too many times", true, equalTo(false));
+                    } else {
+                        assertThat(tripped.compareAndSet(false, true), equalTo(true));
                     }
+                } catch (Exception e) {
+                    lastException.set(e);
                 }
-            });
-
-            threads[i].start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
-
+            }
+        });
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
         assertThat("breaker was tripped", tripped.get(), equalTo(true));
         assertThat("breaker was tripped at least once", breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
@@ -122,7 +111,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
         final int parentLimit = (BYTES_PER_THREAD * NUM_THREADS) - 2;
         final int childLimit = parentLimit + 10;
-        final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicInteger tripped = new AtomicInteger(0);
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
 
@@ -165,21 +153,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             CircuitBreaker.REQUEST
         );
         breakerRef.set(breaker);
-
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads[i] = new Thread(() -> {
-                for (int j = 0; j < BYTES_PER_THREAD; j++) {
-                    try {
-                        breaker.addEstimateBytesAndMaybeBreak(1L, "test");
-                    } catch (CircuitBreakingException e) {
-                        tripped.incrementAndGet();
-                    } catch (Exception e) {
-                        lastException.set(e);
-                    }
-                }
-            });
-        }
-
         logger.info(
             "--> NUM_THREADS: [{}], BYTES_PER_THREAD: [{}], TOTAL_BYTES: [{}], PARENT_LIMIT: [{}], CHILD_LIMIT: [{}]",
             NUM_THREADS,
@@ -190,13 +163,17 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         );
 
         logger.info("--> starting threads...");
-        for (Thread t : threads) {
-            t.start();
-        }
-
-        for (Thread t : threads) {
-            t.join();
-        }
+        runInParallel(NUM_THREADS, i -> {
+            for (int j = 0; j < BYTES_PER_THREAD; j++) {
+                try {
+                    breaker.addEstimateBytesAndMaybeBreak(1L, "test");
+                } catch (CircuitBreakingException e) {
+                    tripped.incrementAndGet();
+                } catch (Exception e) {
+                    lastException.set(e);
+                }
+            }
+        });
 
         logger.info("--> child breaker: used: {}, limit: {}", breaker.getUsed(), breaker.getLimit());
         logger.info("--> parent tripped: {}, total trip count: {} (expecting 1-2 for each)", parentTripped.get(), tripped.get());
@@ -401,29 +378,15 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         });
 
         logger.trace("black hole [{}]", data.hashCode());
-
         int threadCount = randomIntBetween(1, 10);
-        CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
-        List<Thread> threads = new ArrayList<>(threadCount);
-        for (int i = 0; i < threadCount; ++i) {
-            threads.add(new Thread(() -> {
-                try {
-                    safeAwait(barrier);
-                    service.checkParentLimit(0, "test-thread");
-                } catch (CircuitBreakingException e) {
-                    // very rare
-                    logger.info("Thread got semi-unexpected circuit breaking exception", e);
-                }
-            }));
-        }
-
-        threads.forEach(Thread::start);
-        barrier.await(20, TimeUnit.SECONDS);
-
-        for (Thread thread : threads) {
-            thread.join(10000);
-        }
-        threads.forEach(thread -> assertFalse(thread.isAlive()));
+        startInParallel(threadCount, i -> {
+            try {
+                service.checkParentLimit(0, "test-thread");
+            } catch (CircuitBreakingException e) {
+                // very rare
+                logger.info("Thread got semi-unexpected circuit breaking exception", e);
+            }
+        });
 
         assertThat(leaderTriggerCount.get(), equalTo(2));
     }

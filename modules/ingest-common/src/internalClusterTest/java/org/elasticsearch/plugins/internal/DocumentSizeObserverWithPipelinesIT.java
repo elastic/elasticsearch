@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -89,13 +90,12 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingProvider() {
                 @Override
-                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
-                    providedFixedSize.set(normalisedBytesParsed);
-                    return new TestDocumentSizeObserver(normalisedBytesParsed);
-                }
-
-                @Override
-                public DocumentSizeObserver newDocumentSizeObserver() {
+                public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
+                    if (request instanceof IndexRequest indexRequest && indexRequest.getNormalisedBytesParsed() > 0) {
+                        long normalisedBytesParsed = indexRequest.getNormalisedBytesParsed();
+                        providedFixedSize.set(normalisedBytesParsed);
+                        return new TestDocumentSizeObserver(normalisedBytesParsed);
+                    }
                     return new TestDocumentSizeObserver(0L);
                 }
 
@@ -137,6 +137,7 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         public long normalisedBytesParsed() {
             return mapCounter;
         }
+
     }
 
 }

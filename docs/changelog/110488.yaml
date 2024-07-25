@@ -1,0 +1,6 @@
+pr: 110488
+summary: "ESQL: Validate unique plan attribute names"
+area: ES|QL
+type: bug
+issues:
+ - 110541

@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -102,6 +103,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(18446744073709551616.)))),
             statement("row c = 18446744073709551616")
+        );
+    }
+
+    public void testRowCommandHugeNegativeInt() {
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-92233720368547758080d)))),
+            statement("row c = -92233720368547758080")
+        );
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-18446744073709551616d)))),
+            statement("row c = -18446744073709551616")
         );
     }
 
@@ -299,6 +311,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
+        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -315,6 +328,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithoutGroups() {
+        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
         assertEquals(
             new InlineStats(
                 EMPTY,

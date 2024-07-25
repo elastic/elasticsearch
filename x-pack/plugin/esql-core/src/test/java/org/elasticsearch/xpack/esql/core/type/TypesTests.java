@@ -118,7 +118,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(2));
         EsField field = mapping.get("manager");
-        assertThat(DataType.isPrimitive(field.getDataType()), is(false));
+        assertThat(DataType.isPrimitiveAndSupported(field.getDataType()), is(false));
         assertThat(field.getDataType(), is(OBJECT));
         Map<String, EsField> children = field.getProperties();
         assertThat(children.size(), is(2));
@@ -133,7 +133,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("text");
-        assertThat(DataType.isPrimitive(field.getDataType()), is(true));
+        assertThat(DataType.isPrimitiveAndSupported(field.getDataType()), is(true));
         assertThat(field.getDataType(), is(TEXT));
         Map<String, EsField> fields = field.getProperties();
         assertThat(fields.size(), is(4));
@@ -147,7 +147,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("text");
-        assertThat(DataType.isPrimitive(field.getDataType()), is(true));
+        assertThat(DataType.isPrimitiveAndSupported(field.getDataType()), is(true));
         assertThat(field, instanceOf(TextEsField.class));
         Map<String, EsField> fields = field.getProperties();
         assertThat(fields.size(), is(4));
@@ -161,7 +161,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("dep");
-        assertThat(DataType.isPrimitive(field.getDataType()), is(false));
+        assertThat(DataType.isPrimitiveAndSupported(field.getDataType()), is(false));
         assertThat(field.getDataType(), is(NESTED));
         Map<String, EsField> children = field.getProperties();
         assertThat(children.size(), is(4));

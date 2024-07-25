@@ -29,6 +29,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
@@ -43,11 +44,14 @@ import static org.hamcrest.Matchers.not;
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
+    private static final String AZURE_ACCOUNT = System.getProperty("test.azure.account");
+
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE,
-        System.getProperty("test.azure.account"),
-        System.getProperty("test.azure.container")
+        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
+        AZURE_ACCOUNT,
+        System.getProperty("test.azure.container"),
+        AzureHttpFixture.startsWithPredicate("SharedKey " + AZURE_ACCOUNT + ":")
     );
 
     @Override
@@ -178,5 +182,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             blobContainer.delete(randomPurpose());
         }));
         future.get();
+    }
+
+    public void testReadFromPositionLargerThanBlobLength() {
+        testReadFromPositionLargerThanBlobLength(
+            e -> asInstanceOf(BlobStorageException.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED
+                .getStatus()
+        );
     }
 }

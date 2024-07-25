@@ -133,8 +133,8 @@ public interface Repository extends LifecycleComponent {
     IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
-     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots and the indices across all snapshots
-     * found in the repository. Completes the listener with a {@link RepositoryException} if there was an error in reading the data.
+     * Fetches the {@link RepositoryData} and passes it into the listener. May completes the listener with a {@link RepositoryException} if
+     * there is an error in reading the repository data.
      *
      * @param responseExecutor Executor to use to complete the listener if not using the calling thread. Using {@link
      *                         org.elasticsearch.common.util.concurrent.EsExecutors#DIRECT_EXECUTOR_SERVICE} means to complete the listener

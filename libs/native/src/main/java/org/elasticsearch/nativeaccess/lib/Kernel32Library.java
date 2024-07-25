@@ -10,6 +10,8 @@ package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
 
+import java.util.function.IntConsumer;
+
 public non-sealed interface Kernel32Library extends NativeLibrary {
     interface Handle {}
 
@@ -80,6 +82,17 @@ public non-sealed interface Kernel32Library extends NativeLibrary {
      * @see <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ms686234%28v=vs.85%29.aspx">SetProcessWorkingSetSize docs</a>
      */
     boolean SetProcessWorkingSetSize(Handle handle, long minSize, long maxSize);
+
+    /**
+     * Retrieves the actual number of bytes of disk storage used to store a specified file.
+     *
+     * https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getcompressedfilesizew
+     *
+     * @param lpFileName the path string
+     * @param lpFileSizeHigh pointer to high-order DWORD for compressed file size (or null if not needed)
+     * @return the low-order DWORD for compressed file size
+     */
+    int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh);
 
     /**
      * Retrieves the short path form of the specified path.

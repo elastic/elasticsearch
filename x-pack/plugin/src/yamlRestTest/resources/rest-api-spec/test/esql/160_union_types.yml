@@ -4,8 +4,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [method, path, parameters, capabilities]
-          capabilities: [union_types]
-      reason: "Union types introduced in 8.15.0"
+          capabilities: [union_types, union_types_remove_fields, casting_operator]
+      reason: "Union types and casting operator introduced in 8.15.0"
       test_runner_features: [capabilities, allowed_warnings_regex]
 
   - do:
@@ -204,13 +204,6 @@ load single index keyword_keyword:
 
 ---
 load single index ip_long and aggregate by client_ip:
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [method, path, parameters, capabilities]
-          capabilities: [casting_operator]
-      reason: "Casting operator and introduced in 8.15.0"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -234,13 +227,6 @@ load single index ip_long and aggregate by client_ip:
 
 ---
 load single index ip_long and aggregate client_ip my message:
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [method, path, parameters, capabilities]
-          capabilities: [casting_operator]
-      reason: "Casting operator and introduced in 8.15.0"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -266,13 +252,6 @@ load single index ip_long and aggregate client_ip my message:
 
 ---
 load single index ip_long stats invalid grouping:
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [method, path, parameters, capabilities]
-          capabilities: [casting_operator]
-      reason: "Casting operator and introduced in 8.15.0"
   - do:
       catch: '/Unknown column \[x\]/'
       esql.query:
@@ -591,13 +570,6 @@ load two indices, convert, rename but not drop ambiguous field client_ip:
 
 ---
 load two indexes and group by converted client_ip:
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [method, path, parameters, capabilities]
-          capabilities: [casting_operator, union_types_agg_cast]
-      reason: "Casting operator and Union types introduced in 8.15.0"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -621,13 +593,6 @@ load two indexes and group by converted client_ip:
 
 ---
 load two indexes and aggregate converted client_ip:
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [method, path, parameters, capabilities]
-          capabilities: [casting_operator, union_types_agg_cast]
-      reason: "Casting operator and Union types introduced in 8.15.0"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -653,13 +618,6 @@ load two indexes and aggregate converted client_ip:
 
 ---
 load two indexes, convert client_ip and group by something invalid:
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [method, path, parameters, capabilities]
-          capabilities: [casting_operator, union_types_agg_cast]
-      reason: "Casting operator and Union types introduced in 8.15.0"
   - do:
       catch: '/Unknown column \[x\]/'
       esql.query:

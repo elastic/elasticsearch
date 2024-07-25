@@ -186,7 +186,7 @@ public class EsqlCapabilities {
         /**
          * Support for match operator
          */
-        MATCH_OPERATOR;
+        MATCH_OPERATOR(true);
 
         private final boolean snapshotOnly;
 

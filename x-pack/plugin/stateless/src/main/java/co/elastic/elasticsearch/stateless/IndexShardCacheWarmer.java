@@ -55,7 +55,7 @@ public class IndexShardCacheWarmer {
      *
      * @param description A description of the warming being performed, will appear in log messages
      * @param indexShard The shard to warm
-     * @param listener Completed with true when warming was started, false when no commit was discovered
+     * @param listener Completed with true when warming was started, false when no commit was discovered or the shard store was closed
      */
     public void preWarmIndexShardCache(String description, IndexShard indexShard, ActionListener<Boolean> listener) {
         final IndexShardState currentState = indexShard.state(); // single volatile read
@@ -72,28 +72,31 @@ public class IndexShardCacheWarmer {
 
     private void doPreWarmIndexShardCache(String description, IndexShard indexShard, ActionListener<Boolean> listener) {
         final Store store = indexShard.store();
-        store.incRef();
-        ActionListener.completeWith(ActionListener.runBefore(listener, store::decRef), () -> {
-            final var blobStore = objectStoreService.blobStore();
-            final ShardId shardId = indexShard.shardId();
-            final var shardBasePath = objectStoreService.shardBasePath(shardId);
-            BlobStoreCacheDirectory.unwrapDirectory(store.directory())
-                .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
-            final BlobContainer existingBlobContainer = blobStore.blobContainer(shardBasePath);
-            final BatchedCompoundCommit batchedCompoundCommit = ObjectStoreService.readIndexingShardState(
-                existingBlobContainer,
-                indexShard.getOperationPrimaryTerm()
-            ).latestCommit();
-            if (batchedCompoundCommit != null) {
-                assert indexShard.routingEntry().isPromotableToPrimary();
-                StatelessCompoundCommit last = batchedCompoundCommit.last();
-                // We read from the directory as part of warming, so we need to update
-                // the cache directory commit
-                IndexDirectory.unwrapDirectory(store.directory()).updateMetadataForPreWarming(last);
-                warmingService.warmCacheForShardRecovery(description, indexShard, last);
-                return true;
-            }
-            return false;
-        });
+        if (store.tryIncRef()) {
+            ActionListener.completeWith(ActionListener.runBefore(listener, store::decRef), () -> {
+                final var blobStore = objectStoreService.blobStore();
+                final ShardId shardId = indexShard.shardId();
+                final var shardBasePath = objectStoreService.shardBasePath(shardId);
+                BlobStoreCacheDirectory.unwrapDirectory(store.directory())
+                    .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
+                final BlobContainer existingBlobContainer = blobStore.blobContainer(shardBasePath);
+                final BatchedCompoundCommit batchedCompoundCommit = ObjectStoreService.readIndexingShardState(
+                    existingBlobContainer,
+                    indexShard.getOperationPrimaryTerm()
+                ).latestCommit();
+                if (batchedCompoundCommit != null) {
+                    assert indexShard.routingEntry().isPromotableToPrimary();
+                    StatelessCompoundCommit last = batchedCompoundCommit.last();
+                    // We read from the directory as part of warming, so we need to update
+                    // the cache directory commit
+                    IndexDirectory.unwrapDirectory(store.directory()).updateMetadataForPreWarming(last);
+                    warmingService.warmCacheForShardRecovery(description, indexShard, last);
+                    return true;
+                }
+                return false;
+            });
+        } else {
+            listener.onResponse(false);
+        }
     }
 }

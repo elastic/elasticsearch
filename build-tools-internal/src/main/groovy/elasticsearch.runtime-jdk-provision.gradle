@@ -46,12 +46,4 @@ configure(allprojects) {
             }
         }
     }
-    project.plugins.withType(ThirdPartyAuditPrecommitPlugin) {
-      project.getTasks().withType(ThirdPartyAuditTask.class).configureEach {
-        if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
-          javaHome.set(launcher.map { it.metadata.installationPath.asFile.path })
-          targetCompatibility.set(providers.provider(() -> JavaVersion.toVersion(launcher.map { it.metadata.javaRuntimeVersion }.get())))
-        }
-      }
-    }
 }

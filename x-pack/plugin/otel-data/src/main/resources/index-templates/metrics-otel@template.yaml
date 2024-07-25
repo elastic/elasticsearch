@@ -10,6 +10,7 @@ _meta:
 composed_of:
   - metrics@tsdb-settings
   - otel@mappings
+  - metrics@mappings
   - metrics-otel@mappings
   - semconv-resource-to-ecs@mappings
   - metrics@custom

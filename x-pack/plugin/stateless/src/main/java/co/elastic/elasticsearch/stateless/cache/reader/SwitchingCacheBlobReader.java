@@ -25,10 +25,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.core.Strings;
 
-import java.io.IOException;
 import java.io.InputStream;
 
 /**
@@ -63,13 +63,11 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
-    public InputStream getRangeInputStream(long position, int length) throws IOException {
+    public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
         if (latestUploadInfo.isUploaded()) {
-            return cacheBlobReaderForUploaded.getRangeInputStream(position, length);
+            cacheBlobReaderForUploaded.getRangeInputStream(position, length, listener);
         } else {
-            try {
-                return cacheBlobReaderForNonUploaded.getRangeInputStream(position, length);
-            } catch (Exception ex) {
+            cacheBlobReaderForNonUploaded.getRangeInputStream(position, length, listener.delegateResponse((l, ex) -> {
                 // TODO ideally use ShardReadThread pool here again. (ES-8155)
                 // TODO ideally use a region-aligned range to write. (ES-8225)
                 // TODO remove ResourceAlreadyUploadedException from core ES
@@ -82,11 +80,11 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
                         ),
                         ex
                     );
-                    return cacheBlobReaderForUploaded.getRangeInputStream(position, length);
+                    cacheBlobReaderForUploaded.getRangeInputStream(position, length, l);
                 } else {
-                    throw ex;
+                    l.onFailure(ex);
                 }
-            }
+            }));
         }
     }
 }

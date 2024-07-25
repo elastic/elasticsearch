@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ESTestCase;
@@ -39,15 +41,16 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
             }
 
             @Override
-            public InputStream getRangeInputStream(long position, int length) throws IOException {
-                byte[] buff = randomByteArrayOfLength(size);
-                return new ByteArrayInputStream(buff);
+            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                listener.onResponse(new ByteArrayInputStream(randomByteArrayOfLength(size)));
             }
         };
 
         var accumulator = new LongAdder();
         var meteringCacheBlobReader = new MeteringCacheBlobReader(cacheBlobReader, accumulator::add);
-        var meteredInputStream = meteringCacheBlobReader.getRangeInputStream(randomInt(), randomInt());
+        PlainActionFuture<InputStream> future = new PlainActionFuture<>();
+        meteringCacheBlobReader.getRangeInputStream(randomInt(), randomInt(), future);
+        var meteredInputStream = safeGet(future);
 
         if (randomBoolean()) {
             Streams.consumeFully(meteredInputStream);

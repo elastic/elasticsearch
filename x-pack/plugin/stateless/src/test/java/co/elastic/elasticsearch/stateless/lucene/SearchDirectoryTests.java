@@ -30,6 +30,7 @@ import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -130,8 +131,8 @@ public class SearchDirectoryTests extends ESTestCase {
                             }
 
                             @Override
-                            public InputStream getRangeInputStream(long position, int length) throws IOException {
-                                return originalCacheBlobReader.getRangeInputStream(position, length);
+                            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                                originalCacheBlobReader.getRangeInputStream(position, length, listener);
                             }
                         };
                     }

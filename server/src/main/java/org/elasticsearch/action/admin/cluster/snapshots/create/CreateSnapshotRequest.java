@@ -86,6 +86,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Nullable
     private String uuid = null;
 
+    private boolean registerSnapshot = false;
+
     public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
     }
@@ -118,6 +120,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
         uuid = in.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS) ? in.readOptionalString() : null;
+        registerSnapshot = in.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS) && in.readBoolean();
     }
 
     @Override
@@ -137,6 +140,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeGenericMap(userMetadata);
         if (out.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS)) {
             out.writeOptionalString(uuid);
+            out.writeBoolean(registerSnapshot);
         }
     }
 
@@ -388,6 +392,15 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             this.uuid = UUIDs.randomBase64UUID();
         }
         return this.uuid;
+    }
+
+    public CreateSnapshotRequest registerSnapshot(boolean registerSnapshot) {
+        this.registerSnapshot = registerSnapshot;
+        return this;
+    }
+
+    public boolean registerSnapshot() {
+        return this.registerSnapshot;
     }
 
     /**

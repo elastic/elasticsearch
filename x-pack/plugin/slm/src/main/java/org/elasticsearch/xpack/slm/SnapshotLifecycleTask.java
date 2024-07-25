@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.RegisteredSnapshots;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -291,13 +292,15 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 return currentState;
             }
 
-            List<SnapshotId> preRegisteredSnapshots = policyMetadata.getPreRegisteredSnapshots();
+            final List<SnapshotId> registeredSnapshots = currentState.metadata()
+                .custom(RegisteredSnapshots.TYPE, RegisteredSnapshots.EMPTY).getSnapshots();
+
             Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(policyName, currentState);
             SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
             SnapshotLifecycleStats stats = snapMeta.getStats();
             long unrecordedFailures = 0;
             List<SnapshotId> newPreRegisteredSnapshots = new ArrayList<>();
-            for (SnapshotId snapshot : preRegisteredSnapshots) {
+            for (SnapshotId snapshot : registeredSnapshots) {
                 if (runningSnapshots.contains(snapshot)) {
                     newPreRegisteredSnapshots.add(snapshot);
                 } else {
@@ -318,9 +321,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 }
             }
 
-            assert newPreRegisteredSnapshots.contains(snapshotId) == false : "the same snapshotId cannot be preRegistered twice";
-            newPreRegisteredSnapshots.add(snapshotId);
-            newPolicyMetadata.setPreRegisteredSnapshots(newPreRegisteredSnapshots);
             newPolicyMetadata.setInvocationsSinceLastSuccess(policyMetadata.getInvocationsSinceLastSuccess() + unrecordedFailures);
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
@@ -329,10 +329,12 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 currentSLMMode(currentState),
                 stats
             );
-            Metadata currentMeta = currentState.metadata();
-            return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
-                .build();
+            Metadata newMeta = Metadata.builder(currentState.metadata())
+                   .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata)
+                   .putCustom(RegisteredSnapshots.TYPE, new RegisteredSnapshots(newPreRegisteredSnapshots))
+                   .build();
+
+            return ClusterState.builder(currentState).metadata(newMeta).build();
         }
 
         @Override
@@ -429,11 +431,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 newPolicyMetadata.setInvocationsSinceLastSuccess(0L);
             }
 
-            List<SnapshotId> preRegisteredSnapshots = new ArrayList<>(policyMetadata.getPreRegisteredSnapshots());
-            assert preRegisteredSnapshots.contains(snapshotId)
+            RegisteredSnapshots registeredSnapshots = currentState.metadata().custom(RegisteredSnapshots.TYPE, RegisteredSnapshots.EMPTY);
+            List<SnapshotId> newRegisteredSnapshots = new ArrayList<>(registeredSnapshots.getSnapshots());
+            assert newRegisteredSnapshots.contains(snapshotId)
                 : "PreRegisteredSnapshots must contain a running snapshotId until a success/failure is emitted to acquiesce it.";
-            preRegisteredSnapshots.remove(snapshotId);
-            newPolicyMetadata.setPreRegisteredSnapshots(preRegisteredSnapshots);
+            newRegisteredSnapshots.remove(snapshotId);
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
             SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(
@@ -441,10 +443,13 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 currentSLMMode(currentState),
                 newStats
             );
-            Metadata currentMeta = currentState.metadata();
-            return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
+
+            Metadata newMeta = Metadata.builder(currentState.metadata())
+                .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata)
+                .putCustom(RegisteredSnapshots.TYPE, new RegisteredSnapshots(newRegisteredSnapshots))
                 .build();
+
+            return ClusterState.builder(currentState).metadata(newMeta).build();
         }
 
         @Override

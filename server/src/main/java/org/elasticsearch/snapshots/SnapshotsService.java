@@ -3954,9 +3954,23 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             );
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
+
+            final List<SnapshotId> registeredSnapshots =
+                new ArrayList<>(state.metadata().custom(RegisteredSnapshots.TYPE, RegisteredSnapshots.EMPTY).getSnapshots());
+
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
+                        if (task.createSnapshotRequest.registerSnapshot()) {
+                            assert registeredSnapshots.contains(task.snapshot.getSnapshotId()) == false : "A snapshot can only be registered once";
+
+                            if (registeredSnapshots.size() >= RegisteredSnapshots.MAX_REGISTERED_SNAPSHOTS) {
+                                registeredSnapshots.remove(0);
+
+
+                            }
+                            registeredSnapshots.add(task.snapshot.getSnapshotId());
+                        }
                         final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
@@ -3981,7 +3995,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (snapshotsInProgress == initialSnapshots) {
                 return state;
             }
-            return ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
+
+            return ClusterState.builder(state)
+                .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
+                .metadata(Metadata.builder(state.metadata()).putCustom(RegisteredSnapshots.TYPE, new RegisteredSnapshots(registeredSnapshots)))
+                .build();
         }
 
         private SnapshotsInProgress createSnapshot(

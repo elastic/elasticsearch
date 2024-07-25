@@ -123,6 +123,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testInlineStatsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/111263
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testInlineStatsProfile {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111264
 
 # Examples:
 #

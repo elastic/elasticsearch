@@ -1,0 +1,6 @@
+pr: 111255
+summary: "[ES|QL] Add `CombineBinaryComparisons` and Range"
+area: ES|QL
+type: enhancement
+issues:
+ - 108525

@@ -50,16 +50,22 @@ public class AzureHttpFixture extends ExternalResource {
         HTTPS
     }
 
-    public static Predicate<String> startsWithPredicate(String expectedPrefix) {
+    /**
+     * @param  account The name of the Azure Blob Storage account against which the request should be authorized..
+     * @return a predicate that matches the {@code Authorization} HTTP header that the Azure SDK sends when using shared key auth (i.e.
+     *         using a key or SAS token).
+     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/authorize-with-shared-key">Azure docs on shared key auth</a>
+     */
+    public static Predicate<String> sharedKeyForAccountPredicate(String account) {
         return new Predicate<>() {
             @Override
             public boolean test(String s) {
-                return s.startsWith(expectedPrefix);
+                return s.startsWith("SharedKey " + account + ":");
             }
 
             @Override
             public String toString() {
-                return "startsWith[" + expectedPrefix + "]";
+                return "SharedKey[" + account + "]";
             }
         };
     }

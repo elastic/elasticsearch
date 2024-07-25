@@ -291,6 +291,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 }
             }));
             searchRequest.allowPartialSearchResults(true);
+            searchRequest.scroll((Scroll) null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -309,7 +310,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
                 @Override
                 public String getName() {
-                    return "compound_retriever";
+                    return "not_a_compound_retriever";
                 }
 
                 @Override
@@ -326,6 +327,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 }
             }));
             searchRequest.allowPartialSearchResults(true);
+            searchRequest.scroll((Scroll) null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNull(validationErrors);
         }
@@ -360,6 +362,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                     return true;
                 }
             }));
+            searchRequest.scroll((Scroll) null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNull(validationErrors);
         }

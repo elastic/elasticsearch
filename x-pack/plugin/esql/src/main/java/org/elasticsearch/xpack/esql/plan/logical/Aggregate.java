@@ -26,9 +26,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Aggregate extends UnaryPlan {
-    private List<Attribute> lazyOutput;
-
+public class Aggregate extends UnaryPlan implements Stats {
     public enum AggregateType {
         STANDARD,
         // include metrics aggregates such as rates
@@ -54,6 +52,7 @@ public class Aggregate extends UnaryPlan {
     private final AggregateType aggregateType;
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+    private List<Attribute> lazyOutput;
 
     public Aggregate(
         Source source,
@@ -94,6 +93,11 @@ public class Aggregate extends UnaryPlan {
     @Override
     public Aggregate replaceChild(LogicalPlan newChild) {
         return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
+    }
+
+    @Override
+    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new Aggregate(source(), child(), aggregateType(), newGroupings, newAggregates);
     }
 
     public AggregateType aggregateType() {

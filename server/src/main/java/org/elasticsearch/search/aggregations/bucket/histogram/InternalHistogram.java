@@ -221,7 +221,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         keyed = in.readBoolean();
         buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, keyed, format));
         // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
             // list is mutable by #readCollectionAsList contract
             buckets.sort(Comparator.comparingDouble(b -> b.key));
         }

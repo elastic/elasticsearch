@@ -21,7 +21,6 @@ import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
-import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
@@ -363,11 +362,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         )
                     );
             }
+            ch.pipeline().addLast("inbound_pipelining", new Netty4InboundHttpPipeliningHandler());
             // combines the HTTP message pieces into a single full HTTP request (with headers and body)
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());
+            final HttpObjectAggregator aggregator = new Netty4HttpAggregator(handlingSettings.maxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline()
-                .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
+                .addLast("decoder_compress", new Netty4ContentDecompressor()) // this handles request body decompression
                 .addLast("encoder", new HttpResponseEncoder() {
                     @Override
                     protected boolean isContentAlwaysEmpty(HttpResponse msg) {

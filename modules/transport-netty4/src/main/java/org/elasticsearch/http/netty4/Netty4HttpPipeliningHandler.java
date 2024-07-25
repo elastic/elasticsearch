@@ -18,7 +18,6 @@ import io.netty.handler.codec.compression.JdkZlibEncoder;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.ssl.SslCloseCompletionEvent;
@@ -70,12 +69,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Nullable
     private ChunkedWrite currentChunkedWrite;
 
-    /*
-     * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
-     * channel, and then transferred to responses. A response is not written to the channel context until its sequence number matches the
-     * current write sequence, implying that all preceding messages have been written.
+    /**
+     * Read sequence numbers are attached to requests by {@link Netty4InboundHttpPipeliningHandler} and then transferred to responses.
+     * A response is not written to the channel context until its sequence number matches the current write sequence, implying that all
+     * preceding messages have been written.
      */
-    private int readSequence;
     private int writeSequence;
 
     /**
@@ -109,26 +107,38 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         activityTracker.startActivity();
         try {
-            assert msg instanceof FullHttpRequest : "Should have fully aggregated message already but saw [" + msg + "]";
-            final FullHttpRequest fullHttpRequest = (FullHttpRequest) msg;
-            final Netty4HttpRequest netty4HttpRequest;
-            if (fullHttpRequest.decoderResult().isFailure()) {
-                final Throwable cause = fullHttpRequest.decoderResult().cause();
-                final Exception nonError;
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    nonError = new Exception(cause);
-                } else {
-                    nonError = (Exception) cause;
-                }
-                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest, nonError);
+            assert msg instanceof PipelinedFullHttpRequest || msg instanceof PipelinedHttpRequestPart
+                : "Should have pipelined message already but saw [" + msg + "]";
+            if (msg instanceof PipelinedFullHttpRequest request) {
+                handlePipelinedFullRequest(ctx, request);
             } else {
-                netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+                handlePipelinedPartialRequest(ctx, (PipelinedHttpRequestPart) msg);
             }
-            handlePipelinedRequest(ctx, netty4HttpRequest);
         } finally {
             activityTracker.stopActivity();
         }
+    }
+
+    private void handlePipelinedFullRequest(ChannelHandlerContext ctx, PipelinedFullHttpRequest request) {
+        final Netty4HttpRequest netty4HttpRequest;
+        if (request.decoderResult().isFailure()) {
+            final Throwable cause = request.decoderResult().cause();
+            final Exception nonError;
+            if (cause instanceof Error) {
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                nonError = new Exception(cause);
+            } else {
+                nonError = (Exception) cause;
+            }
+            netty4HttpRequest = new Netty4HttpRequest(request.sequence(), request, nonError);
+        } else {
+            netty4HttpRequest = new Netty4HttpRequest(request.sequence(), request);
+        }
+        handlePipelinedRequest(ctx, netty4HttpRequest);
+    }
+
+    private void handlePipelinedPartialRequest(ChannelHandlerContext ctx, PipelinedHttpRequestPart part) {
+        assert false : "not implemented yet";
     }
 
     // protected so tests can override it

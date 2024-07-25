@@ -359,11 +359,11 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         }
 
         public long getSnapshotTakenCount() {
-            return snapshotsTaken.count();
+            return snapshotsTaken;
         }
 
         public long getSnapshotFailedCount() {
-            return snapshotsFailed.count();
+            return snapshotsFailed;
         }
 
         @Override

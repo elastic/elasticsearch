@@ -63,7 +63,7 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
 
-    @ClassRule
+    @ClassRule(order = 1)
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);
 
     public RepositoryAzureClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

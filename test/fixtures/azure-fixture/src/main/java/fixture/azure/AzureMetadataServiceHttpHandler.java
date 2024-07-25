@@ -14,7 +14,6 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -52,8 +51,6 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
             }
         } else if ("POST".equals(exchange.getRequestMethod())
             && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
-                final BytesReference body = Streams.readFully(exchange.getRequestBody());
-                System.out.println("Received request body: " + body.utf8ToString());
                 try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
                     final BytesReference responseBytes = getAccessTokenBytes(xcb);
                     writeResponse(exchange, responseBytes);

@@ -170,17 +170,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .retryOptions(retryOptions);
 
         if (settings.hasCredentials() == false) {
-            final TokenCredential credential =
-                new DefaultAzureCredentialBuilder().executorService(eventLoopGroup)
-                    .disableInstanceDiscovery()
-                    .build();
-            // new WorkloadIdentityCredentialBuilder().executorService(eventLoopGroup)
-            // .tokenFilePath("/Users/nikolajvolgushev/Desktop/azwoid-token-config/token-cemetery/bad-token")
-            // .clientId("client-id")
-            // .tenantId("tenant-id")
-            // .disableInstanceDiscovery()
-            // .build();
-
+            final TokenCredential credential = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup)
+                .disableInstanceDiscovery()
+                .build();
             builder.credential(credential);
         }
 

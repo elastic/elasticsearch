@@ -93,7 +93,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         ClusterService clusterService,
         GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure
     ) {
-        super(NAME, actionFilters, transportService.getTaskManager());
+        super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.bigArrays = bigArrays;
         this.indicesService = indicesService;
         this.transportService = transportService;

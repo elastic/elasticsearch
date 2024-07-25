@@ -63,7 +63,7 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/" + DEFAULT_ACCOUNT_NAME, new AzureHttpHandler(DEFAULT_ACCOUNT_NAME, "container"));
+        return Collections.singletonMap("/" + DEFAULT_ACCOUNT_NAME, new AzureHttpHandler(DEFAULT_ACCOUNT_NAME, "container", null));
     }
 
     @Override

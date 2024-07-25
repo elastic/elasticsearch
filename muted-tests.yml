@@ -129,6 +129,9 @@ tests:
 - class: org.elasticsearch.action.admin.indices.create.SplitIndexIT
   method: testSplitIndexPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/111282
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {inlinestats.ShadowingSelf}
+  issue: https://github.com/elastic/elasticsearch/issues/111261
 
 # Examples:
 #

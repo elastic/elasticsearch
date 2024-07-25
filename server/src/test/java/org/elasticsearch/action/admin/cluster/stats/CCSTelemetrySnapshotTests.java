@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot.PerClusterCCSTelemetry;
 import org.elasticsearch.action.admin.cluster.stats.LongMetric.LongMetricValue;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
@@ -33,12 +34,8 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         return v.getValue();
     }
 
-    private CCSTelemetrySnapshot.PerClusterCCSTelemetry randomPerClusterCCSTelemetry() {
-        return new CCSTelemetrySnapshot.PerClusterCCSTelemetry(
-            randomLongBetween(0, 1_000_000),
-            randomLongBetween(0, 1_000_000),
-            randomLongMetricValue()
-        );
+    private PerClusterCCSTelemetry randomPerClusterCCSTelemetry() {
+        return new PerClusterCCSTelemetry(randomLongBetween(0, 1_000_000), randomLongBetween(0, 1_000_000), randomLongMetricValue());
     }
 
     @Override
@@ -199,6 +196,68 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         });
     }
 
+    public void testAddTwo() {
+        CCSTelemetrySnapshot empty = new CCSTelemetrySnapshot();
+        CCSTelemetrySnapshot full = randomCCSTelemetrySnapshot();
+        CCSTelemetrySnapshot full2 = randomCCSTelemetrySnapshot();
+
+        empty.add(full);
+        empty.add(full2);
+        assertThat(empty.getTotalCount(), equalTo(full.getTotalCount() + full2.getTotalCount()));
+        assertThat(empty.getSuccessCount(), equalTo(full.getSuccessCount() + full2.getSuccessCount()));
+        empty.getFailureReasons()
+            .forEach(
+                (k, v) -> assertThat(
+                    v,
+                    equalTo(full.getFailureReasons().getOrDefault(k, 0L) + full2.getFailureReasons().getOrDefault(k, 0L))
+                )
+            );
+        assertThat(empty.getTook().count(), equalTo(full.getTook().count() + full2.getTook().count()));
+        assertThat(empty.getTookMrtTrue().count(), equalTo(full.getTookMrtTrue().count() + full2.getTookMrtTrue().count()));
+        assertThat(empty.getTookMrtFalse().count(), equalTo(full.getTookMrtFalse().count() + full2.getTookMrtFalse().count()));
+        assertThat(empty.getSkippedRemotes(), equalTo(full.getSkippedRemotes() + full2.getSkippedRemotes()));
+        assertThat(empty.getRemotesPerSearchMax(), equalTo(Math.max(full.getRemotesPerSearchMax(), full2.getRemotesPerSearchMax())));
+        double expectedAvg = (full.getRemotesPerSearchAvg() * full.getTotalCount() + full2.getRemotesPerSearchAvg() * full2.getTotalCount())
+            / empty.getTotalCount();
+        assertThat(empty.getRemotesPerSearchAvg(), closeTo(expectedAvg, 0.01));
+        empty.getFeatureCounts()
+            .forEach(
+                (k, v) -> assertThat(v, equalTo(full.getFeatureCounts().getOrDefault(k, 0L) + full2.getFeatureCounts().getOrDefault(k, 0L)))
+            );
+        empty.getClientCounts()
+            .forEach(
+                (k, v) -> assertThat(v, equalTo(full.getClientCounts().getOrDefault(k, 0L) + full2.getClientCounts().getOrDefault(k, 0L)))
+            );
+        PerClusterCCSTelemetry zeroDummy = new PerClusterCCSTelemetry();
+        empty.getByRemoteCluster().forEach((k, v) -> {
+            assertThat(
+                v.getCount(),
+                equalTo(
+                    full.getByRemoteCluster().getOrDefault(k, zeroDummy).getCount() + full2.getByRemoteCluster()
+                        .getOrDefault(k, zeroDummy)
+                        .getCount()
+                )
+            );
+            assertThat(
+                v.getSkippedCount(),
+                equalTo(
+                    full.getByRemoteCluster().getOrDefault(k, zeroDummy).getSkippedCount() + full2.getByRemoteCluster()
+                        .getOrDefault(k, zeroDummy)
+                        .getSkippedCount()
+                )
+            );
+            assertThat(
+                v.getTook().count(),
+                equalTo(
+                    full.getByRemoteCluster().getOrDefault(k, zeroDummy).getTook().count() + full2.getByRemoteCluster()
+                        .getOrDefault(k, zeroDummy)
+                        .getTook()
+                        .count()
+                )
+            );
+        });
+    }
+
     private LongMetricValue manyValuesHistogram(long startingWith) {
         LongMetric metric = new LongMetric();
         // Produce 100 values from startingWith to 2 * startingWith with equal intervals
@@ -225,9 +284,9 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         var perClusterCCSTelemetries = new TreeMap<>(
             Map.of(
                 "remote1",
-                new CCSTelemetrySnapshot.PerClusterCCSTelemetry(100, 22, manyValuesHistogram(2000)),
+                new PerClusterCCSTelemetry(100, 22, manyValuesHistogram(2000)),
                 "remote2",
-                new CCSTelemetrySnapshot.PerClusterCCSTelemetry(300, 42, manyValuesHistogram(500000))
+                new PerClusterCCSTelemetry(300, 42, manyValuesHistogram(500000))
             )
         );
 

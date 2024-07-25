@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Holds a snapshot of the CCS telemetry statistics.
+ * Holds a snapshot of the CCS telemetry statistics from {@link CCSUsageTelemetry}.
  * Used to hold the stats for a single node that's part of a {@link ClusterStatsNodeResponse}, as well as to
  * accumulate stats for the entire cluster and return them as part of the {@link ClusterStatsResponse}.
  */
@@ -272,6 +272,8 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
             remotesPerSearchAvg = stats.remotesPerSearchAvg;
         }
         // we copy the object here since we'll be modifying it later on subsequent adds
+        // TODO: this may be sub-optimal, as we'll be copying histograms when adding first snapshot to an empty container,
+        // which we could have avoided probably.
         stats.byRemoteCluster.forEach((r, v) -> byRemoteCluster.merge(r, new PerClusterCCSTelemetry(v), PerClusterCCSTelemetry::add));
     }
 

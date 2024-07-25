@@ -41,6 +41,8 @@ public class CCSUsageTelemetry {
         SUCCESS("success"),
         REMOTES_UNAVAILABLE("remotes_unavailable"),
         CANCELED("canceled"),
+        // TODO: do we need this? If we subtract all known reasons, the rest is unknown.
+        // May be helpful though if there's a lot of other reasons and it may be hard to calculate the unknowns for some clients.
         UNKNOWN("unknown");
 
         private final String name;
@@ -58,6 +60,8 @@ public class CCSUsageTelemetry {
     public static final String MRT_FEATURE = "mrt_on";
     public static final String ASYNC_FEATURE = "async";
     public static final String WILDCARD_FEATURE = "wildcards";
+    // TODO: Do we need to count unknown clients separately?
+    // Again, total - known = unknown
     private static final String CLIENT_UNKNOWN = "unknown";
 
     // TODO: do we need LongAdder here or long is enough? Since updateUsage is synchronized, worst that can happen is

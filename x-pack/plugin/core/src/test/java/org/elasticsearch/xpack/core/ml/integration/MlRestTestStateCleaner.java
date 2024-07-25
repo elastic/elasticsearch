@@ -57,7 +57,7 @@ public class MlRestTestStateCleaner {
     }
 
     private void waitForMlStatsIndexToInitialize() throws IOException {
-        ESRestTestCase.ensureHealth(".ml-stats-*", (request) -> {
+        ESRestTestCase.ensureHealth(adminClient, ".ml-stats-*", (request) -> {
             request.addParameter("wait_for_no_initializing_shards", "true");
             request.addParameter("level", "shards");
             request.addParameter("timeout", "30s");

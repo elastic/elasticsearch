@@ -33,13 +33,13 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
     public static final String TYPE = "registered_snapshots";
     private static final ParseField SNAPSHOTS = new ParseField("snapshots");
-    public static final RegisteredSnapshots EMPTY = new RegisteredSnapshots(List.of());
+    public static final RegisteredSnapshots EMPTY = new RegisteredSnapshots(Map.of());
     public static final int MAX_REGISTERED_SNAPSHOTS = 100;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RegisteredSnapshots, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
-        a -> new RegisteredSnapshots((List<SnapshotId>) a[0])
+        a -> new RegisteredSnapshots((Map<String, List<SnapshotId>>) a[0])
     );
 
     static {
@@ -48,15 +48,15 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
     private final Map<String, List<SnapshotId>> snapshots;
 
-    public RegisteredSnapshots(List<SnapshotId> snapshots) {
-        this.snapshots = Collections.unmodifiableList(snapshots);
+    public RegisteredSnapshots(Map<String, List<SnapshotId>> snapshots) {
+        this.snapshots = Collections.unmodifiableMap(snapshots);
     }
 
     public RegisteredSnapshots(StreamInput in) throws IOException {
-        this.snapshots = in.readCollectionAsImmutableList(SnapshotId::new);
+        this.snapshots = in.readMapOfLists(SnapshotId::new);
     }
 
-    public List<SnapshotId> getSnapshots() {
+    public Map<String, List<SnapshotId>> getSnapshots() {
         return snapshots;
     }
 
@@ -82,7 +82,7 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(snapshots);
+        out.writeMap(snapshots, StreamOutput::writeCollection);
     }
 
     @Override
@@ -120,7 +120,7 @@ public class RegisteredSnapshots implements Metadata.Custom {
     }
 
     public static class RegisteredSnapshotsDiff implements NamedDiff<Metadata.Custom> {
-        final List<SnapshotId> snapshots;
+        final Map<String, List<SnapshotId>> snapshots;
         RegisteredSnapshotsDiff(RegisteredSnapshots before, RegisteredSnapshots after) {
             this.snapshots = after.snapshots;
         }
@@ -140,7 +140,7 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(snapshots);
+            out.writeMap(snapshots, StreamOutput::writeCollection);
         }
 
         @Override

@@ -3955,21 +3955,28 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
 
-            final List<SnapshotId> registeredSnapshots =
-                new ArrayList<>(state.metadata().custom(RegisteredSnapshots.TYPE, RegisteredSnapshots.EMPTY).getSnapshots());
+            final Map<String, List<SnapshotId>> registeredSnapshots =
+                new HashMap<>(state.metadata().custom(RegisteredSnapshots.TYPE, RegisteredSnapshots.EMPTY).getSnapshots());
 
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
                         if (task.createSnapshotRequest.registerSnapshot()) {
-                            assert registeredSnapshots.contains(task.snapshot.getSnapshotId()) == false : "A snapshot can only be registered once";
+                            if (task.createSnapshotRequest.userMetadata() == null
+                                || false == task.createSnapshotRequest.userMetadata().containsKey(POLICY_ID_METADATA_FIELD)
+                                || false == task.createSnapshotRequest.userMetadata().get(POLICY_ID_METADATA_FIELD) instanceof String) {
+                                logger.warn("Can only register SLM snapshots");
+                            } else {
+                                final String policy = (String) task.createSnapshotRequest.userMetadata().get(POLICY_ID_METADATA_FIELD);
+                                List<SnapshotId> snapshotIds = new ArrayList<>(registeredSnapshots.getOrDefault(policy, List.of()));
 
-                            if (registeredSnapshots.size() >= RegisteredSnapshots.MAX_REGISTERED_SNAPSHOTS) {
-                                registeredSnapshots.remove(0);
+                                assert snapshotIds.contains(task.snapshot.getSnapshotId()) == false : "A snapshot can only be registered once";
 
-
+                                if (registeredSnapshots.size() >= RegisteredSnapshots.MAX_REGISTERED_SNAPSHOTS) {
+                                    registeredSnapshots.remove(0);
+                                }
+                                registeredSnapshots.add(task.snapshot.getSnapshotId());
                             }
-                            registeredSnapshots.add(task.snapshot.getSnapshotId());
                         }
                         final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {

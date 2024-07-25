@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
-import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
@@ -38,7 +36,6 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends EsqlScalarFunction {
@@ -130,15 +127,6 @@ public class Range extends EsqlScalarFunction {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        if (areBoundariesInvalid(
-            lower,
-            includeLower,
-            upper,
-            includeUpper,
-            isDateTime(value.dataType()) || isDateTime(lower.dataType()) || isDateTime(upper.dataType())
-        )) {
-            throw new IllegalArgumentException("Invalid boundary low [" + lower.fold() + "] upper [" + upper.fold() + "].");
-        }
         DataType boundaryCommonType = EsqlDataTypeRegistry.INSTANCE.commonType(lower.dataType(), upper.dataType());
         DataType commonType = EsqlDataTypeRegistry.INSTANCE.commonType(value.dataType(), boundaryCommonType);
         EvalOperator.ExpressionEvaluator.Factory v;
@@ -199,29 +187,7 @@ public class Range extends EsqlScalarFunction {
      * Check whether the boundaries are invalid ( upper &lt; lower) or not.
      * If they are, the value does not have to be evaluated.
      */
-    public static boolean areBoundariesInvalid(
-        Object lowerValue,
-        boolean includeLower,
-        Object upperValue,
-        boolean includeUpper,
-        boolean isDateTime
-    ) {
-        if (isDateTime) {
-            try {
-                if (upperValue instanceof String upperString) {
-                    upperValue = DateUtils.asDateTime(upperString);
-                }
-                if (lowerValue instanceof String lowerString) {
-                    lowerValue = DateUtils.asDateTime(lowerString);
-                }
-            } catch (DateTimeException e) {
-                // one of the patterns is not a normal date, it could be a date math expression
-                // that has to be evaluated at lower level.
-                return false;
-            }
-            // for all the other cases, normal BinaryComparison logic is sufficient
-        }
-
+    public static boolean areBoundariesInvalid(Object lowerValue, boolean includeLower, Object upperValue, boolean includeUpper) {
         Integer compare = BinaryComparison.compare(lowerValue, upperValue);
         // upper < lower OR upper == lower and the range doesn't contain any equals
         return compare != null && (compare > 0 || (compare == 0 && (includeLower == false || includeUpper == false)));
@@ -258,6 +224,9 @@ public class Range extends EsqlScalarFunction {
 
     @Evaluator(extraName = "Ints")
     static boolean processInts(int field, @Fixed int lower, @Fixed boolean includeLower, @Fixed int upper, @Fixed boolean includeUpper) {
+        if (areBoundariesInvalid(lower, includeLower, upper, includeUpper)) {
+            return false;
+        }
         if (includeLower) {
             if (includeUpper) {
                 return field >= lower && field <= upper;
@@ -281,6 +250,9 @@ public class Range extends EsqlScalarFunction {
         @Fixed long upper,
         @Fixed boolean includeUpper
     ) {
+        if (areBoundariesInvalid(lower, includeLower, upper, includeUpper)) {
+            return false;
+        }
         if (includeLower) {
             if (includeUpper) {
                 return field >= lower && field <= upper;
@@ -304,6 +276,9 @@ public class Range extends EsqlScalarFunction {
         @Fixed double upper,
         @Fixed boolean includeUpper
     ) {
+        if (areBoundariesInvalid(lower, includeLower, upper, includeUpper)) {
+            return false;
+        }
         if (includeLower) {
             if (includeUpper) {
                 return field >= lower && field <= upper;
@@ -327,6 +302,9 @@ public class Range extends EsqlScalarFunction {
         @Fixed BytesRef upper,
         @Fixed boolean includeUpper
     ) {
+        if (areBoundariesInvalid(lower, includeLower, upper, includeUpper)) {
+            return false;
+        }
         Integer lowerCompare = BinaryComparison.compare(lower, field);
         Integer upperCompare = BinaryComparison.compare(field, upper);
         boolean lowerComparsion = lowerCompare == null ? false : (includeLower ? lowerCompare <= 0 : lowerCompare < 0);

@@ -12,11 +12,10 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Range;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
@@ -26,14 +25,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 
 public class RangeTests extends ESTestCase {
 
@@ -57,73 +53,17 @@ public class RangeTests extends ESTestCase {
         // value, value type, lower, lower type, lower included, higher, higher type, higher included, boundaries invalid
         Object[][] tests = {
             // dates
-            {
-                d("2021-01-01"),
-                DATETIME,
-                "2021-01-01",
-                randomTextType(),
-                randomBoolean(),
-                "2022-01-01",
-                randomTextType(),
-                randomBoolean(),
-                false },
-            {
-                d("2021-01-01"),
-                DATETIME,
-                "2022-01-01",
-                randomTextType(),
-                randomBoolean(),
-                "2021-01-01",
-                randomTextType(),
-                randomBoolean(),
-                true },
-            {
-                d("2021-01-01"),
-                DATETIME,
-                "now-10y",
-                randomTextType(),
-                randomBoolean(),
-                "2022-01-01",
-                randomTextType(),
-                randomBoolean(),
-                false },
-            {
-                d("2021-01-01"),
-                DATETIME,
-                "2021-01-01",
-                randomTextType(),
-                randomBoolean(),
-                "now+10y",
-                randomTextType(),
-                randomBoolean(),
-                false },
-            {
-                d("2021-01-01"),
-                DATETIME,
-                "2021-01-01",
-                randomTextType(),
-                randomBoolean(),
-                "now-100y",
-                randomTextType(),
-                randomBoolean(),
-                false },
-            { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), true, "2021-01-01", randomTextType(), true, false },
-            { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), false, "2021-01-01", randomTextType(), true, true },
-            { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), true, "2021-01-01", randomTextType(), false, true },
-            { d("2021-01-01"), DATETIME, "2021-01-01", randomTextType(), false, "2021-01-01", randomTextType(), false, true },
-            {
-                d("2021-01-01"),
-                DATETIME,
-                d("2022-01-01"),
-                DATETIME,
-                randomBoolean(),
-                "2021-01-01",
-                randomTextType(),
-                randomBoolean(),
-                true },
-            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, false, "2021-01-01", randomTextType(), false, true },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, randomBoolean(), d("2022-01-01"), DATETIME, randomBoolean(), false },
+            { d("2021-01-01"), DATETIME, d("2022-01-01"), DATETIME, randomBoolean(), d("2021-01-01"), DATETIME, randomBoolean(), true },
+            { d("2021-01-01"), DATETIME, d("2014-01-01"), DATETIME, randomBoolean(), d("2022-01-01"), DATETIME, randomBoolean(), false },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, randomBoolean(), d("2024-01-01"), DATETIME, randomBoolean(), false },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, randomBoolean(), d("1924-01-01"), DATETIME, randomBoolean(), true },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, true, d("2021-01-01"), DATETIME, true, false },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, false, d("2021-01-01"), DATETIME, true, true },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, true, d("2021-01-01"), DATETIME, false, true },
             { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, false, d("2021-01-01"), DATETIME, false, true },
-            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, true, "2021-01-01", randomTextType(), true, false },
+            { d("2021-01-01"), DATETIME, d("2022-01-01"), DATETIME, randomBoolean(), d("2021-01-01"), DATETIME, randomBoolean(), true },
+            { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, false, d("2021-01-01"), DATETIME, false, true },
             { d("2021-01-01"), DATETIME, d("2021-01-01"), DATETIME, true, d("2021-01-01"), DATETIME, true, false },
             {
                 randomAlphaOfLength(10),
@@ -131,16 +71,6 @@ public class RangeTests extends ESTestCase {
                 d("2021-01-01"),
                 DATETIME,
                 randomBoolean(),
-                "2022-01-01",
-                randomTextType(),
-                randomBoolean(),
-                false },
-            {
-                randomAlphaOfLength(10),
-                randomTextType(),
-                "2021-01-01",
-                randomTextType(),
-                randomBoolean(),
                 d("2022-01-01"),
                 DATETIME,
                 randomBoolean(),
@@ -148,18 +78,28 @@ public class RangeTests extends ESTestCase {
             {
                 randomAlphaOfLength(10),
                 randomTextType(),
+                d("2021-01-01"),
+                DATETIME,
+                randomBoolean(),
                 d("2022-01-01"),
                 DATETIME,
                 randomBoolean(),
-                "2021-01-01",
-                randomTextType(),
+                false },
+            {
+                randomAlphaOfLength(10),
+                DATETIME,
+                d("2022-01-01"),
+                DATETIME,
+                randomBoolean(),
+                d("2021-01-01"),
+                DATETIME,
                 randomBoolean(),
                 true },
             {
                 randomAlphaOfLength(10),
-                randomTextType(),
-                "2022-01-01",
-                randomTextType(),
+                DATETIME,
+                d("2022-01-01"),
+                DATETIME,
                 randomBoolean(),
                 d("2021-01-01"),
                 DATETIME,
@@ -178,16 +118,16 @@ public class RangeTests extends ESTestCase {
             {
                 randomAlphaOfLength(10),
                 randomTextType(),
-                "now-10y",
-                randomTextType(),
+                d("2014-01-01"),
+                DATETIME,
                 randomBoolean(),
                 d("2022-01-01"),
                 DATETIME,
                 randomBoolean(),
                 false },
-            { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, true, "2021-01-01", randomTextType(), true, false },
-            { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, false, "2021-01-01", randomTextType(), true, true },
-            { randomAlphaOfLength(10), randomTextType(), "2021-01-01", randomTextType(), true, d("2021-01-01"), DATETIME, false, true },
+            { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, true, d("2021-01-01"), DATETIME, true, false },
+            { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, false, d("2021-01-01"), DATETIME, true, true },
+            { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, true, d("2021-01-01"), DATETIME, false, true },
             { randomAlphaOfLength(10), randomTextType(), d("2021-01-01"), DATETIME, false, d("2021-01-01"), DATETIME, false, true },
 
             // strings
@@ -238,23 +178,17 @@ public class RangeTests extends ESTestCase {
             assertEquals(
                 "failed on test " + i + ": " + Arrays.toString(test),
                 test[8],
-                Range.areBoundariesInvalid(
-                    range.lower().fold(),
-                    range.includeLower(),
-                    range.upper().fold(),
-                    range.includeUpper(),
-                    isDateTime(range.value().dataType()) || isDateTime(range.lower().dataType()) || isDateTime(range.upper().dataType())
-                )
+                Range.areBoundariesInvalid(range.lower().fold(), range.includeLower(), range.upper().fold(), range.includeUpper())
             );
         }
     }
 
-    private static ZonedDateTime d(String date) {
-        return DateUtils.asDateTime(date);
+    private static long d(String date) {
+        return EsqlDataTypeConverter.dateTimeToLong(date);
     }
 
     private static DataType randomNumericType() {
-        return randomFrom(INTEGER, SHORT, LONG, UNSIGNED_LONG, FLOAT, DOUBLE);
+        return randomFrom(INTEGER, LONG, UNSIGNED_LONG, DOUBLE);
     }
 
     private static DataType randomTextType() {

@@ -42,8 +42,6 @@ public class RangeTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Range r = EsqlTestUtils.rangeOf(fa, SIX, false, FIVE, true);
-        // assertTrue(r.foldable());
-        // assertEquals(Boolean.FALSE, r.fold());
         assertEquals(Boolean.FALSE, r.foldable());
     }
 
@@ -52,8 +50,6 @@ public class RangeTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Range r = EsqlTestUtils.rangeOf(fa, SIX, false, L(5.5d), true);
-        // assertTrue(r.foldable());
-        // assertEquals(Boolean.FALSE, r.fold());
         assertEquals(Boolean.FALSE, r.foldable());
     }
 

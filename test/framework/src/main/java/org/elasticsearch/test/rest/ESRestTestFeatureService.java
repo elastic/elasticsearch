@@ -82,7 +82,7 @@ class ESRestTestFeatureService implements TestFeatureService {
     }
 
     private static <T> boolean checkCollection(Collection<T> coll, Predicate<T> pred, boolean any) {
-        return any ? coll.stream().anyMatch(pred) : coll.stream().allMatch(pred);
+        return any ? coll.stream().anyMatch(pred) : coll.isEmpty() == false && coll.stream().allMatch(pred);
     }
 
     @Override

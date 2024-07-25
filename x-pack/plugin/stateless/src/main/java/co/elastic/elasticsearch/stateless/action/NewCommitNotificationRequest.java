@@ -30,7 +30,6 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.Objects;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
@@ -84,13 +83,8 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         compoundCommit = StatelessCompoundCommit.readFromTransport(in);
         batchedCompoundCommitGeneration = in.readVLong();
         latestUploadedBatchedCompoundCommitTermAndGen = in.readOptionalWriteable(PrimaryTermAndGeneration::new);
-        if (in.getTransportVersion().onOrAfter(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID)) {
-            clusterStateVersion = in.readVLong();
-            nodeId = in.readString();
-        } else {
-            clusterStateVersion = null;
-            nodeId = null;
-        }
+        clusterStateVersion = in.readVLong();
+        nodeId = in.readString();
     }
 
     public long getTerm() {
@@ -183,10 +177,8 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         compoundCommit.writeTo(out);
         out.writeVLong(batchedCompoundCommitGeneration);
         out.writeOptionalWriteable(latestUploadedBatchedCompoundCommitTermAndGen);
-        if (out.getTransportVersion().onOrAfter(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID)) {
-            out.writeVLong(clusterStateVersion);
-            out.writeString(nodeId);
-        }
+        out.writeVLong(clusterStateVersion);
+        out.writeString(nodeId);
     }
 
     @Override

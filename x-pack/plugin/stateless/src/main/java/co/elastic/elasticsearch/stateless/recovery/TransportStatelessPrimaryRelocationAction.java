@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -491,12 +490,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         PrimaryContextHandoffRequest(StreamInput in) throws IOException {
             super(in);
             recoveryId = in.readVLong();
-
-            // this field was only used to test serverless serialization infrastructure, we can now remove it
-            if (in.getTransportVersion().before(ServerlessTransportVersions.REMOVE_DUMMY_PRIMARY_RELOCATION_CHANGE)) {
-                in.readBoolean();
-            }
-
             shardId = new ShardId(in);
             primaryContext = new ReplicationTracker.PrimaryContext(in);
             retentionLeases = new RetentionLeases(in);
@@ -506,11 +499,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(recoveryId);
-
-            if (out.getTransportVersion().before(ServerlessTransportVersions.REMOVE_DUMMY_PRIMARY_RELOCATION_CHANGE)) {
-                out.writeBoolean(true);
-            }
-
             shardId.writeTo(out);
             primaryContext.writeTo(out);
             retentionLeases.writeTo(out);

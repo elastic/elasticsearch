@@ -246,7 +246,8 @@ accumulate into a noticeable performance penalty. An unreliable network may
 have frequent network partitions. {es} will automatically recover from a
 network partition as quickly as it can but your cluster may be partly
 unavailable during a partition and will need to spend time and resources to
-resynchronize any missing data and rebalance itself once the partition heals.
+<<shard-recovery,resynchronize any missing data>> and <<shards-rebalancing-settings,rebalance>> 
+itself once the partition heals.
 Recovering from a failure may involve copying a large amount of data between
 nodes so the recovery time is often determined by the available bandwidth.
 

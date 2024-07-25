@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,19 +70,22 @@ public class ParsedDocument {
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      * @param id    the id of the deleted document
      */
-    public static ParsedDocument deleteTombstone(String type, String id) {
+    public static ParsedDocument deleteTombstone(String type, String id, String routing) {
         LuceneDocument document = new LuceneDocument();
         SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
         document.add(IdFieldMapper.idField(id));
+        if (routing != null) {
+            document.add(new StringField("_routing", routing, Field.Store.YES));
+        }
         return new ParsedDocument(
             versionField,
             seqIdFields,
             id,
             type,
-            null,
+            routing,
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -40,7 +41,7 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
 
     @Inject
     public TransportQueryRoleAction(ActionFilters actionFilters, NativeRolesStore nativeRolesStore, TransportService transportService) {
-        super(ActionTypes.QUERY_ROLE_ACTION.name(), actionFilters, transportService.getTaskManager());
+        super(ActionTypes.QUERY_ROLE_ACTION.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nativeRolesStore = nativeRolesStore;
     }
 

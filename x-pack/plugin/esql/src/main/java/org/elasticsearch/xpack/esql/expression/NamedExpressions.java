@@ -33,7 +33,8 @@ public class NamedExpressions {
     /**
      * Merges output expressions of a command given the new attributes plus the existing inputs that are emitted as outputs.
      * As a general rule, child output will come first in the list, followed by the new fields.
-     * In case of name collisions, only last entry is preserved (previous expressions with the same name are discarded)
+     * In case of name collisions, only the last entry is preserved (previous expressions with the same name are discarded)
+     * and the new attributes have precedence over the child output.
      * @param fields the fields added by the command
      * @param childOutput the command input that has to be propagated as output
      * @return

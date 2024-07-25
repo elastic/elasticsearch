@@ -8,8 +8,8 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @WithoutSecurityManager
-public class VectorSystemPropertyTests extends LuceneTestCase {
+public class VectorSystemPropertyTests extends ESTestCase {
 
     static Path jarPath;
 

@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -310,6 +311,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
+        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
         assertEquals(
             new InlineStats(
                 EMPTY,
@@ -326,6 +328,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithoutGroups() {
+        assumeTrue("INLINESTATS requires snapshot builds", Build.current().isSnapshot());
         assertEquals(
             new InlineStats(
                 EMPTY,

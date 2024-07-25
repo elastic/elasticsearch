@@ -58,9 +58,6 @@ tests:
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
-- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
-  method: testLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/110244
 - class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
   method: testMinVersionAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/95384
@@ -79,36 +76,56 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
   issue: https://github.com/elastic/elasticsearch/issues/110789
-- class: org.elasticsearch.xpack.security.ScrollHelperIntegTests
-  method: testFetchAllEntities
-  issue: https://github.com/elastic/elasticsearch/issues/110786
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
   method: testCacheFileCreatedAsSparseFile
   issue: https://github.com/elastic/elasticsearch/issues/110801
-- class: "org.elasticsearch.xpack.watcher.test.integration.HistoryIntegrationTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/110885"
-  method: "testPayloadInputWithDotsInFieldNameWorks"
 - class: org.elasticsearch.nativeaccess.PreallocateTests
   method: testPreallocate
   issue: https://github.com/elastic/elasticsearch/issues/110948
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
-  method: testEnterpriseDownloaderTask
-  issue: https://github.com/elastic/elasticsearch/issues/111002
-- class: org.elasticsearch.compute.lucene.ValueSourceReaderTypeConversionTests
-  method: testLoadAllStatusAllInOnePage
-  issue: https://github.com/elastic/elasticsearch/issues/111048
-- class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
-  method: testKnnSearchAction
-  issue: https://github.com/elastic/elasticsearch/issues/111072
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testKnnQuantizedFlatVectorsFormat
-  issue: https://github.com/elastic/elasticsearch/issues/111044
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/111084
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownCartesianPointIT
+  method: testPushedDownQueriesSingleValue
+  issue: https://github.com/elastic/elasticsearch/issues/110982
+- class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
+  issue: https://github.com/elastic/elasticsearch/issues/111124
+- class: org.elasticsearch.cluster.PrevalidateShardPathIT
+  method: testCheckShards
+  issue: https://github.com/elastic/elasticsearch/issues/111134
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test021InstallPlugin
+  issue: https://github.com/elastic/elasticsearch/issues/110343
+- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
+  method: testAuthenticateWithImplicitFlow
+  issue: https://github.com/elastic/elasticsearch/issues/111191
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testDisableFieldNameField {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111222
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testReadNonexistentBlobThrowsNoSuchFileException
+  issue: https://github.com/elastic/elasticsearch/issues/111233
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {inlinestats.BeforeKeep ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111257
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {inlinestats.BeforeKeep ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111259
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {inlinestats.BeforeKeep SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111260
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {inlinestats.BeforeKeep SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111262
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testInlineStatsProfile {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111263
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testInlineStatsProfile {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111264
 
 # Examples:
 #
@@ -139,4 +156,12 @@ tests:
 #    method: "test {union_types.MultiIndexIpStringStatsInline}"
 #    issue: "https://github.com/elastic/elasticsearch/..."
 #  Note that this mutes for the unit-test-like CsvTests only.
-#  Muting for the integration tests needs to be done for each IT class individually.
+#  Muting all the integration tests can be done using the class "org.elasticsearch.xpack.esql.**".
+#  Consider however, that some tests are named as "test {file.test SYNC}" and "ASYNC" in the integration tests.
+#  To mute all 3 tests safely everywhere use:
+#  - class: "org.elasticsearch.xpack.esql.**"
+#    method: "test {union_types.MultiIndexIpStringStatsInline}"
+#    issue: "https://github.com/elastic/elasticsearch/..."
+#  - class: "org.elasticsearch.xpack.esql.**"
+#    method: "test {union_types.MultiIndexIpStringStatsInline *}"
+#    issue: "https://github.com/elastic/elasticsearch/..."

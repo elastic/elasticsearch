@@ -34,7 +34,7 @@ Available task types:
 
 `service`::
 (Required, string)
-The type of service supported for the specified task type. In this case, 
+The type of service supported for the specified task type. In this case,
 `elser`.
 
 `service_settings`::
@@ -51,7 +51,7 @@ The total number of allocations this model is assigned across machine learning n
 
 `num_threads`:::
 (Required, integer)
-Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node.
 Must be a power of 2. Max allowed value is 32.
 
 
@@ -93,3 +93,11 @@ Example response:
 }
 ------------------------------------------------------------
 // NOTCONSOLE
+
+[NOTE]
+====
+You might see a 502 bad gateway error in the response when using the {kib} Console.
+This error usually just reflects a timeout, while the model downloads in the background.
+You can check the download progress in the {ml-app} UI.
+If using the Python client, you can set the `timeout` parameter to a higher value.
+====

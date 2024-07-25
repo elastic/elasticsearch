@@ -55,6 +55,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -131,7 +132,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
-        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
+        super(
+            wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader,
+            executor == null ? null : r -> {
+                try {
+                    executor.execute(r);
+                } catch (RejectedExecutionException ignored) {
+                    // in case of rejection run on the current thread without forking, we don't want failures in the Lucene search in the
+                    // unlikely case of running into a full queue on the executor side
+                    r.run();
+                }
+            }
+        );
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);

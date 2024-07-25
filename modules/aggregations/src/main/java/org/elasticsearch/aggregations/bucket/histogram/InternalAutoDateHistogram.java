@@ -213,7 +213,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             bucketInnerInterval = 1; // Calculated on merge.
         }
         // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
             // list is mutable by #readCollectionAsList contract
             buckets.sort(Comparator.comparingLong(b -> b.key));
         }

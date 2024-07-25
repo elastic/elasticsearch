@@ -319,7 +319,7 @@ public abstract class AsyncOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_ENRICH_OPERATOR_STATUS;
+            return TransportVersions.V_8_14_0;
         }
     }
 }

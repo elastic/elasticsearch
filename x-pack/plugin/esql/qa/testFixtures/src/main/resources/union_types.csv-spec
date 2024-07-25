@@ -335,6 +335,27 @@ count:long  |  client_ip:ip
 2           |  172.21.2.162
 ;
 
+statsUnionAggInline
+required_capability: union_types
+required_capability: inlinestats
+
+FROM sample_data, sample_data_str
+| STATS
+    count = COUNT(CIDR_MATCH(TO_IP(client_ip), "172.21.0.0/24") OR NULL)
+  BY
+    @timestamp = DATE_TRUNC(10 minutes, @timestamp)
+| SORT count DESC, @timestamp ASC
+| LIMIT 4
+;
+
+count:long | @timestamp:date
+         2 | 2023-10-23T13:30:00.000Z
+         0 | 2023-10-23T12:10:00.000Z
+         0 | 2023-10-23T12:20:00.000Z
+         0 | 2023-10-23T13:50:00.000Z
+;
+
+
 multiIndexIpStringStatsInline2
 required_capability: union_types
 required_capability: union_types_agg_cast
@@ -954,3 +975,43 @@ event_duration:long | _index:keyword      | ts:date                   | ts_str:k
 8268153             | sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
 8268153             | sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15
 ;
+
+
+inlineStatsUnionGroup
+required_capability: union_types
+required_capability: inlinestats
+
+FROM sample_data, sample_data_ts_long
+| EVAL @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
+| INLINESTATS count = COUNT(*) BY @timestamp
+| SORT client_ip ASC, @timestamp ASC
+| LIMIT 4
+;
+
+client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
+  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
+  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
+
+;
+
+inlineStatsUnionGroupTogether
+required_capability: union_types
+required_capability: inlinestats
+
+FROM sample_data, sample_data_ts_long
+| EVAL @timestamp = TO_STRING(TO_DATETIME(@timestamp))
+| INLINESTATS count = COUNT(*) BY @timestamp
+| SORT client_ip ASC, @timestamp ASC
+| LIMIT 4
+;
+
+client_ip:ip | event_duration:long |    message:keyword    |    @timestamp:keyword    | count:long
+  172.21.0.5 |             1232382 | Disconnected          | 2023-10-23T13:33:34.937Z | 2
+  172.21.0.5 |             1232382 | Disconnected          | 2023-10-23T13:33:34.937Z | 2
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 2023-10-23T12:27:28.948Z | 2
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 2023-10-23T12:27:28.948Z | 2
+;
+
+# Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats

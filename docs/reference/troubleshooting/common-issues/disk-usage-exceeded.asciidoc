@@ -19,7 +19,7 @@ this could induce {kib}'s `Kibana Server is not Ready yet`
 
 {es} will automatically remove the write block when the affected node's disk
 usage falls below the <<cluster-routing-watermark-high,high disk watermark>>. 
-To achieve this, {es} attempts to rebalances some of the affected node's shards 
+To achieve this, {es} attempts to rebalance some of the affected node's shards 
 to other nodes in the same data tier. 
 
 [[fix-watermark-errors-rebalance]]

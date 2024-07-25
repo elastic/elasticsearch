@@ -104,11 +104,6 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             this.snapshotId = snapshotId;
             this.shardId = shardId;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
     }
 
     public static final class NodeRequest extends TransportRequest {

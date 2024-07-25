@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction.Request.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
@@ -66,7 +67,7 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
                 )
             );
         }
-        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
+        request.ackTimeout(getAckTimeout(restRequest));
         request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
 
         return channel -> client.execute(RevertModelSnapshotAction.INSTANCE, request, new RestToXContentListener<>(channel));

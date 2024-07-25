@@ -169,19 +169,25 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
-        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true)
+        );
         ensureGreen(index);
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).get());
     }
 
     public void testRequestStats() throws Exception {
-        final String repository = createRepository(randomRepositoryName());
+        // need to use verify=false, because the verification process on master makes extra calls on placeholder repo
+        // hence impacting http metrics and failing test
+        final String repository = createRepository(randomRepositoryName(), false);
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
 
@@ -196,15 +202,19 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         final String snapshot = "snapshot";
-        assertSuccessfulSnapshot(clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index));
+        assertSuccessfulSnapshot(
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(index));
 
-        assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        assertSuccessfulRestore(
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).setWaitForCompletion(true)
+        );
         ensureGreen(index);
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot).get());
 
         final RepositoryStats repositoryStats = StreamSupport.stream(
             internalCluster().getInstances(RepositoriesService.class).spliterator(),

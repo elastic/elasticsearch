@@ -28,6 +28,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
@@ -146,9 +147,11 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         return state;
     }
 
+    private static final List<Object> NULL_ITEM_LIST = singletonList(null);
+
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, singletonList(null), reduceScript, metadata());
+        return new InternalScriptedMetric(name, NULL_ITEM_LIST, reduceScript, metadata());
     }
 
     @Override

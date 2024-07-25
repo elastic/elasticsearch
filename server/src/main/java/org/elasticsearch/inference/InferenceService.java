@@ -38,7 +38,7 @@ public interface InferenceService extends Closeable {
      * @param modelId               Model Id
      * @param taskType              The model task type
      * @param config                Configuration options including the secrets
-     * @param platfromArchitectures The Set of platform architectures (OS name and hardware architecture)
+     * @param platformArchitectures The Set of platform architectures (OS name and hardware architecture)
      *                              the cluster nodes and models are running on.
      * @param parsedModelListener   A listener which will handle the resulting model or failure
      */
@@ -46,7 +46,7 @@ public interface InferenceService extends Closeable {
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platfromArchitectures,
+        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     );
 

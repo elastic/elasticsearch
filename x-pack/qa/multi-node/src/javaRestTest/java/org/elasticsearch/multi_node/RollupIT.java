@@ -69,9 +69,25 @@ public class RollupIT extends ESRestTestCase {
     }
 
     public void testBigRollup() throws Exception {
+        // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+        {
+            Request req = new Request("PUT", "dummy-rollup-index");
+            req.setJsonEntity("""
+                {
+                    "mappings":{
+                        "_meta": {
+                            "_rollup":{
+                                "my-id": {}
+                            }
+                        }
+                    }
+                }
+                """);
+            client().performRequest(req);
+        }
+
         final int numDocs = 200;
         String dateFormat = "strict_date_optional_time";
-
         // create the test-index index
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

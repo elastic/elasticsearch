@@ -1,4 +1,3 @@
-[role="xpack"]
 [[vector-functions]]
 ===== Functions for vector fields
 
@@ -12,9 +11,12 @@ This is the list of available vector functions and vector access methods:
 1. <<vector-functions-cosine,`cosineSimilarity`>> – calculates cosine similarity
 2. <<vector-functions-dot-product,`dotProduct`>> – calculates dot product
 3. <<vector-functions-l1,`l1norm`>> – calculates L^1^ distance
-4. <<vector-functions-l2,`l2norm`>> - calculates L^2^ distance
-5. <<vector-functions-accessing-vectors,`doc[<field>].vectorValue`>> – returns a vector's value as an array of floats
-6. <<vector-functions-accessing-vectors,`doc[<field>].magnitude`>> – returns a vector's magnitude
+4. <<vector-functions-hamming,`hamming`>> – calculates Hamming distance
+5. <<vector-functions-l2,`l2norm`>> - calculates L^2^ distance
+6. <<vector-functions-accessing-vectors,`doc[<field>].vectorValue`>> – returns a vector's value as an array of floats
+7. <<vector-functions-accessing-vectors,`doc[<field>].magnitude`>> – returns a vector's magnitude
+
+NOTE: The `cosineSimilarity` and `dotProduct` functions are not supported for `bit` vectors.
 
 NOTE: The recommended way to access dense vectors is through the
 `cosineSimilarity`, `dotProduct`, `l1norm` or `l2norm` functions. Please note
@@ -35,7 +37,14 @@ PUT my-index-000001
     "properties": {
       "my_dense_vector": {
         "type": "dense_vector",
+        "index": false,
         "dims": 3
+      },
+      "my_byte_dense_vector": {
+        "type": "dense_vector",
+        "index": false,
+        "dims": 3,
+        "element_type": "byte"
       },
       "status" : {
         "type" : "keyword"
@@ -47,12 +56,14 @@ PUT my-index-000001
 PUT my-index-000001/_doc/1
 {
   "my_dense_vector": [0.5, 10, 6],
+  "my_byte_dense_vector": [0, 10, 6],
   "status" : "published"
 }
 
 PUT my-index-000001/_doc/2
 {
   "my_dense_vector": [-0.5, 10, 10],
+  "my_byte_dense_vector": [0, 10, 10],
   "status" : "published"
 }
 
@@ -179,6 +190,40 @@ we reversed the output from `l1norm` and `l2norm`. Also, to avoid
 division by 0 when a document vector matches the query exactly,
 we added `1` in the denominator.
 
+[[vector-functions-hamming]]
+====== Hamming distance
+
+The `hamming` function calculates {wikipedia}/Hamming_distance[Hamming distance] between a given query vector and
+document vectors. It is only available for byte and bit vectors.
+
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "term" : {
+              "status" : "published"
+            }
+          }
+        }
+      },
+      "script": {
+        "source": "(24 - hamming(params.queryVector, 'my_byte_dense_vector')) / 24", <1>
+        "params": {
+          "queryVector": [4, 3, 0]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> Calculate the Hamming distance and normalize it by the bits to get a score between 0 and 1.
+
 [[vector-functions-l2]]
 ====== L^2^ distance (Euclidean distance)
 
@@ -234,9 +279,13 @@ You can access vector values directly through the following functions:
 
 - `doc[<field>].vectorValue` – returns a vector's value as an array of floats
 
+NOTE: For `bit` vectors, it does return a `float[]`, where each element represents 8 bits.
+
 - `doc[<field>].magnitude` – returns a vector's magnitude as a float
 (for vectors created prior to version 7.5 the magnitude is not stored.
 So this function calculates it anew every time it is called).
+
+NOTE: For `bit` vectors, this is just the square root of the sum of `1` bits.
 
 For example, the script below implements a cosine similarity using these
 two functions:
@@ -275,3 +324,14 @@ GET my-index-000001/_search
   }
 }
 --------------------------------------------------
+[[vector-functions-bit-vectors]]
+====== Bit vectors and vector functions
+
+When using `bit` vectors, not all the vector functions are available. The supported functions are:
+
+* <<vector-functions-hamming,`hamming`>> – calculates Hamming distance, the sum of the bitwise XOR of the two vectors
+* <<vector-functions-l1,`l1norm`>> – calculates L^1^ distance, this is simply the `hamming` distance
+* <<vector-functions-l2,`l2norm`>> - calculates L^2^ distance, this is the square root of the `hamming` distance
+
+Currently, the `cosineSimilarity` and `dotProduct` functions are not supported for `bit` vectors.
+

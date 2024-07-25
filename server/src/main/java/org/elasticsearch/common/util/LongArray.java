@@ -30,7 +30,12 @@ public interface LongArray extends BigArray, Writeable {
     /**
      * Set a value at the given index and return the previous value.
      */
-    long set(long index, long value);
+    long getAndSet(long index, long value);
+
+    /**
+     * Set a value at the given index.
+     */
+    void set(long index, long value);
 
     /**
      * Increment value at the given index by <code>inc</code> and return the value.

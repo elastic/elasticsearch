@@ -8,9 +8,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -201,55 +203,71 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         values = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
-
+        final SortedDocValues singleton = DocValues.unwrapSingleton(values);
         if (parent == null && field != null) {
             // This optimization only applies to top-level cardinality aggregations that apply to fields indexed with an inverted index.
             final Terms indexTerms = aggCtx.getLeafReaderContext().reader().terms(field);
             if (indexTerms != null) {
                 visitedOrds = bigArrays.grow(visitedOrds, 1);
-                BitArray bits = visitedOrds.get(0);
-                final int numNonVisitedOrds = maxOrd - (bits == null ? 0 : (int) bits.cardinality());
+                final int numNonVisitedOrds;
+                {
+                    final BitArray bits = visitedOrds.get(0);
+                    numNonVisitedOrds = maxOrd - (bits == null ? 0 : (int) bits.cardinality());
+                }
                 if (maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING || numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
                     dynamicPruningAttempts++;
-                    return new LeafBucketCollector() {
-                        final SortedSetDocValues docValues = values;
-
-                        final BitArray bits;
-                        final CompetitiveIterator competitiveIterator;
-
-                        {
-                            // This optimization only works for top-level cardinality aggregations that collect bucket 0, so we can retrieve
-                            // the appropriate BitArray ahead of time.
-                            visitedOrds = bigArrays.grow(visitedOrds, 1);
-                            BitArray bits = visitedOrds.get(0);
-                            if (bits == null) {
-                                bits = new BitArray(maxOrd, bigArrays);
-                                visitedOrds.set(0, bits);
-                            }
-                            this.bits = bits;
-                            final DocIdSetIterator docsWithField = valuesSource.ordinalsValues(aggCtx.getLeafReaderContext());
-                            competitiveIterator = new CompetitiveIterator(numNonVisitedOrds, bits, indexTerms, docsWithField);
-                            if (numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
-                                competitiveIterator.startPruning();
-                            }
+                    final BitArray bits = getNewOrExistingBitArray(0L);
+                    final CompetitiveIterator competitiveIterator;
+                    {
+                        // This optimization only works for top-level cardinality aggregations that collect bucket 0, so we can retrieve
+                        // the appropriate BitArray ahead of time.
+                        final DocIdSetIterator docsWithField = valuesSource.ordinalsValues(aggCtx.getLeafReaderContext());
+                        competitiveIterator = new CompetitiveIterator(numNonVisitedOrds, bits, indexTerms, docsWithField);
+                        if (numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
+                            competitiveIterator.startPruning();
                         }
+                    }
+                    if (singleton != null) {
+                        return new LeafBucketCollector() {
+                            final SortedDocValues docValues = singleton;
 
-                        @Override
-                        public void collect(int doc, long bucketOrd) throws IOException {
-                            if (docValues.advanceExact(doc)) {
-                                for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues.nextOrd()) {
+                            @Override
+                            public void collect(int doc, long bucketOrd) throws IOException {
+                                if (docValues.advanceExact(doc)) {
+                                    final int ord = docValues.ordValue();
                                     if (bits.getAndSet(ord) == false) {
                                         competitiveIterator.onVisitedOrdinal(ord);
                                     }
                                 }
                             }
-                        }
 
-                        @Override
-                        public CompetitiveIterator competitiveIterator() {
-                            return competitiveIterator;
-                        }
-                    };
+                            @Override
+                            public CompetitiveIterator competitiveIterator() {
+                                return competitiveIterator;
+                            }
+                        };
+                    } else {
+                        return new LeafBucketCollector() {
+                            final SortedSetDocValues docValues = values;
+
+                            @Override
+                            public void collect(int doc, long bucketOrd) throws IOException {
+                                if (docValues.advanceExact(doc)) {
+                                    for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues
+                                        .nextOrd()) {
+                                        if (bits.getAndSet(ord) == false) {
+                                            competitiveIterator.onVisitedOrdinal(ord);
+                                        }
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public CompetitiveIterator competitiveIterator() {
+                                return competitiveIterator;
+                            }
+                        };
+                    }
                 }
             } else {
                 final FieldInfo fi = aggCtx.getLeafReaderContext().reader().getFieldInfos().fieldInfo(field);
@@ -265,24 +283,43 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
         }
 
         bruteForce++;
-        return new LeafBucketCollector() {
-            final SortedSetDocValues docValues = values;
+        if (singleton != null) {
+            return new LeafBucketCollector() {
+                final SortedDocValues docValues = singleton;
 
-            @Override
-            public void collect(int doc, long bucketOrd) throws IOException {
-                if (docValues.advanceExact(doc)) {
-                    visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
-                    BitArray bits = visitedOrds.get(bucketOrd);
-                    if (bits == null) {
-                        bits = new BitArray(maxOrd, bigArrays);
-                        visitedOrds.set(bucketOrd, bits);
-                    }
-                    for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues.nextOrd()) {
-                        bits.set((int) ord);
+                @Override
+                public void collect(int doc, long bucketOrd) throws IOException {
+                    if (docValues.advanceExact(doc)) {
+                        final BitArray bits = getNewOrExistingBitArray(bucketOrd);
+                        bits.set(docValues.ordValue());
                     }
                 }
-            }
-        };
+            };
+        } else {
+            return new LeafBucketCollector() {
+                final SortedSetDocValues docValues = values;
+
+                @Override
+                public void collect(int doc, long bucketOrd) throws IOException {
+                    if (docValues.advanceExact(doc)) {
+                        final BitArray bits = getNewOrExistingBitArray(bucketOrd);
+                        for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues.nextOrd()) {
+                            bits.set((int) ord);
+                        }
+                    }
+                }
+            };
+        }
+    }
+
+    private BitArray getNewOrExistingBitArray(long bucketOrd) {
+        visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
+        BitArray bits = visitedOrds.get(bucketOrd);
+        if (bits == null) {
+            bits = new BitArray(maxOrd, bigArrays);
+            visitedOrds.set(bucketOrd, bits);
+        }
+        return bits;
     }
 
     protected void doPostCollection() throws IOException {

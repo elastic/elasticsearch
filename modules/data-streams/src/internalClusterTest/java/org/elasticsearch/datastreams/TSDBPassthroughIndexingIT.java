@@ -17,6 +17,8 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -70,6 +72,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
               },
               "attributes": {
                 "type": "passthrough",
+                "priority": 0,
                 "dynamic": true,
                 "time_series_dimension": true
               },
@@ -197,31 +200,20 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         assertMap(attributes.get("pod.ip"), matchesMap().entry("type", "ip").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.uid"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
         assertMap(attributes.get("pod.name"), matchesMap().entry("type", "keyword").entry("time_series_dimension", true));
-        // alias field mappers:
-        assertMap(
-            ObjectPath.eval("properties.metricset", mapping),
-            matchesMap().entry("type", "alias").entry("path", "attributes.metricset")
-        );
-        assertMap(
-            ObjectPath.eval("properties.number.properties.long", mapping),
-            matchesMap().entry("type", "alias").entry("path", "attributes.number.long")
-        );
-        assertMap(
-            ObjectPath.eval("properties.number.properties.double", mapping),
-            matchesMap().entry("type", "alias").entry("path", "attributes.number.double")
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("name", matchesMap().entry("type", "alias").entry("path", "attributes.pod.name"))
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("uid", matchesMap().entry("type", "alias").entry("path", "attributes.pod.uid"))
-        );
-        assertMap(
-            ObjectPath.eval("properties.pod.properties", mapping),
-            matchesMap().extraOk().entry("ip", matchesMap().entry("type", "alias").entry("path", "attributes.pod.ip"))
-        );
+
+        FieldCapabilitiesResponse fieldCaps = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("k8s")).actionGet();
+        assertTrue(fieldCaps.getField("attributes.metricset").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("metricset").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("attributes.number.long").get("long").isDimension());
+        assertTrue(fieldCaps.getField("number.long").get("long").isDimension());
+        assertTrue(fieldCaps.getField("attributes.number.double").get("float").isDimension());
+        assertTrue(fieldCaps.getField("number.double").get("float").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.ip").get("ip").isDimension());
+        assertTrue(fieldCaps.getField("pod.ip").get("ip").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.uid").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("pod.uid").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("attributes.pod.name").get("keyword").isDimension());
+        assertTrue(fieldCaps.getField("pod.name").get("keyword").isDimension());
     }
 
     public void testIndexingGettingAndSearchingShrunkIndex() throws Exception {

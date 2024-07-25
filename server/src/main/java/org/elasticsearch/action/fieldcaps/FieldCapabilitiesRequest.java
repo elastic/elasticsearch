@@ -63,7 +63,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             filters = in.readStringArray();
             types = in.readStringArray();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         }
     }
@@ -104,7 +104,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             out.writeStringArray(filters);
             out.writeStringArray(types);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
         }
     }

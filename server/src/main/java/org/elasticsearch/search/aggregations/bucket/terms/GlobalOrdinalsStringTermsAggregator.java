@@ -380,7 +380,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             for (long i = 1; i < segmentDocCounts.size(); i++) {
                 // We use set(...) here, because we need to reset the slow to 0.
                 // segmentDocCounts get reused over the segments and otherwise counts would be too high.
-                long inc = segmentDocCounts.set(i, 0);
+                long inc = segmentDocCounts.getAndSet(i, 0);
                 if (inc == 0) {
                     continue;
                 }

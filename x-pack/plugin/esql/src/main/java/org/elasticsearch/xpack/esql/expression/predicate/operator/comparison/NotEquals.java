@@ -7,43 +7,102 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 import java.util.Map;
 
 public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
-    private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataTypes.BOOLEAN, NotEqualsBoolsEvaluator.Factory::new),
-        Map.entry(DataTypes.INTEGER, NotEqualsIntsEvaluator.Factory::new),
-        Map.entry(DataTypes.DOUBLE, NotEqualsDoublesEvaluator.Factory::new),
-        Map.entry(DataTypes.LONG, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.UNSIGNED_LONG, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.DATETIME, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.CARTESIAN_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataTypes.KEYWORD, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.IP, NotEqualsKeywordsEvaluator.Factory::new)
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "NotEquals",
+        EsqlBinaryComparison::readFrom
     );
 
-    public NotEquals(Source source, Expression left, Expression right) {
+    private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
+        Map.entry(DataType.BOOLEAN, NotEqualsBoolsEvaluator.Factory::new),
+        Map.entry(DataType.INTEGER, NotEqualsIntsEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE, NotEqualsDoublesEvaluator.Factory::new),
+        Map.entry(DataType.LONG, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.UNSIGNED_LONG, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATETIME, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.CARTESIAN_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.IP, NotEqualsKeywordsEvaluator.Factory::new)
+    );
+
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = "Check if two fields are unequal. "
+            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+        note = "This is pushed to the underlying search index if one side of the comparison is constant "
+            + "and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>."
+    )
+    public NotEquals(
+        Source source,
+        @Param(
+            name = "lhs",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "An expression."
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "An expression."
+        ) Expression right
+    ) {
         super(source, left, right, BinaryComparisonOperation.NEQ, evaluatorMap);
     }
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Evaluator(extraName = "Ints")

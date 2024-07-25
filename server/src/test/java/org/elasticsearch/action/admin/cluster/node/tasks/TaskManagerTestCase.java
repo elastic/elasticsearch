@@ -61,6 +61,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.transport.MockTransportService.createTaskManager;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -143,7 +144,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
-            Writeable.Reader<NodesRequest> request,
             Writeable.Reader<NodeRequest> nodeRequest
         ) {
             super(
@@ -176,12 +176,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
-            TaskManager taskManager;
-            if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-                taskManager = new MockTaskManager(settings, threadPool, emptySet());
-            } else {
-                taskManager = new TaskManager(settings, threadPool, emptySet());
-            }
+            TaskManager taskManager = createTaskManager(settings, threadPool, emptySet(), Tracer.NOOP);
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(

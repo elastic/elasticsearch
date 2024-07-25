@@ -123,9 +123,9 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         final SetOnce<MigratedEntities> migratedEntities = new SetOnce<>();
         submitUnbatchedTask("migrate-to-data-tiers []", new ClusterStateUpdateTask(Priority.HIGH) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
-                    state,
+                    currentState,
                     request.getNodeAttributeName(),
                     request.getLegacyTemplateToDelete(),
                     xContentRegistry,

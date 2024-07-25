@@ -74,7 +74,7 @@ public interface Source {
      * An empty Source, represented as an empty map
      */
     static Source empty(XContentType xContentType) {
-        return Source.fromMap(Map.of(), xContentType == null ? XContentType.JSON : xContentType);
+        return EmptySource.forType(xContentType == null ? XContentType.JSON : xContentType);
     }
 
     /**
@@ -148,6 +148,9 @@ public interface Source {
      */
     static Source fromMap(Map<String, Object> map, XContentType xContentType) {
         Map<String, Object> sourceMap = map == null ? Map.of() : map;
+        if (sourceMap.isEmpty()) {
+            return empty(xContentType);
+        }
         return new Source() {
             @Override
             public XContentType sourceContentType() {

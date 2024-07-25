@@ -154,7 +154,7 @@ public class ServerProcessBuilder {
         boolean success = false;
         try {
             jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), processStarter);
-            errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
+            errorPump = new ErrorPumpThread(terminal, jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
 

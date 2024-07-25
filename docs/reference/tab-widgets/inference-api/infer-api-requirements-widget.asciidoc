@@ -25,6 +25,24 @@
             id="infer-api-requirements-azure-openai">
       Azure OpenAI
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-azure-ai-studio-tab"
+            id="infer-api-requirements-azure-ai-studio">
+      Azure AI Studio
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-mistral-tab"
+            id="infer-api-requirements-mistral">
+      Mistral
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-amazon-bedrock-tab"
+            id="infer-api-requirements-amazon-bedrock">
+      Amazon Bedrock
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -66,6 +84,39 @@ include::infer-api-requirements.asciidoc[tag=openai]
 ++++
 
 include::infer-api-requirements.asciidoc[tag=azure-openai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-azure-ai-studio-tab"
+       aria-labelledby="infer-api-requirements-azure-ai-studio"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-mistral-tab"
+       aria-labelledby="infer-api-requirements-mistral"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=mistral]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-amazon-bedrock-tab"
+       aria-labelledby="infer-api-requirements-amazon-bedrock"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=amazon-bedrock]
 
 ++++
   </div>

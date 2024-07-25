@@ -12,37 +12,37 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
+import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.TypedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
-import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigDecimal;
@@ -50,33 +50,36 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.or;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class EsqlExpressionTranslators {
-
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
+        new InComparisons(),
+        // Ranges is redundant until we start combining binary comparisons (see CombineBinaryComparisons in ql's OptimizerRules)
+        // or introduce a BETWEEN keyword.
         new ExpressionTranslators.Ranges(),
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
-        new ExpressionTranslators.InComparisons(),
         new ExpressionTranslators.StringQueries(),
         new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
@@ -145,16 +148,6 @@ public final class EsqlExpressionTranslators {
     public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
-            // TODO: Pretty sure this check is redundant with the one at the beginning of translate
-            ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
-            Query translated = translateOutOfRangeComparisons(bc);
-            if (translated != null) {
-                return handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
-            }
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
-        }
-
-        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             Check.isTrue(
                 bc.right().foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
@@ -163,6 +156,15 @@ public final class EsqlExpressionTranslators {
                 Expressions.name(bc.right()),
                 bc.symbol()
             );
+
+            Query translated = translateOutOfRangeComparisons(bc);
+            if (translated != null) {
+                return handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
+            }
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+        }
+
+        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
             String name = handler.nameOf(attribute);
@@ -204,8 +206,10 @@ public final class EsqlExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (DataTypes.isDateTime(attribute.dataType())) {
+            if (DataType.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
+                value = dateTimeToString((Long) value);
+                format = DEFAULT_DATE_TIME_FORMATTER.pattern();
             }
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format, zoneId);
@@ -296,34 +300,34 @@ public final class EsqlExpressionTranslators {
                 // Unsigned longs may be represented as BigInteger.
                 decimalValue = new BigDecimal(bigIntValue);
             } else {
-                decimalValue = valueDataType.isRational() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
+                decimalValue = valueDataType.isRationalNumber() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
             }
 
             // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
             BigDecimal minValue;
             BigDecimal maxValue;
-            if (numericFieldDataType == DataTypes.BYTE) {
+            if (numericFieldDataType == DataType.BYTE) {
                 minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.SHORT) {
+            } else if (numericFieldDataType == DataType.SHORT) {
                 minValue = BigDecimal.valueOf(Short.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.INTEGER) {
+            } else if (numericFieldDataType == DataType.INTEGER) {
                 minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.LONG) {
+            } else if (numericFieldDataType == DataType.LONG) {
                 minValue = BigDecimal.valueOf(Long.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Long.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.UNSIGNED_LONG) {
+            } else if (numericFieldDataType == DataType.UNSIGNED_LONG) {
                 minValue = BigDecimal.ZERO;
                 maxValue = UNSIGNED_LONG_MAX;
-            } else if (numericFieldDataType == DataTypes.HALF_FLOAT) {
+            } else if (numericFieldDataType == DataType.HALF_FLOAT) {
                 minValue = HALF_FLOAT_MAX.negate();
                 maxValue = HALF_FLOAT_MAX;
-            } else if (numericFieldDataType == DataTypes.FLOAT) {
+            } else if (numericFieldDataType == DataType.FLOAT) {
                 minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.DOUBLE || numericFieldDataType == DataTypes.SCALED_FLOAT) {
+            } else if (numericFieldDataType == DataType.DOUBLE || numericFieldDataType == DataType.SCALED_FLOAT) {
                 // Scaled floats are represented as doubles in ESQL.
                 minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Double.MAX_VALUE);
@@ -352,8 +356,9 @@ public final class EsqlExpressionTranslators {
                     return handler.wrapFunctionQuery(f, cm.ipField(), () -> query);
                 }
             }
+            // TODO we could optimize starts_with as well
 
-            return ExpressionTranslators.Scalars.doTranslate(f, handler);
+            throw new QlIllegalArgumentException("Cannot translate expression:[" + f.sourceText() + "]");
         }
     }
 
@@ -375,26 +380,13 @@ public final class EsqlExpressionTranslators {
             );
         }
 
-        /**
-         * We should normally be using the real `wrapFunctionQuery` above, so we get the benefits of `SingleValueQuery`,
-         * but at the moment `SingleValueQuery` makes use of `SortDocValues` to determine if the results are single or multi-valued,
-         * and LeafShapeFieldData does not support `SortedBinaryDocValues getBytesValues()`.
-         * Skipping this code path entirely is a temporary workaround while separate work is being done to simplify `SingleValueQuery`
-         * to rather rely on a new method on `LeafFieldData`. This is both for the benefit of the spatial queries, as well as an
-         * improvement overall.
-         * TODO: Remove this method and call the parent method once the SingleValueQuery improvements have been made
-         */
-        public static Query wrapFunctionQuery(Expression field, Supplier<Query> querySupplier) {
-            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
-        }
-
         public static Query doTranslate(SpatialRelatesFunction bc, TranslatorHandler handler) {
             if (bc.left().foldable()) {
                 checkSpatialRelatesFunction(bc.left(), bc.queryRelation());
-                return wrapFunctionQuery(bc.right(), () -> translate(bc, handler, bc.right(), bc.left()));
+                return translate(bc, handler, bc.right(), bc.left());
             } else {
                 checkSpatialRelatesFunction(bc.right(), bc.queryRelation());
-                return wrapFunctionQuery(bc.left(), () -> translate(bc, handler, bc.left(), bc.right()));
+                return translate(bc, handler, bc.left(), bc.right());
             }
         }
 
@@ -413,6 +405,60 @@ public final class EsqlExpressionTranslators {
             } catch (IllegalArgumentException e) {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
             }
+        }
+    }
+
+    public static class InComparisons extends ExpressionTranslator<In> {
+
+        @Override
+        protected Query asQuery(In in, TranslatorHandler handler) {
+            return doTranslate(in, handler);
+        }
+
+        public static Query doTranslate(In in, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
+        }
+
+        private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
+            return DataType.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        }
+
+        private static Query translate(In in, TranslatorHandler handler) {
+            TypedAttribute attribute = checkIsPushableAttribute(in.value());
+
+            Set<Object> terms = new LinkedHashSet<>();
+            List<Query> queries = new ArrayList<>();
+
+            for (Expression rhs : in.list()) {
+                if (DataType.isNull(rhs.dataType()) == false) {
+                    if (needsTypeSpecificValueHandling(attribute.dataType())) {
+                        // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
+                        Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
+
+                        if (query instanceof TermQuery) {
+                            terms.add(((TermQuery) query).value());
+                        } else {
+                            queries.add(query);
+                        }
+                    } else {
+                        terms.add(valueOf(rhs));
+                    }
+                }
+            }
+
+            if (terms.isEmpty() == false) {
+                String fieldName = pushableAttributeName(attribute);
+                queries.add(new TermsQuery(in.source(), fieldName, terms));
+            }
+
+            return queries.stream().reduce((q1, q2) -> or(in.source(), q1, q2)).get();
+        }
+
+        public static Object valueOf(Expression e) {
+            if (e.foldable()) {
+                return e.fold();
+            }
+            throw new QlIllegalArgumentException("Cannot determine value for {}", e);
         }
     }
 }

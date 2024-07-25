@@ -6,11 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,6 +26,18 @@ public class LocalRelation extends LeafPlan {
         super(source);
         this.output = output;
         this.supplier = supplier;
+    }
+
+    public LocalRelation(PlanStreamInput in) throws IOException {
+        super(Source.readFrom(in));
+        this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.supplier = LocalSupplier.readFrom(in);
+    }
+
+    public void writeTo(PlanStreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteableCollection(output);
+        supplier.writeTo(out);
     }
 
     @Override

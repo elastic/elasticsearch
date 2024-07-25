@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.lifecycle;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -229,6 +230,8 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
         // Remove lifecycle from concrete data stream
         {
             DeleteDataStreamLifecycleAction.Request deleteDataLifecycleRequest = new DeleteDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 new String[] { "with-lifecycle-1" }
             );
             assertThat(
@@ -254,6 +257,8 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
         // Remove lifecycle from all data streams
         {
             DeleteDataStreamLifecycleAction.Request deleteDataLifecycleRequest = new DeleteDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 new String[] { "*" }
             );
             assertThat(

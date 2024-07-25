@@ -6,23 +6,24 @@
 
 beta::[]
 
-Updates the draft `filtering` configuration of a connector and marks the draft validation state as `edited`. The filtering configuration can be activated once validated by the Elastic connector service.
+Updates the draft `filtering` configuration of a connector and marks the draft validation state as `edited`. The filtering draft is activated once validated by the running Elastic connector service.
 
 The filtering property is used to configure sync rules (both basic and advanced) for a connector. Learn more in the {enterprise-search-ref}/sync-rules.html[sync rules documentation].
+
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[update-connector-filtering-api-request]]
 ==== {api-request-title}
 
 `PUT _connector/<connector_id>/_filtering`
 
-`PUT _connector/<connector_id>/_filtering/_activate`
-
 [[update-connector-filtering-api-prereq]]
 ==== {api-prereq-title}
 
 * To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
-* To activate filtering rules, the `draft.validation.state` must be `valid`.
+* Filtering draft is activated once validated by the running Elastic connector service, the `draft.validation.state` must be `valid`.
+* If, after a validation attempt, the `draft.validation.state` equals to `invalid`, inspect `draft.validation.errors` and fix any issues.
 
 [[update-connector-filtering-api-path-params]]
 ==== {api-path-parms-title}
@@ -185,20 +186,4 @@ PUT _connector/my-sql-connector/_filtering/_validation
 
 Note, you can also update draft `rules` and `advanced_snippet` in a single request.
 
-Once the draft is updated, its validation state is set to `edited`. The connector service will then validate the rules and report the validation state as either `invalid` or `valid`. If the state is `valid`, the draft filtering can be activated with:
-
-
-[source,console]
-----
-PUT _connector/my-sql-connector/_filtering/_activate
-----
-// TEST[continued]
-
-[source,console-result]
-----
-{
-    "result": "updated"
-}
-----
-
-Once filtering rules are activated, they will be applied to all subsequent full or incremental syncs.
+Once the draft is updated, its validation state is set to `edited`. The connector service will then validate the rules and report the validation state as either `invalid` or `valid`. If the state is `valid`, the draft filtering will be activated by the running Elastic connector service.

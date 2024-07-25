@@ -48,8 +48,8 @@
 
 ---
 "binary synthetic source":
-  - skip:
-      version: ' - 8.14.99'
+  - requires:
+      cluster_features: "gte_v8.15.0"
       reason: synthetic source support introduced in 8.15
   - do:
       indices.create:

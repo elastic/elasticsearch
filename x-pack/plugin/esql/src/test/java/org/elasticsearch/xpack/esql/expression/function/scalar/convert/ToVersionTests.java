@@ -11,19 +11,18 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class ToVersionTests extends AbstractFunctionTestCase {
+public class ToVersionTests extends AbstractScalarFunctionTestCase {
     public ToVersionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -36,7 +35,7 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // Converting and IP to an IP doesn't change anything. Everything should succeed.
-        TestCaseSupplier.forUnaryVersion(suppliers, read, DataTypes.VERSION, Version::toBytesRef, List.of());
+        TestCaseSupplier.forUnaryVersion(suppliers, read, DataType.VERSION, Version::toBytesRef, List.of());
 
         // None of the random strings ever look like versions so they should all become "invalid" versions:
         // https://github.com/elastic/elasticsearch/issues/98989
@@ -44,7 +43,7 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             stringEvaluator,
-            DataTypes.VERSION,
+            DataType.VERSION,
             bytesRef -> new Version(bytesRef.utf8ToString()).toBytesRef(),
             List.of()
         );
@@ -55,13 +54,13 @@ public class ToVersionTests extends AbstractFunctionTestCase {
                 suppliers,
                 read,
                 TestCaseSupplier.versionCases(inputType.typeName() + " "),
-                DataTypes.VERSION,
+                DataType.VERSION,
                 bytesRef -> new Version((BytesRef) bytesRef).toBytesRef(),
                 List.of()
             );
         }
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string or version");
     }
 
     @Override

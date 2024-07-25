@@ -222,7 +222,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
         Mapper mapper = mapperService.mappingLookup().getMapper("field");
         assertThat(mapper, instanceOf(FieldMapper.class));
         final Set<String> fieldsUsingSourcePath = new HashSet<>();
-        ((FieldMapper) mapper).sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.name()));
+        ((FieldMapper) mapper).sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.fullPath()));
         assertThat(fieldsUsingSourcePath, equalTo(Set.of("field.subfield1", "field.subfield2")));
 
         assertThat(mapperService.mappingLookup().sourcePaths("field.subfield1"), equalTo(Set.of("field")));

@@ -5,7 +5,10 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 field | buckets | from | to | result
+datetime | date_period | | | datetime
 datetime | integer | datetime | datetime | datetime
+datetime | time_duration | | | datetime
+double | double | | | double
 double | integer | double | double | double
 double | integer | double | integer | double
 double | integer | double | long | double
@@ -15,6 +18,7 @@ double | integer | integer | long | double
 double | integer | long | double | double
 double | integer | long | integer | double
 double | integer | long | long | double
+integer | double | | | double
 integer | integer | double | double | double
 integer | integer | double | integer | double
 integer | integer | double | long | double
@@ -24,6 +28,7 @@ integer | integer | integer | long | double
 integer | integer | long | double | double
 integer | integer | long | integer | double
 integer | integer | long | long | double
+long | double | | | double
 long | integer | double | double | double
 long | integer | double | integer | double
 long | integer | double | long | double

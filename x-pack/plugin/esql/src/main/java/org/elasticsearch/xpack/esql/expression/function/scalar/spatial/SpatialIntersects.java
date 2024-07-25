@@ -11,6 +11,8 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
@@ -18,28 +20,27 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 /**
  * This is the primary class for supporting the function ST_INTERSECTS.
@@ -48,6 +49,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
  * Here we simply wire the rules together specific to ST_INTERSECTS and QueryRelation.INTERSECTS.
  */
 public class SpatialIntersects extends SpatialRelatesFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialIntersects",
+        SpatialIntersects::new
+    );
+
     // public for test access with reflection
     public static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.INTERSECTS,
@@ -63,29 +70,37 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         new CartesianShapeIndexer("ST_Intersects")
     );
 
-    @FunctionInfo(
-        returnType = { "boolean" },
-        description = "Returns whether the two geometries or geometry columns intersect.",
-        examples = @Example(file = "spatial", tag = "st_intersects-airports")
-    )
+    @FunctionInfo(returnType = { "boolean" }, description = """
+        Returns true if two geometries intersect.
+        They intersect if they have any point in common, including their interior points
+        (points along lines or within polygons).
+        This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function.
+        In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅""", examples = @Example(file = "spatial", tag = "st_intersects-airports"))
     public SpatialIntersects(
         Source source,
-        @Param(
-            name = "geomA",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
-        ) Expression left,
-        @Param(
-            name = "geomB",
-            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
-        ) Expression right
+        @Param(name = "geomA", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
+            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
+            If `null`, the function returns `null`.""") Expression left,
+        @Param(name = "geomB", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
+            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
+            If `null`, the function returns `null`.
+            The second parameter must also have the same coordinate system as the first.
+            This means it is not possible to combine `geo_*` and `cartesian_*` parameters.""") Expression right
     ) {
         this(source, left, right, false, false);
     }
 
     private SpatialIntersects(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
+    }
+
+    private SpatialIntersects(StreamInput in) throws IOException {
+        super(in, false, false);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -145,7 +160,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                         SpatialIntersectsGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -177,7 +192,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                         SpatialIntersectsCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(

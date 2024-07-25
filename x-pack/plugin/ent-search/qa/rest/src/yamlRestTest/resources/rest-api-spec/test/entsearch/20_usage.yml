@@ -28,7 +28,7 @@ teardown:
 ---
 "xpack usage includes Enterprise Search":
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -36,7 +36,7 @@ teardown:
       available: true,
       search_applications: { count: 0 },
       analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
@@ -53,7 +53,7 @@ teardown:
                     query: "{{query_string}}"
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -61,7 +61,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
@@ -82,7 +82,7 @@ teardown:
         name: test-analytics-collection
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -90,7 +90,7 @@ teardown:
       available: true,
       search_applications: { count: 2 },
       analytics_collections: { count: 1 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
@@ -99,7 +99,7 @@ teardown:
         name: test-search-application-2
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -107,7 +107,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 1 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
@@ -116,7 +116,7 @@ teardown:
         name: test-analytics-collection
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -124,12 +124,12 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset
         body:
           rules:
@@ -155,7 +155,7 @@ teardown:
                   - 'id4'
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset2
         body:
           rules:
@@ -199,12 +199,12 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 2, total_rule_count: 5, min_rule_count: 2, max_rule_count: 3, rule_criteria_total_counts: { exact: 5 } }
+      query_rulesets: { total_count: 2, total_rule_count: 5, min_rule_count: 2, max_rule_count: 3, rule_criteria_total_counts: { exact: 5 } }
     }
   }
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset2
 
   - do:
@@ -216,7 +216,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 1, total_rule_count: 2, min_rule_count: 2, max_rule_count: 2, rule_criteria_total_counts: { exact: 2 } }
+      query_rulesets: { total_count: 1, total_rule_count: 2, min_rule_count: 2, max_rule_count: 2, rule_criteria_total_counts: { exact: 2 } }
     }
   }
 

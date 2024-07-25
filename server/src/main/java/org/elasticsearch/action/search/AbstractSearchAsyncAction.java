@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
@@ -318,7 +319,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
+                    executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
                         @Override
                         public void innerOnResponse(Result result) {
                             try {
@@ -374,7 +375,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
             @Override
-            public void onFailure(Exception e) {}
+            public void onFailure(Exception e) {
+                logger.error(() -> "unexpected error during [" + task + "]", e);
+                assert false : e;
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // avoid leaks during node shutdown by executing on the current thread if the executor shuts down
+                assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                doRun();
+            }
 
             @Override
             protected void doRun() {

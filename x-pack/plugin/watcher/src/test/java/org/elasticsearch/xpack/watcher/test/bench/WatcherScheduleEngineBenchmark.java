@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
@@ -242,7 +243,7 @@ public class WatcherScheduleEngineBenchmark {
                         Percentiles percentiles = searchResponse.getAggregations().get("percentile_delay");
                         stats.setDelayPercentiles(percentiles);
                         stats.setAvgJvmUsed(jvmUsedHeapSpace);
-                        new WatcherServiceRequestBuilder(client).stop().get();
+                        new WatcherServiceRequestBuilder(ESTestCase.TEST_REQUEST_TIMEOUT, client).stop().get();
                     }
                 );
             }

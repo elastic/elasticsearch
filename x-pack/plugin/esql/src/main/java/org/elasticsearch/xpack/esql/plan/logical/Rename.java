@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -28,6 +30,14 @@ public class Rename extends UnaryPlan {
 
     public List<Alias> renamings() {
         return renamings;
+    }
+
+    @Override
+    public List<Attribute> output() {
+        // Normally shouldn't reach here, as Rename only exists before resolution.
+        List<NamedExpression> projectionsAfterResolution = ResolveRefs.projectionsForRename(this, this.child().output(), null);
+
+        return Expressions.asAttributes(projectionsAfterResolution);
     }
 
     @Override

@@ -8,7 +8,7 @@
       Cohere
     </button>
     <button role="tab"
-            aria-selected="true"
+            aria-selected="false"
             aria-controls="infer-api-search-hf-tab"
             id="infer-api-search-hf">
       HuggingFace
@@ -24,6 +24,24 @@
             aria-controls="infer-api-search-azure-openai-tab"
             id="infer-api-search-azure-openai">
       Azure OpenAI
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-azure-ai-studio-tab"
+            id="infer-api-search-azure-ai-studio">
+      Azure AI Studio
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-mistral-tab"
+            id="infer-api-search-mistral">
+      Mistral
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-search-amazon-bedrock-tab"
+            id="infer-api-search-amazon-bedrock">
+      Amazon Bedrock
     </button>
   </div>
   <div tabindex="0"
@@ -66,6 +84,39 @@ include::infer-api-search.asciidoc[tag=openai]
 ++++
 
 include::infer-api-search.asciidoc[tag=azure-openai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-azure-ai-studio-tab"
+       aria-labelledby="infer-api-search-azure-ai-studio"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-mistral-tab"
+       aria-labelledby="infer-api-search-mistral"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=mistral]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-search-amazon-bedrock-tab"
+       aria-labelledby="infer-api-search-amazon-bedrock"
+       hidden="">
+++++
+
+include::infer-api-search.asciidoc[tag=amazon-bedrock]
 
 ++++
   </div>

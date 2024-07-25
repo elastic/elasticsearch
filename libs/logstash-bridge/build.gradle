@@ -1,0 +1,24 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compileOnly project(':server')
+  compileOnly project(':libs:elasticsearch-core')
+  compileOnly project(':libs:elasticsearch-plugin-api')
+  compileOnly project(':libs:elasticsearch-x-content')
+  compileOnly project(':modules:lang-painless')
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(':modules:lang-mustache')
+  compileOnly project(':modules:ingest-common')
+//  compileOnly project(':modules:ingest-geoip')
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}

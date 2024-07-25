@@ -8,6 +8,7 @@
 {esql} supports these multivalue functions:
 
 // tag::mv_list[]
+* <<esql-mv_append>>
 * <<esql-mv_avg>>
 * <<esql-mv_concat>>
 * <<esql-mv_count>>
@@ -23,6 +24,7 @@
 * <<esql-mv_zip>>
 // end::mv_list[]
 
+include::layout/mv_append.asciidoc[]
 include::layout/mv_avg.asciidoc[]
 include::layout/mv_concat.asciidoc[]
 include::layout/mv_count.asciidoc[]

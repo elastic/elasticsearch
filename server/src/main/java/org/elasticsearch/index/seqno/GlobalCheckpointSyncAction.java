@@ -63,8 +63,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             Request::new,
             Request::new,
             threadPool.executor(ThreadPool.Names.WRITE),
-            false,
-            true
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.Force
         );
     }
 

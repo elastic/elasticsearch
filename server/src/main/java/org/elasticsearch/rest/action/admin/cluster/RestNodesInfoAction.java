@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesInfoAction extends BaseRestHandler {
@@ -86,7 +87,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         }
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);
-        nodesInfoRequest.timeout(request.paramAsTime("timeout", null));
+        nodesInfoRequest.timeout(getTimeout(request));
         // shortcut, don't do checks if only all is specified
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesInfoRequest.all();

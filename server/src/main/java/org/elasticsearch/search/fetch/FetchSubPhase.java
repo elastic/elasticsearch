@@ -11,8 +11,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,13 +31,22 @@ public interface FetchSubPhase {
         private final int docId;
         private final Source source;
         private final Map<String, List<Object>> loadedFields;
+        private final RankDoc rankDoc;
 
-        public HitContext(SearchHit hit, LeafReaderContext context, int docId, Map<String, List<Object>> loadedFields, Source source) {
+        public HitContext(
+            SearchHit hit,
+            LeafReaderContext context,
+            int docId,
+            Map<String, List<Object>> loadedFields,
+            Source source,
+            RankDoc rankDoc
+        ) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.source = source;
             this.loadedFields = loadedFields;
+            this.rankDoc = rankDoc;
         }
 
         public SearchHit hit() {
@@ -70,6 +81,11 @@ public interface FetchSubPhase {
 
         public Map<String, List<Object>> loadedFields() {
             return loadedFields;
+        }
+
+        @Nullable
+        public RankDoc rankDoc() {
+            return this.rankDoc;
         }
 
         public IndexReader topLevelReader() {

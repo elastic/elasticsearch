@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -171,6 +172,16 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Specifies the path within bucket to repository data. Defaults to root directory.
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
+
+    /**
+     * The batch size for DeleteObjects request
+     */
+    static final Setting<Integer> DELETION_BATCH_SIZE_SETTING = Setting.intSetting(
+        "delete_objects_max_size",
+        S3BlobStore.MAX_BULK_DELETES,
+        1,
+        S3BlobStore.MAX_BULK_DELETES
+    );
 
     private final S3Service service;
 
@@ -432,5 +443,20 @@ class S3Repository extends MeteredBlobStoreRepository {
             cancellable.cancel();
         }
         super.doClose();
+    }
+
+    @Override
+    public String getAnalysisFailureExtraDetail() {
+        return Strings.format(
+            """
+                Elasticsearch observed the storage system underneath this repository behaved incorrectly which indicates it is not \
+                suitable for use with Elasticsearch snapshots. Typically this happens when using storage other than AWS S3 which \
+                incorrectly claims to be S3-compatible. If so, please report this incompatibility to your storage supplier. Do not report \
+                Elasticsearch issues involving storage systems which claim to be S3-compatible unless you can demonstrate that the same \
+                issue exists when using a genuine AWS S3 repository. See [%s] for further information about repository analysis, and [%s] \
+                for further information about support for S3-compatible repository implementations.""",
+            ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS,
+            ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
+        );
     }
 }

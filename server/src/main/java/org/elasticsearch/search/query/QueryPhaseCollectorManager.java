@@ -400,7 +400,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 // don't compute hit counts via the collector
                 hitCountThreshold = 1;
-                shortcutTotalHits = new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+                shortcutTotalHits = Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO;
             } else {
                 // implicit total hit counts are valid only when there is no filter collector in the chain
                 final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);

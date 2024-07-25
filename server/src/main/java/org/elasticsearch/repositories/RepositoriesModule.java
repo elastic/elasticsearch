@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -20,7 +21,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
@@ -40,7 +41,8 @@ public final class RepositoriesModule {
     public RepositoriesModule(
         Environment env,
         List<RepositoryPlugin> repoPlugins,
-        TransportService transportService,
+        NodeClient client,
+        ThreadPool threadPool,
         ClusterService clusterService,
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
@@ -118,10 +120,10 @@ public final class RepositoriesModule {
         repositoriesService = new RepositoriesService(
             settings,
             clusterService,
-            transportService,
             repositoryTypes,
             internalRepositoryTypes,
-            transportService.getThreadPool(),
+            threadPool,
+            client,
             preRestoreChecks
         );
     }

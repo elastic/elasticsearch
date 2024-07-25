@@ -34,7 +34,7 @@ public class GetAsyncStatusRequest extends ActionRequest {
     public GetAsyncStatusRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.keepAlive = in.readTimeValue();
         }
     }
@@ -43,7 +43,7 @@ public class GetAsyncStatusRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeTimeValue(keepAlive);
         }
     }

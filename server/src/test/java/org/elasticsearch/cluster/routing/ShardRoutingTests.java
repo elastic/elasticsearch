@@ -401,7 +401,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     .withUnassignedInfo(
                         otherRouting.unassignedInfo() == null
                             ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
-                            : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().getMessage() + "_1")
+                            : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().message() + "_1")
                     )
                     .build();
             }

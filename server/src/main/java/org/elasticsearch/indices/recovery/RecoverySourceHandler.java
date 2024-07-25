@@ -1052,7 +1052,7 @@ public class RecoverySourceHandler {
         }
         SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.commitUserData().entrySet());
         SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.commitUserData().entrySet());
-        if (sourceSeqNos.localCheckpoint != targetSeqNos.localCheckpoint || targetSeqNos.maxSeqNo != sourceSeqNos.maxSeqNo) {
+        if (sourceSeqNos.localCheckpoint() != targetSeqNos.localCheckpoint() || targetSeqNos.maxSeqNo() != sourceSeqNos.maxSeqNo()) {
             final String message = "try to recover "
                 + request.shardId()
                 + " with sync id but "

@@ -44,6 +44,8 @@ import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
+import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK;
+import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
@@ -136,6 +138,8 @@ public class AggregatorImplementer {
         switch (initReturn) {
             case "double":
                 return "double";
+            case "float":
+                return "float";
             case "long":
                 return "long";
             case "int":
@@ -151,6 +155,7 @@ public class AggregatorImplementer {
         return switch (valueType(init, combine)) {
             case "boolean" -> BOOLEAN_BLOCK;
             case "double" -> DOUBLE_BLOCK;
+            case "float" -> FLOAT_BLOCK;
             case "long" -> LONG_BLOCK;
             case "int" -> INT_BLOCK;
             case "org.apache.lucene.util.BytesRef" -> BYTES_REF_BLOCK;
@@ -162,6 +167,7 @@ public class AggregatorImplementer {
         return switch (valueType(init, combine)) {
             case "boolean" -> BOOLEAN_VECTOR;
             case "double" -> DOUBLE_VECTOR;
+            case "float" -> FLOAT_VECTOR;
             case "long" -> LONG_VECTOR;
             case "int" -> INT_VECTOR;
             case "org.apache.lucene.util.BytesRef" -> BYTES_REF_VECTOR;
@@ -439,12 +445,16 @@ public class AggregatorImplementer {
 
     private String primitiveStateMethod() {
         switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.BooleanState":
+                return "booleanValue";
             case "org.elasticsearch.compute.aggregation.IntState":
                 return "intValue";
             case "org.elasticsearch.compute.aggregation.LongState":
                 return "longValue";
             case "org.elasticsearch.compute.aggregation.DoubleState":
                 return "doubleValue";
+            case "org.elasticsearch.compute.aggregation.FloatState":
+                return "floatValue";
             default:
                 throw new IllegalArgumentException(
                     "don't know how to fetch primitive values from " + stateType + ". define combineIntermediate."
@@ -486,6 +496,9 @@ public class AggregatorImplementer {
 
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.BooleanState":
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.booleanValue(), 1)");
+                return;
             case "org.elasticsearch.compute.aggregation.IntState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1)");
                 return;
@@ -494,6 +507,9 @@ public class AggregatorImplementer {
                 return;
             case "org.elasticsearch.compute.aggregation.DoubleState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(state.doubleValue(), 1)");
+                return;
+            case "org.elasticsearch.compute.aggregation.FloatState":
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantFloatBlockWith(state.floatValue(), 1)");
                 return;
             default:
                 throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);
@@ -520,8 +536,9 @@ public class AggregatorImplementer {
 
     private boolean hasPrimitiveState() {
         return switch (stateType.toString()) {
-            case "org.elasticsearch.compute.aggregation.IntState", "org.elasticsearch.compute.aggregation.LongState",
-                "org.elasticsearch.compute.aggregation.DoubleState" -> true;
+            case "org.elasticsearch.compute.aggregation.BooleanState", "org.elasticsearch.compute.aggregation.IntState",
+                "org.elasticsearch.compute.aggregation.LongState", "org.elasticsearch.compute.aggregation.DoubleState",
+                "org.elasticsearch.compute.aggregation.FloatState" -> true;
             default -> false;
         };
     }

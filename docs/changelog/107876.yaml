@@ -1,0 +1,5 @@
+pr: 107876
+summary: "ESQL: Add aggregates node level reduction"
+area: ES|QL
+type: enhancement
+issues: []

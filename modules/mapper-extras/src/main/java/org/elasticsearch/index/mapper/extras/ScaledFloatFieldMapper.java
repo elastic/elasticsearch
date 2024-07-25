@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -186,7 +187,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
             ScaledFloatFieldType type = new ScaledFloatFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -196,7 +197,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new ScaledFloatFieldMapper(name(), type, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new ScaledFloatFieldMapper(
+                leafName(),
+                type,
+                multiFieldsBuilder.build(this, context),
+                copyTo,
+                context.isSourceSynthetic(),
+                this
+            );
         }
     }
 
@@ -452,6 +460,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final boolean stored;
     private final Double nullValue;
     private final double scalingFactor;
+    private final boolean isSourceSynthetic;
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
@@ -463,9 +472,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         ScaledFloatFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean isSourceSynthetic,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.isSourceSynthetic = isSourceSynthetic;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
@@ -500,7 +511,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, coerceByDefault, indexMode).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexMode).metric(metricType).init(this);
     }
 
     @Override
@@ -518,6 +529,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value()) {
                     context.addIgnoredField(mappedFieldType.name());
+                    if (isSourceSynthetic) {
+                        // Save a copy of the field so synthetic source can load it
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                    }
                     return;
                 } else {
                     throw e;
@@ -542,6 +557,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         if (Double.isFinite(doubleValue) == false) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(mappedFieldType.name());
+                if (isSourceSynthetic) {
+                    // Save a copy of the field so synthetic source can load it
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                }
                 return;
             } else {
                 // since we encode to a long, we have no way to carry NaNs and infinities
@@ -694,23 +713,27 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (ignoreMalformed.value()) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
+                "field ["
+                    + fullPath()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed.value()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
             @Override
             protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(decodeForSyntheticSource(value, scalingFactor));

@@ -49,11 +49,6 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         public Request() {
             super(new String[0]);
         }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            org.elasticsearch.action.support.TransportAction.localOnly();
-        }
     }
 
     public static class NodeRequest extends TransportRequest {
@@ -136,9 +131,8 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         }
 
         @Override
-        protected void resolveRequest(Request request, ClusterState clusterState) {
-            DiscoveryNode[] ingestNodes = clusterState.getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
-            request.setConcreteNodes(ingestNodes);
+        protected DiscoveryNode[] resolveRequest(Request request, ClusterState clusterState) {
+            return clusterState.getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
         }
 
         @Override

@@ -31,10 +31,6 @@ final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Blo
 $if(BytesRef)$
     private BytesRefArray values;
 
-    BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
-    }
-
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
         super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);

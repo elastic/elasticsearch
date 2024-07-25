@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -29,16 +31,19 @@ import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -59,6 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -323,12 +329,25 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final Runnable evictIncrementer;
 
+    private final LongSupplier relativeTimeInNanosSupplier;
+
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
         String ioExecutor,
         BlobCacheMetrics blobCacheMetrics
+    ) {
+        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, System::nanoTime);
+    }
+
+    public SharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        String ioExecutor,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInNanosSupplier
     ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
@@ -370,6 +389,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -626,12 +646,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // no need to allocate a new capturing lambda if the offset isn't adjusted
             return writer;
         }
-        return (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
+        return (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> writer.fillCacheRange(
             channel,
             channelPos,
+            streamFactory,
             relativePos - writeOffset,
             len,
-            progressUpdater
+            progressUpdater,
+            completionListener
         );
     }
 
@@ -891,29 +913,31 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final Executor executor,
             final ActionListener<Boolean> listener
         ) {
-            Releasable resource = null;
             try {
                 incRefEnsureOpen();
-                resource = Releasables.releaseOnce(this::decRef);
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                    rangeToWrite,
-                    rangeToWrite,
-                    Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                        assert regionOwners.get(io) == this;
-                    }), resource) : ActionListener.releasing(resource)
-                );
-                final var hasGapsToFill = gaps.size() > 0;
-                try (RefCountingListener refs = new RefCountingListener(listener.map(unused -> hasGapsToFill))) {
-                    if (hasGapsToFill) {
-                        final var cacheFileRegion = CacheFileRegion.this;
+                try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
+                    final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                        rangeToWrite,
+                        rangeToWrite,
+                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
+                            assert regionOwners.get(io) == this;
+                        }), refs.acquire()) : refs.acquireListener()
+                    );
+                    if (gaps.isEmpty()) {
+                        listener.onResponse(false);
+                        return;
+                    }
+                    try (var gapsListener = new RefCountingListener(listener.map(unused -> true))) {
+                        assert writer.sharedInputStreamFactory(gaps) == null;
                         for (SparseFileTracker.Gap gap : gaps) {
-                            var fillGapRunnable = fillGapRunnable(cacheFileRegion, writer, gap);
-                            executor.execute(ActionRunnable.run(refs.acquire(), fillGapRunnable::run));
+                            executor.execute(
+                                fillGapRunnable(gap, writer, null, ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire()))
+                            );
                         }
                     }
                 }
             } catch (Exception e) {
-                releaseAndFail(listener, resource, e);
+                listener.onFailure(e);
             }
         }
 
@@ -925,77 +949,96 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final Executor executor,
             final ActionListener<Integer> listener
         ) {
-            Releasable resource = null;
             try {
                 incRefEnsureOpen();
-                resource = Releasables.releaseOnce(this::decRef);
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                    rangeToWrite,
-                    rangeToRead,
-                    ActionListener.runAfter(listener, resource::close).delegateFailureAndWrap((l, success) -> {
-                        var ioRef = io;
-                        assert regionOwners.get(ioRef) == this;
-                        final int start = Math.toIntExact(rangeToRead.start());
-                        final int read = reader.onRangeAvailable(ioRef, start, start, Math.toIntExact(rangeToRead.length()));
-                        assert read == rangeToRead.length()
-                            : "partial read ["
-                                + read
-                                + "] does not match the range to read ["
-                                + rangeToRead.end()
-                                + '-'
-                                + rangeToRead.start()
-                                + ']';
-                        readCount.increment();
-                        l.onResponse(read);
-                    })
-                );
+                try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
+                    final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                        rangeToWrite,
+                        rangeToRead,
+                        ActionListener.releaseAfter(listener, refs.acquire()).delegateFailureAndWrap((l, success) -> {
+                            var ioRef = io;
+                            assert regionOwners.get(ioRef) == this;
+                            final int start = Math.toIntExact(rangeToRead.start());
+                            final int read = reader.onRangeAvailable(ioRef, start, start, Math.toIntExact(rangeToRead.length()));
+                            assert read == rangeToRead.length()
+                                : "partial read ["
+                                    + read
+                                    + "] does not match the range to read ["
+                                    + rangeToRead.end()
+                                    + '-'
+                                    + rangeToRead.start()
+                                    + ']';
+                            readCount.increment();
+                            l.onResponse(read);
+                        })
+                    );
 
-                if (gaps.isEmpty() == false) {
-                    final var cacheFileRegion = CacheFileRegion.this;
-                    for (SparseFileTracker.Gap gap : gaps) {
-                        executor.execute(fillGapRunnable(cacheFileRegion, writer, gap));
+                    if (gaps.isEmpty() == false) {
+                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                        logger.trace(
+                            () -> Strings.format(
+                                "fill gaps %s %s shared input stream factory",
+                                gaps,
+                                (streamFactory == null ? "without" : "with"),
+                                (streamFactory == null ? "" : " " + streamFactory)
+                            )
+                        );
+                        if (streamFactory == null) {
+                            for (SparseFileTracker.Gap gap : gaps) {
+                                executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
+                            }
+                        } else {
+                            var gapFillingListener = refs.acquireListener();
+                            try (var gfRefs = new RefCountingRunnable(ActionRunnable.run(gapFillingListener, streamFactory::close))) {
+                                final List<Runnable> gapFillingTasks = gaps.stream()
+                                    .map(gap -> fillGapRunnable(gap, writer, streamFactory, gfRefs.acquireListener()))
+                                    .toList();
+                                executor.execute(() -> {
+                                    // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
+                                    // gap will still be executed.
+                                    gapFillingTasks.forEach(Runnable::run);
+                                });
+                            }
+                        }
                     }
                 }
             } catch (Exception e) {
-                releaseAndFail(listener, resource, e);
+                listener.onFailure(e);
             }
         }
 
-        private AbstractRunnable fillGapRunnable(CacheFileRegion cacheFileRegion, RangeMissingHandler writer, SparseFileTracker.Gap gap) {
-            return new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    if (cacheFileRegion.tryIncRefEnsureOpen() == false) {
-                        throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
-                    }
-                    try {
-                        final int start = Math.toIntExact(gap.start());
-                        var ioRef = io;
-                        assert regionOwners.get(ioRef) == cacheFileRegion;
-                        writer.fillCacheRange(
-                            ioRef,
-                            start,
-                            start,
-                            Math.toIntExact(gap.end() - start),
-                            progress -> gap.onProgress(start + progress)
-                        );
+        private Runnable fillGapRunnable(
+            SparseFileTracker.Gap gap,
+            RangeMissingHandler writer,
+            @Nullable SourceInputStreamFactory streamFactory,
+            ActionListener<Void> listener
+        ) {
+            return () -> ActionListener.run(listener, l -> {
+                var ioRef = io;
+                assert regionOwners.get(ioRef) == CacheFileRegion.this;
+                assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
+                int start = Math.toIntExact(gap.start());
+                writer.fillCacheRange(
+                    ioRef,
+                    start,
+                    streamFactory,
+                    start,
+                    Math.toIntExact(gap.end() - start),
+                    progress -> gap.onProgress(start + progress),
+                    l.<Void>map(unused -> {
+                        assert regionOwners.get(ioRef) == CacheFileRegion.this;
+                        assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
                         writeCount.increment();
-                    } finally {
-                        cacheFileRegion.decRef();
-                    }
-                    gap.onCompletion();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    gap.onFailure(e);
-                }
-            };
+                        gap.onCompletion();
+                        return null;
+                    }).delegateResponse((delegate, e) -> failGapAndListener(gap, delegate, e))
+                );
+            });
         }
 
-        private static void releaseAndFail(ActionListener<?> listener, Releasable decrementRef, Exception e) {
+        private static void failGapAndListener(SparseFileTracker.Gap gap, ActionListener<?> listener, Exception e) {
             try {
-                Releasables.close(decrementRef);
+                gap.onFailure(e);
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
@@ -1068,17 +1111,33 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
-            final long startTime = threadPool.relativeTimeInNanos();
-            RangeMissingHandler writerInstrumentationDecorator = (
-                SharedBytes.IO channel,
-                int channelPos,
-                int relativePos,
-                int length,
-                IntConsumer progressUpdater) -> {
-                writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
-                var elapsedTime = TimeUnit.NANOSECONDS.toMicros(threadPool.relativeTimeInNanos() - startTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
+            final long startTime = relativeTimeInNanosSupplier.getAsLong();
+            RangeMissingHandler writerInstrumentationDecorator = new DelegatingRangeMissingHandler(writer) {
+                @Override
+                public void fillCacheRange(
+                    SharedBytes.IO channel,
+                    int channelPos,
+                    SourceInputStreamFactory streamFactory,
+                    int relativePos,
+                    int length,
+                    IntConsumer progressUpdater,
+                    ActionListener<Void> completionListener
+                ) throws IOException {
+                    writer.fillCacheRange(
+                        channel,
+                        channelPos,
+                        streamFactory,
+                        relativePos,
+                        length,
+                        progressUpdater,
+                        completionListener.map(unused -> {
+                            var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                            blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
+                            blobCacheMetrics.getCacheMissCounter().increment();
+                            return null;
+                        })
+                    );
+                }
             };
             if (rangeToRead.isEmpty()) {
                 // nothing to read, skip
@@ -1099,7 +1158,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             RangeMissingHandler writer,
             int region
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            final PlainActionFuture<Integer> readFuture = new UnsafePlainActionFuture<>(
+                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
+            );
             final CacheFileRegion fileRegion = get(cacheKey, length, region);
             final long regionStart = getRegionStart(region);
             fileRegion.populateAndRead(
@@ -1121,7 +1182,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             int startRegion,
             int endRegion
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
+            final PlainActionFuture<Void> readsComplete = new UnsafePlainActionFuture<>(
+                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
+            );
             final AtomicInteger bytesRead = new AtomicInteger();
             try (var listeners = new RefCountingListener(1, readsComplete)) {
                 for (int region = startRegion; region <= endRegion; region++) {
@@ -1158,21 +1221,57 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 // no need to allocate a new capturing lambda if the offset isn't adjusted
                 adjustedWriter = writer;
             } else {
-                adjustedWriter = (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
-                    channel,
-                    channelPos,
-                    relativePos - writeOffset,
-                    len,
-                    progressUpdater
-                );
+                adjustedWriter = new DelegatingRangeMissingHandler(writer) {
+                    @Override
+                    public void fillCacheRange(
+                        SharedBytes.IO channel,
+                        int channelPos,
+                        SourceInputStreamFactory streamFactory,
+                        int relativePos,
+                        int len,
+                        IntConsumer progressUpdater,
+                        ActionListener<Void> completionListener
+                    ) throws IOException {
+                        delegate.fillCacheRange(
+                            channel,
+                            channelPos,
+                            streamFactory,
+                            relativePos - writeOffset,
+                            len,
+                            progressUpdater,
+                            completionListener
+                        );
+                    }
+                };
             }
             if (Assertions.ENABLED) {
-                return (channel, channelPos, relativePos, len, progressUpdater) -> {
-                    assert assertValidRegionAndLength(fileRegion, channelPos, len);
-                    adjustedWriter.fillCacheRange(channel, channelPos, relativePos, len, progressUpdater);
-                    assert regionOwners.get(fileRegion.io) == fileRegion
-                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                return new DelegatingRangeMissingHandler(adjustedWriter) {
+                    @Override
+                    public void fillCacheRange(
+                        SharedBytes.IO channel,
+                        int channelPos,
+                        SourceInputStreamFactory streamFactory,
+                        int relativePos,
+                        int len,
+                        IntConsumer progressUpdater,
+                        ActionListener<Void> completionListener
+                    ) throws IOException {
+                        assert assertValidRegionAndLength(fileRegion, channelPos, len);
+                        delegate.fillCacheRange(
+                            channel,
+                            channelPos,
+                            streamFactory,
+                            relativePos,
+                            len,
+                            progressUpdater,
+                            Assertions.ENABLED ? ActionListener.runBefore(completionListener, () -> {
+                                assert regionOwners.get(fileRegion.io) == fileRegion
+                                    : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                            }) : completionListener
+                        );
+                    }
                 };
+
             }
             return adjustedWriter;
         }
@@ -1234,17 +1333,81 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     @FunctionalInterface
     public interface RangeMissingHandler {
         /**
+         * Attempt to get a shared {@link SourceInputStreamFactory} for the given list of Gaps so that all of them
+         * can be filled from the input stream created from the factory. If a factory is returned, the gaps must be
+         * filled sequentially by calling {@link #fillCacheRange} in order with the factory. If {@code null} is returned,
+         * each invocation of {@link #fillCacheRange} creates its own input stream and can therefore be executed in parallel.
+         * @param gaps The list of gaps to be filled by fetching from source storage and writing into the cache.
+         * @return A factory object to be shared by all gaps filling process, or {@code null} if each gap filling should create
+         * its own input stream.
+         */
+        @Nullable
+        default SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+            return null;
+        }
+
+        /**
          * Callback method used to fetch data (usually from a remote storage) and write it in the cache.
          *
          * @param channel is the cache region to write to
          * @param channelPos a position in the channel (cache file) to write to
+         * @param streamFactory factory to get the input stream positioned at the given value for the remote storage.
+         *                      This is useful for sharing the same stream across multiple calls to this method.
+         *                      If it is {@code null}, the method should open input stream on its own.
          * @param relativePos the relative position in the remote storage to read from
          * @param length of data to fetch
          * @param progressUpdater consumer to invoke with the number of copied bytes as they are written in cache.
          *                        This is used to notify waiting readers that data become available in cache.
+         * @param completionListener listener that has to be called when the callback method completes
          */
-        void fillCacheRange(SharedBytes.IO channel, int channelPos, int relativePos, int length, IntConsumer progressUpdater)
-            throws IOException;
+        void fillCacheRange(
+            SharedBytes.IO channel,
+            int channelPos,
+            @Nullable SourceInputStreamFactory streamFactory,
+            int relativePos,
+            int length,
+            IntConsumer progressUpdater,
+            ActionListener<Void> completionListener
+        ) throws IOException;
+    }
+
+    /**
+     * Factory to create the input stream for reading data from the remote storage as the source for filling local cache regions.
+     */
+    public interface SourceInputStreamFactory extends Releasable {
+
+        /**
+         * Create the input stream at the specified position.
+         * @param relativePos the relative position in the remote storage to read from.
+         * @param listener listener for the input stream ready to be read from.
+         */
+        void create(int relativePos, ActionListener<InputStream> listener) throws IOException;
+    }
+
+    private abstract static class DelegatingRangeMissingHandler implements RangeMissingHandler {
+        protected final RangeMissingHandler delegate;
+
+        protected DelegatingRangeMissingHandler(RangeMissingHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+            return delegate.sharedInputStreamFactory(gaps);
+        }
+
+        @Override
+        public void fillCacheRange(
+            SharedBytes.IO channel,
+            int channelPos,
+            SourceInputStreamFactory streamFactory,
+            int relativePos,
+            int length,
+            IntConsumer progressUpdater,
+            ActionListener<Void> completionListener
+        ) throws IOException {
+            delegate.fillCacheRange(channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener);
+        }
     }
 
     public record Stats(

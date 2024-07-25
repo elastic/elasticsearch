@@ -48,6 +48,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
@@ -449,6 +450,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
+            pluginsService.forEach(plugin -> entries.addAll(plugin.getNamedWriteables()));
             namedWriteableRegistry = new NamedWriteableRegistry(entries);
             parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(
                 new NamedXContentRegistry(
@@ -465,6 +467,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
+            this.bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {}
+
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {}
+            });
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
                 clusterService,
@@ -475,23 +484,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperRegistry,
                 () -> createShardContext(null),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
-                ScriptCompiler.NONE
+                ScriptCompiler.NONE,
+                bitsetFilterCache::getBitSetProducer,
+                MapperMetrics.NOOP
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, new NoneCircuitBreakerService());
-            bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {
-
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {
-
-                }
-            });
-
             if (registerType) {
                 mapperService.merge(
                     "_doc",
@@ -563,6 +562,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 )
                 .numberOfShards(1)
                 .numberOfReplicas(0)
+                .putInferenceFields(mapperService.mappingLookup().inferenceFields())
                 .build();
         }
 
@@ -594,7 +594,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 indexNameMatcher(),
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                MapperMetrics.NOOP
             );
         }
 

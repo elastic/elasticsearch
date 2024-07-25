@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static final InferenceAction INSTANCE = new InferenceAction();
@@ -114,21 +116,17 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.input = List.of(in.readString());
             }
             this.taskSettings = in.readGenericMap();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 this.inputType = in.readEnum(InputType.class);
             } else {
                 this.inputType = InputType.UNSPECIFIED;
             }
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 this.query = in.readOptionalString();
-            } else {
-                this.query = null;
-            }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
+                this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
         }
@@ -165,14 +163,29 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public ActionRequestValidationException validate() {
             if (input == null) {
                 var e = new ActionRequestValidationException();
-                e.addValidationError("missing input");
+                e.addValidationError("Field [input] cannot be null");
                 return e;
             }
+
             if (input.isEmpty()) {
                 var e = new ActionRequestValidationException();
-                e.addValidationError("input array is empty");
+                e.addValidationError("Field [input] cannot be an empty array");
                 return e;
             }
+
+            if (taskType.equals(TaskType.RERANK)) {
+                if (query == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.RERANK));
+                    return e;
+                }
+                if (query.isEmpty()) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be empty for task type [%s]", TaskType.RERANK));
+                    return e;
+                }
+            }
+
             return null;
         }
 
@@ -187,30 +200,26 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeString(input.get(0));
             }
             out.writeGenericMap(taskSettings);
-            // in version ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED the input type enum was added, so we only want to write the enum if we're
-            // at that version or later
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalString(query);
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
                 out.writeTimeValue(inferenceTimeout);
             }
         }
 
         // default for easier testing
         static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
-            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
-                && validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
-                return InputType.INGEST;
-            } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED)
-                && validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
+            if (version.before(TransportVersions.V_8_13_0)) {
+                if (validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
+                    return InputType.INGEST;
+                } else if (validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
                     return InputType.UNSPECIFIED;
                 }
+            }
 
             return inputType;
         }

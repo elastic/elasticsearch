@@ -14,9 +14,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -28,7 +30,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
 
-public class HuggingFaceElserServiceSettings implements ServiceSettings, HuggingFaceRateLimitServiceSettings {
+public class HuggingFaceElserServiceSettings extends FilteredXContentObject
+    implements
+        ServiceSettings,
+        HuggingFaceRateLimitServiceSettings {
 
     public static final String NAME = "hugging_face_elser_service_settings";
     static final String URL = "url";
@@ -37,10 +42,16 @@ public class HuggingFaceElserServiceSettings implements ServiceSettings, Hugging
     // 3000 requests per minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
-    public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map) {
+    public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var uri = extractUri(map, URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            HuggingFaceService.NAME,
+            context
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -56,7 +67,8 @@ public class HuggingFaceElserServiceSettings implements ServiceSettings, Hugging
         rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
     }
 
-    private HuggingFaceElserServiceSettings(URI uri, @Nullable RateLimitSettings rateLimitSettings) {
+    // default for testing
+    HuggingFaceElserServiceSettings(URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         this.uri = Objects.requireNonNull(uri);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
@@ -86,19 +98,26 @@ public class HuggingFaceElserServiceSettings implements ServiceSettings, Hugging
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(URL, uri.toString());
-        builder.field(MAX_INPUT_TOKENS, ELSER_TOKEN_LIMIT);
-        rateLimitSettings.toXContent(builder, params);
+        toXContentFragmentOfExposedFields(builder, params);
         builder.endObject();
 
         return builder;
     }
 
     @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return this;
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        builder.field(URL, uri.toString());
+        builder.field(MAX_INPUT_TOKENS, ELSER_TOKEN_LIMIT);
+        rateLimitSettings.toXContent(builder, params);
+
+        return builder;
     }
 
     @Override

@@ -19,10 +19,10 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Stats;
@@ -252,7 +252,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(numValueBuckets));
 
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
@@ -276,7 +276,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(expectedNumberOfBuckets));
 
                 // first bucket should start at -5, contain 4 documents
-                Histogram.Bucket bucket = histo.getBuckets().get(0);
+                Bucket bucket = histo.getBuckets().get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(((Number) bucket.getKey()).longValue(), equalTo(-5L));
                 assertThat(bucket.getDocCount(), equalTo(4L));
@@ -310,7 +310,7 @@ public class HistogramIT extends ESIntegTestCase {
 
                 long docsCounted = 0;
                 for (int i = 0; i < expectedNumberOfBuckets; ++i) {
-                    Histogram.Bucket bucket = histo.getBuckets().get(i);
+                    Bucket bucket = histo.getBuckets().get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) ((i - 1) * interval + offset)));
                     if (i == 0) {
@@ -340,9 +340,9 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(histo.getName(), equalTo("histo"));
                 assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
@@ -362,9 +362,9 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(histo.getName(), equalTo("histo"));
                 assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(numValueBuckets - i - 1);
+                    Bucket bucket = buckets.get(numValueBuckets - i - 1);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
@@ -385,10 +385,10 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
                 Set<Long> buckets = new HashSet<>();
-                List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
                 long previousCount = Long.MIN_VALUE;
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = histoBuckets.get(i);
+                    Bucket bucket = histoBuckets.get(i);
                     assertThat(bucket, notNullValue());
                     long key = ((Number) bucket.getKey()).longValue();
                     assertEquals(0, key % interval);
@@ -413,10 +413,10 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
                 Set<Long> buckets = new HashSet<>();
-                List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
                 long previousCount = Long.MAX_VALUE;
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = histoBuckets.get(i);
+                    Bucket bucket = histoBuckets.get(i);
                     assertThat(bucket, notNullValue());
                     long key = ((Number) bucket.getKey()).longValue();
                     assertEquals(0, key % interval);
@@ -446,9 +446,9 @@ public class HistogramIT extends ESIntegTestCase {
                 Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) histo).getProperty("_count");
                 Object[] propertiesCounts = (Object[]) ((InternalAggregation) histo).getProperty("sum.value");
 
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
@@ -486,9 +486,9 @@ public class HistogramIT extends ESIntegTestCase {
 
                 Set<Long> visited = new HashSet<>();
                 double previousSum = Double.NEGATIVE_INFINITY;
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     long key = ((Number) bucket.getKey()).longValue();
                     assertTrue(visited.add(key));
@@ -527,9 +527,9 @@ public class HistogramIT extends ESIntegTestCase {
 
                 Set<Long> visited = new HashSet<>();
                 double previousSum = Double.POSITIVE_INFINITY;
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     long key = ((Number) bucket.getKey()).longValue();
                     assertTrue(visited.add(key));
@@ -569,9 +569,9 @@ public class HistogramIT extends ESIntegTestCase {
                 Set<Long> visited = new HashSet<>();
                 double previousSum = Double.POSITIVE_INFINITY;
 
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     long key = ((Number) bucket.getKey()).longValue();
                     assertTrue(visited.add(key));
@@ -611,9 +611,9 @@ public class HistogramIT extends ESIntegTestCase {
 
                 Set<Long> visited = new HashSet<>();
                 double prevMax = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     long key = ((Number) bucket.getKey()).longValue();
                     assertTrue(visited.add(key));
@@ -646,9 +646,9 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(histo.getName(), equalTo("histo"));
                 assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
@@ -705,7 +705,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(numBuckets));
 
                 for (int i = 0; i < numBuckets; i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     int key = ((2 / interval) + i) * interval;
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
@@ -726,7 +726,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(numValuesBuckets));
 
                 for (int i = 0; i < numValuesBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
@@ -746,9 +746,9 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(histo.getName(), equalTo("histo"));
                 assertThat(histo.getBuckets().size(), equalTo(numValuesBuckets));
 
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
                 for (int i = 0; i < numValuesBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(numValuesBuckets - i - 1);
+                    Bucket bucket = buckets.get(numValuesBuckets - i - 1);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
@@ -783,7 +783,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(numBuckets));
 
                 for (int i = 0; i < numBuckets; i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     int key = ((2 / interval) + i) * interval;
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
@@ -807,7 +807,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(numValueBuckets));
 
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
@@ -830,7 +830,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(numValuesBuckets));
 
                 for (int i = 0; i < numValuesBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
@@ -862,7 +862,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(numValueBuckets));
 
                 for (int i = 0; i < numValueBuckets; ++i) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
                     assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
@@ -885,7 +885,7 @@ public class HistogramIT extends ESIntegTestCase {
                 List<? extends Bucket> buckets = histo.getBuckets();
                 assertThat(buckets.size(), equalTo(numValueBuckets + 3));
 
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) -1 * 2 * interval));
                 assertThat(bucket.getDocCount(), equalTo(0L));
@@ -919,7 +919,7 @@ public class HistogramIT extends ESIntegTestCase {
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 List<? extends Bucket> buckets = histo.getBuckets();
-                Histogram.Bucket bucket = buckets.get(1);
+                Bucket bucket = buckets.get(1);
                 assertThat(bucket, Matchers.notNullValue());
 
                 histo = bucket.getAggregations().get("sub_histo");
@@ -984,7 +984,7 @@ public class HistogramIT extends ESIntegTestCase {
 
                     long key = startKey;
                     for (int i = 0; i < bucketsCount; i++) {
-                        Histogram.Bucket bucket = buckets.get(i);
+                        Bucket bucket = buckets.get(i);
                         assertThat(bucket, notNullValue());
                         assertThat(((Number) bucket.getKey()).longValue(), equalTo(key));
                         assertThat(bucket.getDocCount(), equalTo(extendedValueCounts[i]));
@@ -1058,7 +1058,7 @@ public class HistogramIT extends ESIntegTestCase {
 
                     long key = startKey;
                     for (int i = 0; i < bucketsCount; i++) {
-                        Histogram.Bucket bucket = buckets.get(i);
+                        Bucket bucket = buckets.get(i);
                         assertThat(bucket, notNullValue());
                         assertThat(((Number) bucket.getKey()).longValue(), equalTo(key));
                         assertThat(bucket.getDocCount(), equalTo(0L));
@@ -1302,7 +1302,7 @@ public class HistogramIT extends ESIntegTestCase {
                 assertThat(histogram.getBuckets().size(), equalTo(expectedKeys.length));
 
                 int i = 0;
-                for (Histogram.Bucket bucket : histogram.getBuckets()) {
+                for (Bucket bucket : histogram.getBuckets()) {
                     assertThat(bucket, notNullValue());
                     assertThat(key(bucket), equalTo(expectedKeys[i]));
                     assertThat(bucket.getDocCount(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("_count")));
@@ -1318,7 +1318,7 @@ public class HistogramIT extends ESIntegTestCase {
         );
     }
 
-    private long key(Histogram.Bucket bucket) {
+    private long key(Bucket bucket) {
         return ((Number) bucket.getKey()).longValue();
     }
 }

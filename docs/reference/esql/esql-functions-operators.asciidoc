@@ -22,22 +22,30 @@ include::functions/aggregation-functions.asciidoc[tag=agg_list]
 include::functions/grouping-functions.asciidoc[tag=group_list]
 ====
 
-.*Math functions*
+.*Conditional functions and expressions*
 [%collapsible]
 ====
-include::functions/math-functions.asciidoc[tag=math_list]
+include::functions/conditional-functions-and-expressions.asciidoc[tag=cond_list]
 ====
 
-.*String functions*
-[%collapsible]
-====
-include::functions/string-functions.asciidoc[tag=string_list]
-====
+// <Type-specific functions alphabetically ordered>
 
 .*Date and time functions*
 [%collapsible]
 ====
 include::functions/date-time-functions.asciidoc[tag=date_list]
+====
+
+.*IP functions*
+[%collapsible]
+====
+include::functions/ip-functions.asciidoc[tag=ip_list]
+====
+
+.*Math functions*
+[%collapsible]
+====
+include::functions/math-functions.asciidoc[tag=math_list]
 ====
 
 .*Spatial functions*
@@ -46,16 +54,18 @@ include::functions/date-time-functions.asciidoc[tag=date_list]
 include::functions/spatial-functions.asciidoc[tag=spatial_list]
 ====
 
+.*String functions*
+[%collapsible]
+====
+include::functions/string-functions.asciidoc[tag=string_list]
+====
+
+// </Type-specific functions alphabetically ordered>
+
 .*Type conversion functions*
 [%collapsible]
 ====
 include::functions/type-conversion-functions.asciidoc[tag=type_list]
-====
-
-.*Conditional functions and expressions*
-[%collapsible]
-====
-include::functions/conditional-functions-and-expressions.asciidoc[tag=cond_list]
 ====
 
 .*Multi value functions*
@@ -75,11 +85,12 @@ include::functions/operators.asciidoc[tag=op_list]
 
 include::functions/aggregation-functions.asciidoc[]
 include::functions/grouping-functions.asciidoc[]
-include::functions/math-functions.asciidoc[]
-include::functions/string-functions.asciidoc[]
-include::functions/date-time-functions.asciidoc[]
-include::functions/spatial-functions.asciidoc[]
-include::functions/type-conversion-functions.asciidoc[]
 include::functions/conditional-functions-and-expressions.asciidoc[]
+include::functions/date-time-functions.asciidoc[]
+include::functions/ip-functions.asciidoc[]
+include::functions/math-functions.asciidoc[]
+include::functions/spatial-functions.asciidoc[]
+include::functions/string-functions.asciidoc[]
+include::functions/type-conversion-functions.asciidoc[]
 include::functions/mv-functions.asciidoc[]
 include::functions/operators.asciidoc[]

@@ -16,13 +16,13 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsString;
 
 public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
 
     public void testThrowsURISyntaxException_ForInvalidUrl() {
         var thrownException = expectThrows(IllegalArgumentException.class, () -> createModel("^^", "secret"));
-        assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
+        assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
     }
 
     public static HuggingFaceEmbeddingsModel createModel(String url, String apiKey) {

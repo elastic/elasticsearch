@@ -71,7 +71,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -568,11 +568,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             }
         };
         // there's only one netty worker thread that's reused across client requests
-        Settings settings = Settings.builder()
-            .put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
+        Settings settings = createBuilderWithPort().put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
             .put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 0)
             .build();
-        NioEventLoopGroup group = new NioEventLoopGroup();
         AtomicBoolean acceptChannel = new AtomicBoolean();
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
@@ -601,9 +599,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         ) {
             transport.start();
             int nRetries = randomIntBetween(7, 9);
-            for (int i = 0; i < nRetries; i++) {
-                acceptChannel.set(randomBoolean());
-                try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                for (int i = 0; i < nRetries; i++) {
+                    acceptChannel.set(randomBoolean());
                     var responses = client.get(randomFrom(transport.boundAddress().boundAddresses()).address(), "/test/url");
                     try {
                         if (acceptChannel.get()) {
@@ -619,8 +617,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     }
                 }
             }
-        } finally {
-            group.shutdownGracefully().await();
         }
     }
 
@@ -696,7 +692,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 try {
                     channel.sendResponse(
-                        RestResponse.chunked(OK, ChunkedRestResponseBody.fromXContent(ignored -> Iterators.single((builder, params) -> {
+                        RestResponse.chunked(OK, ChunkedRestResponseBodyPart.fromXContent(ignored -> Iterators.single((builder, params) -> {
                             throw new AssertionError("should not be called for HEAD REQUEST");
                         }), ToXContent.EMPTY_PARAMS, channel), null)
                     );
@@ -1052,7 +1048,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertEquals(request.uri(), url);
                 final var response = RestResponse.chunked(
                     OK,
-                    ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+                    ChunkedRestResponseBodyPart.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
                     responseReleasedLatch::countDown
                 );
                 transportClosedFuture.addListener(ActionListener.running(() -> channel.sendResponse(response)));

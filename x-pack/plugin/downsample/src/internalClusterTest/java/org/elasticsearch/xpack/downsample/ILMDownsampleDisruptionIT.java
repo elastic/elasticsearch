@@ -136,7 +136,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             )
         );
         LifecyclePolicy policy = new LifecyclePolicy(POLICY_NAME, phases);
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(policy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
     }
 

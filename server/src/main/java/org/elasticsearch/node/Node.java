@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -396,7 +397,12 @@ public class Node implements Closeable {
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        logger.warn("timed out while waiting for initial discovery state - timeout: {}", initialStateTimeout);
+                        logger.warn(
+                            "timed out after [{}={}] while waiting for initial discovery state; for troubleshooting guidance see [{}]",
+                            INITIAL_STATE_TIMEOUT_SETTING.getKey(),
+                            initialStateTimeout,
+                            ReferenceDocs.DISCOVERY_TROUBLESHOOTING
+                        );
                         latch.countDown();
                     }
                 }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
@@ -404,6 +410,7 @@ public class Node implements Closeable {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
             }

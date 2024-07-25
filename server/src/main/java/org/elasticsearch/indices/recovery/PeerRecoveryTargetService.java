@@ -517,7 +517,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public interface RecoveryListener {
-        void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange);
+        void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        );
 
         void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
     }

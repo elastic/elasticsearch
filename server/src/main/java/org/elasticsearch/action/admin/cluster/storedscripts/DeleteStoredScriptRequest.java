@@ -27,11 +27,11 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
     }
 
     DeleteStoredScriptRequest() {
-        super();
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
     }
 
     public DeleteStoredScriptRequest(String id) {
-        super();
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
 
         this.id = id;
     }

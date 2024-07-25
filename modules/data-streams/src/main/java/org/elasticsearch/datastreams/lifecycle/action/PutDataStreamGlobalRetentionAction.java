@@ -32,9 +32,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,33 +50,8 @@ public class PutDataStreamGlobalRetentionAction {
 
     public static final class Request extends MasterNodeRequest<Request> {
 
-        public static final ConstructingObjectParser<PutDataStreamGlobalRetentionAction.Request, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "put_data_stream_global_retention_request",
-                args -> new PutDataStreamGlobalRetentionAction.Request((TimeValue) args[0], (TimeValue) args[1])
-            );
-
-        static {
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DataStreamGlobalRetention.DEFAULT_RETENTION_FIELD.getPreferredName()),
-                DataStreamGlobalRetention.DEFAULT_RETENTION_FIELD,
-                ObjectParser.ValueType.STRING_OR_NULL
-            );
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DataStreamGlobalRetention.MAX_RETENTION_FIELD.getPreferredName()),
-                DataStreamGlobalRetention.MAX_RETENTION_FIELD,
-                ObjectParser.ValueType.STRING_OR_NULL
-            );
-        }
-
         private final DataStreamGlobalRetention globalRetention;
         private boolean dryRun = false;
-
-        public static PutDataStreamGlobalRetentionAction.Request parseRequest(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -107,7 +79,8 @@ public class PutDataStreamGlobalRetentionAction {
             out.writeBoolean(dryRun);
         }
 
-        public Request(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
+        public Request(TimeValue masterNodeTimeout, @Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
+            super(masterNodeTimeout);
             this.globalRetention = new DataStreamGlobalRetention(defaultRetention, maxRetention);
         }
 

@@ -130,7 +130,6 @@ avg 8.14 or after:
           query: 'FROM test | STATS AVG(data) | LIMIT 1'
           columnar: true
           profile: true
-          version: 2024.04.01
 
   - match: {columns.0.name: "AVG(data)"}
   - match: {columns.0.type: "double"}

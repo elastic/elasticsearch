@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -43,6 +44,17 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * TODO maybe make this everywhere?
      */
     long MAX_LOOKUP = 100_000;
+
+    /**
+     * We do not track memory for pages directly (only for single blocks),
+     * but the page memory overhead can still be significant, especially for pages containing thousands of blocks.
+     * For now, we approximate this overhead, per block, using this value.
+     *
+     * The exact overhead per block would be (more correctly) {@link RamUsageEstimator#NUM_BYTES_OBJECT_REF},
+     * but we approximate it with {@link RamUsageEstimator#NUM_BYTES_OBJECT_ALIGNMENT} to avoid further alignments
+     * to object size (at the end of the alignment, it would make no practical difference).
+     */
+    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -93,11 +105,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     boolean isNull(int position);
 
     /**
-     * @return the number of null values in this block.
-     */
-    int nullValuesCount();
-
-    /**
      * @return true if some values might be null. False, if all values are guaranteed to be not null.
      */
     boolean mayHaveNulls();
@@ -109,9 +116,20 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
 
     /**
      * Can this block have multivalued fields? Blocks that return {@code false}
-     * will never return more than one from {@link #getValueCount}.
+     * will never return more than one from {@link #getValueCount}. This may
+     * return {@code true} for Blocks that do not have multivalued fields, but
+     * it will always answer quickly.
      */
     boolean mayHaveMultivaluedFields();
+
+    /**
+     * Does this block have multivalued fields? Unlike {@link #mayHaveMultivaluedFields}
+     * this will never return a false positive. In other words, if this returns
+     * {@code true} then there <strong>are</strong> positions for which {@link #getValueCount}
+     * will return more than 1. This will answer quickly if it can but may have
+     * to check all positions.
+     */
+    boolean doesHaveMultivaluedFields();
 
     /**
      * Creates a new block that only exposes the positions provided.
@@ -127,19 +145,19 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * same number of {@link #getPositionCount() positions} as the {@code positions}
      * parameter.
      * <p>
-     *     For example, this this block contained {@code [a, b, [b, c]]}
+     *     For example, if this block contained {@code [a, b, [b, c]]}
      *     and were called with the block {@code [0, 1, 1, [1, 2]]} then the
      *     result would be {@code [a, b, b, [b, b, c]]}.
      * </p>
      * <p>
      *     This process produces {@code count(this) * count(positions)} values per
-     *     positions which could be quite quite large. Instead of returning a single
+     *     positions which could be quite large. Instead of returning a single
      *     Block, this returns an Iterator of Blocks containing all of the promised
      *     values.
      * </p>
      * <p>
-     *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
-     *     inside the {@link Page}. Close it to release those references.
+     *     The returned {@link ReleasableIterator} may retain a reference to the
+     *     {@code positions} parameter. Close it to release those references.
      * </p>
      * <p>
      *     This block is built using the same {@link BlockFactory} as was used to
@@ -269,10 +287,12 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         return List.of(
             IntBlock.ENTRY,
             LongBlock.ENTRY,
+            FloatBlock.ENTRY,
             DoubleBlock.ENTRY,
             BytesRefBlock.ENTRY,
             BooleanBlock.ENTRY,
-            ConstantNullBlock.ENTRY
+            ConstantNullBlock.ENTRY,
+            CompositeBlock.ENTRY
         );
     }
 

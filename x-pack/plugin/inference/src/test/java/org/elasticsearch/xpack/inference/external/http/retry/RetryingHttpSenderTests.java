@@ -18,9 +18,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.HttpRequestTests;
@@ -33,6 +35,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.createDefaultRetrySettings;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -455,6 +458,86 @@ public class RetryingHttpSenderTests extends ESTestCase {
         verifyNoMoreInteractions(httpClient);
     }
 
+    public void testSend_DoesNotRetryIndefinitely() throws IOException {
+        var threadPool = new TestThreadPool(getTestName());
+        try {
+
+            var httpClient = mock(HttpClient.class);
+
+            doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+                // respond with a retryable exception
+                listener.onFailure(new ConnectionClosedException("failed"));
+
+                return Void.TYPE;
+            }).when(httpClient).send(any(), any(), any());
+
+            var handler = mock(ResponseHandler.class);
+
+            var retrier = new RetryingHttpSender(
+                httpClient,
+                mock(ThrottlerManager.class),
+                createDefaultRetrySettings(),
+                threadPool,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+
+            var listener = new PlainActionFuture<InferenceServiceResults>();
+            retrier.send(mock(Logger.class), mockRequest(), HttpClientContext.create(), () -> false, handler, listener);
+
+            // Assert that the retrying sender stopped after max retires even though the exception is retryable
+            var thrownException = expectThrows(UncategorizedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getCause(), instanceOf(ConnectionClosedException.class));
+            assertThat(thrownException.getMessage(), is("Failed execution"));
+            assertThat(thrownException.getSuppressed().length, is(0));
+            verify(httpClient, times(RetryingHttpSender.MAX_RETIES)).send(any(), any(), any());
+            verifyNoMoreInteractions(httpClient);
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testSend_DoesNotRetryIndefinitely_WithAlwaysRetryingResponseHandler() throws IOException {
+        var threadPool = new TestThreadPool(getTestName());
+        try {
+
+            var httpClient = mock(HttpClient.class);
+
+            doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+                listener.onFailure(new ConnectionClosedException("failed"));
+
+                return Void.TYPE;
+            }).when(httpClient).send(any(), any(), any());
+
+            // This handler will always tell the sender to retry
+            var handler = createRetryingResponseHandler();
+
+            var retrier = new RetryingHttpSender(
+                httpClient,
+                mock(ThrottlerManager.class),
+                createDefaultRetrySettings(),
+                threadPool,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+
+            var listener = new PlainActionFuture<InferenceServiceResults>();
+            retrier.send(mock(Logger.class), mockRequest(), HttpClientContext.create(), () -> false, handler, listener);
+
+            // Assert that the retrying sender stopped after max retires
+            var thrownException = expectThrows(UncategorizedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getCause(), instanceOf(ConnectionClosedException.class));
+            assertThat(thrownException.getMessage(), is("Failed execution"));
+            assertThat(thrownException.getSuppressed().length, is(0));
+            verify(httpClient, times(RetryingHttpSender.MAX_RETIES)).send(any(), any(), any());
+            verifyNoMoreInteractions(httpClient);
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     private static HttpResponse mockHttpResponse() {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(200);
@@ -498,5 +581,28 @@ public class RetryingHttpSenderTests extends ESTestCase {
             taskQueue.getThreadPool(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+    }
+
+    private ResponseHandler createRetryingResponseHandler() {
+        // Returns a response handler that wants to retry.
+        // Does not need to handle parsing as it should only be used
+        // testing failed requests
+        return new ResponseHandler() {
+            @Override
+            public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
+                throws RetryException {
+                throw new RetryException(true, new IOException("response handler validate failed as designed"));
+            }
+
+            @Override
+            public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
+                throw new RetryException(true, new IOException("response handler parse failed as designed"));
+            }
+
+            @Override
+            public String getRequestType() {
+                return "foo";
+            }
+        };
     }
 }

@@ -4,8 +4,8 @@ usually by the `JvmMonitorService` in the main node logs. Use these logs to
 confirm whether or not the node is experiencing high heap usage with long GC
 pauses. If so, <<high-jvm-memory-pressure,the troubleshooting guide for high
 heap usage>> has some suggestions for further investigation but typically you
-will need to capture a heap dump during a time of high heap usage to fully
-understand the problem.
+will need to capture a heap dump and the <<gc-logging,garbage collector logs>>
+during a time of high heap usage to fully understand the problem.
 
 * VM pauses also affect other processes on the same host. A VM pause also
 typically causes a discontinuity in the system clock, which {es} will report in

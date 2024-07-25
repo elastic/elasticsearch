@@ -71,7 +71,6 @@ import java.util.function.Consumer;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
-import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
@@ -181,10 +180,17 @@ public class ElasticsearchAssertions {
      * @param expectedBlockId the expected block id
      */
     public static void assertBlocked(final RequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
-        var e = ESTestCase.expectThrows(ClusterBlockException.class, builder);
+        assertBlocked(expectedBlockId, ESTestCase.expectThrows(ClusterBlockException.class, builder));
+    }
+
+    /**
+     * Checks that the given exception is a {@link ClusterBlockException}; if the given block ID is not {@code null} then the given
+     * exception must match that ID.
+     */
+    public static void assertBlocked(@Nullable final Integer expectedBlockId, Exception exception) {
+        final var e = ESTestCase.asInstanceOf(ClusterBlockException.class, exception);
         assertThat(e.blocks(), not(empty()));
-        RestStatus status = checkRetryableBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
-        assertThat(e.status(), equalTo(status));
+        assertThat(e.status(), equalTo(checkRetryableBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN));
 
         if (expectedBlockId != null) {
             assertThat(
@@ -685,6 +691,10 @@ public class ElasticsearchAssertions {
 
     public static Matcher<SearchHit> hasScore(final float score) {
         return transformedMatch(SearchHit::getScore, equalTo(score));
+    }
+
+    public static Matcher<SearchHit> hasRank(final int rank) {
+        return transformedMatch(SearchHit::getRank, equalTo(rank));
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

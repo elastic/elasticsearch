@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,7 +48,8 @@ public class DeleteDataStreamLifecycleAction {
             indicesOptions.writeIndicesOptions(out);
         }
 
-        public Request(String[] names) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names) {
+            super(masterNodeTimeout, ackTimeout);
             this.names = names;
         }
 

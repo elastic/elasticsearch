@@ -105,6 +105,7 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -261,6 +262,50 @@ public abstract class ESRestTestCase extends ESTestCase {
             .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> (Map<?, ?>) entry.getValue()));
     }
 
+    /**
+     * Does the cluster being tested support the set of capabilities
+     * for specified path and method.
+     */
+    protected static Optional<Boolean> clusterHasCapability(
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        return clusterHasCapability(adminClient, method, path, parameters, capabilities);
+    }
+
+    /**
+     * Does the cluster on the other side of {@code client} support the set
+     * of capabilities for specified path and method.
+     */
+    protected static Optional<Boolean> clusterHasCapability(
+        RestClient client,
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        Request request = new Request("GET", "_capabilities");
+        request.addParameter("method", method);
+        request.addParameter("path", path);
+        if (parameters.isEmpty() == false) {
+            request.addParameter("parameters", String.join(",", parameters));
+        }
+        if (capabilities.isEmpty() == false) {
+            request.addParameter("capabilities", String.join(",", capabilities));
+        }
+        try {
+            Map<String, Object> response = entityAsMap(client.performRequest(request).getEntity());
+            return Optional.ofNullable((Boolean) response.get("supported"));
+        } catch (ResponseException responseException) {
+            if (responseException.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
+                return Optional.empty(); // we don't know, the capabilities API is unsupported
+            }
+            throw responseException;
+        }
+    }
+
     protected static boolean clusterHasFeature(String featureId) {
         return testFeatureService.clusterHasFeature(featureId);
     }
@@ -350,7 +395,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+    /**
+     * Override to provide additional test-only historical features.
+     *
+     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
+     * must contain only historical features, otherwise an assertion error is thrown.
+     */
+    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
         return List.of();
     }
 
@@ -368,7 +419,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             );
         }
         return new ESRestTestFeatureService(
-            createAdditionalFeatureSpecifications(),
+            additionalTestOnlyHistoricalFeatures(),
             semanticNodeVersions,
             ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
         );
@@ -1746,6 +1797,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return createIndex(client, name, settings, null, null);
     }
 
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping) throws IOException {
+        return createIndex(client, name, settings, mapping, null);
+    }
+
     protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
         return createIndex(name, settings, mapping, null);
     }
@@ -1969,7 +2024,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Request request = newXContentRequest(
             HttpMethod.PUT,
             "/_snapshot/" + repository,
-            new PutRepositoryRequest(repository).type(type).settings(settings)
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repository).type(type).settings(settings)
         );
         request.addParameter("verify", Boolean.toString(verify));
 

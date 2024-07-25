@@ -402,17 +402,18 @@ public final class FollowersChecker {
         }
 
         private void scheduleNextWakeUp() {
-            transportService.getThreadPool().schedule(new Runnable() {
-                @Override
-                public void run() {
-                    handleWakeUp();
-                }
+            transportService.getThreadPool()
+                .scheduleUnlessShuttingDown(followerCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE, new Runnable() {
+                    @Override
+                    public void run() {
+                        handleWakeUp();
+                    }
 
-                @Override
-                public String toString() {
-                    return FollowerChecker.this + "::handleWakeUp";
-                }
-            }, followerCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                    @Override
+                    public String toString() {
+                        return FollowerChecker.this + "::handleWakeUp";
+                    }
+                });
         }
 
         @Override

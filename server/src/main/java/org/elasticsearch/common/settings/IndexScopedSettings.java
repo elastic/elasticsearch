@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreDefinition;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -158,6 +159,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
+        MapperService.INDEX_MAPPER_DYNAMIC_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
@@ -178,6 +180,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
         IndexSettings.PREFER_ILM_SETTING,
+        DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

@@ -1,0 +1,6 @@
+pr: 108019
+summary: Ignore additional cpu.stat fields
+area: Infra/Core
+type: bug
+issues:
+  - 107983

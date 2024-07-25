@@ -29,6 +29,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
@@ -43,38 +44,36 @@ import static org.hamcrest.Matchers.not;
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
+    private static final String AZURE_ACCOUNT = System.getProperty("test.azure.account");
+
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE,
-        System.getProperty("test.azure.account"),
-        System.getProperty("test.azure.container")
+        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
+        AZURE_ACCOUNT,
+        System.getProperty("test.azure.container"),
+        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT)
     );
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testCreateSnapshot() {
         super.testCreateSnapshot();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testIndexLatest() throws Exception {
         super.testIndexLatest();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testListChildren() {
         super.testListChildren();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testCleanup() throws Exception {
         super.testCleanup();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testReadFromPositionWithLength() {
         super.testReadFromPositionWithLength();
@@ -118,7 +117,11 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(repoName)
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            repoName
+        )
             .setType("azure")
             .setSettings(
                 Settings.builder()
@@ -162,7 +165,6 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         future.actionGet();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     public void testMultiBlockUpload() throws Exception {
         final BlobStoreRepository repo = getRepository();
         // The configured threshold for this test suite is 1mb
@@ -180,5 +182,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             blobContainer.delete(randomPurpose());
         }));
         future.get();
+    }
+
+    public void testReadFromPositionLargerThanBlobLength() {
+        testReadFromPositionLargerThanBlobLength(
+            e -> asInstanceOf(BlobStorageException.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED
+                .getStatus()
+        );
     }
 }

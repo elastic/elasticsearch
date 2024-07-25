@@ -73,8 +73,8 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.auditor = transformServices.getAuditor();
+        this.transformConfigManager = transformServices.configManager();
+        this.auditor = transformServices.auditor();
         this.client = client;
     }
 

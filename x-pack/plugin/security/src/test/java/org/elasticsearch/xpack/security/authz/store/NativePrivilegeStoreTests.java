@@ -792,11 +792,15 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             true,
             true,
             true,
+            true,
+            null,
+            null,
             null,
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 

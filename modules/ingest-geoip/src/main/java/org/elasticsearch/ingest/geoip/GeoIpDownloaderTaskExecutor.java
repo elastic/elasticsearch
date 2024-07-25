@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -104,7 +105,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
-        persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+        this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
     }
@@ -154,7 +155,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, GeoIpTaskParams params, PersistentTaskState state) {
         GeoIpDownloader downloader = (GeoIpDownloader) task;
-        GeoIpTaskState geoIpTaskState = state == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
+        GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         currentTask.set(downloader);
         if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
@@ -216,7 +217,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
 
         boolean hasIndicesChanges = event.previousState().metadata().indices().equals(event.state().metadata().indices()) == false;
-        boolean hasIngestPipelineChanges = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE);
+        boolean hasIngestPipelineChanges = event.metadataChanged() && event.changedCustomMetadataSet().contains(IngestMetadata.TYPE);
 
         if (hasIngestPipelineChanges || hasIndicesChanges) {
             boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
@@ -341,12 +342,15 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             );
     }
 
+    @UpdateForV9 // use MINUS_ONE once that means no timeout
+    private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
+
     private void startTask(Runnable onFailure) {
         persistentTasksService.sendStartRequest(
             GEOIP_DOWNLOADER,
             GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
-            null,
+            MASTER_TIMEOUT,
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
@@ -368,7 +372,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, null, ActionListener.runAfter(listener, () -> {
+        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, MASTER_TIMEOUT, ActionListener.runAfter(listener, () -> {
             IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
             if (databasesAbstraction != null) {
                 // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index

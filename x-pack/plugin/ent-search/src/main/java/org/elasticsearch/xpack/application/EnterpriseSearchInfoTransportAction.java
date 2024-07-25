@@ -43,7 +43,7 @@ public class EnterpriseSearchInfoTransportAction extends XPackInfoFeatureTranspo
 
     @Override
     public boolean available() {
-        return LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState);
+        return LicenseUtils.PLATINUM_LICENSED_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

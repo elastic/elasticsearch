@@ -19,7 +19,7 @@ public class InternalExecutePolicyActionRequestTests extends AbstractWireSeriali
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLength(3), randomAlphaOfLength(5));
+        Request request = new Request(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(3), randomAlphaOfLength(5));
         if (randomBoolean()) {
             request.setWaitForCompletion(true);
         }
@@ -39,7 +39,7 @@ public class InternalExecutePolicyActionRequestTests extends AbstractWireSeriali
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        Request request = new Request(policyName, enrichIndexName);
+        Request request = new Request(TEST_REQUEST_TIMEOUT, policyName, enrichIndexName);
         request.setWaitForCompletion(waitForCompletion);
         return request;
     }

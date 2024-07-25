@@ -45,6 +45,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -72,6 +74,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -343,8 +346,8 @@ public class InternalEngine extends Engine {
         final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             store.readLastCommittedSegmentsInfo().userData.entrySet()
         );
-        maxSeqNo = seqNoStats.maxSeqNo;
-        localCheckpoint = seqNoStats.localCheckpoint;
+        maxSeqNo = seqNoStats.maxSeqNo();
+        localCheckpoint = seqNoStats.localCheckpoint();
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
     }
@@ -664,8 +667,8 @@ public class InternalEngine extends Engine {
     }
 
     // Package private for testing purposes only
-    boolean hasSnapshottedCommits() {
-        return combinedDeletionPolicy.hasSnapshottedCommits();
+    boolean hasAcquiredIndexCommits() {
+        return combinedDeletionPolicy.hasAcquiredIndexCommits();
     }
 
     @Override
@@ -838,7 +841,6 @@ public class InternalEngine extends Engine {
         DocumentParser documentParser,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     ) {
-        assert assertGetUsesIdField(get);
         try (var ignored = acquireEnsureOpenRef()) {
             if (get.realtime()) {
                 var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, true);
@@ -858,7 +860,6 @@ public class InternalEngine extends Engine {
         DocumentParser documentParser,
         Function<Searcher, Searcher> searcherWrapper
     ) {
-        assert assertGetUsesIdField(get);
         try (var ignored = acquireEnsureOpenRef()) {
             return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, false);
         }
@@ -878,9 +879,9 @@ public class InternalEngine extends Engine {
         assert isDrainedForClose() == false;
         assert get.realtime();
         final VersionValue versionValue;
-        try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
+        try (Releasable ignore = versionMap.acquireLock(get.uid())) {
             // we need to lock here to access the version map to do this truly in RT
-            versionValue = getVersionFromMap(get.uid().bytes());
+            versionValue = getVersionFromMap(get.uid());
         }
         try {
             boolean getFromSearcherIfNotInTranslog = getFromSearcher;
@@ -982,7 +983,7 @@ public class InternalEngine extends Engine {
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final OpVsLuceneDocStatus status;
-        VersionValue versionValue = getVersionFromMap(op.uid().bytes());
+        VersionValue versionValue = getVersionFromMap(op.uid());
         assert incrementVersionLookup();
         if (versionValue != null) {
             status = compareOpToVersionMapOnSeqNo(op.id(), op.seqNo(), op.primaryTerm(), versionValue);
@@ -1010,7 +1011,7 @@ public class InternalEngine extends Engine {
     /** resolves the current version of the document, returning null if not found */
     private VersionValue resolveDocVersion(final Operation op, boolean loadSeqNo) throws IOException {
         assert incrementVersionLookup(); // used for asserting in tests
-        VersionValue versionValue = getVersionFromMap(op.uid().bytes());
+        VersionValue versionValue = getVersionFromMap(op.uid());
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
@@ -1139,13 +1140,12 @@ public class InternalEngine extends Engine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
-        assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         final boolean doThrottle = index.origin().isRecovery() == false;
         try (var ignored1 = acquireEnsureOpenRef()) {
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             int reservedDocs = 0;
             try (
-                Releasable ignored = versionMap.acquireLock(index.uid().bytes());
+                Releasable ignored = versionMap.acquireLock(index.uid());
                 Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}
             ) {
                 lastWriteNanos = index.startTime();
@@ -1245,7 +1245,7 @@ public class InternalEngine extends Engine {
                 if (plan.indexIntoLucene && indexResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
                     versionMap.maybePutIndexUnderLock(
-                        index.uid().bytes(),
+                        index.uid(),
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
                     );
                 }
@@ -1470,11 +1470,7 @@ public class InternalEngine extends Engine {
     }
 
     private void addDocs(final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
-        if (docs.size() > 1) {
-            indexWriter.addDocuments(docs);
-        } else {
-            indexWriter.addDocument(docs.get(0));
-        }
+        indexWriter.addDocuments(docs);
         numDocAppends.inc(docs.size());
     }
 
@@ -1573,7 +1569,7 @@ public class InternalEngine extends Engine {
     private boolean assertDocDoesNotExist(final Index index, final boolean allowDeleted) throws IOException {
         // NOTE this uses direct access to the version map since we are in the assertion code where we maintain a secondary
         // map in the version map such that we don't need to refresh if we are unsafe;
-        final VersionValue versionValue = versionMap.getVersionForAssert(index.uid().bytes());
+        final VersionValue versionValue = versionMap.getVersionForAssert(index.uid());
         if (versionValue != null) {
             if (versionValue.isDelete() == false || allowDeleted == false) {
                 throw new AssertionError("doc [" + index.id() + "] exists in version map (version " + versionValue + ")");
@@ -1581,7 +1577,7 @@ public class InternalEngine extends Engine {
         } else {
             try (Searcher searcher = acquireSearcher("assert doc doesn't exist", SearcherScope.INTERNAL)) {
                 searcher.setQueryCache(null); // so that it does not interfere with tests that check caching behavior
-                final long docsWithId = searcher.count(new TermQuery(index.uid()));
+                final long docsWithId = searcher.count(new TermQuery(new Term(IdFieldMapper.NAME, index.uid())));
                 if (docsWithId > 0) {
                     throw new AssertionError("doc [" + index.id() + "] exists [" + docsWithId + "] times in index");
                 }
@@ -1590,11 +1586,12 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private void updateDocs(final Term uid, final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
+    private void updateDocs(final BytesRef uid, final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
+        final Term uidTerm = new Term(IdFieldMapper.NAME, uid);
         if (docs.size() > 1) {
-            indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
+            indexWriter.softUpdateDocuments(uidTerm, docs, softDeletesField);
         } else {
-            indexWriter.softUpdateDocument(uid, docs.get(0), softDeletesField);
+            indexWriter.softUpdateDocument(uidTerm, docs.get(0), softDeletesField);
         }
         numDocUpdates.inc(docs.size());
     }
@@ -1602,12 +1599,11 @@ public class InternalEngine extends Engine {
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
         versionMap.enforceSafeAccess();
-        assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
         final DeleteResult deleteResult;
         int reservedDocs = 0;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
+        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(delete.uid())) {
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
             reservedDocs = plan.reservedDocs;
@@ -1651,7 +1647,7 @@ public class InternalEngine extends Engine {
                 if (plan.deleteFromLucene) {
                     numDocDeletes.inc();
                     versionMap.putDeleteUnderLock(
-                        delete.uid().bytes(),
+                        delete.uid(),
                         new DeleteVersionValue(
                             plan.versionOfDeletion,
                             delete.seqNo(),
@@ -1694,7 +1690,13 @@ public class InternalEngine extends Engine {
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
-            return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "]");
+            return new IllegalArgumentException(
+                Strings.format(
+                    "Number of documents in the shard cannot exceed [%d]; for more information, see [%s]",
+                    maxDocs,
+                    ReferenceDocs.LUCENE_MAX_DOCS_LIMIT
+                )
+            );
         } else {
             return null;
         }
@@ -1816,7 +1818,7 @@ public class InternalEngine extends Engine {
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                 indexWriter.addDocument(doc);
             } else {
-                indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
+                indexWriter.softUpdateDocument(new Term(IdFieldMapper.NAME, delete.uid()), doc, softDeletesField);
             }
             return new DeleteResult(
                 plan.versionOfDeletion,
@@ -2149,9 +2151,8 @@ public class InternalEngine extends Engine {
         final long localCheckpointOfLastCommit = Long.parseLong(
             lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
-        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointOfLastCommit + 1
-        ).translogFileGeneration;
+        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(localCheckpointOfLastCommit + 1)
+            .translogFileGeneration();
         if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThresholdSizeInBytes
             && relativeTimeInNanosSupplier.getAsLong() - lastFlushTimestamp < flushThresholdAgeInNanos) {
             return false;
@@ -2171,9 +2172,8 @@ public class InternalEngine extends Engine {
          *
          * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
          */
-        final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointTracker.getProcessedCheckpoint() + 1
-        ).translogFileGeneration;
+        final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(localCheckpointTracker.getProcessedCheckpoint() + 1)
+            .translogFileGeneration();
         return translogGenerationOfLastCommit < translogGenerationOfNewCommit
             || localCheckpointTracker.getProcessedCheckpoint() == localCheckpointTracker.getMaxSeqNo();
     }
@@ -2230,6 +2230,14 @@ public class InternalEngine extends Engine {
                     // we need to refresh in order to clear older version values
                     refresh("version_table_flush", SearcherScope.INTERNAL, true);
                     translog.trimUnreferencedReaders();
+                    // Update the translog location for flushListener if (1) the writeLocation has changed during the flush and
+                    // (2) indexWriter has committed all the changes (checks must be done in this order).
+                    // If the indexWriter has uncommitted changes, they will be flushed by the next flush as intended.
+                    final Translog.Location writeLocationAfterFlush = translog.getLastWriteLocation();
+                    if (writeLocationAfterFlush.equals(commitLocation) == false && hasUncommittedChanges() == false) {
+                        assert writeLocationAfterFlush.compareTo(commitLocation) > 0 : writeLocationAfterFlush + " <= " + commitLocation;
+                        commitLocation = writeLocationAfterFlush;
+                    }
                     // Use the timestamp from when the flush started, but only update it in case of success, so that any exception in
                     // the above lines would not lead the engine to think that it recently flushed, when it did not.
                     this.lastFlushTimestamp = lastFlushTimestamp;
@@ -2668,8 +2676,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    // pkg-private for testing
-    IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+    // protected for testing
+    protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
         if (Assertions.ENABLED) {
             return new AssertingIndexWriter(directory, iwc);
         } else {
@@ -2727,6 +2735,10 @@ public class InternalEngine extends Engine {
         }
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+            if (config().getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+                // Needed to support index sorting in the presence of nested objects.
+                iwc.setParentField(ROOT_DOC_FIELD_NAME);
+            }
         }
         // Provide a custom leaf sorter, so that index readers opened from this writer
         // will have its leaves sorted according the given leaf sorter.
@@ -3015,7 +3027,7 @@ public class InternalEngine extends Engine {
             if (op.operationType() == Operation.TYPE.NO_OP) {
                 assert noOpKeyedLock.isHeldByCurrentThread(op.seqNo());
             } else {
-                assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
+                assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid());
             }
         }
         return localCheckpointTracker.hasProcessed(op.seqNo());
@@ -3270,11 +3282,11 @@ public class InternalEngine extends Engine {
         this.maxSeqNoOfUpdatesOrDeletes.accumulateAndGet(maxSeqNoOfUpdatesOnPrimary, Math::max);
     }
 
-    private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
+    private boolean assertMaxSeqNoOfUpdatesIsAdvanced(BytesRef id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
         final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
         // We treat a delete on the tombstones on replicas as a regular document, then use updateDocument (not addDocument).
         if (allowDeleted) {
-            final VersionValue versionValue = versionMap.getVersionForAssert(id.bytes());
+            final VersionValue versionValue = versionMap.getVersionForAssert(id);
             if (versionValue != null && versionValue.isDelete()) {
                 return true;
             }
@@ -3324,7 +3336,7 @@ public class InternalEngine extends Engine {
                     assert dv.isTombstone(docId);
                     continue;
                 }
-                final BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id)).bytes();
+                final BytesRef uid = Uid.encodeId(id);
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
@@ -3393,11 +3405,6 @@ public class InternalEngine extends Engine {
     // Visible for testing purposes only
     public LiveVersionMap getLiveVersionMap() {
         return versionMap;
-    }
-
-    private static boolean assertGetUsesIdField(Get get) {
-        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
-        return true;
     }
 
     protected long getPreCommitSegmentGeneration() {

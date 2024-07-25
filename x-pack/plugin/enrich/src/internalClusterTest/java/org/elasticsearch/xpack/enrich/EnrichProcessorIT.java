@@ -49,7 +49,7 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
 
     public void testEnrichCacheValuesCannotBeCorrupted() {
         // Ensure enrich cache is empty
-        var statsRequest = new EnrichStatsAction.Request();
+        var statsRequest = new EnrichStatsAction.Request(TEST_REQUEST_TIMEOUT);
         var statsResponse = client().execute(EnrichStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(statsResponse.getCacheStats().size(), equalTo(1));
         assertThat(statsResponse.getCacheStats().get(0).count(), equalTo(0L));
@@ -85,9 +85,9 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         client().index(indexRequest).actionGet();
 
         // Store policy and execute it:
-        var putPolicyRequest = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+        var putPolicyRequest = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet();
-        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(policyName);
+        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName);
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, executePolicyRequest).actionGet();
 
         var simulatePipelineRequest = new SimulatePipelineRequest(new BytesArray("""

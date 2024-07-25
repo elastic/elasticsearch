@@ -47,12 +47,12 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
         try (var parser = request.contentParser()) {
             final Map<String, Object> source = parser.map();
             final CloneSnapshotRequest cloneSnapshotRequest = new CloneSnapshotRequest(
+                getMasterNodeTimeout(request),
                 request.param("repository"),
                 request.param("snapshot"),
                 request.param("target_snapshot"),
                 XContentMapValues.nodeStringArrayValue(source.getOrDefault("indices", Collections.emptyList()))
             );
-            cloneSnapshotRequest.masterNodeTimeout(getMasterNodeTimeout(request));
             cloneSnapshotRequest.indicesOptions(IndicesOptions.fromMap(source, cloneSnapshotRequest.indicesOptions()));
             return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
         }

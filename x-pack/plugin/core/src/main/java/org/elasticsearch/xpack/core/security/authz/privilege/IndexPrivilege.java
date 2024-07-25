@@ -86,6 +86,7 @@ public final class IndexPrivilege extends Privilege {
         TransportClusterSearchShardsAction.TYPE.name(),
         TransportSearchShardsAction.TYPE.name(),
         TransportResolveClusterAction.NAME,
+        "indices:data/read/esql/resolve_fields",
         "indices:data/read/esql",
         "indices:data/read/esql/compute"
     );
@@ -208,6 +209,10 @@ public final class IndexPrivilege extends Privilege {
         CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
     );
 
+    /**
+     * If you are adding a new named index privilege, also add it to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-indices">docs</a>.
+     */
     @SuppressWarnings("unchecked")
     private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
         Stream.of(

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -35,9 +36,7 @@ public class RestExecuteSnapshotRetentionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        ExecuteSnapshotRetentionAction.Request req = new ExecuteSnapshotRetentionAction.Request();
-        req.ackTimeout(request.paramAsTime("timeout", req.ackTimeout()));
-        req.masterNodeTimeout(getMasterNodeTimeout(request));
+        final var req = new ExecuteSnapshotRetentionAction.Request(getMasterNodeTimeout(request), getAckTimeout(request));
         return channel -> client.execute(ExecuteSnapshotRetentionAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

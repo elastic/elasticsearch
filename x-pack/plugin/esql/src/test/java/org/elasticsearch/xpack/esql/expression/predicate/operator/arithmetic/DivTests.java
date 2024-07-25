@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -24,7 +24,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-public class DivTests extends AbstractFunctionTestCase {
+import static org.hamcrest.Matchers.equalTo;
+
+public class DivTests extends AbstractScalarFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -58,7 +60,7 @@ public class DivTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (lhs, rhs) -> {
-                    if (lhs.type() != DataTypes.DOUBLE || rhs.type() != DataTypes.DOUBLE) {
+                    if (lhs.type() != DataType.DOUBLE || rhs.type() != DataType.DOUBLE) {
                         return List.of();
                     }
                     double v = ((Double) lhs.getValue()) / ((Double) rhs.getValue());
@@ -79,7 +81,7 @@ public class DivTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> (((BigInteger) l).divide((BigInteger) r)),
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE), true),
                 List.of(),
@@ -110,22 +112,24 @@ public class DivTests extends AbstractFunctionTestCase {
                 "DivDoublesEvaluator"
             )
         );
-        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
+        List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
 
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = TestCaseSupplier.widen(lhsType, rhsType);
                 TestCaseSupplier.NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
-                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
-                    + "["
-                    + "lhs"
-                    + "="
-                    + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
-                    + ", "
-                    + "rhs"
-                    + "="
-                    + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
-                    + "]";
+                BiFunction<DataType, DataType, Matcher<String>> evaluatorToString = (lhs, rhs) -> equalTo(
+                    expectedTypeStuff.evaluatorName()
+                        + "["
+                        + "lhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                        + ", "
+                        + "rhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                        + "]"
+                );
                 TestCaseSupplier.casesCrossProduct(
                     (l1, r1) -> expectedTypeStuff.expected().apply((Number) l1, (Number) r1),
                     TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
@@ -148,7 +152,7 @@ public class DivTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> null,
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.ZERO, true),
                 List.of(
@@ -164,7 +168,7 @@ public class DivTests extends AbstractFunctionTestCase {
 
     private static String divErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "numeric");
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[/] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";

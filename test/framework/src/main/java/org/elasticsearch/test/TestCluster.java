@@ -218,22 +218,25 @@ public abstract class TestCluster {
                 for (String repository : repositories) {
                     ActionListener.run(
                         listeners.acquire(),
-                        l -> client().admin().cluster().prepareDeleteRepository(repository).execute(new ActionListener<>() {
-                            @Override
-                            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                                l.onResponse(null);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (e instanceof RepositoryMissingException) {
-                                    // ignore
+                        l -> client().admin()
+                            .cluster()
+                            .prepareDeleteRepository(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT, repository)
+                            .execute(new ActionListener<>() {
+                                @Override
+                                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                                     l.onResponse(null);
-                                } else {
-                                    l.onFailure(e);
                                 }
-                            }
-                        })
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    if (e instanceof RepositoryMissingException) {
+                                        // ignore
+                                        l.onResponse(null);
+                                    } else {
+                                        l.onFailure(e);
+                                    }
+                                }
+                            })
                     );
                 }
             }

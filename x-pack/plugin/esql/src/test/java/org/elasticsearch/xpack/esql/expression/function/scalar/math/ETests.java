@@ -12,11 +12,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ETests extends AbstractFunctionTestCase {
+public class ETests extends AbstractScalarFunctionTestCase {
     public ETests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -33,9 +33,9 @@ public class ETests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", () -> {
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
+                List.of(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "foo")),
                 "LiteralsEvaluator[lit=2.718281828459045]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(Math.E)
             );
         })));

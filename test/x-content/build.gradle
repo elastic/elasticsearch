@@ -18,7 +18,8 @@ dependencies {
   implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "org.apache.commons:commons-compress:1.24.0"
+  implementation "org.apache.commons:commons-compress:1.26.1"
+  implementation "commons-io:commons-io:2.15.1"
   implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 

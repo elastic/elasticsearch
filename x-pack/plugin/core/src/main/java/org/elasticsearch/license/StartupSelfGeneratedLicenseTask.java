@@ -8,11 +8,11 @@ package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
@@ -29,7 +29,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     /**
      * Max number of nodes licensed by generated trial license
      */
-    private int selfGeneratedLicenseMaxNodes = 1000;
+    private static final int selfGeneratedLicenseMaxNodes = 1000;
 
     private final Settings settings;
     private final Clock clock;
@@ -100,7 +100,12 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(@Nullable Exception e) {
-        logger.error((Supplier<?>) () -> "unexpected failure during [" + TASK_SOURCE + "]", e);
+        var state = clusterService.lifecycleState();
+        if (state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED) {
+            logger.debug("node shutdown during [" + TASK_SOURCE + "]", e);
+        } else {
+            logger.error("unexpected failure during [" + TASK_SOURCE + "]", e);
+        }
     }
 
     private ClusterState extendBasic(ClusterState currentState, LicensesMetadata currentLicenseMetadata) {

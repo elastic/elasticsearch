@@ -12,14 +12,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -28,7 +26,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IsNullTests extends AbstractFunctionTestCase {
+public class IsNullTests extends AbstractScalarFunctionTestCase {
     public IsNullTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -36,11 +34,11 @@ public class IsNullTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : EsqlDataTypes.types()) {
-            if (false == EsqlDataTypes.isRepresentable(type)) {
+        for (DataType type : DataType.types()) {
+            if (false == DataType.isRepresentable(type)) {
                 continue;
             }
-            if (type != DataTypes.NULL) {
+            if (type != DataType.NULL) {
                 suppliers.add(
                     new TestCaseSupplier(
                         "non-null " + type.typeName(),
@@ -48,7 +46,7 @@ public class IsNullTests extends AbstractFunctionTestCase {
                         () -> new TestCaseSupplier.TestCase(
                             List.of(new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, "v")),
                             "IsNullEvaluator[field=Attribute[channel=0]]",
-                            DataTypes.BOOLEAN,
+                            DataType.BOOLEAN,
                             equalTo(false)
                         )
                     )
@@ -61,7 +59,7 @@ public class IsNullTests extends AbstractFunctionTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(new TestCaseSupplier.TypedData(null, type, "v")),
                         "IsNullEvaluator[field=Attribute[channel=0]]",
-                        DataTypes.BOOLEAN,
+                        DataType.BOOLEAN,
                         equalTo(true)
                     )
                 )

@@ -41,6 +41,12 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     @Override
     BytesRefVector asVector();
 
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
+
     @Override
     BytesRefBlock filter(int... positions);
 
@@ -101,10 +107,10 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof BytesRefArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BytesRefArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
             out.writeByte(SERIALIZE_BLOCK_ORDINAL);
             b.writeOrdinalBlock(out);
         } else {

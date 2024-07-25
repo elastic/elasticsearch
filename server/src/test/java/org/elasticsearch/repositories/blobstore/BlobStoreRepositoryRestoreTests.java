@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -171,8 +170,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
             final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
-            PlainActionFuture.<RepositoryData, Exception>get(
-                f -> repository.finalizeSnapshot(
+            final RepositoryData ignoredRepositoryData = safeAwait(
+                listener -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
                         shardGenerations,
                         RepositoryData.EMPTY_REPO_GEN,
@@ -192,7 +191,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         IndexVersion.current(),
-                        f,
+                        listener,
                         info -> {}
                     )
                 )

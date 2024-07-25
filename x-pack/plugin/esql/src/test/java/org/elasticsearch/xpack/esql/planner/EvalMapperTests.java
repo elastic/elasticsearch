@@ -18,6 +18,16 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
@@ -40,18 +50,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
@@ -59,12 +57,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class EvalMapperTests extends ESTestCase {
-    private static final FieldAttribute DOUBLE1 = field("foo", DataTypes.DOUBLE);
-    private static final FieldAttribute DOUBLE2 = field("bar", DataTypes.DOUBLE);
-    private static final FieldAttribute LONG = field("long", DataTypes.LONG);
-    private static final FieldAttribute DATE = field("date", DataTypes.DATETIME);
+    private static final FieldAttribute DOUBLE1 = field("foo", DataType.DOUBLE);
+    private static final FieldAttribute DOUBLE2 = field("bar", DataType.DOUBLE);
+    private static final FieldAttribute LONG = field("long", DataType.LONG);
+    private static final FieldAttribute DATE = field("date", DataType.DATETIME);
 
     private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(
         ZoneOffset.UTC,
@@ -75,14 +74,15 @@ public class EvalMapperTests extends ESTestCase {
         10000000,
         10000,
         StringUtils.EMPTY,
-        false
+        false,
+        Map.of()
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static List<Object[]> params() {
-        Literal literal = new Literal(Source.EMPTY, new BytesRef("something"), DataTypes.KEYWORD);
-        Literal datePattern = new Literal(Source.EMPTY, new BytesRef("yyyy"), DataTypes.KEYWORD);
-        Literal dateInterval = new Literal(Source.EMPTY, Duration.ofHours(1), EsqlDataTypes.TIME_DURATION);
+        Literal literal = new Literal(Source.EMPTY, new BytesRef("something"), DataType.KEYWORD);
+        Literal datePattern = new Literal(Source.EMPTY, new BytesRef("yyyy"), DataType.KEYWORD);
+        Literal dateInterval = new Literal(Source.EMPTY, Duration.ofHours(1), DataType.TIME_DURATION);
 
         List<Object[]> params = new ArrayList<>();
         for (Expression e : new Expression[] {

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +51,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE),
             "test"
         );
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         ensureGreen();
         assertAllShardsOnNodes("test", firstNode);
         assertAllShardsOnNodes("test_1", firstNode);
@@ -65,7 +66,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
             "test"
         );
         logger.info("--> balance index [test]");
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         ensureGreen("test");
         Set<String> test = assertAllShardsOnNodes("test", firstNode, secondNode);
         assertThat("index: [test] expected to be rebalanced on both nodes", test.size(), equalTo(2));
@@ -80,7 +81,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
                 )
         );
         logger.info("--> balance index [test_1]");
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         ensureGreen("test_1");
         Set<String> test_1 = assertAllShardsOnNodes("test_1", firstNode, secondNode);
         assertThat("index: [test_1] expected to be rebalanced on both nodes", test_1.size(), equalTo(2));

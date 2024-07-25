@@ -94,7 +94,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null
                 || parentDataStream.isIndexManagedByDataStreamLifecycle(idxMetadata.getIndex(), metadata::index) == false) {
-                explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, null, null, null, null, null));
+                explainIndices.add(new ExplainIndexDataStreamLifecycle(index, false, false, null, null, null, null, null));
                 continue;
             }
 
@@ -103,6 +103,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
                 index,
                 true,
+                parentDataStream.isSystem(),
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,

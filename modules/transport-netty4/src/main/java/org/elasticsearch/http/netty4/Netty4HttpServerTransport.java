@@ -38,6 +38,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -94,6 +95,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
     private final HttpValidator httpValidator;
+    private final ThreadWatchdog threadWatchdog;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -130,6 +132,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.tlsConfig = tlsConfig;
         this.acceptChannelPredicate = acceptChannelPredicate;
         this.httpValidator = httpValidator;
+        this.threadWatchdog = networkService.getThreadWatchdog();
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
@@ -381,7 +384,15 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
             }
-            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport));
+            ch.pipeline()
+                .addLast(
+                    "pipelining",
+                    new Netty4HttpPipeliningHandler(
+                        transport.pipeliningMaxEvents,
+                        transport,
+                        transport.threadWatchdog.getActivityTrackerForCurrentThread()
+                    )
+                );
             transport.serverAcceptedChannel(nettyHttpChannel);
         }
 

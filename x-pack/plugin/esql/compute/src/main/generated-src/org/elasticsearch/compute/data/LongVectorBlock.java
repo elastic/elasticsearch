@@ -52,9 +52,8 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
-    public ReleasableIterator<LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-        // TODO optimizations
-        return new LongLookup(this, positions, targetBlockSize);
+    public ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
     }
 
     @Override

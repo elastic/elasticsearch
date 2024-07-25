@@ -222,7 +222,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            MapperMetrics.NOOP
         );
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";

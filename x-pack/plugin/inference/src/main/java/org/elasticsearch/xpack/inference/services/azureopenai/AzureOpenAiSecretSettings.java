@@ -25,11 +25,15 @@ import java.util.Objects;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 
-public record AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable SecureString entraId) implements SecretSettings {
+public class AzureOpenAiSecretSettings implements SecretSettings {
 
     public static final String NAME = "azure_openai_secret_settings";
     public static final String API_KEY = "api_key";
     public static final String ENTRA_ID = "entra_id";
+
+    private final SecureString entraId;
+
+    private final SecureString apiKey;
 
     public static AzureOpenAiSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
@@ -59,12 +63,22 @@ public record AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable
         return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId);
     }
 
-    public AzureOpenAiSecretSettings {
+    public AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable SecureString entraId) {
         Objects.requireNonNullElse(apiKey, entraId);
+        this.apiKey = apiKey;
+        this.entraId = entraId;
     }
 
     public AzureOpenAiSecretSettings(StreamInput in) throws IOException {
         this(in.readOptionalSecureString(), in.readOptionalSecureString());
+    }
+
+    public SecureString apiKey() {
+        return apiKey;
+    }
+
+    public SecureString entraId() {
+        return entraId;
     }
 
     @Override
@@ -90,12 +104,25 @@ public record AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalSecureString(apiKey);
         out.writeOptionalSecureString(entraId);
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) return true;
+        if (object == null || getClass() != object.getClass()) return false;
+        AzureOpenAiSecretSettings that = (AzureOpenAiSecretSettings) object;
+        return Objects.equals(entraId, that.entraId) && Objects.equals(apiKey, that.apiKey);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(entraId, apiKey);
     }
 }

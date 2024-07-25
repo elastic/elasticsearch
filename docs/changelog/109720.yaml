@@ -1,0 +1,5 @@
+pr: 109720
+summary: "DocsStats: Add human readable bytesize"
+area: Stats
+type: enhancement
+issues: []

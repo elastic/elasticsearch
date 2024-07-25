@@ -25,6 +25,8 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
      */
     private int nextIndex;
 
+    private boolean closed;
+
     BooleanVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes);
@@ -35,6 +37,12 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     @Override
     public BooleanVectorFixedBuilder appendBoolean(boolean value) {
         values[nextIndex++] = value;
+        return this;
+    }
+
+    @Override
+    public BooleanVectorFixedBuilder appendBoolean(int idx, boolean value) {
+        values[idx] = value;
         return this;
     }
 
@@ -53,13 +61,10 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
 
     @Override
     public BooleanVector build() {
-        if (nextIndex < 0) {
+        if (closed) {
             throw new IllegalStateException("already closed");
         }
-        if (nextIndex != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
-        }
-        nextIndex = -1;
+        closed = true;
         BooleanVector vector;
         if (values.length == 1) {
             vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
@@ -72,14 +77,14 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
 
     @Override
     public void close() {
-        if (nextIndex >= 0) {
+        if (closed == false) {
             // If nextIndex < 0 we've already built the vector
-            nextIndex = -1;
+            closed = true;
             blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 
     boolean isReleased() {
-        return nextIndex < 0;
+        return closed;
     }
 }

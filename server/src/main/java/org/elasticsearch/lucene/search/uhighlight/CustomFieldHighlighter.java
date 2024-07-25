@@ -18,6 +18,7 @@ import org.apache.lucene.search.uhighlight.PassageScorer;
 
 import java.io.IOException;
 import java.text.BreakIterator;
+import java.util.Comparator;
 import java.util.Locale;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -43,10 +44,20 @@ class CustomFieldHighlighter extends FieldHighlighter {
         int maxPassages,
         int maxNoHighlightPassages,
         PassageFormatter passageFormatter,
+        Comparator<Passage> passageSortComparator,
         int noMatchSize,
         Integer queryMaxAnalyzedOffset
     ) {
-        super(field, fieldOffsetStrategy, breakIterator, passageScorer, maxPassages, maxNoHighlightPassages, passageFormatter);
+        super(
+            field,
+            fieldOffsetStrategy,
+            breakIterator,
+            passageScorer,
+            maxPassages,
+            maxNoHighlightPassages,
+            passageFormatter,
+            passageSortComparator
+        );
         this.breakIteratorLocale = breakIteratorLocale;
         this.noMatchSize = noMatchSize;
         this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;

@@ -37,6 +37,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     // These fields will be used for additional back-pressure and metrics in the future
     private final long totalCoordinatingOps;
+    private final long totalCoordinatingRequests;
     private final long totalPrimaryOps;
     private final long totalReplicaOps;
     private final long currentCoordinatingOps;
@@ -72,10 +73,16 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentPrimaryOps = 0;
         this.currentReplicaOps = 0;
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             primaryDocumentRejections = in.readVLong();
         } else {
             primaryDocumentRejections = -1L;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT)) {
+            totalCoordinatingRequests = in.readVLong();
+        } else {
+            totalCoordinatingRequests = -1L;
         }
     }
 
@@ -98,7 +105,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         long currentCoordinatingOps,
         long currentPrimaryOps,
         long currentReplicaOps,
-        long primaryDocumentRejections
+        long primaryDocumentRejections,
+        long totalCoordinatingRequests
     ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
@@ -121,6 +129,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentReplicaOps = currentReplicaOps;
 
         this.primaryDocumentRejections = primaryDocumentRejections;
+        this.totalCoordinatingRequests = totalCoordinatingRequests;
     }
 
     @Override
@@ -143,8 +152,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             out.writeVLong(memoryLimit);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeVLong(primaryDocumentRejections);
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT)) {
+            out.writeVLong(totalCoordinatingRequests);
         }
     }
 
@@ -222,6 +235,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     public long getPrimaryDocumentRejections() {
         return primaryDocumentRejections;
+    }
+
+    public long getTotalCoordinatingRequests() {
+        return totalCoordinatingRequests;
     }
 
     private static final String COMBINED = "combined_coordinating_and_primary";

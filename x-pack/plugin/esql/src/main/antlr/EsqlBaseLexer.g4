@@ -10,7 +10,9 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+LOOKUP : 'lookup'             -> pushMode(LOOKUP_MODE);
 META : 'meta'                 -> pushMode(META_MODE);
+METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
@@ -31,6 +33,18 @@ MULTILINE_COMMENT
 WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
+
+// in 8.14 ` were not allowed
+// this has been relaxed in 8.15 since " is used for quoting
+fragment UNQUOTED_SOURCE_PART
+    : ~[:"=|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
+    ;
+
+UNQUOTED_SOURCE
+    : UNQUOTED_SOURCE_PART+
+    ;
+
 //
 // Explain
 //
@@ -144,6 +158,11 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
+NAMED_OR_POSITIONAL_PARAM
+    : PARAM LETTER UNQUOTED_ID_BODY*
+    | PARAM DIGIT+
+    ;
+
 // Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one
 // way is to start in an explain command which then shifts us to expression
 // mode. Thus, the two popModes on CLOSING_BRACKET. The other way could as
@@ -185,25 +204,13 @@ mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
+FROM_COLON : COLON -> type(COLON);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
-FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
-
-OPTIONS : 'options';
 METADATA : 'metadata';
 
-fragment FROM_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
-    ;
-
-FROM_UNQUOTED_IDENTIFIER
-    : FROM_UNQUOTED_IDENTIFIER_PART+
-    ;
-
-FROM_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
-    ;
+FROM_UNQUOTED_SOURCE : UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
+FROM_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
 
 FROM_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -294,10 +301,6 @@ ENRICH_POLICY_NAME
     : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
     ;
 
-ENRICH_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
-    ;
-
 ENRICH_MODE_UNQUOTED_VALUE
     : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
@@ -314,7 +317,7 @@ ENRICH_WS
     : WS -> channel(HIDDEN)
     ;
 
-// submode for Enrich to allow different lexing between policy identifier (loose) and field identifiers
+// submode for Enrich to allow different lexing between policy source (loose) and field identifiers
 mode ENRICH_FIELD_MODE;
 ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
 ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);
@@ -340,6 +343,50 @@ ENRICH_FIELD_MULTILINE_COMMENT
     ;
 
 ENRICH_FIELD_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// LOOKUP ON key
+mode LOOKUP_MODE;
+LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
+LOOKUP_COLON : COLON -> type(COLON);
+LOOKUP_COMMA : COMMA -> type(COMMA);
+LOOKUP_DOT: DOT -> type(DOT);
+LOOKUP_ON : ON -> type(ON), pushMode(LOOKUP_FIELD_MODE);
+
+LOOKUP_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
+LOOKUP_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
+
+LOOKUP_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode LOOKUP_FIELD_MODE;
+LOOKUP_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
+LOOKUP_FIELD_COMMA : COMMA -> type(COMMA);
+LOOKUP_FIELD_DOT: DOT -> type(DOT);
+
+LOOKUP_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
+    ;
+
+LOOKUP_FIELD_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_FIELD_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_FIELD_WS
     : WS -> channel(HIDDEN)
     ;
 
@@ -428,3 +475,63 @@ SETTING_WS
     : WS -> channel(HIDDEN)
     ;
 
+
+//
+// METRICS command
+//
+mode METRICS_MODE;
+METRICS_PIPE : PIPE -> type(PIPE), popMode;
+
+METRICS_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE), popMode, pushMode(CLOSING_METRICS_MODE);
+METRICS_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING), popMode, pushMode(CLOSING_METRICS_MODE);
+
+METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// TODO: remove this workaround mode - see https://github.com/elastic/elasticsearch/issues/108528
+mode CLOSING_METRICS_MODE;
+
+CLOSING_METRICS_COLON
+    : COLON -> type(COLON), popMode, pushMode(METRICS_MODE)
+    ;
+
+CLOSING_METRICS_COMMA
+    : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)
+    ;
+
+CLOSING_METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(QUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_UNQUOTED_IDENTIFIER
+    :UNQUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(UNQUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_BY
+    :BY -> popMode, pushMode(EXPRESSION_MODE), type(BY)
+    ;
+
+CLOSING_METRICS_PIPE
+    : PIPE -> type(PIPE), popMode
+    ;

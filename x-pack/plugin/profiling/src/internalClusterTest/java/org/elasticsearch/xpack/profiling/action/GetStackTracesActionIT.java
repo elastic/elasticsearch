@@ -28,6 +28,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         request.setAdjustSampleCount(true);
@@ -72,6 +73,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         request.setAdjustSampleCount(true);
@@ -91,7 +93,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.typeIds.length);
         assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
         assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
-        assertEquals(Long.valueOf(2L), stackTrace.subGroups.get("basket"));
+        assertEquals(Long.valueOf(2L), stackTrace.subGroups.getCount("basket"));
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("8NlMClggx8jaziUTJXlmWAAAAAAAAIYI");
@@ -99,28 +101,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
 
         assertNotNull(response.getExecutables());
         assertEquals("vmlinux", response.getExecutables().get("lHp5_WAgpLy2alrUVab6HA"));
-    }
-
-    public void testGetStackTracesGroupedByInvalidField() {
-        GetStackTracesRequest request = new GetStackTracesRequest(
-            1000,
-            600.0d,
-            1.0d,
-            1.0d,
-            null,
-            null,
-            null,
-            // only service.name is supported (note the trailing "s")
-            "service.names",
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-        request.setAdjustSampleCount(true);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, client().execute(GetStackTracesAction.INSTANCE, request));
-        assertEquals("Requested custom event aggregation field [service.names] but only [service.name] is supported.", e.getMessage());
     }
 
     public void testGetStackTracesFromAPMWithMatchNoDownsampling() throws Exception {
@@ -138,6 +118,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             new String[] { "apm-test-*", "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
             "transaction.name",
+            null,
             null,
             null,
             null,
@@ -161,7 +142,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(39, stackTrace.typeIds.length);
         assertTrue(stackTrace.annualCO2Tons > 0.0d);
         assertTrue(stackTrace.annualCostsUSD > 0.0d);
-        assertEquals(Long.valueOf(3L), stackTrace.subGroups.get("encodeSha1"));
+        assertEquals(Long.valueOf(3L), stackTrace.subGroups.getCount("encodeSha1"));
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("fhsEKXDuxJ-jIJrZpdRuSAAAAAAAAFtj");
@@ -182,6 +163,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             new String[] { "apm-test-*" },
             "transaction.profiler_stack_trace_ids",
+            null,
             null,
             null,
             null,
@@ -237,6 +219,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -259,6 +242,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -276,6 +260,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             new String[] { "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
+            null,
             null,
             null,
             null,

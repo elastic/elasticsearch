@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Now}.
@@ -26,9 +26,9 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public NowEvaluator(Source source, long now, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.now = now;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -37,9 +37,9 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Now.process(now));
+        result.appendLong(p, Now.process(now));
       }
       return result.build();
     }

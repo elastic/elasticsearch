@@ -731,6 +731,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
 
                         PipelineIterator pipelines = getAndResetPipelines(indexRequest);
+                        Pipeline firstPipeline = pipelines.peekFirst();
                         if (pipelines.hasNext() == false) {
                             i++;
                             continue;
@@ -739,9 +740,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         // start the stopwatch and acquire a ref to indicate that we're working on this document
                         final long startTimeInNanos = System.nanoTime();
                         totalMetrics.preIngest();
+                        if (firstPipeline != null) {
+                            firstPipeline.getMetrics().preIngestBytes(indexRequest.ramBytesUsed());
+                        }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
+                        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(indexRequest);
                         final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentSizeObserver);
                         final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
@@ -754,6 +758,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     if (result.success) {
                                         if (result.shouldKeep == false) {
                                             onDropped.accept(slot);
+                                        } else {
+                                            assert firstPipeline != null;
+                                            firstPipeline.getMetrics().postIngestBytes(indexRequest.ramBytesUsed());
                                         }
                                     } else {
                                         // We were given a failure result in the onResponse method, so we must store the failure
@@ -859,6 +866,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         @Override
         public PipelineSlot next() {
             return pipelineSlotIterator.next();
+        }
+
+        public Pipeline peekFirst() {
+            return getPipeline(defaultPipeline != null ? defaultPipeline : finalPipeline);
         }
     }
 

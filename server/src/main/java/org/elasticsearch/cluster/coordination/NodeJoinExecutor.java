@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -123,7 +124,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             newState = ClusterState.builder(initialState);
         } else {
             logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
-            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request");
+            throw new NotMasterException(
+                Strings.format(
+                    "Node [%s] not master for join request. Current known master [%s], current term [%d]",
+                    currentNodes.getLocalNode(),
+                    currentNodes.getMasterNode(),
+                    term
+                )
+            );
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());

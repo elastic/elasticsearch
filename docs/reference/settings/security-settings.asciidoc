@@ -23,7 +23,9 @@ For more information about creating and updating the {es} keystore, see
 ==== General security settings
 `xpack.security.enabled`::
 (<<static-cluster-setting,Static>>)
-Defaults to `true`, which enables {es} {security-features} on the node. +
+Defaults to `true`, which enables {es} {security-features} on the node. 
+This setting must be enabled to use Elasticsearch's authentication, 
+authorization and audit features. +
 +
 --
 If set to `false`, {security-features} are disabled, which is not recommended.
@@ -2639,8 +2641,6 @@ include::ssl-settings.asciidoc[]
 
 [[remote-cluster-server-tls-ssl-settings]]
 
-beta::[]
-
 :ssl-prefix:             xpack.security.remote_cluster_server
 :component:              Remote cluster server (API key based model)
 :enabled-by-default:
@@ -2654,8 +2654,6 @@ beta::[]
 include::ssl-settings.asciidoc[]
 
 [[remote-cluster-client-tls-ssl-settings]]
-
-beta::[]
 
 :ssl-prefix:             xpack.security.remote_cluster_client
 :component:              Remote cluster client (API key based model)
@@ -2714,12 +2712,12 @@ List of IP addresses to deny for this profile.
 
 `xpack.security.remote_cluster.filter.allow`::
 (<<dynamic-cluster-setting,Dynamic>>)
-beta:[] List of IP addresses to allow just for the
+List of IP addresses to allow just for the
 <<remote-clusters-api-key,remote cluster server configured with the API key based model>>.
 
 `xpack.security.remote_cluster.filter.deny`::
 (<<dynamic-cluster-setting,Dynamic>>)
-beta:[] List of IP addresses to deny just for the remote cluster server configured with
+List of IP addresses to deny just for the remote cluster server configured with
 the <<remote-clusters-api-key,API key based model>>.
 
 include::security-hash-settings.asciidoc[]

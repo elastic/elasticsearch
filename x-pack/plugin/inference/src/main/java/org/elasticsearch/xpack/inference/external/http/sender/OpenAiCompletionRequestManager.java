@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -43,17 +41,16 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
     }
 
     @Override
-    public Runnable create(
-        @Nullable String query,
-        List<String> input,
+    public void execute(
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
-        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(input, model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(docsInput, model);
 
-        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 
     private static ResponseHandler createCompletionHandler() {

@@ -1,0 +1,5 @@
+pr: 110651
+summary: "Remove `default_field: message` from metrics index templates"
+area: Data streams
+type: enhancement
+issues: []

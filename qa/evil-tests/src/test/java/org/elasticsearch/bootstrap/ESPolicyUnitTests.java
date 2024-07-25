@@ -10,6 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.io.FilePermission;
 import java.net.SocketPermission;
@@ -19,11 +20,15 @@ import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
+import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static java.util.Map.entry;
+import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
 
 /**
  * Unit tests for ESPolicy: these cannot run with security manager,
@@ -32,6 +37,13 @@ import java.util.Map;
 public class ESPolicyUnitTests extends ESTestCase {
 
     static final Map<String, URL> TEST_CODEBASES = BootstrapForTesting.getCodebases();
+    static Policy DEFAULT_POLICY;
+
+    @BeforeClass
+    public static void setupPolicy() {
+        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
+        DEFAULT_POLICY = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), TEST_CODEBASES);
+    }
 
     /**
      * Test policy with null codesource.
@@ -42,12 +54,11 @@ public class ESPolicyUnitTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testNullCodeSource() throws Exception {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         // create a policy with AllPermission
         Permission all = new AllPermission();
         PermissionCollection allCollection = all.newPermissionCollection();
         allCollection.add(all);
-        ESPolicy policy = new ESPolicy(TEST_CODEBASES, allCollection, Collections.emptyMap(), true, List.of(), List.of());
+        ESPolicy policy = new ESPolicy(DEFAULT_POLICY, allCollection, Map.of(), true, List.of(), Map.of());
         // restrict ourselves to NoPermission
         PermissionCollection noPermissions = new Permissions();
         assertFalse(policy.implies(new ProtectionDomain(null, noPermissions), new FilePermission("foo", "read")));
@@ -58,9 +69,8 @@ public class ESPolicyUnitTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testNullLocation() throws Exception {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
-        ESPolicy policy = new ESPolicy(TEST_CODEBASES, noPermissions, Collections.emptyMap(), true, List.of(), List.of());
+        ESPolicy policy = new ESPolicy(DEFAULT_POLICY, noPermissions, Map.of(), true, List.of(), Map.of());
         assertFalse(
             policy.implies(
                 new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
@@ -70,9 +80,8 @@ public class ESPolicyUnitTests extends ESTestCase {
     }
 
     public void testListen() {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final PermissionCollection noPermissions = new Permissions();
-        final ESPolicy policy = new ESPolicy(TEST_CODEBASES, noPermissions, Collections.emptyMap(), true, List.of(), List.of());
+        final ESPolicy policy = new ESPolicy(DEFAULT_POLICY, noPermissions, Map.of(), true, List.of(), Map.of());
         assertFalse(
             policy.implies(
                 new ProtectionDomain(ESPolicyUnitTests.class.getProtectionDomain().getCodeSource(), noPermissions),
@@ -83,14 +92,13 @@ public class ESPolicyUnitTests extends ESTestCase {
 
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testDataPathPermissionIsChecked() {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final ESPolicy policy = new ESPolicy(
-            TEST_CODEBASES,
+            DEFAULT_POLICY,
             new Permissions(),
-            Collections.emptyMap(),
+            Map.of(),
             true,
             List.of(new FilePermission("/home/elasticsearch/data/-", "read")),
-            List.of()
+            Map.of()
         );
         assertTrue(
             policy.implies(
@@ -101,27 +109,52 @@ public class ESPolicyUnitTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "to create FilePermission object")
-    public void testForbiddenFilesAreForbidden() {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
-
-        FilePermission configPerm = new FilePermission("/home/elasticsearch/config/-", "read");
-        PermissionCollection coll = configPerm.newPermissionCollection();
-        coll.add(configPerm);
+    public void testSecuredAccess() {
+        String file1 = "/home/elasticsearch/config/pluginFile1.yml";
+        URL codebase1 = randomFrom(TEST_CODEBASES.values());
+        String file2 = "/home/elasticsearch/config/pluginFile2.yml";
+        URL codebase2 = randomValueOtherThan(codebase1, () -> randomFrom(TEST_CODEBASES.values()));
+        String dir1 = "/home/elasticsearch/config/pluginDir/";
+        URL codebase3 = randomValueOtherThanMany(Set.of(codebase1, codebase2)::contains, () -> randomFrom(TEST_CODEBASES.values()));
+        URL otherCodebase = randomValueOtherThanMany(
+            Set.of(codebase1, codebase2, codebase3)::contains,
+            () -> randomFrom(TEST_CODEBASES.values())
+        );
 
         ESPolicy policy = new ESPolicy(
-            TEST_CODEBASES,
-            coll,
-            Collections.emptyMap(),
+            DEFAULT_POLICY,
+            new Permissions(),
+            Map.of(),
             true,
             List.of(),
-            List.of(new FilePermission("/home/elasticsearch/config/forbidden.yml", "read"))
-        );
-        ProtectionDomain pd = new ProtectionDomain(
-            new CodeSource(randomBoolean() ? null : randomFrom(TEST_CODEBASES.values()), (Certificate[]) null),
-            new Permissions()
+            Map.ofEntries(entry(file1, Set.of(codebase1)), entry(file2, Set.of(codebase1, codebase2)), entry(dir1 + "*", Set.of(codebase3)))
         );
 
-        assertTrue(policy.implies(pd, new FilePermission("/home/elasticsearch/config/config.yml", "read")));
-        assertFalse(policy.implies(pd, new FilePermission("/home/elasticsearch/config/forbidden.yml", "read")));
+        ProtectionDomain nullDomain = new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions());
+        ProtectionDomain codebase1Domain = new ProtectionDomain(new CodeSource(codebase1, (Certificate[]) null), new Permissions());
+        ProtectionDomain codebase2Domain = new ProtectionDomain(new CodeSource(codebase2, (Certificate[]) null), new Permissions());
+        ProtectionDomain codebase3Domain = new ProtectionDomain(new CodeSource(codebase3, (Certificate[]) null), new Permissions());
+        ProtectionDomain otherCodebaseDomain = new ProtectionDomain(new CodeSource(otherCodebase, (Certificate[]) null), new Permissions());
+
+        Set<String> actions = Set.of("read", "write", "read,write", "delete", "read,write,execute,readlink,delete");
+
+        assertFalse(policy.implies(nullDomain, new FilePermission(file1, randomFrom(actions))));
+        assertFalse(policy.implies(otherCodebaseDomain, new FilePermission(file1, randomFrom(actions))));
+        assertTrue(policy.implies(codebase1Domain, new FilePermission(file1, randomFrom(actions))));
+        assertFalse(policy.implies(codebase2Domain, new FilePermission(file1, randomFrom(actions))));
+        assertFalse(policy.implies(codebase3Domain, new FilePermission(file1, randomFrom(actions))));
+
+        assertFalse(policy.implies(nullDomain, new FilePermission(file2, randomFrom(actions))));
+        assertFalse(policy.implies(otherCodebaseDomain, new FilePermission(file2, randomFrom(actions))));
+        assertTrue(policy.implies(codebase1Domain, new FilePermission(file2, randomFrom(actions))));
+        assertTrue(policy.implies(codebase2Domain, new FilePermission(file2, randomFrom(actions))));
+        assertFalse(policy.implies(codebase3Domain, new FilePermission(file2, randomFrom(actions))));
+
+        String dirFile = dir1 + "file.yml";
+        assertFalse(policy.implies(nullDomain, new FilePermission(dirFile, randomFrom(actions))));
+        assertFalse(policy.implies(otherCodebaseDomain, new FilePermission(dirFile, randomFrom(actions))));
+        assertFalse(policy.implies(codebase1Domain, new FilePermission(dirFile, randomFrom(actions))));
+        assertFalse(policy.implies(codebase2Domain, new FilePermission(dirFile, randomFrom(actions))));
+        assertTrue(policy.implies(codebase3Domain, new FilePermission(dirFile, randomFrom(actions))));
     }
 }

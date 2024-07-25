@@ -8,13 +8,17 @@ template:
     properties:
       # error.*
       error.custom:
-        type: flattened
+        type: object
+        dynamic: false
       error.exception.attributes:
-        type: flattened
+        type: object
+        dynamic: false
       error.exception.stacktrace:
-        type: flattened
+        type: object
+        dynamic: false
       error.log.stacktrace:
-        type: flattened
+        type: object
+        dynamic: false
       error.grouping_name:
         type: keyword
         script: |
@@ -30,5 +34,13 @@ template:
           }
 
       # http.*
-      http.request.body:
+      http.request.headers:
         type: flattened
+      http.response.headers:
+        type: flattened
+      http.request.cookies:
+        type: object
+        dynamic: false
+      http.request.body:
+        type: object
+        dynamic: false

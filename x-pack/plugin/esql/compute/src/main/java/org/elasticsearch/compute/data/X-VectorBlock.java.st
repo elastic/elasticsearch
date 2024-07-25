@@ -34,6 +34,18 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
         return vector;
     }
 
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return ordinals.asBlock();
+        } else {
+            return null;
+        }
+    }
+$endif$
+
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
@@ -60,9 +72,8 @@ $endif$
     }
 
     @Override
-    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-        // TODO optimizations
-        return new $Type$Lookup(this, positions, targetBlockSize);
+    public ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
     }
 
     @Override

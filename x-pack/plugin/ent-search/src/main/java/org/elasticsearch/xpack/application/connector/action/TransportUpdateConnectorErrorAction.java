@@ -41,6 +41,10 @@ public class TransportUpdateConnectorErrorAction extends HandledTransportAction<
         UpdateConnectorErrorAction.Request request,
         ActionListener<ConnectorUpdateActionResponse> listener
     ) {
-        connectorIndexService.updateConnectorError(request, listener.map(r -> new ConnectorUpdateActionResponse(r.getResult())));
+        connectorIndexService.updateConnectorError(
+            request.getConnectorId(),
+            request.getError(),
+            listener.map(r -> new ConnectorUpdateActionResponse(r.getResult()))
+        );
     }
 }

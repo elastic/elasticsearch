@@ -34,17 +34,21 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     private TimeValue ackTimeout;
 
     /**
-     * Construct an {@link AcknowledgedRequest} with the default ack timeout of 30s.
+     * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
+     *                          processing other tasks. The value {@link TimeValue#MINUS_ONE} means to wait forever in 8.15.0 onwards.
+     *                          <p>
+     *                          For requests which originate in the REST layer, use {@link
+     *                          org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the timeout.
+     *                          <p>
+     *                          For internally-generated requests, choose an appropriate timeout. Often this will be {@link
+     *                          TimeValue#MAX_VALUE} (or {@link TimeValue#MINUS_ONE} which means an infinite timeout in 8.15.0 onwards)
+     *                          since usually we want internal requests to wait for as long as necessary to complete.
+     *
+     * @param ackTimeout        specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to
+     *                          the elected master.
      */
-    protected AcknowledgedRequest() {
-        this(DEFAULT_ACK_TIMEOUT);
-    }
-
-    /**
-     * @param ackTimeout specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to the
-     *                   elected master.
-     */
-    protected AcknowledgedRequest(TimeValue ackTimeout) {
+    protected AcknowledgedRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout);
         this.ackTimeout = Objects.requireNonNull(ackTimeout);
     }
 
@@ -94,6 +98,8 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
             super(in);
         }
 
-        public Plain() {}
+        public Plain(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
+        }
     }
 }

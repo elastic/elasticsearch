@@ -17,14 +17,26 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
-class SynonymsTestUtils {
+public class SynonymsTestUtils {
 
     private SynonymsTestUtils() {
         throw new UnsupportedOperationException();
     }
 
+    public static SynonymRule[] randomSynonymsSet(int length) {
+        return randomSynonymsSet(length, length);
+    }
+
+    public static SynonymRule[] randomSynonymsSet(int minLength, int maxLength) {
+        return randomArray(minLength, maxLength, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule);
+    }
+
+    public static SynonymRule[] randomSynonymsSetWithoutIds(int minLength, int maxLength) {
+        return randomArray(minLength, maxLength, SynonymRule[]::new, () -> randomSynonymRule(null));
+    }
+
     static SynonymRule[] randomSynonymsSet() {
-        return randomArray(10, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule);
+        return randomSynonymsSet(0, 10);
     }
 
     static SynonymSetSummary[] randomSynonymsSetSummary() {
@@ -32,10 +44,11 @@ class SynonymsTestUtils {
     }
 
     static SynonymRule randomSynonymRule() {
-        return new SynonymRule(
-            randomBoolean() ? null : randomIdentifier(),
-            String.join(", ", randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10)))
-        );
+        return randomSynonymRule(randomBoolean() ? null : randomIdentifier());
+    }
+
+    public static SynonymRule randomSynonymRule(String id) {
+        return new SynonymRule(id, String.join(", ", randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10))));
     }
 
     static SynonymSetSummary randomSynonymSetSummary() {

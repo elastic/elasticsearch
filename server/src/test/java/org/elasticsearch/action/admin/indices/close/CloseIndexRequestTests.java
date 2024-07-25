@@ -49,6 +49,9 @@ public class CloseIndexRequestTests extends ESTestCase {
                     in.setTransportVersion(out.getTransportVersion());
                     assertEquals(request.getParentTask(), TaskId.readFromStream(in));
                     assertEquals(request.masterNodeTimeout(), in.readTimeValue());
+                    if (in.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+                        assertEquals(request.masterTerm(), in.readVLong());
+                    }
                     assertEquals(request.ackTimeout(), in.readTimeValue());
                     assertArrayEquals(request.indices(), in.readStringArray());
                     final IndicesOptions indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -75,6 +78,9 @@ public class CloseIndexRequestTests extends ESTestCase {
                 out.setTransportVersion(version);
                 sample.getParentTask().writeTo(out);
                 out.writeTimeValue(sample.masterNodeTimeout());
+                if (out.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+                    out.writeVLong(sample.masterTerm());
+                }
                 out.writeTimeValue(sample.ackTimeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);

@@ -8,6 +8,7 @@ beta::[]
 
 Updates a connector's `configuration`, allowing for config value updates within a registered configuration schema.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
 
 [[update-connector-configuration-api-request]]
 ==== {api-request-title}

@@ -23,8 +23,9 @@ dependencies {
   compileOnly project(":libs:elasticsearch-cli")
   implementation project(":libs:elasticsearch-plugin-api")
   implementation project(":libs:elasticsearch-plugin-scanner")
-  implementation 'org.ow2.asm:asm:9.6'
-  implementation 'org.ow2.asm:asm-tree:9.6'
+  // TODO: asm is picked up from the plugin scanner, we should consolidate so it is not defined twice
+  implementation 'org.ow2.asm:asm:9.7'
+  implementation 'org.ow2.asm:asm-tree:9.7'
 
   api "org.bouncycastle:bcpg-fips:1.0.7.1"
   api "org.bouncycastle:bc-fips:1.0.2.4"

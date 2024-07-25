@@ -1011,8 +1011,9 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     final int blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                     final int blockInIndex = index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
                     if (blockIndex != currentBlockIndex) {
-                        assert blockIndex > currentBlockIndex;
-                        if (blockIndex - 1 > currentBlockIndex) {
+                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                        // no need to seek if the loading block is the next block
+                        if (currentBlockIndex + 1 != blockIndex) {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
@@ -1071,8 +1072,9 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     final int blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                     final int blockInIndex = index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
                     if (blockIndex != currentBlockIndex) {
-                        assert blockIndex > currentBlockIndex;
-                        if (blockIndex - 1 > currentBlockIndex) {
+                        assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
+                        // no need to seek if the loading block is the next block
+                        if (currentBlockIndex + 1 != blockIndex) {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
@@ -1106,8 +1108,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 final long blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
                 final int blockInIndex = (int) (index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK);
                 if (blockIndex != currentBlockIndex) {
-                    assert blockIndex > currentBlockIndex;
-                    if (blockIndex - 1 > currentBlockIndex) {
+                    // no need to seek if the loading block is the next block
+                    if (currentBlockIndex + 1 != blockIndex) {
                         valuesData.seek(indexReader.get(blockIndex));
                     }
                     currentBlockIndex = blockIndex;

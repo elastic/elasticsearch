@@ -536,15 +536,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {
         var info = routing.unassignedInfo();
-        if (info == null || info.getReason() != UnassignedInfo.Reason.NODE_RESTARTING) {
+        if (info == null || info.reason() != UnassignedInfo.Reason.NODE_RESTARTING) {
             return false;
         }
-        var shutdown = shutdowns.get(info.getLastAllocatedNodeId(), SingleNodeShutdownMetadata.Type.RESTART);
+        var shutdown = shutdowns.get(info.lastAllocatedNodeId(), SingleNodeShutdownMetadata.Type.RESTART);
         if (shutdown == null) {
             return false;
         }
         var now = System.nanoTime();
-        var restartingAllocationDelayExpiration = info.getUnassignedTimeInNanos() + shutdown.getAllocationDelay().nanos();
+        var restartingAllocationDelayExpiration = info.unassignedTimeNanos() + shutdown.getAllocationDelay().nanos();
         return now - restartingAllocationDelayExpiration <= 0;
     }
 
@@ -567,10 +567,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     List<Diagnosis.Definition> diagnoseUnassignedShardRouting(ShardRouting shardRouting, ClusterState state) {
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
-        switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
+        switch (shardRouting.unassignedInfo().lastAllocationStatus()) {
             case NO_VALID_SHARD_COPY -> diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
             case NO_ATTEMPT -> {
-                if (shardRouting.unassignedInfo().isDelayed()) {
+                if (shardRouting.unassignedInfo().delayed()) {
                     diagnosisDefs.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 } else {
                     diagnosisDefs.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
@@ -984,34 +984,33 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         public HealthIndicatorDetails getDetails(boolean verbose) {
-            if (verbose) {
-                return new SimpleHealthIndicatorDetails(
-                    Map.of(
-                        "unassigned_primaries",
-                        primaries.unassigned,
-                        "initializing_primaries",
-                        primaries.initializing,
-                        "creating_primaries",
-                        primaries.unassigned_new,
-                        "restarting_primaries",
-                        primaries.unassigned_restarting,
-                        "started_primaries",
-                        primaries.started + primaries.relocating,
-                        "unassigned_replicas",
-                        replicas.unassigned,
-                        "initializing_replicas",
-                        replicas.initializing,
-                        "creating_replicas",
-                        replicas.unassigned_new,
-                        "restarting_replicas",
-                        replicas.unassigned_restarting,
-                        "started_replicas",
-                        replicas.started + replicas.relocating
-                    )
-                );
-            } else {
+            if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
+            return new SimpleHealthIndicatorDetails(
+                Map.of(
+                    "unassigned_primaries",
+                    primaries.unassigned,
+                    "initializing_primaries",
+                    primaries.initializing,
+                    "creating_primaries",
+                    primaries.unassigned_new,
+                    "restarting_primaries",
+                    primaries.unassigned_restarting,
+                    "started_primaries",
+                    primaries.started + primaries.relocating,
+                    "unassigned_replicas",
+                    replicas.unassigned,
+                    "initializing_replicas",
+                    replicas.initializing,
+                    "creating_replicas",
+                    replicas.unassigned_new,
+                    "restarting_replicas",
+                    replicas.unassigned_restarting,
+                    "started_replicas",
+                    replicas.started + replicas.relocating
+                )
+            );
         }
 
         public List<HealthIndicatorImpact> getImpacts() {

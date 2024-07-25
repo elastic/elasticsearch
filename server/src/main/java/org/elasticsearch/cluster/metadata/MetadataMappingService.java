@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -199,7 +200,8 @@ public class MetadataMappingService {
                     indexMetadataBuilder.putInferenceFields(docMapper.mappers().inferenceFields());
                 }
                 if (updatedMapping) {
-                    indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());
+                    indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
+                        .mappingsUpdatedVersion(IndexVersion.current());
                 }
                 /*
                  * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have

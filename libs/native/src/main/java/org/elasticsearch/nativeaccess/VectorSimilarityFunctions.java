@@ -19,20 +19,24 @@ import java.lang.invoke.MethodHandle;
  */
 public interface VectorSimilarityFunctions {
     /**
-     * Produces a method handle returning the dot product of byte (signed int8) vectors.
+     * Produces a method handle returning the dot product of byte (unsigned int7) vectors.
+     *
+     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
      *
      * <p> The type of the method handle will have {@code int} as return type, The type of
      * its first and second arguments will be {@code MemorySegment}, whose contents is the
      * vector data bytes. The third argument is the length of the vector data.
      */
-    MethodHandle dotProductHandle();
+    MethodHandle dotProductHandle7u();
 
     /**
-     * Produces a method handle returning the square distance of byte (signed int8) vectors.
+     * Produces a method handle returning the square distance of byte (unsigned int7) vectors.
+     *
+     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
      *
      * <p> The type of the method handle will have {@code int} as return type, The type of
      * its first and second arguments will be {@code MemorySegment}, whose contents is the
      * vector data bytes. The third argument is the length of the vector data.
      */
-    MethodHandle squareDistanceHandle();
+    MethodHandle squareDistanceHandle7u();
 }

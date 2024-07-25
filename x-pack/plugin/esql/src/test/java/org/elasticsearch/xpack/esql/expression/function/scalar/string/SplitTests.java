@@ -16,14 +16,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +34,7 @@ import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SplitTests extends AbstractFunctionTestCase {
+public class SplitTests extends AbstractScalarFunctionTestCase {
     public SplitTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -43,7 +42,7 @@ public class SplitTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<DataType> supportedDataTyes = List.of(DataTypes.KEYWORD, DataTypes.TEXT);
+        List<DataType> supportedDataTyes = List.of(DataType.KEYWORD, DataType.TEXT);
         for (DataType sType : supportedDataTyes) {
             for (DataType dType : supportedDataTyes) {
                 suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), List.of(sType, dType), () -> {
@@ -59,13 +58,13 @@ public class SplitTests extends AbstractFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef(delimiter), dType, "delim")
                         ),
                         "SplitVariableEvaluator[str=Attribute[channel=0], delim=Attribute[channel=1]]",
-                        DataTypes.KEYWORD,
+                        DataType.KEYWORD,
                         equalTo(strings.size() == 1 ? strings.get(0) : strings)
                     );
                 }));
             }
         }
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
     }
 
     @Override
@@ -77,7 +76,7 @@ public class SplitTests extends AbstractFunctionTestCase {
         DriverContext driverContext = driverContext();
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
-                new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
+                new Split(Source.EMPTY, field("str", DataType.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataType.KEYWORD))
             ).get(driverContext)
         ) {
             /*
@@ -105,8 +104,8 @@ public class SplitTests extends AbstractFunctionTestCase {
             () -> evaluator(
                 new Split(
                     Source.EMPTY,
-                    field("str", DataTypes.KEYWORD),
-                    new Literal(Source.EMPTY, new BytesRef(delimiter), DataTypes.KEYWORD)
+                    field("str", DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(delimiter), DataType.KEYWORD)
                 )
             ).get(driverContext)
         );

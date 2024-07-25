@@ -47,7 +47,7 @@ public class MappingLookupTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, emptyList());
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers);
     }
 
     public void testOnlyRuntimeField() {
@@ -82,6 +82,7 @@ public class MappingLookupTests extends ESTestCase {
             "object",
             Explicit.EXPLICIT_TRUE,
             Explicit.IMPLICIT_TRUE,
+            Explicit.IMPLICIT_FALSE,
             ObjectMapper.Dynamic.TRUE,
             Collections.singletonMap("object.subfield", fieldMapper)
         );

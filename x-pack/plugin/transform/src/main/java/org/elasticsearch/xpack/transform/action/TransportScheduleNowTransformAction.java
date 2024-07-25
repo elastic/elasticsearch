@@ -64,8 +64,8 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.transformScheduler = transformServices.getScheduler();
+        this.transformConfigManager = transformServices.configManager();
+        this.transformScheduler = transformServices.scheduler();
     }
 
     @Override

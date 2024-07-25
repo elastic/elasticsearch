@@ -1,5 +1,0 @@
-pr: 107158
-summary: "ESQL: allow sorting by expressions and not only regular fields"
-area: ES|QL
-type: feature
-issues: []

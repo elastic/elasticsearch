@@ -113,15 +113,16 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         // So this assert needs to be not sensitive to order and in "reference"
         // implementation of tests from MapperTestCase it is.
         var actual = source.source().get("field");
-        if (inputValues.size() == 1) {
+        var expected = new HashSet<>(expectedValues);
+        if (expected.size() == 1) {
             assertEquals(expectedValues.get(0), actual);
         } else {
             assertThat(actual, instanceOf(List.class));
-            assertTrue(((List<Object>) actual).containsAll(new HashSet<>(expectedValues)));
+            assertTrue(((List<Object>) actual).containsAll(expected));
         }
     }
 
-    private Tuple<Object, Object> generateValue() {
+    private Tuple<Object, Map<String, Object>> generateValue() {
         String cidr = randomCidrBlock();
         InetAddresses.IpRange range = InetAddresses.parseIpRangeFromCidr(cidr);
 
@@ -134,25 +135,71 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         if (randomBoolean()) {
             // CIDRs are always inclusive ranges.
             input = cidr;
-            output.put("gte", InetAddresses.toAddrString(range.lowerBound()));
-            output.put("lte", InetAddresses.toAddrString(range.upperBound()));
+
+            var from = InetAddresses.toAddrString(range.lowerBound());
+            inclusiveFrom(output, from);
+
+            var to = InetAddresses.toAddrString(range.upperBound());
+            inclusiveTo(output, to);
         } else {
             var fromKey = includeFrom ? "gte" : "gt";
             var toKey = includeTo ? "lte" : "lt";
             var from = rarely() ? null : InetAddresses.toAddrString(range.lowerBound());
             var to = rarely() ? null : InetAddresses.toAddrString(range.upperBound());
-            input = (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
+            input = (ToXContent) (builder, params) -> {
+                builder.startObject();
+                if (includeFrom && from == null && randomBoolean()) {
+                    // skip field entirely since it is equivalent to a default value
+                } else {
+                    builder.field(fromKey, from);
+                }
 
-            var rawFrom = from != null ? range.lowerBound() : (InetAddress) rangeType().minValue();
-            var adjustedFrom = includeFrom ? rawFrom : (InetAddress) rangeType().nextUp(rawFrom);
-            output.put("gte", InetAddresses.toAddrString(adjustedFrom));
+                if (includeTo && to == null && randomBoolean()) {
+                    // skip field entirely since it is equivalent to a default value
+                } else {
+                    builder.field(toKey, to);
+                }
 
-            var rawTo = to != null ? range.upperBound() : (InetAddress) rangeType().maxValue();
-            var adjustedTo = includeTo ? rawTo : (InetAddress) rangeType().nextDown(rawTo);
-            output.put("lte", InetAddresses.toAddrString(adjustedTo));
+                return builder.endObject();
+            };
+
+            if (includeFrom) {
+                inclusiveFrom(output, from);
+            } else {
+                var fromWithDefaults = from != null ? range.lowerBound() : (InetAddress) rangeType().minValue();
+                var adjustedFrom = (InetAddress) rangeType().nextUp(fromWithDefaults);
+                output.put("gte", InetAddresses.toAddrString(adjustedFrom));
+            }
+
+            if (includeTo) {
+                inclusiveTo(output, to);
+            } else {
+                var toWithDefaults = to != null ? range.upperBound() : (InetAddress) rangeType().maxValue();
+                var adjustedTo = (InetAddress) rangeType().nextDown(toWithDefaults);
+                output.put("lte", InetAddresses.toAddrString(adjustedTo));
+            }
         }
 
         return Tuple.tuple(input, output);
+    }
+
+    private void inclusiveFrom(Map<String, Object> output, String from) {
+        // This is helpful since different representations can map to "::"
+        var normalizedMin = InetAddresses.toAddrString((InetAddress) rangeType().minValue());
+        if (from != null && from.equals(normalizedMin) == false) {
+            output.put("gte", from);
+        } else {
+            output.put("gte", null);
+        }
+    }
+
+    private void inclusiveTo(Map<String, Object> output, String to) {
+        var normalizedMax = InetAddresses.toAddrString((InetAddress) rangeType().maxValue());
+        if (to != null && to.equals(normalizedMax) == false) {
+            output.put("lte", to);
+        } else {
+            output.put("lte", null);
+        }
     }
 
     public void testInvalidSyntheticSource() {

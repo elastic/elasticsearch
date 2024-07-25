@@ -3,7 +3,7 @@
 *Parameters*
 
 `first`::
-Expression to evaluate
+Expression to evaluate.
 
 `rest`::
-Other expression to evaluate
+Other expression to evaluate.

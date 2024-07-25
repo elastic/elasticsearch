@@ -12,11 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -88,20 +88,15 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        NodesReloadSecureSettingsRequest request,
-        ActionListener<NodesReloadSecureSettingsResponse> listener
-    ) {
-        if (request.hasPassword() && isNodeLocal(request) == false && isNodeTransportTLSEnabled() == false) {
-            listener.onFailure(
-                new ElasticsearchException(
-                    "Secure settings cannot be updated cluster wide when TLS for the transport layer"
-                        + " is not enabled. Enable TLS or use the API with a `_local` filter on each node."
-                )
-            );
+    protected DiscoveryNode[] resolveRequest(NodesReloadSecureSettingsRequest request, ClusterState clusterState) {
+        final var concreteNodes = super.resolveRequest(request, clusterState);
+        final var isNodeLocal = concreteNodes.length == 1 && concreteNodes[0].getId().equals(clusterState.nodes().getLocalNodeId());
+        if (request.hasPassword() && isNodeLocal == false && isNodeTransportTLSEnabled() == false) {
+            throw new ElasticsearchException("""
+                Secure settings cannot be updated cluster wide when TLS for the transport layer is not enabled. Enable TLS or use the API \
+                with a `_local` filter on each node.""");
         } else {
-            super.doExecute(task, request, listener);
+            return concreteNodes;
         }
     }
 
@@ -147,14 +142,5 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
      */
     private boolean isNodeTransportTLSEnabled() {
         return transportService.isTransportSecure();
-    }
-
-    private boolean isNodeLocal(NodesReloadSecureSettingsRequest request) {
-        if (null == request.concreteNodes()) {
-            resolveRequest(request, clusterService.state());
-            assert request.concreteNodes() != null;
-        }
-        final DiscoveryNode[] nodes = request.concreteNodes();
-        return nodes.length == 1 && nodes[0].getId().equals(clusterService.localNode().getId());
     }
 }

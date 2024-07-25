@@ -38,7 +38,8 @@ public final class Features {
         "allowed_warnings",
         "allowed_warnings_regex",
         "close_to",
-        "is_after"
+        "is_after",
+        "capabilities"
     );
 
     private Features() {

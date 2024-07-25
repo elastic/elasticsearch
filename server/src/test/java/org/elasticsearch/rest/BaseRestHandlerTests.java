@@ -235,6 +235,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("filter_path", randomAlphaOfLength(8));
         params.put("pretty", randomFrom("true", "false", "", null));
         params.put("human", null);
+        params.put("error_trace", randomFrom("true", "false", null));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         handler.handleRequest(request, channel, mockClient);

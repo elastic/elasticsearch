@@ -31,17 +31,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.CartesianShapeDocValuesQuery;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 
 public class SpatialRelatesQuery extends Query {
     private final String field;
@@ -58,28 +56,13 @@ public class SpatialRelatesQuery extends Query {
     }
 
     @Override
-    public boolean containsNestedField(String path, String field) {
-        return false;
-    }
-
-    @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        return null;
-    }
-
-    @Override
-    public void enrichNestedSort(NestedSortBuilder sort) {
-
-    }
-
-    @Override
     public QueryBuilder asBuilder() {
-        return EsqlDataTypes.isSpatialGeo(dataType) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
+        return DataType.isSpatialGeo(dataType) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
     }
 
     @Override
     protected String innerToString() {
-        throw new IllegalArgumentException("SpatialRelatesQuery.innerToString() not implemented");
+        return "field:" + field + ", dataType:" + dataType + ", queryRelation:" + queryRelation + ", shape:" + shape;
     }
 
     @Override

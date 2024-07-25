@@ -1,6 +1,11 @@
 setup:
   - skip:
-      version: " - 8.14.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      known_issues:
+        - cluster_feature: "gte_v8.13.0"
+          fixed_by: "gte_v8.14.0"
+  - requires:
+      cluster_features: "gte_v8.15.0"
       reason: Collapse with rescore added in 8.15.0
   - do:
       indices.create:

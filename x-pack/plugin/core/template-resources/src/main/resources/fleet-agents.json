@@ -99,6 +99,9 @@
                     "upgradeable": {
                       "type": "boolean"
                     },
+                    "unprivileged": {
+                      "type": "boolean"
+                    },
                     "version": {
                       "type": "text",
                       "fields": {
@@ -312,6 +315,9 @@
           "enabled": false
         },
         "tags": {
+          "type": "keyword"
+        },
+        "namespaces": {
           "type": "keyword"
         }
       }

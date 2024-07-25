@@ -22,7 +22,7 @@ import static org.junit.Assume.assumeThat;
  * Basic tests for simple xpack functionality that are only run if the
  * cluster is the on the default distribution.
  */
-public class XPackIT extends ParameterizedRollingUpgradeTestCase {
+public class XPackIT extends AbstractRollingUpgradeTestCase {
 
     public XPackIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

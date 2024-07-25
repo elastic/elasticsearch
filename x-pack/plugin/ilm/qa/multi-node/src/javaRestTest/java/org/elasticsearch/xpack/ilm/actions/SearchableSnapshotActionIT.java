@@ -111,11 +111,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
-        assertBusy(
-            () -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            triggerStateChange();
+            assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testSearchableSnapshotForceMergesIndexToOneSegment() throws Exception {
@@ -171,11 +170,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             }
         }, 60, TimeUnit.SECONDS));
 
-        assertBusy(
-            () -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            triggerStateChange();
+            assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("unchecked")
@@ -311,6 +309,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
 
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
             assertThat(stepKeyForIndex.phase(), is("hot"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -333,6 +332,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // even though the index is now mounted as a searchable snapshot, the actions that can't operate on it should
         // skip and ILM should not be blocked (not should the managed index move into the ERROR step)
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -389,6 +389,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
 
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("hot"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -479,6 +480,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -540,6 +542,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("frozen"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -622,6 +625,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), fullMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -642,6 +646,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), partiallyMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("frozen"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -731,6 +736,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), partialMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("frozen"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -751,6 +757,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
+            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredPartiallyMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -844,13 +851,16 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             )
         );
 
-        indexDocument(client(), dataStream, true);
-        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        // Create the data stream.
+        assertOK(client().performRequest(new Request("PUT", "_data_stream/" + dataStream)));
+
+        var backingIndices = getBackingIndices(client(), dataStream);
+        String firstGenIndex = backingIndices.get(0);
         Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
         assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
 
         // rollover the data stream so searchable_snapshot can complete
-        rolloverMaxOneDocCondition(client(), dataStream);
+        indexDocument(client(), dataStream, true);
 
         final String restoredIndex = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + firstGenIndex;
         assertBusy(() -> {
@@ -905,10 +915,18 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
-        assertBusy(
-            () -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            triggerStateChange();
+            assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Cause a bit of cluster activity using an empty reroute call in case the `wait-for-index-colour` ILM step missed the
+     * notification that partial-index is now GREEN.
+     */
+    private void triggerStateChange() throws IOException {
+        Request rerouteRequest = new Request("POST", "/_cluster/reroute?metric=none");
+        client().performRequest(rerouteRequest);
     }
 }

@@ -134,7 +134,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeEnabledForIndexTemplates() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {}));
+        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {}));
         merge(mapperService, MergeReason.INDEX_TEMPLATE, mapping(b -> {
             b.startObject("object");
             {
@@ -165,6 +165,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
         assertTrue(objectMapper.subobjects());
+        assertFalse(objectMapper.storeArraySource());
 
         // Setting 'enabled' to true is allowed, and updates the mapping.
         update = Strings.toString(
@@ -175,6 +176,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .field("type", "object")
                 .field("enabled", true)
                 .field("subobjects", false)
+                .field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -185,6 +187,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertTrue(objectMapper.isEnabled());
         assertFalse(objectMapper.subobjects());
+        assertTrue(objectMapper.storeArraySource());
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
@@ -536,6 +539,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
     }
 
+    public void testStoreArraySourceinSyntheticSourceMode() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+        }));
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
+    }
+
+    public void testStoreArraySourceThrowsInNonSyntheticSourceMode() {
+        var exception = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+            b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
+        })));
+        assertEquals("Parameter [store_array_source] can only be set in synthetic source mode.", exception.getMessage());
+    }
+
     public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
         ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
             new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(
@@ -566,13 +583,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     private ObjectMapper createObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
         throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("object");
             {
                 b.field("type", "object");
                 b.field("subobjects", false);
                 b.field("enabled", false);
                 b.field("dynamic", false);
+                b.field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true);
                 b.startObject("properties");
                 propertiesBuilder.accept(b);
                 b.endObject();
@@ -589,7 +607,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 new KeywordFieldMapper.Builder("keyword2", IndexVersion.current())
             )
         ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
-        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::name).toList();
+        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 

@@ -16,11 +16,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -30,7 +30,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 
-public class CohereEmbeddingsServiceSettings implements ServiceSettings {
+public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
 
     static final String EMBEDDING_TYPE = "embedding_type";
@@ -134,6 +134,11 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         return commonSettings.dimensions();
     }
 
+    @Override
+    public String modelId() {
+        return commonSettings.modelId();
+    }
+
     public CohereEmbeddingType getEmbeddingType() {
         return embeddingType;
     }
@@ -160,13 +165,16 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     }
 
     @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return this;
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        commonSettings.toXContentFragmentOfExposedFields(builder, params);
+        builder.field(EMBEDDING_TYPE, elementType());
+
+        return builder;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     @Override

@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -214,8 +215,12 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
-        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
 
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            // handle mixed-cluster states by passing in minTransportVersion to reset event.ingested range to UNKNOWN if an older version
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState), simulatedState.getMinTransportVersion())
+            .settings(dummySettings)
+            .build();
         return ClusterState.builder(simulatedState)
             .metadata(Metadata.builder(simulatedState.metadata()).put(indexMetadata, true).build())
             .build();
@@ -279,7 +284,11 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         // Then apply settings resolved from templates:
         dummySettings.put(templateSettings);
 
-        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            // handle mixed-cluster states by passing in minTransportVersion to reset event.ingested range to UNKNOWN if an older version
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState), simulatedState.getMinTransportVersion())
+            .settings(dummySettings)
+            .build();
 
         final ClusterState tempClusterState = ClusterState.builder(simulatedState)
             .metadata(Metadata.builder(simulatedState.metadata()).put(indexMetadata, true).build())
@@ -320,5 +329,10 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             lifecycle = DataStreamLifecycle.DEFAULT;
         }
         return new Template(settings, mergedMapping, aliasesByName, lifecycle);
+    }
+
+    private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {
+        final IndexMetadata indexMetadata = simulatedState.metadata().index(indexName);
+        return indexMetadata == null ? IndexLongFieldRange.NO_SHARDS : indexMetadata.getEventIngestedRange();
     }
 }

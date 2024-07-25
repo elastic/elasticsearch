@@ -1,0 +1,5 @@
+pr: 108687
+summary: Adding `user_type` support for the enterprise database for the geoip processor
+area: Ingest Node
+type: enhancement
+issues: []

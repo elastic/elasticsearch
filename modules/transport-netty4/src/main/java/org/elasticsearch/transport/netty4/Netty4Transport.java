@@ -30,6 +30,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -78,6 +79,8 @@ public class Netty4Transport extends TcpTransport {
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     protected final boolean remoteClusterPortEnabled;
 
+    private final ThreadWatchdog threadWatchdog;
+
     public Netty4Transport(
         Settings settings,
         TransportVersion version,
@@ -92,6 +95,7 @@ public class Netty4Transport extends TcpTransport {
         Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
+        this.threadWatchdog = networkService.getThreadWatchdog();
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         this.receivePredictorMin = Netty4Plugin.NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
@@ -125,6 +129,7 @@ public class Netty4Transport extends TcpTransport {
                     bindServer(profileSettings);
                 }
             }
+            threadWatchdog.run(settings, threadPool, lifecycle);
             success = true;
         } finally {
             if (success == false) {
@@ -354,7 +359,14 @@ public class Netty4Transport extends TcpTransport {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
         pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
-        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline(ch, isRemoteClusterServerChannel)));
+        pipeline.addLast(
+            "dispatcher",
+            new Netty4MessageInboundHandler(
+                this,
+                getInboundPipeline(ch, isRemoteClusterServerChannel),
+                threadWatchdog.getActivityTrackerForCurrentThread()
+            )
+        );
     }
 
     protected InboundPipeline getInboundPipeline(Channel ch, boolean isRemoteClusterServerChannel) {

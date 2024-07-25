@@ -72,7 +72,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         internalCluster().startNodes(3, buildSettings(0));
 
         final DanglingIndexDetails danglingIndexDetails = createDanglingIndices(INDEX_NAME);
-        final String stoppedNodeId = mapNodeNameToId(danglingIndexDetails.stoppedNodeName);
+        final String stoppedNodeId = getNodeId(danglingIndexDetails.stoppedNodeName);
 
         final RestClient restClient = getRestClient();
 
@@ -163,7 +163,12 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         // tombstone has been pushed out of the graveyard.
         createIndex("additional");
         deleteIndex("additional");
-        assertThat(listDanglingIndexIds(), is(empty()));
+        // reading dangling index metadata happens without the all shard locks
+        // (as we do not know the index name from the index directory structure).
+        // As a result the index directory could be updated or deleted in the meanwhile by any concurrent operation
+        // and result in the node request failure that is going to be propagated to the API call.
+        // Since dandling index API is a best effort we expect such failures to be retried on the client level.
+        assertBusy(() -> assertThat(listDanglingIndexIds(), is(empty())));
     }
 
     private List<String> listDanglingIndexIds() throws IOException {
@@ -171,37 +176,19 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assertOK(response);
 
         final XContentTestUtils.JsonMapView mapView = createJsonMapView(response.getEntity().getContent());
+        logger.warn("dangling API response: {}", mapView);
 
         assertThat(mapView.get("_nodes.total"), equalTo(3));
         assertThat(mapView.get("_nodes.successful"), equalTo(3));
         assertThat(mapView.get("_nodes.failed"), equalTo(0));
 
         List<Object> indices = mapView.get("dangling_indices");
-
         List<String> danglingIndexIds = new ArrayList<>();
-
         for (int i = 0; i < indices.size(); i++) {
             danglingIndexIds.add(mapView.get("dangling_indices." + i + ".index_uuid"));
         }
 
         return danglingIndexIds;
-    }
-
-    /**
-     * Given a node name, finds the corresponding node ID.
-     */
-    private String mapNodeNameToId(String nodeName) throws IOException {
-        final Response catResponse = getRestClient().performRequest(new Request("GET", "/_cat/nodes?full_id&h=id,name"));
-        assertOK(catResponse);
-
-        for (String nodeLine : Streams.readAllLines(catResponse.getEntity().getContent())) {
-            String[] elements = nodeLine.split(" ");
-            if (elements[1].equals(nodeName)) {
-                return elements[0];
-            }
-        }
-
-        throw new AssertionError("Failed to map node name [" + nodeName + "] to node ID");
     }
 
     /**

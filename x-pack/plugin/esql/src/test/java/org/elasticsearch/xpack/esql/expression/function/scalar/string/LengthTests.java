@@ -12,11 +12,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LengthTests extends AbstractFunctionTestCase {
+public class LengthTests extends AbstractScalarFunctionTestCase {
     public LengthTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -33,12 +33,12 @@ public class LengthTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        cases.addAll(List.of(new TestCaseSupplier("length basic test", List.of(DataTypes.KEYWORD), () -> {
+        cases.addAll(List.of(new TestCaseSupplier("length basic test", List.of(DataType.KEYWORD), () -> {
             BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(value, DataTypes.KEYWORD, "f")),
+                List.of(new TestCaseSupplier.TypedData(value, DataType.KEYWORD, "f")),
                 "LengthEvaluator[val=Attribute[channel=0]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 equalTo(UnicodeUtil.codePointCount(value))
             );
         })));
@@ -49,28 +49,28 @@ public class LengthTests extends AbstractFunctionTestCase {
         cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 2));
         cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
         cases.addAll(makeTestCases("100 random code points", () -> randomUnicodeOfCodepointLength(100), 100));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
     }
 
     private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
         return List.of(
             new TestCaseSupplier(
                 title + " with keyword",
-                List.of(DataTypes.KEYWORD),
+                List.of(DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataTypes.KEYWORD, "f")),
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.KEYWORD, "f")),
                     "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataTypes.INTEGER,
+                    DataType.INTEGER,
                     equalTo(expectedLength)
                 )
             ),
             new TestCaseSupplier(
                 title + " with text",
-                List.of(DataTypes.TEXT),
+                List.of(DataType.TEXT),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataTypes.TEXT, "f")),
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "f")),
                     "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataTypes.INTEGER,
+                    DataType.INTEGER,
                     equalTo(expectedLength)
                 )
             )

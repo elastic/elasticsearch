@@ -9,12 +9,14 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -114,5 +116,110 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         // We would expect an error about the invalid API key if the validation occurred
         putModel("unvalidated", openAiConfigWithBadApiKey, TaskType.TEXT_EMBEDDING);
+    }
+
+    public void testDeleteEndpointWhileReferencedByPipeline() throws IOException {
+        String endpointId = "endpoint_referenced_by_pipeline";
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var pipelineId = "pipeline_referencing_model";
+        putPipeline(pipelineId, endpointId);
+
+        {
+            var errorString = new StringBuilder().append("Inference endpoint ")
+                .append(endpointId)
+                .append(" is referenced by pipelines: ")
+                .append(Set.of(pipelineId))
+                .append(". ")
+                .append("Ensure that no pipelines are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.");
+            var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
+            assertThat(e.getMessage(), containsString(errorString.toString()));
+        }
+        {
+            var response = deleteModel(endpointId, "dry_run=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString(pipelineId));
+            assertThat(entityString, containsString("\"acknowledged\":false"));
+        }
+        {
+            var response = deleteModel(endpointId, "force=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":true"));
+        }
+        deletePipeline(pipelineId);
+    }
+
+    public void testDeleteEndpointWhileReferencedBySemanticText() throws IOException {
+        String endpointId = "endpoint_referenced_by_semantic_text";
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        String indexName = randomAlphaOfLength(10).toLowerCase();
+        putSemanticText(endpointId, indexName);
+        {
+
+            var errorString = new StringBuilder().append(" Inference endpoint ")
+                .append(endpointId)
+                .append(" is being used in the mapping for indexes: ")
+                .append(Set.of(indexName))
+                .append(". ")
+                .append("Ensure that no index mappings are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.");
+            var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
+            assertThat(e.getMessage(), containsString(errorString.toString()));
+        }
+        {
+            var response = deleteModel(endpointId, "dry_run=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":false"));
+            assertThat(entityString, containsString(indexName));
+        }
+        {
+            var response = deleteModel(endpointId, "force=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":true"));
+        }
+        deleteIndex(indexName);
+    }
+
+    public void testDeleteEndpointWhileReferencedBySemanticTextAndPipeline() throws IOException {
+        String endpointId = "endpoint_referenced_by_semantic_text";
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        String indexName = randomAlphaOfLength(10).toLowerCase();
+        putSemanticText(endpointId, indexName);
+        var pipelineId = "pipeline_referencing_model";
+        putPipeline(pipelineId, endpointId);
+        {
+
+            var errorString = new StringBuilder().append("Inference endpoint ")
+                .append(endpointId)
+                .append(" is referenced by pipelines: ")
+                .append(Set.of(pipelineId))
+                .append(". ")
+                .append("Ensure that no pipelines are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.")
+                .append(" Inference endpoint ")
+                .append(endpointId)
+                .append(" is being used in the mapping for indexes: ")
+                .append(Set.of(indexName))
+                .append(". ")
+                .append("Ensure that no index mappings are using this inference endpoint, ")
+                .append("or use force to ignore this warning and delete the inference endpoint.");
+
+            var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
+            assertThat(e.getMessage(), containsString(errorString.toString()));
+        }
+        {
+            var response = deleteModel(endpointId, "dry_run=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":false"));
+            assertThat(entityString, containsString(indexName));
+            assertThat(entityString, containsString(pipelineId));
+        }
+        {
+            var response = deleteModel(endpointId, "force=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":true"));
+        }
+        deletePipeline(pipelineId);
+        deleteIndex(indexName);
     }
 }

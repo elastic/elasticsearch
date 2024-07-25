@@ -2,6 +2,9 @@
 [[esql-where]]
 === `WHERE`
 
+The `WHERE` processing command produces a table that contains all the rows from
+the input table for which the provided condition evaluates to `true`.
+
 **Syntax**
 
 [source,esql]
@@ -13,11 +16,6 @@ WHERE expression
 
 `expression`::
 A boolean expression.
-
-*Description*
-
-The `WHERE` processing command produces a table that contains all the rows from
-the input table for which the provided condition evaluates to `true`.
 
 *Examples*
 
@@ -33,7 +31,7 @@ Which, if `still_hired` is a boolean field, can be simplified to:
 include::{esql-specs}/docs.csv-spec[tag=whereBoolean]
 ----
 
-Use date math to retrieve data from a specific time range. For example, to 
+Use date math to retrieve data from a specific time range. For example, to
 retrieve the last hour of logs:
 
 [source,esql]

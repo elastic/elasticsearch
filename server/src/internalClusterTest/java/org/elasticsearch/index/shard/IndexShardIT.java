@@ -49,6 +49,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -96,6 +97,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
+import static org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -162,7 +164,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             try {
                 // the lastWriteLocaltion has a Integer.MAX_VALUE size so we have to create a new one
                 return tlog.ensureSynced(
-                    new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0),
+                    new Translog.Location(lastWriteLocation.generation(), lastWriteLocation.translogLocation(), 0),
                     SequenceNumbers.UNASSIGNED_SEQ_NO
                 );
             } catch (IOException e) {
@@ -226,6 +228,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch("test"), 1L);
         indicesAdmin().prepareDelete("test").get();
+        awaitIndexShardCloseAsyncTasks();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(idxPath);
     }
@@ -273,6 +276,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // Now, try closing and changing the settings
         logger.info("--> closing the index [{}] before updating data_path", index);
         assertAcked(indicesAdmin().prepareClose(index));
+        awaitIndexShardCloseAsyncTasks();
 
         final Path newIndexDataPath = sharedDataPath.resolve("end-" + randomAlphaOfLength(10));
         IOUtils.rm(newIndexDataPath);
@@ -307,6 +311,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         assertAcked(indicesAdmin().prepareDelete(index));
+        awaitIndexShardCloseAsyncTasks();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(newIndexDataPath.toAbsolutePath());
     }
@@ -384,7 +389,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             logger.info(
                 "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
                 Strings.toString(translogStats),
-                translog.getGeneration().translogFileGeneration,
+                translog.getGeneration().translogFileGeneration(),
                 commitStats.getUserData(),
                 flushStats.getPeriodic(),
                 flushStats.getTotal()
@@ -423,7 +428,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             );
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
-            if (location.translogLocation + location.size > generationThreshold) {
+            if (location.translogLocation() + location.size() > generationThreshold) {
                 // wait until the roll completes
                 assertBusy(() -> assertFalse(shard.shouldRollTranslogGeneration()));
                 rolls++;
@@ -629,7 +634,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             cbs,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
-            null
+            null,
+            MapperMetrics.NOOP
         );
     }
 

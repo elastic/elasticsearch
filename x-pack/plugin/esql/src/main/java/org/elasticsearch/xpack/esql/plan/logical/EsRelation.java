@@ -6,15 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.NodeUtils;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,33 +25,28 @@ public class EsRelation extends LeafPlan {
 
     private final EsIndex index;
     private final List<Attribute> attrs;
-    private final EsSourceOptions esSourceOptions;
     private final boolean frozen;
+    private final IndexMode indexMode;
 
-    public EsRelation(Source source, EsIndex index, boolean frozen) {
-        this(source, index, flatten(source, index.mapping()), EsSourceOptions.NO_OPTIONS, frozen);
+    public EsRelation(Source source, EsIndex index, IndexMode indexMode, boolean frozen) {
+        this(source, index, flatten(source, index.mapping()), indexMode, frozen);
     }
 
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes) {
-        this(source, index, attributes, EsSourceOptions.NO_OPTIONS, false);
+    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, IndexMode indexMode) {
+        this(source, index, attributes, indexMode, false);
     }
 
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, EsSourceOptions esSourceOptions) {
-        this(source, index, attributes, esSourceOptions, false);
-    }
-
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, EsSourceOptions esSourceOptions, boolean frozen) {
+    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, IndexMode indexMode, boolean frozen) {
         super(source);
         this.index = index;
         this.attrs = attributes;
-        Objects.requireNonNull(esSourceOptions);
-        this.esSourceOptions = esSourceOptions;
+        this.indexMode = indexMode;
         this.frozen = frozen;
     }
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index, attrs, esSourceOptions, frozen);
+        return NodeInfo.create(this, EsRelation::new, index, attrs, indexMode, frozen);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -82,12 +76,12 @@ public class EsRelation extends LeafPlan {
         return index;
     }
 
-    public EsSourceOptions esSourceOptions() {
-        return esSourceOptions;
-    }
-
     public boolean frozen() {
         return frozen;
+    }
+
+    public IndexMode indexMode() {
+        return indexMode;
     }
 
     @Override
@@ -97,12 +91,14 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public boolean expressionsResolved() {
+        // For unresolved expressions to exist in EsRelation is fine, as long as they are not used in later operations
+        // This allows for them to be converted to null@unsupported fields in final output, an important feature of ES|QL
         return true;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, esSourceOptions, frozen);
+        return Objects.hash(index, indexMode, frozen, attrs);
     }
 
     @Override
@@ -116,7 +112,10 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index) && Objects.equals(esSourceOptions, other.esSourceOptions) && frozen == other.frozen;
+        return Objects.equals(index, other.index)
+            && indexMode == other.indexMode()
+            && frozen == other.frozen
+            && Objects.equals(attrs, other.attrs);
     }
 
     @Override

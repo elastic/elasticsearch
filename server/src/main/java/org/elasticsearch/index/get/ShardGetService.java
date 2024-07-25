@@ -27,6 +27,7 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -59,11 +60,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     private final MeanMetric missingMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
     private final IndexShard indexShard;
+    private final MapperMetrics mapperMetrics;
 
-    public ShardGetService(IndexSettings indexSettings, IndexShard indexShard, MapperService mapperService) {
+    public ShardGetService(IndexSettings indexSettings, IndexShard indexShard, MapperService mapperService, MapperMetrics mapperMetrics) {
         super(indexShard.shardId(), indexSettings);
         this.mapperService = mapperService;
         this.indexShard = indexShard;
+        this.mapperMetrics = mapperMetrics;
     }
 
     public GetStats stats() {
@@ -303,8 +306,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
-            ? new SourceLoader.Synthetic(mappingLookup.getMapping())
-            : mappingLookup.newSourceLoader();
+            ? new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics())
+            : mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFields, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {

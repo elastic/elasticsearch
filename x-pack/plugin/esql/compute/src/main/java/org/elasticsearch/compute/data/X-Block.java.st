@@ -57,6 +57,14 @@ $endif$
     @Override
     $Type$Vector asVector();
 
+$if(BytesRef)$
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
+$endif$
+
     @Override
     $Type$Block filter(int... positions);
 
@@ -121,15 +129,15 @@ $endif$
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof $Type$ArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
 $if(BytesRef)$
-        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
             out.writeByte(SERIALIZE_BLOCK_ORDINAL);
             b.writeOrdinalBlock(out);
 $else$
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof $Type$BigArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
 $endif$
@@ -238,6 +246,8 @@ $elseif(boolean)$
                     result = 31 * result + Boolean.hashCode(block.getBoolean(firstValueIdx + valueIndex));
 $elseif(int)$
                     result = 31 * result + block.getInt(firstValueIdx + valueIndex);
+$elseif(float)$
+                    result = 31 * result + Float.floatToIntBits(block.getFloat(pos));
 $elseif(long)$
                     long element = block.getLong(firstValueIdx + valueIndex);
                     result = 31 * result + (int) (element ^ (element >>> 32));

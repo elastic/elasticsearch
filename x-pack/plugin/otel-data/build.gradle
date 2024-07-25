@@ -34,4 +34,5 @@ dependencies {
   clusterModules project(xpackModule('mapper-counted-keyword'))
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('wildcard'))
+  clusterModules project(xpackModule('mapper-version'))
 }

@@ -33,6 +33,7 @@ public class OTelYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-aggregate-metric")
         .module("x-pack-ilm")
         .module("x-pack-stack")
+        .module("mapper-version")
         .setting("ingest.geoip.downloader.enabled", "false")
         .setting("xpack.otel_data.registry.enabled", "true")
         .build();

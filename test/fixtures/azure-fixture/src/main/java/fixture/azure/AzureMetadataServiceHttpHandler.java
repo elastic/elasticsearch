@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -32,6 +33,7 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(AzureMetadataServiceHttpHandler.class);
 
     private final String bearerToken;
+    private final String tenantId = "4fa94b7d-a743-486f-abcc-6c276c44cf4b";
 
     public AzureMetadataServiceHttpHandler(String bearerToken) {
         this.bearerToken = bearerToken;
@@ -44,25 +46,20 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
             && "api-version=2018-02-01&resource=https://storage.azure.com".equals(exchange.getRequestURI().getQuery())) {
 
             try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                final var nowSeconds = System.currentTimeMillis() / 1000L;
-                final var validitySeconds = 86400L;
-                xcb.startObject();
-                xcb.field("access_token", bearerToken);
-                xcb.field("client_id", UUIDs.randomBase64UUID());
-                xcb.field("expires_in", Long.toString(validitySeconds));
-                xcb.field("expires_on", Long.toString(nowSeconds + validitySeconds));
-                xcb.field("ext_expires_in", Long.toString(validitySeconds));
-                xcb.field("not_before", Long.toString(nowSeconds));
-                xcb.field("resource", "https://storage.azure.com");
-                xcb.field("token_type", "Bearer");
-                xcb.endObject();
-                final var responseBytes = BytesReference.bytes(xcb);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(200, responseBytes.length());
-                responseBytes.writeTo(exchange.getResponseBody());
+                final BytesReference responseBytes = getAccessTokenBytes(xcb);
+                writeResponse(exchange, responseBytes);
                 return;
             }
-        }
+        } else if ("POST".equals(exchange.getRequestMethod())
+            && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
+                final BytesReference body = Streams.readFully(exchange.getRequestBody());
+                System.out.println("Received request body: " + body.utf8ToString());
+                try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    final BytesReference responseBytes = getAccessTokenBytes(xcb);
+                    writeResponse(exchange, responseBytes);
+                    return;
+                }
+            }
 
         final var msgBuilder = new StringWriter();
         msgBuilder.append("method: ").append(exchange.getRequestMethod()).append(System.lineSeparator());
@@ -80,5 +77,28 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
         exchange.sendResponseHeaders(200, responseBytes.length);
         new BytesArray(responseBytes).writeTo(exchange.getResponseBody());
         exchange.close();
+    }
+
+    private void writeResponse(HttpExchange exchange, BytesReference responseBytes) throws IOException {
+        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+        exchange.sendResponseHeaders(200, responseBytes.length());
+        responseBytes.writeTo(exchange.getResponseBody());
+    }
+
+    private BytesReference getAccessTokenBytes(XContentBuilder xcb) throws IOException {
+        final var nowSeconds = System.currentTimeMillis() / 1000L;
+        final var validitySeconds = 86400L;
+        xcb.startObject();
+        xcb.field("access_token", bearerToken);
+        xcb.field("client_id", UUIDs.randomBase64UUID());
+        xcb.field("expires_in", Long.toString(validitySeconds));
+        xcb.field("expires_on", Long.toString(nowSeconds + validitySeconds));
+        xcb.field("ext_expires_in", Long.toString(validitySeconds));
+        xcb.field("not_before", Long.toString(nowSeconds));
+        xcb.field("resource", "https://storage.azure.com");
+        xcb.field("token_type", "Bearer");
+        xcb.endObject();
+        final var responseBytes = BytesReference.bytes(xcb);
+        return responseBytes;
     }
 }

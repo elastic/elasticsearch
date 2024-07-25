@@ -471,7 +471,10 @@ public class AzureBlobStore implements BlobStore {
                 requestConditions.setIfNoneMatch("*");
             }
             options.setRequestConditions(requestConditions);
-            blockBlobAsyncClient.uploadWithResponse(options).block();
+            SocketAccess.doPrivilegedException(() -> {
+                blockBlobAsyncClient.uploadWithResponse(options).block();
+                return null;
+            });
         });
     }
 

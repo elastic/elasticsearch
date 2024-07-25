@@ -115,7 +115,7 @@ public class AzureHttpFixture extends ExternalResource {
     }
 
     public String getMetadataAddress() {
-        return "http://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
+        return scheme() + "://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
     }
 
     @Override
@@ -124,9 +124,31 @@ public class AzureHttpFixture extends ExternalResource {
             final var bearerToken = ESTestCase.randomIdentifier();
 
             if (protocol != Protocol.NONE) {
-                this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(bearerToken));
-                metadataServer.start();
+                if (protocol == Protocol.HTTPS) {
+                    final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                    this.metadataServer = httpsServer;
+                    final var tmpdir = ESTestCase.createTempDir();
+                    final var certificates = PemUtils.readCertificates(List.of(copyResource(tmpdir, "azure-http-fixture.pem")));
+                    assertThat(certificates, hasSize(1));
+                    final SSLContext sslContext = SSLContext.getInstance("TLS");
+                    sslContext.init(
+                        new KeyManager[] {
+                            KeyStoreUtil.createKeyManager(
+                                new Certificate[] { certificates.get(0) },
+                                PemUtils.readPrivateKey(copyResource(tmpdir, "azure-http-fixture.key"), () -> null),
+                                null
+                            ) },
+                        null,
+                        new SecureRandom()
+                    );
+                    httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
+                    httpsServer.createContext("/", new AzureMetadataServiceHttpHandler(bearerToken));
+                    httpsServer.start();
+                } else {
+                    this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                    metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(bearerToken));
+                    metadataServer.start();
+                }
             }
 
             final var actualAuthHeaderPredicate = authHeaderPredicate == MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
@@ -134,8 +156,7 @@ public class AzureHttpFixture extends ExternalResource {
                 : authHeaderPredicate;
 
             switch (protocol) {
-                case NONE -> {
-                }
+                case NONE -> {}
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                     server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));

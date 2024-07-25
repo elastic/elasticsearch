@@ -19,6 +19,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
 
+import com.azure.core.credential.TokenCredential;
 import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
@@ -169,7 +170,18 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .retryOptions(retryOptions);
 
         if (settings.hasCredentials() == false) {
-            builder.credential(new DefaultAzureCredentialBuilder().executorService(eventLoopGroup).build());
+            final TokenCredential credential =
+                new DefaultAzureCredentialBuilder().executorService(eventLoopGroup)
+                    .disableInstanceDiscovery()
+                    .build();
+            // new WorkloadIdentityCredentialBuilder().executorService(eventLoopGroup)
+            // .tokenFilePath("/Users/nikolajvolgushev/Desktop/azwoid-token-config/token-cemetery/bad-token")
+            // .clientId("client-id")
+            // .tenantId("tenant-id")
+            // .disableInstanceDiscovery()
+            // .build();
+
+            builder.credential(credential);
         }
 
         if (successfulRequestConsumer != null) {

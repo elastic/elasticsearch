@@ -40,6 +40,10 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")
     );
 
+    // private static TestTrustStore trustStore = new TestTrustStore(
+    // () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")
+    // );
+
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-azure")
         .module("snapshot-repo-test-kit")
@@ -66,6 +70,14 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             }
         })
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
+        .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
+        .systemProperty("AZURE_CLIENT_ID", () -> "8e6641ab-a6bd-4457-be6a-c97f3c3de81e", s -> USE_FIXTURE)
+        .systemProperty("AZURE_TENANT_ID", () -> "4fa94b7d-a743-486f-abcc-6c276c44cf4b", s -> USE_FIXTURE)
+        .systemProperty(
+            "AZURE_FEDERATED_TOKEN_FILE",
+            () -> "/Users/nikolajvolgushev/Desktop/azwoid-token-config/token-cemetery/bad-token",
+            s -> USE_FIXTURE
+        )
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
 

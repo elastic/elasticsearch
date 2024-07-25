@@ -170,7 +170,12 @@ public class EsqlCapabilities {
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
-        UNIQUE_NAMES;
+        UNIQUE_NAMES,
+
+        /**
+         * Support for match operator
+         */
+        MATCH_OPERATOR;
 
         private final boolean snapshotOnly;
 

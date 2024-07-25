@@ -1,9 +1,13 @@
 ---
 setup:
   - requires:
-      cluster_features: [ "gte_v8.16.0" ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ match_operator ]
       reason: "Match operator added in 8.16.0"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [capabilities, allowed_warnings_regex]
   - do:
       indices.create:
         index:  test

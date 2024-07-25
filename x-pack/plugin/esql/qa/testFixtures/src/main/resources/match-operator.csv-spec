@@ -3,7 +3,7 @@
 #
 
 singleMatchWithTextField
-required_capability: match_syntax
+required_capability: match_operator
 from airports | where name match "london" | keep abbrev, name | sort abbrev;
 
 abbrev:keyword | name:text
@@ -13,7 +13,7 @@ LTN            | London Luton
 ;
 
 singleMatchWithKeywordField
-required_capability: match_syntax
+required_capability: match_operator
 from airports | where abbrev match "LTN" | keep abbrev, name | sort abbrev;
 
 abbrev:keyword | name:text
@@ -21,7 +21,7 @@ LTN            | London Luton
 ;
 
 multipleMatch
-required_capability: match_syntax
+required_capability: match_operator
 from airports | where name match "london" or name match "liverpool "| keep abbrev, name | sort abbrev;
 
 abbrev:keyword | name:text
@@ -32,7 +32,7 @@ LTN            | London Luton
 ;
 
 multipleWhereWithMatch
-required_capability: match_syntax
+required_capability: match_operator
 from airports | where name match "john" | WHERE name match "St" | keep abbrev, name | sort abbrev;
 
 abbrev:keyword | name:text
@@ -40,7 +40,7 @@ YXJ            | Fort St. John (N. Peace)
 ;
 
 combinedMatchWithFunctions
-required_capability: match_syntax
+required_capability: match_operator
 from airports
 | where name match "john" AND country match "Canada" AND scalerank > 5
 | where length(name) > 10
@@ -54,7 +54,7 @@ YXJ            | Fort St. John (N. Peace)     | Canada          | 8
 ;
 
 matchWithStats
-required_capability: match_syntax
+required_capability: match_operator
 from airports
 | where name match "john" AND scalerank > 5
 | where length(name) > 10

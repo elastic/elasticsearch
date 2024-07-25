@@ -1,7 +1,11 @@
 [[infer-service-elasticsearch]]
 === Elasticsearch {infer} service
 
-Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch` service.
+Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch`
+service.
+
+NOTE: If you use the E5 model through the `elasticsearch` service, the API
+request will automatically download the model if it isn't downloaded yet.
 
 
 [discrete]
@@ -80,6 +84,9 @@ Returns the document instead of only the index. Defaults to `true`.
 
 The following example shows how to create an {infer} endpoint called
 `my-e5-model` to perform a `text_embedding` task type.
+
+The API request below will automatically download and deploy the E5 model if it
+isn't already downloaded and deployed.
 
 [source,console]
 ------------------------------------------------------------

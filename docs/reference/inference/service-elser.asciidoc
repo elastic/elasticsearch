@@ -3,6 +3,9 @@
 
 Creates an {infer} endpoint to perform an {infer} task with the `elser` service.
 
+NOTE: The API request will automatically download and deploy the ELSER model if
+it isn't already downloaded and deployed.
+
 
 [discrete]
 [[infer-service-elser-api-request]]
@@ -62,6 +65,9 @@ Must be a power of 2. Max allowed value is 32.
 The following example shows how to create an {infer} endpoint called
 `my-elser-model` to perform a `sparse_embedding` task type.
 Refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation] for more info.
+
+The request below will automatically download and deploy the ELSER model if it
+isn't already downloaded and deployed.
 
 [source,console]
 ------------------------------------------------------------

@@ -9,7 +9,7 @@ template:
     dynamic: strict
     properties:
       "@timestamp":
-        type: date_nanos
+        type: date
       data_stream.type:
         type: constant_keyword
       data_stream.dataset:

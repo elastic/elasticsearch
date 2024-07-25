@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
+import static org.junit.Assert.assertTrue;
 
 public class TestTrustStore extends ExternalResource {
 
@@ -53,5 +54,10 @@ public class TestTrustStore extends ExternalResource {
         } catch (Exception e) {
             throw new AssertionError("unexpected", e);
         }
+    }
+
+    @Override
+    protected void after() {
+        assertTrue(trustStorePath + " should still exist at teardown", Files.exists(trustStorePath));
     }
 }

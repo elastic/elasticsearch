@@ -60,7 +60,7 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
 
-    @ClassRule
+    @ClassRule(order = 1)
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);
 
     @Override

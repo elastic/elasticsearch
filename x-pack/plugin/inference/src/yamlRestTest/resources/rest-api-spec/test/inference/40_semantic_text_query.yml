@@ -91,6 +91,36 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
+"Numeric query using a sparse embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [40, 49.678]
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "40"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
 "Query using a dense embedding model":
   - skip:
       features: [ "headers", "close_to" ]

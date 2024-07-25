@@ -25,6 +25,7 @@ import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -38,6 +39,8 @@ public class AzureHttpFixture extends ExternalResource {
     private final Protocol protocol;
     private final String account;
     private final String container;
+    private final Predicate<String> authHeaderPredicate;
+
     private HttpServer server;
 
     public enum Protocol {
@@ -46,10 +49,31 @@ public class AzureHttpFixture extends ExternalResource {
         HTTPS
     }
 
-    public AzureHttpFixture(Protocol protocol, String account, String container) {
+    /**
+     * @param  account The name of the Azure Blob Storage account against which the request should be authorized..
+     * @return a predicate that matches the {@code Authorization} HTTP header that the Azure SDK sends when using shared key auth (i.e.
+     *         using a key or SAS token).
+     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/authorize-with-shared-key">Azure docs on shared key auth</a>
+     */
+    public static Predicate<String> sharedKeyForAccountPredicate(String account) {
+        return new Predicate<>() {
+            @Override
+            public boolean test(String s) {
+                return s.startsWith("SharedKey " + account + ":");
+            }
+
+            @Override
+            public String toString() {
+                return "SharedKey[" + account + "]";
+            }
+        };
+    }
+
+    public AzureHttpFixture(Protocol protocol, String account, String container, Predicate<String> authHeaderPredicate) {
         this.protocol = protocol;
         this.account = account;
         this.container = container;
+        this.authHeaderPredicate = authHeaderPredicate;
     }
 
     private String scheme() {
@@ -72,7 +96,7 @@ public class AzureHttpFixture extends ExternalResource {
                 }
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                    server.createContext("/" + account, new AzureHttpHandler(account, container));
+                    server.createContext("/" + account, new AzureHttpHandler(account, container, authHeaderPredicate));
                     server.start();
                 }
                 case HTTPS -> {
@@ -93,7 +117,7 @@ public class AzureHttpFixture extends ExternalResource {
                         new SecureRandom()
                     );
                     httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                    httpsServer.createContext("/" + account, new AzureHttpHandler(account, container));
+                    httpsServer.createContext("/" + account, new AzureHttpHandler(account, container, authHeaderPredicate));
                     httpsServer.start();
                 }
             }

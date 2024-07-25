@@ -110,6 +110,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             "Test " + testName + " is skipped on " + Clusters.oldVersion(),
             isEnabled(testName, instructions, Clusters.oldVersion())
         );
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats"));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

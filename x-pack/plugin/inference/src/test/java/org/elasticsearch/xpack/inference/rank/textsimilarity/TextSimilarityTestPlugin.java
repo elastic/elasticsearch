@@ -108,7 +108,6 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public <Request extends ActionRequest, Response extends ActionResponse> void apply(
             Task task,
             String action,
@@ -118,47 +117,62 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         ) {
             if (action.equals(GetInferenceModelAction.INSTANCE.name())) {
                 assert request instanceof GetInferenceModelAction.Request;
-                GetInferenceModelAction.Request getInferenceModelRequest = (GetInferenceModelAction.Request) request;
-                String inferenceEntityId = getInferenceModelRequest.getInferenceEntityId();
-                Integer topN = null;
-                Matcher extractTopN = Pattern.compile(".*(task-settings-top-\\d+).*").matcher(inferenceEntityId);
-                if (extractTopN.find()) {
-                    topN = Integer.parseInt(extractTopN.group(1).replaceAll("\\D", ""));
-                }
-
-                ActionResponse response = new GetInferenceModelAction.Response(
-                    List.of(
-                        new ModelConfigurations(
-                            getInferenceModelRequest.getInferenceEntityId(),
-                            getInferenceModelRequest.getTaskType(),
-                            CohereService.NAME,
-                            new CohereRerankServiceSettings("uri", "model", null),
-                            topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
-                        )
-                    )
-                );
-                listener.onResponse((Response) response);
+                handleGetInferenceModelActionRequest((GetInferenceModelAction.Request) request, listener);
             } else if (action.equals(InferenceAction.INSTANCE.name())) {
                 assert request instanceof InferenceAction.Request;
-                Map<String, Object> taskSettings = ((InferenceAction.Request) request).getTaskSettings();
-                boolean shouldThrow = (boolean) taskSettings.getOrDefault("throwing", false);
-                Integer inferenceResultCount = (Integer) taskSettings.get("inferenceResultCount");
-
-                if (shouldThrow) {
-                    listener.onFailure(new UnsupportedOperationException("simulated failure"));
-                } else {
-                    List<RankedDocsResults.RankedDoc> rankedDocsResults = new ArrayList<>();
-                    List<String> inputs = ((InferenceAction.Request) request).getInput();
-                    int resultCount = inferenceResultCount == null ? inputs.size() : inferenceResultCount;
-                    for (int i = 0; i < resultCount; i++) {
-                        rankedDocsResults.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(inputs.get(i)), inputs.get(i)));
-                    }
-                    ActionResponse response = new InferenceAction.Response(new RankedDocsResults(rankedDocsResults));
-                    listener.onResponse((Response) response);
-                }
+                handleInferenceActionRequest((InferenceAction.Request) request, listener);
             } else {
                 // For any other action than get model and inference, execute normally
                 chain.proceed(task, action, request, listener);
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private <Response extends ActionResponse> void handleGetInferenceModelActionRequest(
+            GetInferenceModelAction.Request request,
+            ActionListener<Response> listener
+        ) {
+            String inferenceEntityId = request.getInferenceEntityId();
+            Integer topN = null;
+            Matcher extractTopN = Pattern.compile(".*(task-settings-top-\\d+).*").matcher(inferenceEntityId);
+            if (extractTopN.find()) {
+                topN = Integer.parseInt(extractTopN.group(1).replaceAll("\\D", ""));
+            }
+
+            ActionResponse response = new GetInferenceModelAction.Response(
+                List.of(
+                    new ModelConfigurations(
+                        request.getInferenceEntityId(),
+                        request.getTaskType(),
+                        CohereService.NAME,
+                        new CohereRerankServiceSettings("uri", "model", null),
+                        topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
+                    )
+                )
+            );
+            listener.onResponse((Response) response);
+        }
+
+        @SuppressWarnings("unchecked")
+        private <Response extends ActionResponse> void handleInferenceActionRequest(
+            InferenceAction.Request request,
+            ActionListener<Response> listener
+        ) {
+            Map<String, Object> taskSettings = request.getTaskSettings();
+            boolean shouldThrow = (boolean) taskSettings.getOrDefault("throwing", false);
+            Integer inferenceResultCount = (Integer) taskSettings.get("inferenceResultCount");
+
+            if (shouldThrow) {
+                listener.onFailure(new UnsupportedOperationException("simulated failure"));
+            } else {
+                List<RankedDocsResults.RankedDoc> rankedDocsResults = new ArrayList<>();
+                List<String> inputs = request.getInput();
+                int resultCount = inferenceResultCount == null ? inputs.size() : inferenceResultCount;
+                for (int i = 0; i < resultCount; i++) {
+                    rankedDocsResults.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(inputs.get(i)), inputs.get(i)));
+                }
+                ActionResponse response = new InferenceAction.Response(new RankedDocsResults(rankedDocsResults));
+                listener.onResponse((Response) response);
             }
         }
     }

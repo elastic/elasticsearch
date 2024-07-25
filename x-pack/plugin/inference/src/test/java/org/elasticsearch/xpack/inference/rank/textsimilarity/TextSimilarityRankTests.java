@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.InputType;
@@ -156,7 +157,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
     }
 
     public void testRerankTopNConfigurationAndRankWindowSizeMismatch() {
-        ElasticsearchAssertions.assertFailures(
+        SearchPhaseExecutionException ex = expectThrows(
+            SearchPhaseExecutionException.class,
             // Execute search with text similarity reranking
             client.prepareSearch()
                 .setRankBuilder(
@@ -164,24 +166,23 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                     // (Note: top_n comes from inferenceId, there's no other easy way of passing this to the mocked get model request)
                     new TextSimilarityRankBuilder("text", "my-rerank-model-task-settings-top-3", "my query", 100, 1.5f)
                 )
-                .setQuery(QueryBuilders.matchAllQuery()),
-            RestStatus.BAD_REQUEST,
-            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
+                .setQuery(QueryBuilders.matchAllQuery())
         );
+        assertThat(ex.getDetailedMessage(), containsString("Reduce rank_window_size to be less than or equal to this value"));
     }
 
-    public void testRerankInferenceResultsAndInputSizeMismatch() {
-        ElasticsearchAssertions.assertFailures(
+    public void testRerankInputSizeAndInferenceResultsMismatch() {
+        SearchPhaseExecutionException ex = expectThrows(
+            SearchPhaseExecutionException.class,
             // Execute search with text similarity reranking
             client.prepareSearch()
                 .setRankBuilder(
                     // Simulate reranker returning different number of results from input
                     new InferenceResultCountAcceptingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, 4)
                 )
-                .setQuery(QueryBuilders.matchAllQuery()),
-            RestStatus.INTERNAL_SERVER_ERROR,
-            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
+                .setQuery(QueryBuilders.matchAllQuery())
         );
+        assertThat(ex.getDetailedMessage(), containsString("Reranker input document count and returned score count mismatch"));
     }
 
     private static void assertHitHasRankScoreAndText(SearchHit hit, int expectedRank, float expectedScore, String expectedText) {

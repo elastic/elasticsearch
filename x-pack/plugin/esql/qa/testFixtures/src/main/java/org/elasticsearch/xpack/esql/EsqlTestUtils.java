@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -47,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Range;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -101,12 +101,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
+
     public static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
     public static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
     public static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
     public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
     public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
+    public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);

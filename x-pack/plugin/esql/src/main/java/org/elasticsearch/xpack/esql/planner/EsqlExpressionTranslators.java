@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Range;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -50,6 +52,7 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -67,14 +70,20 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 public final class EsqlExpressionTranslators {
+
+    public static Object valueOf(Expression e) {
+        if (e.foldable()) {
+            return e.fold();
+        }
+        throw new EsqlIllegalArgumentException("Cannot determine value for {}", e);
+    }
+
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
         new InComparisons(),
-        // Ranges is redundant until we start combining binary comparisons (see CombineBinaryComparisons in ql's OptimizerRules)
-        // or introduce a BETWEEN keyword.
-        new ExpressionTranslators.Ranges(),
+        new Ranges(),  // ES|QL does not support BETWEEN yet, but CombineBinaryComparisons may create Range from gt, gte, lt, lte etc.
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
         new ExpressionTranslators.IsNotNulls(),
@@ -124,7 +133,7 @@ public final class EsqlExpressionTranslators {
         static Query translate(InsensitiveEquals bc) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
-            BytesRef value = BytesRefs.toBytesRef(ExpressionTranslators.valueOf(bc.right()));
+            BytesRef value = BytesRefs.toBytesRef(valueOf(bc.right()));
             String name = pushableAttributeName(attribute);
             return new TermQuery(source, name, value.utf8ToString(), true);
         }
@@ -249,7 +258,7 @@ public final class EsqlExpressionTranslators {
                 return null;
             }
             Source source = bc.source();
-            Object value = ExpressionTranslators.valueOf(bc.right());
+            Object value = valueOf(bc.right());
 
             // Comparisons with multi-values always return null in ESQL.
             if (value instanceof List<?>) {
@@ -453,12 +462,91 @@ public final class EsqlExpressionTranslators {
 
             return queries.stream().reduce((q1, q2) -> or(in.source(), q1, q2)).get();
         }
+    }
 
-        public static Object valueOf(Expression e) {
-            if (e.foldable()) {
-                return e.fold();
+    public static class Ranges extends ExpressionTranslator<Range> {
+
+        @Override
+        protected Query asQuery(Range r, TranslatorHandler handler) {
+            return doTranslate(r, handler);
+        }
+
+        public static Query doTranslate(Range r, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
+        }
+
+        private static RangeQuery translate(Range r, TranslatorHandler handler) {
+            Object lower = valueOf(r.lower());
+            Object upper = valueOf(r.upper());
+            String format = null;
+
+            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
+            // no matter the timezone provided by the user
+            DateFormatter formatter = null;
+            if (lower instanceof ZonedDateTime || upper instanceof ZonedDateTime) {
+                formatter = DEFAULT_DATE_TIME_FORMATTER;
+            } else if (lower instanceof OffsetTime || upper instanceof OffsetTime) {
+                formatter = HOUR_MINUTE_SECOND;
             }
-            throw new QlIllegalArgumentException("Cannot determine value for {}", e);
+            if (formatter != null) {
+                // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime
+                // instance which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
+                // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format.
+                if (lower instanceof ZonedDateTime || lower instanceof OffsetTime) {
+                    lower = formatter.format((TemporalAccessor) lower);
+                }
+                if (upper instanceof ZonedDateTime || upper instanceof OffsetTime) {
+                    upper = formatter.format((TemporalAccessor) upper);
+                }
+                format = formatter.pattern();
+            }
+
+            if (DataType.isDateTime(r.value().dataType())
+                && DataType.isDateTime(r.lower().dataType())
+                && DataType.isDateTime(r.upper().dataType())) {
+                lower = dateTimeToString((Long) lower);
+                upper = dateTimeToString((Long) upper);
+                format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+            }
+
+            if (r.value().dataType() == IP) {
+                if (lower instanceof BytesRef bytesRef) {
+                    lower = ipToString(bytesRef);
+                }
+                if (upper instanceof BytesRef bytesRef) {
+                    upper = ipToString(bytesRef);
+                }
+            } else if (r.value().dataType() == VERSION) {
+                // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
+                // encoded) representation of the version as it'll do the encoding itself.
+                if (lower instanceof BytesRef bytesRef) {
+                    lower = versionToString(bytesRef);
+                } else if (lower instanceof Version version) {
+                    lower = versionToString(version);
+                }
+                if (upper instanceof BytesRef bytesRef) {
+                    upper = versionToString(bytesRef);
+                } else if (upper instanceof Version version) {
+                    upper = versionToString(version);
+                }
+            } else if (r.value().dataType() == UNSIGNED_LONG) {
+                if (lower instanceof Long ul) {
+                    lower = unsignedLongAsNumber(ul);
+                }
+                if (upper instanceof Long ul) {
+                    upper = unsignedLongAsNumber(ul);
+                }
+            }
+            return new RangeQuery(
+                r.source(),
+                handler.nameOf(r.value()),
+                lower,
+                r.includeLower(),
+                upper,
+                r.includeUpper(),
+                format,
+                r.zoneId()
+            );
         }
     }
 }

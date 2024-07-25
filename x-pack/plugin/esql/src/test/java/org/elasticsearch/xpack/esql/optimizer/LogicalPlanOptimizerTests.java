@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Range;
 import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.PushDownAndCombineFilters;
@@ -876,16 +877,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(filter.child(), Aggregate.class);
 
         filter = as(agg.child(), Filter.class);
-        assertTrue(filter.condition() instanceof And);
-        var and = (And) filter.condition();
-        assertTrue(and.left() instanceof GreaterThan);
-        gt = (GreaterThan) and.left();
-        assertTrue(gt.left() instanceof FieldAttribute);
-        assertEquals("emp_no", ((FieldAttribute) gt.left()).name());
-        assertTrue(and.right() instanceof LessThan);
-        var lt = (LessThan) and.right();
-        assertTrue(lt.left() instanceof FieldAttribute);
-        assertEquals("emp_no", ((FieldAttribute) lt.left()).name());
+        assertTrue(filter.condition() instanceof Range);
+        var range = (Range) filter.condition();
+        assertTrue(range.value() instanceof FieldAttribute);
+        assertEquals("emp_no", ((FieldAttribute) range.value()).name());
+        assertEquals(range.lower().fold(), 1);
+        assertFalse(range.includeLower());
+        assertFalse(range.includeUpper());
+        assertEquals(range.upper().fold(), 3);
 
         assertTrue(filter.child() instanceof EsRelation);
     }
@@ -956,17 +955,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("x", (eval.fields().get(0)).name());
 
         filter = as(eval.child(), Filter.class);
-        assertTrue(filter.condition() instanceof And);
-        var and = (And) filter.condition();
-        assertTrue(and.left() instanceof GreaterThan);
-        var gt = (GreaterThan) and.left();
-        assertTrue(gt.left() instanceof FieldAttribute);
-        assertEquals("emp_no", ((FieldAttribute) gt.left()).name());
-        assertTrue(and.right() instanceof LessThan);
-        lt = (LessThan) and.right();
-        assertTrue(lt.left() instanceof FieldAttribute);
-        assertEquals("emp_no", ((FieldAttribute) lt.left()).name());
-
+        assertTrue(filter.condition() instanceof Range);
+        var range = (Range) filter.condition();
+        assertTrue(range.value() instanceof FieldAttribute);
+        assertEquals("emp_no", ((FieldAttribute) range.value()).name());
+        assertEquals(range.lower().fold(), 1);
+        assertFalse(range.includeLower());
+        assertFalse(range.includeUpper());
+        assertEquals(range.upper().fold(), 3);
         assertTrue(filter.child() instanceof EsRelation);
     }
 

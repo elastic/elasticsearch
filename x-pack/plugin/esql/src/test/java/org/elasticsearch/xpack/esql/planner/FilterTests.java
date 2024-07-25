@@ -50,7 +50,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
-import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.SHOULD;
 import static org.elasticsearch.xpack.esql.core.util.SourceUtils.writeSource;
 import static org.hamcrest.Matchers.nullValue;
@@ -141,11 +140,8 @@ public class FilterTests extends ESTestCase {
             """, EMP_NO, lowValue, EMP_NO, highValue), restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
-        var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
-        var left = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
-        var right = singleValueQuery(rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
-        var must = Queries.combine(MUST, asList(left, right));
-        var expected = Queries.combine(FILTER, asList(restFilter, must));
+        var singleQuery = ((BoolQueryBuilder) filter).filter().get(1);
+        var expected = Queries.combine(FILTER, asList(restFilter, singleQuery));
         assertEquals(expected.toString(), filter.toString());
     }
 
@@ -195,11 +191,8 @@ public class FilterTests extends ESTestCase {
             """, EMP_NO, lowValue, OTHER_FIELD, eqValue, EMP_NO, highValue), restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
-        var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
-        var left = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
-        var right = singleValueQuery(rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
-        var must = Queries.combine(MUST, asList(left, right));
-        var expected = Queries.combine(FILTER, asList(restFilter, must));
+        var singleQuery = ((BoolQueryBuilder) filter).filter().get(1);
+        var expected = Queries.combine(FILTER, asList(restFilter, singleQuery));
         assertEquals(expected.toString(), filter.toString());
     }
 

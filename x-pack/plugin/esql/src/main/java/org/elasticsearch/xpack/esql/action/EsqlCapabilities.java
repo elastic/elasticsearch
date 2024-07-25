@@ -181,7 +181,12 @@ public class EsqlCapabilities {
          * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
          * https://github.com/elastic/elasticsearch/issues/108008
          */
-        FIXED_PUSHDOWN_PAST_PROJECT;
+        FIXED_PUSHDOWN_PAST_PROJECT,
+
+        /**
+         * Add CombineBinaryComparisons rule.
+         */
+        COMBINE_BINARY_COMPARISONS;
 
         private final boolean snapshotOnly;
 

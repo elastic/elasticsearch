@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Range;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -95,6 +96,7 @@ public abstract class EsqlScalarFunction extends ScalarFunction implements Evalu
         entries.add(Or.ENTRY);
         entries.add(Pi.ENTRY);
         entries.add(Pow.ENTRY);
+        entries.add(Range.ENTRY);
         entries.add(Right.ENTRY);
         entries.add(Repeat.ENTRY);
         entries.add(Replace.ENTRY);

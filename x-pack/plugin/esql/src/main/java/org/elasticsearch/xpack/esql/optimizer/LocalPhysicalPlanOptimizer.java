@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Range;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -295,6 +296,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     }
                     return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
                 }
+            } else if (exp instanceof Range r) { // CombineBinaryComparison may create Range
+                return isAttributePushable(r.value(), r, hasIdenticalDelegate) && r.lower().foldable() && r.upper().foldable();
             } else if (exp instanceof CIDRMatch cidrMatch) {
                 return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
                     && Expressions.foldable(cidrMatch.matches());

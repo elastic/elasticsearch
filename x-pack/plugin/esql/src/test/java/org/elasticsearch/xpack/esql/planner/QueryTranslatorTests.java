@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -31,6 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesRegex;
 
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class QueryTranslatorTests extends ESTestCase {
 
     private static TestPlannerOptimizer plannerOptimizer;
@@ -113,43 +115,42 @@ public class QueryTranslatorTests extends ESTestCase {
             esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"lt":12.*"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10 < integer AND integer < 12""", matchesRegex("""
-            .*must.*esql_single_value":\\{"field":"integer\"""" + """
-            .*"range":\\{"integer":\\{"gt":10,.*"range":\\{"integer":\\{"lt":12.*"""));
+            FROM test | WHERE 10 < integer AND integer < 12""", containsString("""
+            "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gt":10,"lt":12,"time_zone":"Z","boost":1.0}}}"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10 <= integer AND integer <= 12""", matchesRegex("""
-            .*must.*esql_single_value":\\{"field":"integer\"""" + """
-            .*"range":\\{"integer":\\{"gte":10,.*"range":\\{"integer":\\{"lte":12.*"""));
+            FROM test | WHERE 10 <= integer AND integer <= 12""", containsString("""
+            "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gte":10,"lte":12,"time_zone":"Z","boost":1.0}}}"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10.9 < double AND double < 12.1""", matchesRegex("""
-            .*must.*esql_single_value":\\{"field":"double\"""" + """
-            .*"range":\\{"double":\\{"gt":10.9,.*"range":\\{"double":\\{"lt":12.1.*"""));
+            FROM test | WHERE 10.9 < double AND double < 12.1""", containsString("""
+            "esql_single_value":{"field":"double","next":{"range":{"double":{"gt":10.9,"lt":12.1,"time_zone":"Z","boost":1.0}}}"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10.9 <= double AND double <= 12.1""", matchesRegex("""
-            .*must.*esql_single_value":\\{"field":"double\"""" + """
-            .*"range":\\{"double":\\{"gte":10.9,.*"range":\\{"double":\\{"lte":12.1.*"""));
+            FROM test | WHERE 10.9 <= double AND double <= 12.1""", containsString("""
+            "esql_single_value":{"field":"double","next":{"range":{"double":{"gte":10.9,"lte":12.1,"time_zone":"Z","boost":1.0}}}"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", matchesRegex("""
-            .*must.*esql_single_value":\\{"field":"date\"""" + """
-            .*"range":\\{"date":\\{"gt":\"2007-12-03T09:15:30.000Z\",.*"range":\\{"date":\\{"lt":\"2024-01-01T09:15:30.000Z\".*"""));
+            FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", containsString("""
+            "esql_single_value":{"field":"date","next":{"range":{"date":{"gt":"2007-12-03T09:15:30.000Z","lt":"2024-01-01T09:15:30.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE "2007-12-03T10:15:30+01:00" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", matchesRegex("""
-            .*must.*esql_single_value":\\{"field":"date\"""" + """
-            .*"range":\\{"date":\\{"gte":\"2007-12-03T09:15:30.000Z\",.*"range":\\{"date":\\{"lte":\"2024-01-01T09:15:30.000Z\".*"""));
+            FROM test | WHERE "2007-12-03T10:15:30+01:00" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", containsString("""
+            "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T09:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long""", matchesRegex("""
-            .*must.*esql_single_value":\\{"field":"unsigned_long\"""" + """
-            .*"range":\\{"unsigned_long":\\{"gt":2147483648,.*"range":\\{"unsigned_long":\\{"lt":2147483650,.*"""));
+            FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long""", containsString("""
+            "esql_single_value":{"field":"unsigned_long","next":{"range":{"unsigned_long":{"gt":2147483648,\
+            "lt":2147483650,"time_zone":"Z","boost":1.0}}}"""));
 
-        assertQueryTranslation("""
-            FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""", matchesRegex("""
-            .*must.*esql_single_value":\\{"field":"unsigned_long\"""" + """
-            .*"range":\\{"unsigned_long":\\{"gte":2147483648,.*"range":\\{"unsigned_long":\\{"lte":2147483650,.*"""));
+        assertQueryTranslation(
+            """
+                FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""",
+            containsString("""
+                "esql_single_value":{"field":"unsigned_long","next":{"range":{"unsigned_long":{"gte":2147483648,\
+                "lte":2147483650,"time_zone":"Z","boost":1.0}}}""")
+        );
     }
 }

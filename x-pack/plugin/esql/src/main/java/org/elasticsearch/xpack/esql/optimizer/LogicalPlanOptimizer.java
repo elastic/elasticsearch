@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.optimizer.rules.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.BooleanSimplification;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.CombineProjections;
@@ -207,6 +208,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PropagateEquals(),
             new PropagateNullable(),
             new BooleanFunctionEqualsElimination(),
+            new CombineBinaryComparisons(),
             new CombineDisjunctionsToIn(),
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
             // prune/elimination

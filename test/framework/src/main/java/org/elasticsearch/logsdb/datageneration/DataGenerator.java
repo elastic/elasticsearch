@@ -56,8 +56,7 @@ public class DataGenerator {
      * @param document
      * @throws IOException
      */
-    public void generateDocument(XContentBuilder document)
-        throws IOException {
+    public void generateDocument(XContentBuilder document) throws IOException {
         topLevelGenerator.fieldValueGenerator(b -> {}).accept(document);
     }
 

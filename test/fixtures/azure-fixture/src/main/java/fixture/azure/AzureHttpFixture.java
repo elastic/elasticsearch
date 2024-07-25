@@ -70,6 +70,31 @@ public class AzureHttpFixture extends ExternalResource {
         };
     }
 
+    /**
+     * A sentinel value for {@code #authHeaderPredicate} which indicates that requests should be authorized by a bearer token provided
+     * by the managed identity service.
+     */
+    public static final Predicate<String> MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE = s -> fail(null, "should not be called");
+
+    /**
+     * @param bearerToken The bearer token to accept
+     * @return a predicate that matches the {@code Authorization} HTTP header that the Azure SDK sends when using bearer token auth (i.e.
+     *         using Managed Identity)
+     */
+    private static Predicate<String> bearerTokenPredicate(String bearerToken) {
+        return new Predicate<>() {
+            @Override
+            public boolean test(String s) {
+                return s.equals("Bearer " + bearerToken);
+            }
+
+            @Override
+            public String toString() {
+                return "Bearer[" + bearerToken + "]";
+            }
+        };
+    }
+
     public AzureHttpFixture(Protocol protocol, String account, String container, Predicate<String> authHeaderPredicate) {
         this.protocol = protocol;
         this.account = account;
@@ -96,18 +121,24 @@ public class AzureHttpFixture extends ExternalResource {
     @Override
     protected void before() {
         try {
+            final var bearerToken = ESTestCase.randomIdentifier();
+
             if (protocol != Protocol.NONE) {
                 this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                metadataServer.createContext("/", new AzureMetadataServiceHttpHandler());
+                metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(bearerToken));
                 metadataServer.start();
             }
+
+            final var actualAuthHeaderPredicate = authHeaderPredicate == MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
+                ? bearerTokenPredicate(bearerToken)
+                : authHeaderPredicate;
 
             switch (protocol) {
                 case NONE -> {
                 }
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                    server.createContext("/" + account, new AzureHttpHandler(account, container, authHeaderPredicate));
+                    server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
                     server.start();
                 }
                 case HTTPS -> {
@@ -128,7 +159,7 @@ public class AzureHttpFixture extends ExternalResource {
                         new SecureRandom()
                     );
                     httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                    httpsServer.createContext("/" + account, new AzureHttpHandler(account, container, authHeaderPredicate));
+                    httpsServer.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
                     httpsServer.start();
                 }
             }

@@ -17,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -32,6 +31,12 @@ import java.nio.charset.StandardCharsets;
 public class AzureMetadataServiceHttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(AzureMetadataServiceHttpHandler.class);
 
+    private final String bearerToken;
+
+    public AzureMetadataServiceHttpHandler(String bearerToken) {
+        this.bearerToken = bearerToken;
+    }
+
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         if ("GET".equals(exchange.getRequestMethod())
@@ -42,7 +47,7 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
                 final var nowSeconds = System.currentTimeMillis() / 1000L;
                 final var validitySeconds = 86400L;
                 xcb.startObject();
-                xcb.field("access_token", ESTestCase.randomIdentifier());
+                xcb.field("access_token", bearerToken);
                 xcb.field("client_id", UUIDs.randomBase64UUID());
                 xcb.field("expires_in", Long.toString(validitySeconds));
                 xcb.field("expires_on", Long.toString(nowSeconds + validitySeconds));

@@ -33,32 +33,22 @@ import static org.hamcrest.Matchers.containsString;
 public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     /**
-     * {@code TextSimilarityRankBuilder} that simulates an inference call that returns a different number of results as the input.
+     * {@code TextSimilarityRankBuilder} that simulates an inference call returning N results.
      */
-    public static class InvalidInferenceResultCountProvidingTextSimilarityRankBuilder extends TextSimilarityRankBuilder {
+    public static class InferenceResultCountAcceptingTextSimilarityRankBuilder extends TextSimilarityRankBuilder {
 
-        private boolean hasInvalidDocumentIndices = false;
+        private final int inferenceResultCount;
 
-        public InvalidInferenceResultCountProvidingTextSimilarityRankBuilder(
+        public InferenceResultCountAcceptingTextSimilarityRankBuilder(
             String field,
             String inferenceId,
             String inferenceText,
             int rankWindowSize,
             Float minScore,
-            boolean hasInvalidDocumentIndices
-        ) {
-            this(field, inferenceId, inferenceText, rankWindowSize, minScore);
-            this.hasInvalidDocumentIndices = hasInvalidDocumentIndices;
-        }
-
-        public InvalidInferenceResultCountProvidingTextSimilarityRankBuilder(
-            String field,
-            String inferenceId,
-            String inferenceText,
-            int rankWindowSize,
-            Float minScore
+            int inferenceResultCount
         ) {
             super(field, inferenceId, inferenceText, rankWindowSize, minScore);
+            this.inferenceResultCount = inferenceResultCount;
         }
 
         @Override
@@ -76,10 +66,10 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 protected InferenceAction.Request generateRequest(List<String> docFeatures) {
                     return new InferenceAction.Request(
                         TaskType.RERANK,
-                        inferenceId,
+                        this.inferenceId,
                         inferenceText,
                         docFeatures,
-                        Map.of("invalidInferenceResultCount", true, "invalidDocumentIndices", hasInvalidDocumentIndices),
+                        Map.of("inferenceResultCount", inferenceResultCount),
                         InputType.SEARCH,
                         InferenceAction.Request.DEFAULT_TIMEOUT
                     );
@@ -165,34 +155,28 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testRerankInferenceResultCountMismatch() {
+    public void testRerankTopNConfigurationAndRankWindowSizeMismatch() {
+        ElasticsearchAssertions.assertFailures(
+            // Execute search with text similarity reranking
+            client.prepareSearch()
+                .setRankBuilder(
+                    // Simulate reranker configuration with top_n=3 in task_settings, which is different from rank_window_size=10
+                    // (Note: top_n comes from inferenceId, there's no other easy way of passing this to the mocked get model request)
+                    new TextSimilarityRankBuilder("text", "my-rerank-model-task-settings-top-3", "my query", 100, 1.5f)
+                )
+                .setQuery(QueryBuilders.matchAllQuery()),
+            RestStatus.BAD_REQUEST,
+            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
+        );
+    }
+
+    public void testRerankInferenceResultsAndInputSizeMismatch() {
         ElasticsearchAssertions.assertFailures(
             // Execute search with text similarity reranking
             client.prepareSearch()
                 .setRankBuilder(
                     // Simulate reranker returning different number of results from input
-                    new InvalidInferenceResultCountProvidingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f)
-                )
-                .setQuery(QueryBuilders.matchAllQuery()),
-            RestStatus.INTERNAL_SERVER_ERROR,
-            containsString("Failed to execute phase [rank-feature], Computing updated ranks for results failed")
-        );
-    }
-
-    public void testRerankInvalidDocumentIndices() {
-        ElasticsearchAssertions.assertFailures(
-            // Execute search with text similarity reranking
-            client.prepareSearch()
-                .setRankBuilder(
-                    // Simulate reranker returning different number of results from input, also invalid document indices in results
-                    new InvalidInferenceResultCountProvidingTextSimilarityRankBuilder(
-                        "text",
-                        "my-rerank-model",
-                        "my query",
-                        100,
-                        1.5f,
-                        true
-                    )
+                    new InferenceResultCountAcceptingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, 4)
                 )
                 .setQuery(QueryBuilders.matchAllQuery()),
             RestStatus.INTERNAL_SERVER_ERROR,

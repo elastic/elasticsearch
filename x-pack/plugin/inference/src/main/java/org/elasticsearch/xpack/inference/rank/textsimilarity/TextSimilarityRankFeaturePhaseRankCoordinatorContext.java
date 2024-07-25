@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -51,6 +56,22 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+        // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
+        // assigning scores to the wrong inputs
+        Integer inferenceEndpointTopN = getTopNFromInferenceEndpointTaskSettings();
+        if (inferenceEndpointTopN != null && inferenceEndpointTopN < featureDocs.length) {
+            scoreListener.onFailure(
+                new IllegalArgumentException(
+                    "Inference endpoint ["
+                        + inferenceId
+                        + "] is configured to return the top ["
+                        + inferenceEndpointTopN
+                        + "] results. Reduce rank_window_size to be less than or equal to this value."
+                )
+            );
+            return;
+        }
+
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
         final ActionListener<InferenceAction.Response> actionListener = scoreListener.delegateFailureAndWrap((l, r) -> {
@@ -62,12 +83,11 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             if (rankedDocs.size() != featureDocs.length) {
                 l.onFailure(
                     new IllegalStateException(
-                        "Document and score count mismatch: ["
+                        "Reranker input document count and returned score count mismatch: ["
                             + featureDocs.length
                             + "] vs ["
                             + rankedDocs.size()
-                            + "]. Check your rerank inference endpoint configuration and ensure it returns rank_window_size scores for "
-                            + "rank_window_size input documents."
+                            + "]"
                     )
                 );
             } else {
@@ -83,6 +103,18 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         } finally {
             request.decRef();
         }
+    }
+
+    /**
+     * Sorts documents by score descending and discards those with a score less than minScore.
+     * @param originalDocs documents to process
+     */
+    @Override
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
+        return Arrays.stream(originalDocs)
+            .filter(doc -> minScore == null || doc.score >= minScore)
+            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
+            .toArray(RankFeatureDoc[]::new);
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -106,15 +138,16 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         return scores;
     }
 
-    /**
-     * Sorts documents by score descending and discards those with a score less than minScore.
-     * @param originalDocs documents to process
-     */
-    @Override
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        return Arrays.stream(originalDocs)
-            .filter(doc -> minScore == null || doc.score >= minScore)
-            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
-            .toArray(RankFeatureDoc[]::new);
+    private Integer getTopNFromInferenceEndpointTaskSettings() {
+        GetInferenceModelAction.Request request = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
+        ActionFuture<GetInferenceModelAction.Response> response = client.execute(GetInferenceModelAction.INSTANCE, request);
+        ModelConfigurations modelConfigurations = response.actionGet().getEndpoints().get(0);
+
+        return modelConfigurations.getService().equals(CohereService.NAME)
+            && modelConfigurations.getTaskType().equals(TaskType.RERANK)
+            && modelConfigurations.getTaskSettings() instanceof CohereRerankTaskSettings
+                ? ((CohereRerankTaskSettings) modelConfigurations.getTaskSettings()).getTopNDocumentsOnly()
+                : null;
     }
+
 }

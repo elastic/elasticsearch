@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitie
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.hasSize;
@@ -51,5 +52,23 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
             .actionGet();
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.isSupported(), isPresentWith(false));*/
+    }
+
+    public void testSpecificNodesCapabilities() {
+        List<String> nodes = internalCluster().startNodes(3);
+
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").get();
+        logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
+
+        NodesCapabilitiesResponse response = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest(nodes.get(0)).path("_capabilities")
+        ).actionGet();
+        assertThat(response.getNodes(), hasSize(1));
+        assertThat(response.isSupported(), isPresentWith(true));
+
+        response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest(nodes.get(1), nodes.get(2)).path("_capabilities"))
+            .actionGet();
+        assertThat(response.getNodes(), hasSize(2));
+        assertThat(response.isSupported(), isPresentWith(true));
     }
 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.node.capabilities;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 
@@ -23,9 +22,8 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
     private Set<String> capabilities = Set.of();
     private RestApiVersion restApiVersion = RestApiVersion.current();
 
-    public NodesCapabilitiesRequest() {
-        // always send to all nodes
-        super(Strings.EMPTY_ARRAY);
+    public NodesCapabilitiesRequest(String... nodeIds) {
+        super(nodeIds);
     }
 
     public NodesCapabilitiesRequest path(String path) {

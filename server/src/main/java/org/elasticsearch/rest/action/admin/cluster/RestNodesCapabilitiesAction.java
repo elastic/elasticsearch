@@ -33,7 +33,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_capabilities"));
+        return List.of(new Route(RestRequest.Method.GET, "/_capabilities"), new Route(RestRequest.Method.GET, "/_capabilities/{nodeId}"));
     }
 
     @Override
@@ -48,7 +48,9 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        NodesCapabilitiesRequest r = new NodesCapabilitiesRequest().timeout(getTimeout(request))
+
+        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
+        NodesCapabilitiesRequest r = new NodesCapabilitiesRequest(nodesIds).timeout(getTimeout(request))
             .method(RestRequest.Method.valueOf(request.param("method", "GET")))
             .path(URLDecoder.decode(request.param("path"), StandardCharsets.UTF_8))
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))

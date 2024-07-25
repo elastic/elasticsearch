@@ -115,7 +115,7 @@ The following example shows how to create an {infer} endpoint called
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/text_embedding/my-msmarco-minilm-model <2>
+PUT _inference/text_embedding/my-msmarco-minilm-model <1>
 {
   "service": "elasticsearch",
   "service_settings": {

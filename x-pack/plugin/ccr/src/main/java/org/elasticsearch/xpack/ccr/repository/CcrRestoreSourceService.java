@@ -246,7 +246,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             try (Releasable ignored = keyedLock.acquire(fileName)) {
                 final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
                     try {
-                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
+                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READ);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

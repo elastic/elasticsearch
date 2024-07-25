@@ -174,6 +174,42 @@ city:keyword | airport:text
 Zürich       | Zurich Int'l
 ;
 
+shadowingWhenPushedDownPastRename
+required_capability: enrich_load
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", airport = "ZRH"
+| RENAME airport AS a
+| ENRICH city_names ON city WITH airport
+;
+
+city:keyword | a:keyword | airport:text
+Zürich       | ZRH       | Zurich Int'l
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: enrich_load
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", airport = "ZRH"
+| RENAME airport AS a
+| ENRICH city_names ON city WITH airport, region
+;
+
+city:keyword | a:keyword | airport:text | region:text
+Zürich       | ZRH       | Zurich Int'l | Bezirk Zürich
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: enrich_load
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", airport = "ZRH"
+| RENAME city as c
+| ENRICH city_names ON c WITH city = airport
+;
+
+c:keyword | airport:keyword | city:text
+Zürich    | ZRH             | Zurich Int'l
+;
+
 simple
 required_capability: enrich_load
 

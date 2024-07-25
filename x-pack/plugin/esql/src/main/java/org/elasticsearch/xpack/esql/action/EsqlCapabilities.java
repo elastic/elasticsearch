@@ -45,6 +45,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * Support for the {@code INLINESTATS} syntax.
+         */
+        INLINESTATS(true),
+
+        /**
          * Support for aggregation function {@code TOP}.
          */
         AGG_TOP,
@@ -170,7 +175,13 @@ public class EsqlCapabilities {
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
-        UNIQUE_NAMES;
+        UNIQUE_NAMES,
+
+        /**
+         * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
+         * https://github.com/elastic/elasticsearch/issues/108008
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT;
 
         private final boolean snapshotOnly;
 

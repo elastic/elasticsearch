@@ -398,6 +398,9 @@ public class IngestRestartIT extends ESIntegTestCase {
         NodeStats stats = nodesStatsResponse.getNodes().get(0);
         assertThat(stats.getIngestStats().totalStats().ingestCount(), equalTo((long) numRequests));
         assertThat(stats.getIngestStats().totalStats().ingestFailedCount(), equalTo(0L));
+        final var pipelineStats = stats.getIngestStats().pipelineStats().get(0);
+        assertThat(pipelineStats.pipelineId(), equalTo("_id"));
+        assertThat(pipelineStats.stats().ingestCount(), equalTo((long) numRequests));
 
         MultiGetResponse docListResponse = safeGet(
             client().prepareMultiGet().addIds("index", IntStream.range(0, numRequests).mapToObj(String::valueOf).toList()).execute()

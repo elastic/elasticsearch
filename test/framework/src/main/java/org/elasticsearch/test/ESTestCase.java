@@ -155,6 +155,7 @@ import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -209,7 +210,6 @@ import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assert.assertThat;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -1478,10 +1478,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         // we override LTC behavior here: wrap even resources with mockfilesystems,
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
+        return getResourceDataPath(getClass(), relativePath);
+    }
+
+    public static Path getResourceDataPath(Class<?> clazz, String relativePath) {
+        final var resource = Objects.requireNonNullElseGet(
+            clazz.getResource(relativePath),
+            () -> fail(null, "resource not found: [%s][%s]", clazz.getCanonicalName(), relativePath)
+        );
+        final URI uri;
         try {
-            return PathUtils.get(getClass().getResource(relativePath).toURI()).toAbsolutePath().normalize();
+            uri = resource.toURI();
         } catch (Exception e) {
-            throw new RuntimeException("resource not found: " + relativePath, e);
+            return fail(null, "resource URI not found: [%s][%s]", clazz.getCanonicalName(), relativePath);
+        }
+        try {
+            return PathUtils.get(uri).toAbsolutePath().normalize();
+        } catch (Exception e) {
+            return fail(e, "resource path not found: %s", uri);
         }
     }
 

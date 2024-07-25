@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -88,7 +89,7 @@ public class ActionModuleTests extends ESTestCase {
         }
         class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
             protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-                super(actionName, actionFilters, taskManager);
+                super(actionName, actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
 
             @Override

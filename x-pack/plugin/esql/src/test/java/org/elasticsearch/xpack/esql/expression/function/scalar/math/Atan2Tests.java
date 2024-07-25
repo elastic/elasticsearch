@@ -36,7 +36,7 @@ public class Atan2Tests extends AbstractScalarFunctionTestCase {
             Double.POSITIVE_INFINITY,
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "numeric");
     }
 
     @Override

@@ -19,9 +19,9 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 
-import java.io.IOException;
 import java.io.InputStream;
 
 /**
@@ -55,8 +55,7 @@ public interface CacheBlobReader {
      *
      * @param position the position of the blob to fetch data from
      * @param length the length to read from the blob starting from position
-     * @return the input stream to fetch the data from
+     * @param listener listener for the input stream to fetch the data from
      */
-    InputStream getRangeInputStream(long position, int length) throws IOException;
-
+    void getRangeInputStream(long position, int length, ActionListener<InputStream> listener);
 }

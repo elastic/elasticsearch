@@ -126,9 +126,6 @@ tests:
 - class: org.elasticsearch.xpack.core.ml.job.config.DetectionRuleTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/111308
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {inlinestats.ShadowingMulti}
-  issue: https://github.com/elastic/elasticsearch/issues/111309
 
 # Examples:
 #

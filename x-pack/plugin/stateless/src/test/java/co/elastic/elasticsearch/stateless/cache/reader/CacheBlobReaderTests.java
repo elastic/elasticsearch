@@ -699,13 +699,15 @@ public class CacheBlobReaderTests extends ESTestCase {
                             }
 
                             @Override
-                            public InputStream getRangeInputStream(long position, int length) throws IOException {
+                            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                                 assert length > 0;
-                                final var in = new BytesCountingFilterInputStream(
-                                    originalCacheBlobReader.getRangeInputStream(position, length)
-                                );
-                                getRangeInputStreamCalls.add(new GetRangeInputStreamCall(position, length, in::getBytesRead));
-                                return in;
+                                originalCacheBlobReader.getRangeInputStream(position, length, listener.map(in -> {
+                                    var bytesCountingStream = new BytesCountingFilterInputStream(in);
+                                    getRangeInputStreamCalls.add(
+                                        new GetRangeInputStreamCall(position, length, bytesCountingStream::getBytesRead)
+                                    );
+                                    return bytesCountingStream;
+                                }));
                             }
                         };
                     }

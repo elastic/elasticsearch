@@ -550,16 +550,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             })
             : Collections.emptyIterator();
 
-        final Iterator<? extends ToXContent> indices = context == XContentContext.API
-            ? ChunkedToXContentHelper.wrapWithObject("indices", projectMetadata.indices().values().iterator())
-            : Collections.emptyIterator();
-
-        final Iterator<ToXContent> projectCustoms = Iterators.flatMap(
-            this.projectMetadata.customs.entrySet().iterator(),
-            entry -> entry.getValue().context().contains(context)
-                ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                : Collections.emptyIterator()
-        );
         return Iterators.concat(start, Iterators.single((builder, params) -> {
             builder.field("cluster_uuid", clusterUUID);
             builder.field("cluster_uuid_committed", clusterUUIDCommitted);
@@ -568,22 +558,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return builder.endObject();
         }),
             persistentSettings,
-            ChunkedToXContentHelper.wrapWithObject(
-                "templates",
-                Iterators.map(
-                    projectMetadata.templates().values().iterator(),
-                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
-                )
-            ),
-            indices,
+            projectMetadata.toXContentChunked(p),
             Iterators.flatMap(
                 customs.entrySet().iterator(),
                 entry -> entry.getValue().context().contains(context)
                     ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
                     : Collections.emptyIterator()
             ),
-            // For BWC, the API does not have an embedded "project:", but other contexts do
-            context == XContentContext.API ? projectCustoms : ChunkedToXContentHelper.wrapWithObject("project", projectCustoms),
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
         );

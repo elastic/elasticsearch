@@ -152,8 +152,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         } else if (modelConfigurations.getService().equals(GoogleVertexAiService.NAME)
             && modelConfigurations.getTaskType().equals(TaskType.RERANK)
             && modelConfigurations.getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings) {
-            return ((GoogleVertexAiRerankTaskSettings) modelConfigurations.getTaskSettings()).topN();
-        }
+                return ((GoogleVertexAiRerankTaskSettings) modelConfigurations.getTaskSettings()).topN();
+            }
 
         return null;
     }

@@ -5,7 +5,7 @@ preview::[]
 
 [TIP]
 ====
-This overview focuses more on the high-level concepts and use cases for semantic reranking. For full implementation details on how to set up and use semantic reranking in {es}, see the <<retriever,reference documentation>> in the Search API docs.
+This overview focuses more on the high-level concepts and use cases for semantic reranking. For full implementation details on how to set up and use semantic reranking in {es}, see the <<text-similarity-reranker-retriever,reference documentation>> in the Search API docs.
 ====
 
 Rerankers improve the relevance of results from earlier-stage retrieval mechanisms.

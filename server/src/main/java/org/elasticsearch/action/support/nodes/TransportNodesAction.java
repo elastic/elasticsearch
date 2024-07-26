@@ -78,7 +78,9 @@ public abstract class TransportNodesAction<
         Writeable.Reader<NodeRequest> nodeRequest,
         Executor executor
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // Only part of this action execution needs to be forked off - coordination can run on SAME because it's only O(#nodes) work.
+        // Hence the separate "finalExecutor", and why we run the whole TransportAction.execute on SAME.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
             : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);

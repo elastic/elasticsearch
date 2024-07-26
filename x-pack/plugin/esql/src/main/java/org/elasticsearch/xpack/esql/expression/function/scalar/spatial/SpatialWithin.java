@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -173,7 +172,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(SpatialWithinGeoSourceAndConstantEvaluator.Factory::new)
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -205,7 +204,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
                         SpatialWithinCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(

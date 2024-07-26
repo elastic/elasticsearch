@@ -37,8 +37,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.RegisteredSnapshot;
-import org.elasticsearch.snapshots.RegisteredSnapshots;
+import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -485,10 +484,10 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         return state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
     }
 
-    private RegisteredSnapshots getRegisteredSnapshots() {
+    private RegisteredPolicySnapshots getRegisteredSnapshots() {
         final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
         ClusterState state = clusterStateResponse.getState();
-        return state.metadata().custom(RegisteredSnapshots.TYPE, RegisteredSnapshots.EMPTY);
+        return state.metadata().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
     }
 
     private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {
@@ -538,12 +537,11 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     private void assertPreRegistered(List<String> expected, String policyName) {
         var registered = getRegisteredSnapshots();
-        var registeredNames = registered.getSnapshots().stream()
-            .filter(s -> s.getPolicy().equals(policyName))
-            .map(RegisteredSnapshot::getSnapshotId)
+        var policySnaps = registered.getSnapshots().getOrDefault(policyName, List.of())
+            .stream()
             .map(SnapshotId::getName)
-            .collect(Collectors.toList());
-        assertEquals(expected, registeredNames);
+            .toList();
+        assertEquals(expected, policySnaps);
     }
 
     private void createRandomIndex(String idxName, String dataNodeName) throws InterruptedException {

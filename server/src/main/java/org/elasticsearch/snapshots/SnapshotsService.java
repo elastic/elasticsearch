@@ -3955,27 +3955,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
 
-            final List<RegisteredSnapshot> registeredSnapshots =
-                new ArrayList<>(state.metadata().custom(RegisteredSnapshots.TYPE, RegisteredSnapshots.EMPTY).getSnapshots());
+            final RegisteredPolicySnapshots.Builder registeredPolicySnapshots =
+                state.metadata().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY).builder();
 
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
-                        if (task.createSnapshotRequest.registerSnapshot()) {
-                            if (task.createSnapshotRequest.userMetadata() == null
-                                || false == task.createSnapshotRequest.userMetadata().containsKey(POLICY_ID_METADATA_FIELD)
-                                || false == task.createSnapshotRequest.userMetadata().get(POLICY_ID_METADATA_FIELD) instanceof String) {
-                                logger.warn("Can only register SLM snapshots that have a policyId");
-                            } else {
-                                final String policy = (String) task.createSnapshotRequest.userMetadata().get(POLICY_ID_METADATA_FIELD);
-                                final var snapshotToRegister = new RegisteredSnapshot(policy, task.snapshot.getSnapshotId());
-                                assert registeredSnapshots.contains(snapshotToRegister) == false : "A snapshot can only be registered once";
-                                if (registeredSnapshots.size() >= RegisteredSnapshots.MAX_REGISTERED_SNAPSHOTS) {
-                                    RegisteredSnapshot registeredSnapshotToRemove = registeredSnapshots.remove(0);
-                                    logger.warn("Ran out of space in registered snapshots, removing [{}]", registeredSnapshotToRemove);
-                                }
-                                registeredSnapshots.add(snapshotToRegister);
-                            }
+                        final String policy = getPolicyFromMetadata(task.createSnapshotRequest.userMetadata());
+                        if (policy != null) {
+                            registeredPolicySnapshots.add(policy, task.snapshot.getSnapshotId());
                         }
                         final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
@@ -4004,8 +3992,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             return ClusterState.builder(state)
                 .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
-                .metadata(Metadata.builder(state.metadata()).putCustom(RegisteredSnapshots.TYPE, new RegisteredSnapshots(registeredSnapshots)))
+                .metadata(Metadata.builder(state.metadata()).putCustom(RegisteredPolicySnapshots.TYPE, registeredPolicySnapshots.build()))
                 .build();
+        }
+
+        private static String getPolicyFromMetadata(Map<String, Object> userMetadata) {
+            if (userMetadata != null && userMetadata.get(POLICY_ID_METADATA_FIELD) instanceof String p) {
+                return p;
+            }
+            return null;
         }
 
         private SnapshotsInProgress createSnapshot(

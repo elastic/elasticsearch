@@ -10,6 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -21,41 +22,43 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 
-public class RegisteredSnapshots implements Metadata.Custom {
+public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     public static final String TYPE = "registered_snapshots";
     private static final ParseField SNAPSHOTS = new ParseField("snapshots");
-    public static final RegisteredSnapshots EMPTY = new RegisteredSnapshots(List.of());
-    public static final int MAX_REGISTERED_SNAPSHOTS = 100;
+    public static final RegisteredPolicySnapshots EMPTY = new RegisteredPolicySnapshots(Map.of());
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RegisteredSnapshots, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RegisteredPolicySnapshots, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
-        a -> new RegisteredSnapshots((List<RegisteredSnapshot>) a[0])
+        a -> new RegisteredPolicySnapshots((Map<String, List<SnapshotId>>) a[0])
     );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.list(), SNAPSHOTS);
     }
 
-    private final List<RegisteredSnapshot> snapshots;
+    private final Map<String, List<SnapshotId>> snapshots;
 
-    public RegisteredSnapshots(List<RegisteredSnapshot> snapshots) {
-        this.snapshots = Collections.unmodifiableList(snapshots);
+    public RegisteredPolicySnapshots(Map<String, List<SnapshotId>> snapshots) {
+        this.snapshots = Collections.unmodifiableMap(snapshots);
     }
 
-    public RegisteredSnapshots(StreamInput in) throws IOException {
-        this.snapshots = in.readCollectionAsImmutableList(RegisteredSnapshot::new);
+    public RegisteredPolicySnapshots(StreamInput in) throws IOException {
+        this.snapshots = in.readMapOfLists(SnapshotId::new);
     }
 
-    public List<RegisteredSnapshot> getSnapshots() {
+    public Map<String, List<SnapshotId>> getSnapshots() {
         return snapshots;
     }
 
@@ -66,7 +69,7 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
     @Override
     public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
-        return new RegisteredSnapshotsDiff((RegisteredSnapshots) previousState, this);
+        return new RegisteredSnapshotsDiff((RegisteredPolicySnapshots) previousState, this);
     }
 
     @Override
@@ -81,7 +84,7 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(snapshots);
+        out.writeMap(snapshots, StreamOutput::writeCollection);
     }
 
     @Override
@@ -114,22 +117,22 @@ public class RegisteredSnapshots implements Metadata.Custom {
         if (obj.getClass() != getClass()) {
             return false;
         }
-        RegisteredSnapshots other = (RegisteredSnapshots) obj;
+        RegisteredPolicySnapshots other = (RegisteredPolicySnapshots) obj;
         return Objects.equals(snapshots, other.snapshots);
     }
 
     public static class RegisteredSnapshotsDiff implements NamedDiff<Metadata.Custom> {
-        final List<RegisteredSnapshot> snapshots;
-        RegisteredSnapshotsDiff(RegisteredSnapshots before, RegisteredSnapshots after) {
+        final Map<String, List<SnapshotId>> snapshots;
+        RegisteredSnapshotsDiff(RegisteredPolicySnapshots before, RegisteredPolicySnapshots after) {
             this.snapshots = after.snapshots;
         }
         public RegisteredSnapshotsDiff(StreamInput in) throws IOException {
-            this.snapshots = new RegisteredSnapshots(in).snapshots;
+            this.snapshots = new RegisteredPolicySnapshots(in).snapshots;
         }
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            return new RegisteredSnapshots(snapshots);
+            return new RegisteredPolicySnapshots(snapshots);
         }
 
         @Override
@@ -139,7 +142,7 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(snapshots);
+            out.writeMap(snapshots, StreamOutput::writeCollection);
         }
 
         @Override
@@ -148,25 +151,23 @@ public class RegisteredSnapshots implements Metadata.Custom {
         }
     }
 
-    static class Builder {
-        final List<RegisteredSnapshot> snapshots;
+    public Builder builder() {
+        return new Builder(this);
+    }
 
-        Builder(List<RegisteredSnapshot> snapshots) {
-            this.snapshots = snapshots;
+    public static class Builder {
+        final Map<String, List<SnapshotId>> snapshots;
+
+        Builder(RegisteredPolicySnapshots registeredPolicySnapshots) {
+            this.snapshots = new HashMap<>(registeredPolicySnapshots.snapshots);
         }
 
         void add(String policy, SnapshotId snapshotId) {
-            final var snapshotToRegister = new RegisteredSnapshot(policy, snapshotId);
-            assert snapshots.contains(snapshotToRegister) == false : "A snapshot can only be registered once";
-            if (snapshots.size() >= RegisteredSnapshots.MAX_REGISTERED_SNAPSHOTS) {
-                final RegisteredSnapshot registeredSnapshotToRemove = snapshots.remove(0);
-//                logger.warn("Ran out of space in registered snapshots, removing [{}]", registeredSnapshotToRemove);
-            }
-            snapshots.add(snapshotToRegister);
+            snapshots.computeIfAbsent(policy, (p) -> new ArrayList<>()).add(snapshotId);
         }
 
-        RegisteredSnapshots build() {
-            return new RegisteredSnapshots(snapshots);
+        RegisteredPolicySnapshots build() {
+            return new RegisteredPolicySnapshots(snapshots);
         }
     }
 }

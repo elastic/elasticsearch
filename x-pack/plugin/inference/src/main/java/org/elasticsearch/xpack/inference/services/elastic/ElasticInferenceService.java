@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -118,11 +119,8 @@ public class ElasticInferenceService extends SenderService {
             .map(m -> m.getServiceSettings().maxInputTokens())
             .orElse(EMBEDDING_MAX_BATCH_SIZE);
 
-        var batchedRequests = new EmbeddingRequestChunker(
-            input,
-            maxInputTokens,
-            EmbeddingRequestChunker.EmbeddingType.FLOAT
-        ).batchRequestsWithListeners(listener);
+        var batchedRequests = new EmbeddingRequestChunker(input, maxInputTokens, EmbeddingRequestChunker.EmbeddingType.FLOAT)
+            .batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
@@ -253,7 +251,29 @@ public class ElasticInferenceService extends SenderService {
         );
     }
 
-    // TODO: do chunked infer? max setting in inference service?
+    @Override
+    public void checkModelConfig(Model model, ActionListener<Model> listener) {
+        if (model instanceof ElasticInferenceServiceSparseEmbeddingsModel embeddingsModel) {
+            ServiceUtils.getEmbeddingSize(
+                model,
+                this,
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
+            );
+        } else {
+            listener.onResponse(model);
+        }
+    }
 
-    // TODO: checkModelConfig
+    private ElasticInferenceServiceSparseEmbeddingsModel updateModelWithEmbeddingDetails(
+        ElasticInferenceServiceSparseEmbeddingsModel model,
+        int embeddingSize // TODO: are we discarding this?
+    ) {
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings = new ElasticInferenceServiceSparseEmbeddingsServiceSettings(
+            model.getInferenceEntityId(),
+            model.getServiceSettings().maxInputTokens(),
+            model.getServiceSettings().rateLimitSettings()
+        );
+
+        return new ElasticInferenceServiceSparseEmbeddingsModel(model, serviceSettings);
+    }
 }

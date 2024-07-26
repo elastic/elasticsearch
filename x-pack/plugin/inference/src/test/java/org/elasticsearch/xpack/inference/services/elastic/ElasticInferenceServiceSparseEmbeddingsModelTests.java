@@ -18,11 +18,15 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
     // TODO: place create model utility methods for other tests here
 
     public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url) {
+        return createModel(url, null);
+    }
+
+    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, Integer maxInputTokens) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             randomAlphaOfLength(8),
             TaskType.SPARSE_EMBEDDING,
             randomAlphaOfLength(8),
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ElserModels.ELSER_V2_MODEL, null, null),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ElserModels.ELSER_V2_MODEL, maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url)

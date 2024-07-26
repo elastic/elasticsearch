@@ -378,9 +378,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testInfer_SendsCompletionRequest() throws IOException {
+    public void testInfer_SendsEmbeddingsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        // TODO: fix this, looks like webServer will listen for the / path only and won't support /sparse-text-embedding/ELSERv2
         var eisGatewayUrl = getUrl(webServer);
 
         try (
@@ -405,9 +404,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     }
                 """;
 
+            // TODO: fix this, webServer is returning a null response
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl);
+            model.setUri(getUrl(webServer) + "/");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,

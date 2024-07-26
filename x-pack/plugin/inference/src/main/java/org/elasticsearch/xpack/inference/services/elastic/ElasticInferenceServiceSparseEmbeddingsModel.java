@@ -27,7 +27,7 @@ import java.util.Map;
 //TODO: test
 public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
 
-    private final URI uri;
+    private URI uri;
 
     public ElasticInferenceServiceSparseEmbeddingsModel(
         String inferenceEntityId,
@@ -114,5 +114,14 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         }
 
         return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/sparse-text-embedding/" + modelIdUriPath);
+    }
+
+    // Needed for testing only
+    public void setUri(String newUri) {
+        try {
+            this.uri = new URI(newUri);
+        } catch (URISyntaxException e) {
+            // swallow any error
+        }
     }
 }

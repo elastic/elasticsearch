@@ -1,5 +1,0 @@
-pr: 111372
-summary: Fix geoip processor `isp_organization_name` property and docs
-area: Ingest Node
-type: bug
-issues: []

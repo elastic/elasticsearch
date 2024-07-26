@@ -964,7 +964,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.child().fold(), is(11));
     }
 
-    public void testMatch() throws IOException {
+    public void testMatchCommand() throws IOException {
+        assumeTrue("Match command available just for snapshots", Build.current().isSnapshot());
         String queryString = "field: value";
         assertEquals(
             new Filter(EMPTY, PROCESSING_CMD_INPUT, new StringQueryPredicate(EMPTY, queryString, null)),

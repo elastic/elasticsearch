@@ -65,6 +65,9 @@ To allow for large amounts of text to be used in semantic search, `semantic_text
 Each chunk will include the text subpassage and the corresponding embedding generated from it.
 When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be used to compute a score.
 
+Documents are split into 250-word sections with a 100-word overlap so that each section shares 100 words with the previous section.
+This overlap ensures continuity and prevents vital contextual information in the input text from being lost by a hard break.
+
 
 [discrete]
 [[semantic-text-structure]]

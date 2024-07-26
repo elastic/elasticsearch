@@ -119,11 +119,33 @@ docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
 The service is started with a trial license. The trial license enables all features of Elasticsearch for a trial period of 30 days. After the trial period expires, the license is downgraded to a basic license, which is free forever. If you prefer to skip the trial and use the basic license, set the value of the `xpack.license.self_generated.type` variable to basic instead. For a detailed feature comparison between the different licenses, refer to our https://www.elastic.co/subscriptions[subscriptions page].
 ====
 
-[discrete]
-[[local-dev-connecting-clients]]
-==== Connecting to Elasticsearch with language clients
+==== Next steps
 
-To connect to the Elasticsearch cluster from a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
+Use our <<getting-started,quick start guide>> to learn the basics of Elasticsearch: how to add data and query it.
+
+**Send requests to Elasticsearch**
+
+You send data and other requests to Elasticsearch through REST APIs. 
+You can interact with Elasticsearch using any client that sends HTTP requests, 
+such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
+language clients] and https://curl.se[curl]. 
+
+*curl example*
+
+Here's an example curl command to create a new Elasticsearch index, using basic auth:
+
+[source,sh]
+----
+curl -u elastic:$ELASTIC_PASSWORD \
+  -X PUT \
+  http://localhost:9200/my-new-index \
+  -H 'Content-Type: application/json'
+----
+// NOTCONSOLE
+
+*Language client example*
+
+To connect to your local dev Elasticsearch cluster with a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
 
 You'll use the following connection details:
 
@@ -149,27 +171,8 @@ client = Elasticsearch(
 print(client.info())
 ----
 
-Here's an example curl command to create a new Elasticsearch index, using basic auth:
+*Dev Tools Console example*
 
-[source,sh]
-----
-curl -u elastic:$ELASTIC_PASSWORD \
-  -X PUT \
-  http://localhost:9200/my-new-index \
-  -H 'Content-Type: application/json'
-----
-// NOTCONSOLE
-
-==== Next steps
-
-Use our <<getting-started,quick start guide>> to learn the basics of Elasticsearch: how to add data and query it.
-
-**Send requests to Elasticsearch**
-
-You send data and other requests to Elasticsearch through REST APIs. 
-You can interact with Elasticsearch using any client that sends HTTP requests, 
-such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
-language clients] and https://curl.se[curl]. 
 Kibana's developer console provides an easy way to experiment and test requests. 
 To access the console, in Kibana go to **Management > Dev Tools**.
 

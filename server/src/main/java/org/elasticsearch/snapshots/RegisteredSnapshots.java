@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 
@@ -33,30 +32,30 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
     public static final String TYPE = "registered_snapshots";
     private static final ParseField SNAPSHOTS = new ParseField("snapshots");
-    public static final RegisteredSnapshots EMPTY = new RegisteredSnapshots(Map.of());
+    public static final RegisteredSnapshots EMPTY = new RegisteredSnapshots(List.of());
     public static final int MAX_REGISTERED_SNAPSHOTS = 100;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RegisteredSnapshots, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
-        a -> new RegisteredSnapshots((Map<String, List<SnapshotId>>) a[0])
+        a -> new RegisteredSnapshots((List<RegisteredSnapshot>) a[0])
     );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.list(), SNAPSHOTS);
     }
 
-    private final Map<String, List<SnapshotId>> snapshots;
+    private final List<RegisteredSnapshot> snapshots;
 
-    public RegisteredSnapshots(Map<String, List<SnapshotId>> snapshots) {
-        this.snapshots = Collections.unmodifiableMap(snapshots);
+    public RegisteredSnapshots(List<RegisteredSnapshot> snapshots) {
+        this.snapshots = Collections.unmodifiableList(snapshots);
     }
 
     public RegisteredSnapshots(StreamInput in) throws IOException {
-        this.snapshots = in.readMapOfLists(SnapshotId::new);
+        this.snapshots = in.readCollectionAsImmutableList(RegisteredSnapshot::new);
     }
 
-    public Map<String, List<SnapshotId>> getSnapshots() {
+    public List<RegisteredSnapshot> getSnapshots() {
         return snapshots;
     }
 
@@ -82,7 +81,7 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(snapshots, StreamOutput::writeCollection);
+        out.writeCollection(snapshots);
     }
 
     @Override
@@ -120,7 +119,7 @@ public class RegisteredSnapshots implements Metadata.Custom {
     }
 
     public static class RegisteredSnapshotsDiff implements NamedDiff<Metadata.Custom> {
-        final Map<String, List<SnapshotId>> snapshots;
+        final List<RegisteredSnapshot> snapshots;
         RegisteredSnapshotsDiff(RegisteredSnapshots before, RegisteredSnapshots after) {
             this.snapshots = after.snapshots;
         }
@@ -140,13 +139,34 @@ public class RegisteredSnapshots implements Metadata.Custom {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(snapshots, StreamOutput::writeCollection);
+            out.writeCollection(snapshots);
         }
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersions.PRE_REGISTER_SLM_STATS;
         }
+    }
 
+    static class Builder {
+        final List<RegisteredSnapshot> snapshots;
+
+        Builder(List<RegisteredSnapshot> snapshots) {
+            this.snapshots = snapshots;
+        }
+
+        void add(String policy, SnapshotId snapshotId) {
+            final var snapshotToRegister = new RegisteredSnapshot(policy, snapshotId);
+            assert snapshots.contains(snapshotToRegister) == false : "A snapshot can only be registered once";
+            if (snapshots.size() >= RegisteredSnapshots.MAX_REGISTERED_SNAPSHOTS) {
+                final RegisteredSnapshot registeredSnapshotToRemove = snapshots.remove(0);
+//                logger.warn("Ran out of space in registered snapshots, removing [{}]", registeredSnapshotToRemove);
+            }
+            snapshots.add(snapshotToRegister);
+        }
+
+        RegisteredSnapshots build() {
+            return new RegisteredSnapshots(snapshots);
+        }
     }
 }

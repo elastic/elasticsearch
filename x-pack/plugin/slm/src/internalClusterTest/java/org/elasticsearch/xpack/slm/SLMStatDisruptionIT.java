@@ -37,6 +37,8 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.RegisteredSnapshot;
+import org.elasticsearch.snapshots.RegisteredSnapshots;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -199,7 +201,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("Created snapshot A: " + snapshotA);
 
         // wait until snapshotA is preregistered and in progress before starting snapshotB
-        assertBusy(() -> assertSnapshotRunning(policyName, snapshotA));
+        assertBusy(() -> assertSnapshotRunning(snapshotA));
         assertBusy(() -> assertPreRegistered(List.of(snapshotA), policyName), 1, TimeUnit.MINUTES);
 
         String snapshotB = executePolicy(masterNode, policyName);
@@ -483,6 +485,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         return state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
     }
 
+    private RegisteredSnapshots getRegisteredSnapshots() {
+        final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        ClusterState state = clusterStateResponse.getState();
+        return state.metadata().custom(RegisteredSnapshots.TYPE, RegisteredSnapshots.EMPTY);
+    }
+
     private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {
         GetSnapshotsResponse snapshotsStatusResponse = client(internalCluster().getMasterName()).admin()
             .cluster()
@@ -519,23 +527,23 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void assertSnapshotRunning(String policyId, String snapshot) {
+    private void assertSnapshotRunning(String snapshot) {
         final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
         ClusterState state = clusterStateResponse.getState();
         SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
-        Set<SnapshotId> snapshotIds = SnapshotLifecycleTask.currentlyRunningSnapshots(policyId, state);
+        Set<SnapshotId> snapshotIds = SnapshotLifecycleTask.currentlyRunningSnapshots(state);
         Set<String> snapshotNames = snapshotIds.stream().map(SnapshotId::getName).collect(Collectors.toSet());
         assertTrue(snapshotNames.contains(snapshot));
     }
 
     private void assertPreRegistered(List<String> expected, String policyName) {
-        var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
-        var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
-        List<String> preRegisteredNames = snapshotLifecyclePolicyMetadata.getPreRegisteredSnapshots()
-            .stream()
+        var registered = getRegisteredSnapshots();
+        var registeredNames = registered.getSnapshots().stream()
+            .filter(s -> s.getPolicy().equals(policyName))
+            .map(RegisteredSnapshot::getSnapshotId)
             .map(SnapshotId::getName)
             .collect(Collectors.toList());
-        assertEquals(expected, preRegisteredNames);
+        assertEquals(expected, registeredNames);
     }
 
     private void createRandomIndex(String idxName, String dataNodeName) throws InterruptedException {

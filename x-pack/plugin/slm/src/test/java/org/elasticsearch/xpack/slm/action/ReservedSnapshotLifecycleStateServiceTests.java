@@ -447,8 +447,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             randomNonNegativeLong(),
             randomSnapshotInvocationRecord(),
             randomSnapshotInvocationRecord(),
-            randomNonNegativeLong(),
-            List.of(new SnapshotId(randomAlphaOfLength(10), randomUUID()))
+            randomNonNegativeLong()
         );
 
         assertTrue(TransportPutSnapshotLifecycleAction.isNoopUpdate(existingPolicyMeta, existingPolicy, existingHeaders));

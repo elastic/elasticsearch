@@ -353,40 +353,36 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 cacheService.maybeFetchFullEntry(
                     key,
                     blobLength,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> ActionListener
-                        .completeWith(completionListener, () -> {
-                            assert streamFactory == null : streamFactory;
-                            final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
-                                cacheService.getRangeSize(),
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                        assert streamFactory == null : streamFactory;
+                        final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+                            cacheService.getRangeSize(),
+                            relativePos,
+                            length,
+                            blobLength
+                        );
+                        final long streamStartPosition = rangeToWrite.start() + relativePos;
+                        try (InputStream in = container.readBlob(OperationPurpose.INDICES, key.fileName(), streamStartPosition, length)) {
+                            // assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                            logger.trace(
+                                "{}: writing channel {} pos {} length {} (details: {})",
+                                key.fileName(),
+                                channelPos,
                                 relativePos,
                                 length,
-                                blobLength
+                                key
                             );
-                            final long streamStartPosition = rangeToWrite.start() + relativePos;
-                            try (
-                                InputStream in = container.readBlob(OperationPurpose.INDICES, key.fileName(), streamStartPosition, length)
-                            ) {
-                                // assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-                                logger.trace(
-                                    "{}: writing channel {} pos {} length {} (details: {})",
-                                    key.fileName(),
-                                    channelPos,
-                                    relativePos,
-                                    length,
-                                    key
-                                );
-                                SharedBytes.copyToCacheFileAligned(
-                                    channel,
-                                    in,
-                                    channelPos,
-                                    relativePos,
-                                    length,
-                                    progressUpdater,
-                                    writeBuffer.get().clear()
-                                );
-                                return null;
-                            }
-                        }),
+                            SharedBytes.copyToCacheFileAligned(
+                                channel,
+                                in,
+                                channelPos,
+                                relativePos,
+                                length,
+                                progressUpdater,
+                                writeBuffer.get().clear()
+                            );
+                        }
+                    },
                     fetchExecutor,
                     refCountingListener.acquire()
                 );

@@ -54,7 +54,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -177,61 +176,56 @@ public class SharedBlobCacheWarmingService {
             // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to
             // fully utilize each region. So we just pass it with a value that cover the current region.
             totalSizeInBytes,
-            (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener.completeWith(
-                completionListener,
-                () -> {
-                    assert streamFactory == null : streamFactory;
-                    try (OutputStream output = new OutputStream() {
+            (channel, channelPos, streamFactory, relativePos, len, progressUpdater) -> {
+                assert streamFactory == null : streamFactory;
+                try (OutputStream output = new OutputStream() {
 
-                        private final ByteBuffer byteBuffer = writeBuffer.get();
-                        private int bytesFlushed = 0;
+                    private final ByteBuffer byteBuffer = writeBuffer.get();
+                    private int bytesFlushed = 0;
 
-                        @Override
-                        public void write(int b) throws IOException {
-                            byteBuffer.put((byte) b);
+                    @Override
+                    public void write(int b) throws IOException {
+                        byteBuffer.put((byte) b);
+                        if (byteBuffer.hasRemaining() == false) {
+                            doFlush(false);
+                        }
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) throws IOException {
+                        int toWrite = len;
+                        while (toWrite > 0) {
+                            int toPut = Math.min(byteBuffer.remaining(), toWrite);
+                            byteBuffer.put(b, off + (len - toWrite), toPut);
+                            toWrite -= toPut;
                             if (byteBuffer.hasRemaining() == false) {
                                 doFlush(false);
                             }
                         }
-
-                        @Override
-                        public void write(byte[] b, int off, int len) throws IOException {
-                            int toWrite = len;
-                            while (toWrite > 0) {
-                                int toPut = Math.min(byteBuffer.remaining(), toWrite);
-                                byteBuffer.put(b, off + (len - toWrite), toPut);
-                                toWrite -= toPut;
-                                if (byteBuffer.hasRemaining() == false) {
-                                    doFlush(false);
-                                }
-                            }
-                        }
-
-                        // We don't override the flush method as we only want to do cache aligned flushes - when the buffer is full or on
-                        // close.
-                        private void doFlush(boolean closeFlush) throws IOException {
-                            int position = byteBuffer.position();
-                            var bytesCopied = SharedBytes.copyBufferToCacheFileAligned(channel, bytesFlushed + channelPos, byteBuffer);
-                            bytesFlushed += bytesCopied;
-                            assert closeFlush || bytesCopied == position : bytesCopied + " != " + position;
-                            assert closeFlush || position % SharedBytes.PAGE_SIZE == 0;
-                            assert position > 0;
-                        }
-
-                        @Override
-                        public void close() throws IOException {
-                            if (byteBuffer.position() > 0) {
-                                doFlush(true);
-                            }
-                            assert byteBuffer.position() == 0;
-                            progressUpdater.accept(bytesFlushed);
-                        }
-                    }) {
-                        vbcc.getBytesByRange(relativePos, Math.toIntExact(Math.min(len, totalSizeInBytes)), output);
-                        return null;
                     }
+
+                    // We don't override the flush method as we only want to do cache aligned flushes - when the buffer is full or on close.
+                    private void doFlush(boolean closeFlush) throws IOException {
+                        int position = byteBuffer.position();
+                        var bytesCopied = SharedBytes.copyBufferToCacheFileAligned(channel, bytesFlushed + channelPos, byteBuffer);
+                        bytesFlushed += bytesCopied;
+                        assert closeFlush || bytesCopied == position : bytesCopied + " != " + position;
+                        assert closeFlush || position % SharedBytes.PAGE_SIZE == 0;
+                        assert position > 0;
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        if (byteBuffer.position() > 0) {
+                            doFlush(true);
+                        }
+                        assert byteBuffer.position() == 0;
+                        progressUpdater.accept(bytesFlushed);
+                    }
+                }) {
+                    vbcc.getBytesByRange(relativePos, Math.toIntExact(Math.min(len, totalSizeInBytes)), output);
                 }
-            ),
+            },
             fetchExecutor,
             listener.map(b -> null)
         );
@@ -276,7 +270,7 @@ public class SharedBlobCacheWarmingService {
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
-        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
 
@@ -536,27 +530,21 @@ public class SharedBlobCacheWarmingService {
                                 // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService
                                 // to fully utilize each region. So we just pass it with a value that cover the current region.
                                 (long) (blobRegion.region + 1) * cacheService.getRegionSize(),
-                                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> {
+                                (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
                                     // TODO: ES-8987 We should leverage streamFactory to fill multiple gaps with a single request
                                     assert streamFactory == null : streamFactory;
                                     long position = range.start() + relativePos;
-                                    cacheBlobReader.getRangeInputStream(position, length, completionListener.map(in -> {
-                                        try (in) {
-                                            assert ThreadPool.assertCurrentThreadPool(
-                                                Stateless.PREWARM_THREAD_POOL,
-                                                TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX
-                                            );
-                                            var bytesCopied = SharedBytes.copyToCacheFileAligned(
-                                                channel,
-                                                in,
-                                                channelPos,
-                                                progressUpdater,
-                                                writeBuffer.get().clear()
-                                            );
-                                            totalBytesCopied.addAndGet(bytesCopied);
-                                            return null;
-                                        }
-                                    }));
+                                    try (var in = cacheBlobReader.getRangeInputStream(position, length)) {
+                                        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
+                                        var bytesCopied = SharedBytes.copyToCacheFileAligned(
+                                            channel,
+                                            in,
+                                            channelPos,
+                                            progressUpdater,
+                                            writeBuffer.get().clear()
+                                        );
+                                        totalBytesCopied.addAndGet(bytesCopied);
+                                    }
                                 },
                                 fetchExecutor,
                                 ActionListener.releaseAfter(item.listener().map(ignored -> null), refs.acquire())
@@ -612,26 +600,24 @@ public class SharedBlobCacheWarmingService {
                         // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to
                         // fully utilize each region. So we just pass it with a value that cover the current region.
                         (long) (target.region + 1) * cacheService.getRegionSize(),
-                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> ActionListener
-                            .completeWith(completionListener, () -> {
-                                assert streamFactory == null : streamFactory;
-                                long position = (long) target.region * cacheService.getRegionSize() + relativePos;
-                                var blobContainer = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory())
-                                    .getBlobContainer(target.blob.primaryTerm());
-                                try (var in = blobContainer.readBlob(OperationPurpose.INDICES, target.blob.blobName(), position, length)) {
-                                    assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
-                                    int bytesCopied = SharedBytes.copyToCacheFileAligned(
-                                        channel,
-                                        in,
-                                        channelPos,
-                                        progressUpdater,
-                                        writeBuffer.get().clear()
-                                    );
-                                    size.addAndGet(bytesCopied);
-                                    totalBytesCopied.accept(bytesCopied);
-                                    return null;
-                                }
-                            }),
+                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                            assert streamFactory == null : streamFactory;
+                            long position = (long) target.region * cacheService.getRegionSize() + relativePos;
+                            var blobContainer = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory())
+                                .getBlobContainer(target.blob.primaryTerm());
+                            try (var in = blobContainer.readBlob(OperationPurpose.INDICES, target.blob.blobName(), position, length)) {
+                                assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
+                                int bytesCopied = SharedBytes.copyToCacheFileAligned(
+                                    channel,
+                                    in,
+                                    channelPos,
+                                    progressUpdater,
+                                    writeBuffer.get().clear()
+                                );
+                                size.addAndGet(bytesCopied);
+                                totalBytesCopied.accept(bytesCopied);
+                            }
+                        },
                         fetchExecutor,
                         ActionListener.releaseAfter(listener.map(warmed -> {
                             logger.trace("{} {}: warmed {} with result {}", indexShard.shardId(), description, target, warmed);

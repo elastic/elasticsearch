@@ -24,12 +24,14 @@ import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompo
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -79,22 +81,22 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         return ByteRange.of(start, end);
     }
 
-    public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+    @Override
+    public InputStream getRangeInputStream(long position, int length) throws IOException {
         // TODO ideally do not use ShardReadThread pool here, do it in-thread. (ES-8155)
-        // The cache will be actually filled on a transport thread from a VBCC response
-        getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, listener.map(rbr -> {
-            ReleasableBytesReference reference = rbr.retain();
-            return new FilterStreamInput(reference.streamInput()) {
-                @Override
-                public void close() throws IOException {
-                    try {
-                        super.close();
-                    } finally {
-                        reference.decRef();
-                    }
+        PlainActionFuture<ReleasableBytesReference> bytesFuture = new PlainActionFuture<>();
+        getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, bytesFuture.map(r -> r.retain()));
+        ReleasableBytesReference reference = FutureUtils.get(bytesFuture);
+        return new FilterStreamInput(reference.streamInput()) {
+            @Override
+            public void close() throws IOException {
+                try {
+                    super.close();
+                } finally {
+                    reference.decRef();
                 }
-            };
-        }));
+            }
+        };
     }
 
     /**

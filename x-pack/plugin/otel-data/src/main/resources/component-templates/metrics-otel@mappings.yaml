@@ -8,7 +8,7 @@ template:
       data_stream.type:
         type: constant_keyword
         value: metrics
-      start_time:
+      start_timestamp:
         type: date_nanos
       metrics:
         type: passthrough

@@ -20,9 +20,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -187,29 +188,38 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
     }
 
-    // TODO - Refactor so we don't use Items in pinned query builder class, verify _index works
+    // TODO - Refactor so we don't use Items in pinned query builder class
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+
         if (pinnedDocsSupplier != null && excludedDocsSupplier != null) {
             List<Item> identifiedPinnedDocs = pinnedDocsSupplier.get();
             List<Item> identifiedExcludedDocs = excludedDocsSupplier.get();
+
             if (identifiedPinnedDocs == null || identifiedExcludedDocs == null) {
-                return this; // Not executed yet
-            } else if (identifiedPinnedDocs.isEmpty() && identifiedExcludedDocs.isEmpty()) {
-                return organicQuery; // Nothing to do
-            } else if (identifiedPinnedDocs.isEmpty() == false && identifiedExcludedDocs.isEmpty()) {
+                // Not executed yet
+                return this;
+            }
+
+            if (identifiedPinnedDocs.isEmpty() && identifiedExcludedDocs.isEmpty()) {
+                // Nothing to do, just return the organic query
+                return organicQuery;
+            }
+
+            if (identifiedPinnedDocs.isEmpty() == false && identifiedExcludedDocs.isEmpty()) {
+                // We have pinned IDs but nothing to exclude
                 return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
-            } else if (identifiedPinnedDocs.isEmpty()) {
-                // Boolean query with exclude only
-                IdsQueryBuilder idsQueryBuilder = QueryBuilders.idsQuery()
-                    .addIds(identifiedExcludedDocs.stream().map(Item::id).toArray(String[]::new));
-                return new BoolQueryBuilder().must(organicQuery).mustNot(idsQueryBuilder);
+            }
+
+            if (identifiedPinnedDocs.isEmpty()) {
+                // We have excluded IDs but nothing to pin
+                QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);
+                return new BoolQueryBuilder().must(organicQuery).mustNot(excludedDocsQueryBuilder);
             } else {
-                // Boolean query with pinned and exclude
+                // We have documents to both pin and exclude
                 QueryBuilder pinnedQuery = new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
-                IdsQueryBuilder idsQueryBuilder = QueryBuilders.idsQuery()
-                    .addIds(identifiedExcludedDocs.stream().map(Item::id).toArray(String[]::new));
-                return new BoolQueryBuilder().must(pinnedQuery).mustNot(idsQueryBuilder);
+                QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);
+                return new BoolQueryBuilder().must(pinnedQuery).mustNot(excludedDocsQueryBuilder);
             }
         }
 
@@ -265,6 +275,27 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetIds, pinnedDocsSetOnce::get, excludedDocsSetOnce::get).boost(
             this.boost
         ).queryName(this.queryName);
+    }
+
+    private QueryBuilder buildExcludedDocsQuery(List<Item> identifiedExcludedDocs) {
+        QueryBuilder excludedDocsQueryBuilder;
+        if (identifiedExcludedDocs.stream().allMatch(item -> item.index() == null)) {
+            // Easy case - just add an ids query
+            excludedDocsQueryBuilder = QueryBuilders.idsQuery()
+                .addIds(identifiedExcludedDocs.stream().map(Item::id).toArray(String[]::new));
+        } else {
+            // Here, we have to create Boolean queries for the _id and _index fields
+            excludedDocsQueryBuilder = QueryBuilders.boolQuery();
+            identifiedExcludedDocs.stream().map(item -> {
+                BoolQueryBuilder excludeQueryBuilder = QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(IdFieldMapper.NAME, item.id()));
+                if (item.index() != null) {
+                    excludeQueryBuilder.must(QueryBuilders.termQuery(IndexFieldMapper.NAME, item.index()));
+                }
+                return excludeQueryBuilder;
+            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).must(excludeQueryBuilder));
+        }
+        return excludedDocsQueryBuilder;
     }
 
     private List<?> truncateList(List<?> input) {

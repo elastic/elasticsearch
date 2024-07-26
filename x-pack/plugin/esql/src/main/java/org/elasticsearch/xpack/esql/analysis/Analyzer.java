@@ -833,7 +833,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
-        Predicate<Attribute> matcher = a -> up.match(a.name()) || up.match(a.name());
+        Predicate<Attribute> matcher = a -> up.match(a.name());
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
     }

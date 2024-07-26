@@ -76,10 +76,7 @@ public final class AnalyzerRules {
     ) {
         final String name = u.name();
 
-        Predicate<Attribute> predicate = a -> {
-            return Objects.equals(name, a.name());
-
-        };
+        Predicate<Attribute> predicate = a -> Objects.equals(name, a.name());
         return maybeResolveAgainstList(predicate, () -> u, attrList, false, fieldInspector);
     }
 

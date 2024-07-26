@@ -40,7 +40,7 @@ public class ApmInferenceStats implements InferenceStats {
     public static ApmInferenceStats create(MeterRegistry meterRegistry) {
         return new ApmInferenceStats(
             meterRegistry.registerLongCounter(
-                "es.inference.requests.count",
+                "es.inference.requests.count.total",
                 "Inference API request counts for a particular service, task type, model ID",
                 "operations"
             )

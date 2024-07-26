@@ -179,6 +179,7 @@ public class TransportVersions {
     public static final TransportVersion MASTER_NODE_METRICS = def(8_710_00_0);
     public static final TransportVersion SEGMENT_LEVEL_FIELDS_STATS = def(8_711_00_0);
     public static final TransportVersion ML_ADD_DETECTION_RULE_PARAMS = def(8_712_00_0);
+    public static final TransportVersion FIX_VECTOR_SIMILARITY_INNER_HITS = def(8_713_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

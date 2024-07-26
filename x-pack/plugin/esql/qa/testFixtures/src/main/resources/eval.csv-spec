@@ -55,6 +55,45 @@ x:integer
 9999
 ;
 
+shadowingWhenPushedDownPastRename
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = 3
+;
+
+z:integer | languages:integer | emp_no:integer
+    10001 |                 2 |              3
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = z + 1, emp_no = emp_no + languages, a = 0, languages = -1
+;
+
+z:integer | emp_no:integer | a:integer | languages:integer
+    10001 |          10004 |         0 |                -1
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = z + 1
+;
+
+z:integer | languages:integer | emp_no:integer
+    10001 |                 2 |          10002
+;
+
 
 withMath
 row a = 1 | eval b = 2 + 3;

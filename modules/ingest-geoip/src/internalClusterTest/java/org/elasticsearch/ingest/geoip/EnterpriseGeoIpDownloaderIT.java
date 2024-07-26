@@ -26,7 +26,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
@@ -54,13 +53,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
     private static final String DATABASE_TYPE = "GeoIP2-City";
-    private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;
 
     @ClassRule
-    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(useFixture, DATABASE_TYPE);
+    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(DATABASE_TYPE);
 
     protected String getEndpoint() {
-        return useFixture ? fixture.getAddress() : null;
+        return fixture.getAddress();
     }
 
     @Override
@@ -71,11 +69,9 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         builder.setSecureSettings(secureSettings)
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
-        if (getEndpoint() != null) {
-            // note: this is using the enterprise fixture for the regular downloader, too, as
-            // a slightly hacky way of making the regular downloader not actually download any files
-            builder.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
-        }
+        // note: this is using the enterprise fixture for the regular downloader, too, as
+        // a slightly hacky way of making the regular downloader not actually download any files
+        builder.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
         return builder.build();
     }
 
@@ -94,9 +90,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
          * was updated with information from the database.
          * Note that the "enterprise database" is actually just a geolite database being loaded by the GeoIpHttpFixture.
          */
-        if (getEndpoint() != null) {
-            EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
-        }
+        EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
         final String pipelineName = "enterprise_geoip_pipeline";
         final String indexName = "enterprise_geoip_test_index";
         final String sourceField = "ip";
@@ -105,13 +99,21 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         startEnterpriseGeoIpDownloaderTask();
         configureDatabase(DATABASE_TYPE);
         createGeoIpPipeline(pipelineName, DATABASE_TYPE, sourceField, targetField);
-        String documentId = ingestDocument(indexName, pipelineName, sourceField);
-        GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
-        Map<String, Object> returnedSource = getResponse.getSource();
-        assertNotNull(returnedSource);
-        Object targetFieldValue = returnedSource.get(targetField);
-        assertNotNull(targetFieldValue);
-        assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+
+        assertBusy(() -> {
+            /*
+             * We know that the .geoip_databases index has been populated, but we don't know for sure that the database has been pulled
+             * down and made available on all nodes. So we run this ingest-and-check step in an assertBusy.
+             */
+            logger.info("Ingesting a test document");
+            String documentId = ingestDocument(indexName, pipelineName, sourceField);
+            GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
+            Map<String, Object> returnedSource = getResponse.getSource();
+            assertNotNull(returnedSource);
+            Object targetFieldValue = returnedSource.get(targetField);
+            assertNotNull(targetFieldValue);
+            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+        });
     }
 
     private void startEnterpriseGeoIpDownloaderTask() {

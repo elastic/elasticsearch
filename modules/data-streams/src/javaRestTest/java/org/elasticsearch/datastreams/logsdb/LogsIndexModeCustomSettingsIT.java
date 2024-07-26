@@ -111,7 +111,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             e.getMessage(),
             containsString("updating component template [logs@custom] results in invalid composable template [logs]")
         );
-        assertThat(e.getMessage(), containsString("Indices with with index mode [logs] only support synthetic source"));
+        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
 
         assertOK(createDataStream(client, "logs-custom-dev"));
 

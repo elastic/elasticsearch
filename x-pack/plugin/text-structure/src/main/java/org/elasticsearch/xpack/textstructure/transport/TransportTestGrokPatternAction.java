@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.textstructure.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -32,18 +31,15 @@ public class TransportTestGrokPatternAction extends TransportAction<TestGrokPatt
 
     private static final Logger logger = LogManager.getLogger(TransportTestGrokPatternAction.class);
 
-    private final ThreadPool threadPool;
-
     @Inject
     public TransportTestGrokPatternAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
-        super(TestGrokPatternAction.INSTANCE.name(), actionFilters, transportService.getTaskManager());
-        this.threadPool = threadPool;
+        // As matching a regular expression might take a while, we run in a different thread to avoid blocking the network thread.
+        super(TestGrokPatternAction.INSTANCE.name(), actionFilters, transportService.getTaskManager(), threadPool.generic());
     }
 
     @Override
     protected void doExecute(Task task, TestGrokPatternAction.Request request, ActionListener<TestGrokPatternAction.Response> listener) {
-        // As matching a regular expression might take a while, we run in a different thread to avoid blocking the network thread.
-        threadPool.generic().execute(ActionRunnable.supply(listener, () -> getResponse(request)));
+        listener.onResponse(getResponse(request));
     }
 
     private TestGrokPatternAction.Response getResponse(TestGrokPatternAction.Request request) {

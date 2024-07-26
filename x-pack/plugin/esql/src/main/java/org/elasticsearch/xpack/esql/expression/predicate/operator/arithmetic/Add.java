@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -30,7 +33,23 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
 public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
 
-    public Add(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" },
+        description = "Add two numbers together. " + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
+    )
+    public Add(
+        Source source,
+        @Param(
+            name = "lhs",
+            description = "A numeric value or a date time value.",
+            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            description = "A numeric value or a date time value.",
+            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+        ) Expression right
+    ) {
         super(
             source,
             left,
@@ -101,9 +120,9 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
         return unsignedLongAddExact(lhs, rhs);
     }
 
-    @Evaluator(extraName = "Doubles")
+    @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        return lhs + rhs;
+        return NumericUtils.asFiniteNumber(lhs + rhs);
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })

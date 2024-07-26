@@ -2315,9 +2315,9 @@ public abstract class Engine {
     /**
      * Safely close the provided engine
      */
-    public static void close(@Nullable Engine engine) throws IOException {
+    public static void close(@Nullable Engine engine, ActionListener<Void> listener) throws IOException {
         if (engine != null) {
-            engine.close();
+            engine.close(listener);
         }
     }
 

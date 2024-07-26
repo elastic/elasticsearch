@@ -2204,7 +2204,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
             // TODO Remove no-op listener
-            Engine.close(currentEngineReference.getAndSet(null, ActionListener.noop()));
+            Engine.close(currentEngineReference.getAndSet(null), ActionListener.noop());
             resetRecoveryStage();
         }
     }
@@ -4264,8 +4264,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             newEngine = null;
                         }
                     }
-                    final var finalNewEngine = newEngine;
-                    IOUtils.close(super::close, () -> Engine.close(finalNewEngine));
                     try (var refs = new RefCountingListener(listener)) {
                         super.close(refs.acquire());
                         if (newEngine != null) {
@@ -4292,7 +4290,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             verifyNotClosed();
             // TODO Remove no-op listener
-            Engine.close(currentEngineReference.getAndSet(newEngineReference.get(), ActionListener.noop()));
+            Engine.close(currentEngineReference.getAndSet(newEngineReference.get()), ActionListener.noop());
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);

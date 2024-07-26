@@ -53,7 +53,7 @@ The `inference_id` will not be validated when the mapping is created, but when d
 When the first document is indexed, the `inference_id` will be used to generate underlying indexing structures for the field.
 
 WARNING: Removing an {infer} endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that {infer} endpoint as their `inference_id`.
-Trying to <<delete-inference-api,delete an {infer-cap} endpoint>> that is used on a `semantic_text` field will result in an error.
+Trying to <<delete-inference-api,delete an {infer} endpoint>> that is used on a `semantic_text` field will result in an error.
 
 [discrete]
 [[auto-text-chunking]]

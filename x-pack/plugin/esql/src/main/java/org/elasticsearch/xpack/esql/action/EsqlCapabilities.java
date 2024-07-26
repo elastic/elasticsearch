@@ -45,6 +45,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * Support for the {@code INLINESTATS} syntax.
+         */
+        INLINESTATS(true),
+
+        /**
          * Support for aggregation function {@code TOP}.
          */
         AGG_TOP,
@@ -55,9 +60,19 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_BOOLEAN_SUPPORT,
 
         /**
+         * Support for ips in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
          * Support for booleans in {@code TOP} aggregation.
          */
         AGG_TOP_BOOLEAN_SUPPORT,
+
+        /**
+         * Support for ips in {@code TOP} aggregation.
+         */
+        AGG_TOP_IP_SUPPORT,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -160,7 +175,13 @@ public class EsqlCapabilities {
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
-        UNIQUE_NAMES;
+        UNIQUE_NAMES,
+
+        /**
+         * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
+         * https://github.com/elastic/elasticsearch/issues/108008
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT;
 
         private final boolean snapshotOnly;
 

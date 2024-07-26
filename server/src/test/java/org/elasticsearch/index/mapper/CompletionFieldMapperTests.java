@@ -39,6 +39,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.postings.ESCompletionPostingsFormat;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -150,7 +151,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
+            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(ESCompletionPostingsFormat.class));
         } else {
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             assertThat(

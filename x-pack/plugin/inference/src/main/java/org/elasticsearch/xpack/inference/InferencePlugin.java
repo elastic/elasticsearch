@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.telemetry.ApmInferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
@@ -196,7 +197,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
-        var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.NOOP);
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var stats = new PluginComponentBinding<>(InferenceStats.class, ApmInferenceStats.create(meterRegistry));
 
         return List.of(modelRegistry, registry, httpClientManager, stats);
     }

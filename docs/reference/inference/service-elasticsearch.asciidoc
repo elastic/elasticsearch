@@ -123,16 +123,17 @@ The following example shows how to create an {infer} endpoint called
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/text_embedding/my-msmarco-minilm-model
+PUT _inference/text_embedding/my-msmarco-minilm-model <1>
 {
   "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1,
-    "model_id": "msmarco-MiniLM-L12-cos-v5" <1>
+    "model_id": "msmarco-MiniLM-L12-cos-v5" <2>
   }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The `model_id` must be the ID of a text embedding model which has already been
+<1> Provide an unique identifier for the inference endpoint. The `inference_id` must be unique and must not match the `model_id`.
+<2> The `model_id` must be the ID of a text embedding model which has already been
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].

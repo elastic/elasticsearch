@@ -316,10 +316,10 @@ public class EsqlSession {
             p.forEachExpressionDown(Alias.class, alias -> {
                 // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                 // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (p.references().names().contains(alias.qualifiedName())) {
+                if (p.references().names().contains(alias.name())) {
                     return;
                 }
-                references.removeIf(attr -> matchByName(attr, alias.qualifiedName(), keepCommandReferences.contains(attr)));
+                references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));
             });
         });
 

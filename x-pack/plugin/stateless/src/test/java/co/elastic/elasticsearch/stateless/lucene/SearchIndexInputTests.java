@@ -28,9 +28,6 @@ import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.SwitchingCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
@@ -39,7 +36,6 @@ import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -69,12 +65,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.intThat;
-import static org.mockito.ArgumentMatchers.longThat;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -182,21 +174,20 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 sharedBlobCacheService.getRangeSize()
             ) {
                 @Override
-                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                public InputStream getRangeInputStream(long position, int length) throws IOException {
                     objectStoreRequestCount.incrementAndGet();
-                    super.getRangeInputStream(position, length, listener);
+                    return super.getRangeInputStream(position, length);
                 }
             };
 
             final ByteSizeValue chunkSize = ByteSizeValue.ofBytes(between(1, 8) * PAGE_SIZE);
             final var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(null, null, null, null, chunkSize) {
-
                 @Override
-                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                public InputStream getRangeInputStream(long position, int length) throws IOException {
                     // verifies that `getRange` does not exceed remaining file length except for padding, implicitly also
                     // verifying that the remainingFileLength calculation in SearchIndexInput is correct too.
                     assertThat(position + length, lessThanOrEqualTo(BlobCacheUtils.toPageAlignedSize(data.length)));
-                    objectStoreCacheBlobReader.getRangeInputStream(position, length, listener);
+                    return objectStoreCacheBlobReader.getRangeInputStream(position, length);
                 }
             };
             final var uploaded = new AtomicBoolean(false);
@@ -302,22 +293,11 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         }
         final PosByteArrayInputStream inputStream = new PosByteArrayInputStream(input);
         final var totalGapLength = Math.toIntExact(gaps.get(gaps.size() - 1).end() - gaps.get(0).start());
-        doAnswer(invocation -> {
-            ActionListener<InputStream> argument = invocation.getArgument(2);
-            argument.onResponse(inputStream);
-            return null;
-        }).when(cacheBlobReader)
-            .getRangeInputStream(
-                longThat(l -> l.equals(rangeToWriteStart + gaps.get(0).start())),
-                intThat(i -> i.equals(totalGapLength)),
-                any(ActionListener.class)
-            );
+        when(cacheBlobReader.getRangeInputStream(rangeToWriteStart + gaps.get(0).start(), totalGapLength)).thenReturn(inputStream);
         try (var streamFactory = sequentialRangeMissingHandler.sharedInputStreamFactory(gaps)) {
             for (int i = 0; i < gaps.size(); i++) {
                 SparseFileTracker.Gap gap = gaps.get(i);
-                var future = new PlainActionFuture<InputStream>();
-                streamFactory.create((int) gap.start(), future);
-                try (var in = FutureUtils.get(future)) {
+                try (var in = streamFactory.create((int) gap.start())) {
                     if (i == gaps.size() - 1) {
                         // Last gap is beyond available data and should get a nullInputstream with 0 available data
                         assertThat(in.available(), equalTo(0));
@@ -364,17 +344,14 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
 
         // Go through the gaps to try to fill them unsuccessfully due to the noSuchFileException being thrown
         var noSuchFileException = new NoSuchFileException(cacheFile.getCacheKey().toString());
-        doAnswer(invocation -> { throw noSuchFileException; }).when(cacheBlobReader)
-            .getRangeInputStream(anyLong(), anyInt(), any(ActionListener.class));
+        when(cacheBlobReader.getRangeInputStream(anyLong(), anyInt())).thenThrow(noSuchFileException);
         try (var streamFactory = sequentialRangeMissingHandler.sharedInputStreamFactory(gaps)) {
             for (int i = 0; i < gaps.size(); i++) {
                 SparseFileTracker.Gap gap = gaps.get(i);
-                var future = new PlainActionFuture<InputStream>();
-                streamFactory.create((int) gap.start(), future);
-                try (var in = FutureUtils.get(future)) {
+                try (var in = streamFactory.create((int) gap.start())) {
                     assert false : "should throw exception";
                 } catch (Exception e) {
-                    assertThat(ExceptionsHelper.unwrap(e, NoSuchFileException.class), equalTo(noSuchFileException));
+                    assertThat(e, equalTo(noSuchFileException));
                 }
             }
         }
@@ -399,13 +376,12 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         }
         ByteSizeValue chunkSize = ByteSizeValue.ofKb(8);
         return new IndexingShardCacheBlobReader(null, null, null, null, chunkSize) {
-
             @Override
-            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+            public InputStream getRangeInputStream(long position, int length) throws IOException {
                 // verifies that `getRange` does not exceed remaining file length except for padding, implicitly also
                 // verifying that the remainingFileLength calculation in SearchIndexInput is correct too.
                 assertThat(position + length, lessThanOrEqualTo(BlobCacheUtils.toPageAlignedSize(input.length)));
-                objectStore.getRangeInputStream(position, length, listener);
+                return objectStore.getRangeInputStream(position, length);
             }
         };
     }

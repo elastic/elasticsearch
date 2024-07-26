@@ -175,7 +175,7 @@ public class EsqlCapabilities {
         /**
          * MATCH command support
          */
-        MATCH_COMMAND;
+        MATCH_COMMAND(true);
 
         private final boolean snapshotOnly;
 

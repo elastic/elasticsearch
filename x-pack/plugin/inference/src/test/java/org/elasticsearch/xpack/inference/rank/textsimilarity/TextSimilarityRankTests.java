@@ -168,7 +168,10 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 )
                 .setQuery(QueryBuilders.matchAllQuery())
         );
-        assertThat(ex.getDetailedMessage(), containsString("Reduce rank_window_size to be less than or equal to this value"));
+        assertThat(
+            ex.getDetailedMessage(),
+            containsString("Reduce rank_window_size to be less than or equal to the configured top N value.")
+        );
     }
 
     public void testRerankInputSizeAndInferenceResultsMismatch() {

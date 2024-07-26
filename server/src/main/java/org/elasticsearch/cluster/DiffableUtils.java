@@ -442,7 +442,7 @@ public final class DiffableUtils {
          * {@code true} if this diff results in no changes to the map
          */
         public boolean isEmpty() {
-            return deletes.isEmpty() && getDiffs().isEmpty() && getUpserts().isEmpty();
+            return deletes.isEmpty() && diffs.isEmpty() && upserts.isEmpty();
         }
 
         /**

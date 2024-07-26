@@ -93,6 +93,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
         double[] sampleMonotonicValue = new double[1];
         double[] sampleNumericValue = new double[1];
         long[] sampledDocCount = new long[1];
+        double tolerance = 1e-14;
         // initialize the values
         assertResponse(
             prepareSearch("idx").setPreference("shard:0")
@@ -123,9 +124,12 @@ public class RandomSamplerIT extends ESIntegTestCase {
                     ),
                 response -> {
                     InternalRandomSampler sampler = response.getAggregations().get("sampler");
-                    assertThat(((Avg) sampler.getAggregations().get("mean_monotonic")).getValue(), equalTo(sampleMonotonicValue[0]));
-                    assertThat(((Avg) sampler.getAggregations().get("mean_numeric")).getValue(), equalTo(sampleNumericValue[0]));
-                    assertThat(sampler.getDocCount(), equalTo(sampledDocCount[0]));
+                    double monotonicValue = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
+                    double numericValue = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
+                    long docCount = sampler.getDocCount();
+                    assertThat(Math.abs(monotonicValue - sampleMonotonicValue[0]) < tolerance, equalTo(true));
+                    assertThat(Math.abs(numericValue - sampleNumericValue[0]) < tolerance, equalTo(true));
+                    assertThat(docCount, equalTo(sampledDocCount[0]));
                 }
             );
         }

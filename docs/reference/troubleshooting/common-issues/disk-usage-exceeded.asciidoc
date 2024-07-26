@@ -80,11 +80,6 @@ PUT */_settings?expand_wildcards=all
 {
   "index.blocks.read_only_allow_delete": null
 }
-
-PUT .kibana*/_settings?expand_wildcards=all
-{
-  "index.blocks.write": null
-}
 ----
 // TEST[s/^/PUT my-index\n/]
 

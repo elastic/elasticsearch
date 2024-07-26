@@ -129,7 +129,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -1316,18 +1315,7 @@ public class ApiKeyService implements Closeable {
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
                             );
                         }
-                    }, exception -> {
-                        // Crypto threadpool queue is full, invalidate this cache entry and make sure nothing is going to wait on it
-                        logger.warn(
-                            Strings.format(
-                                "rejecting possibly valid API key authentication because the [%s] threadpool is full",
-                                SECURITY_CRYPTO_THREAD_POOL_NAME
-                            )
-                        );
-                        apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
-                        listenableCacheEntry.onFailure(exception);
-                        listener.onFailure(exception);
-                    }));
+                    }, listener::onFailure));
                 }
             } else {
                 verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
@@ -1465,19 +1453,15 @@ public class ApiKeyService implements Closeable {
 
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
-        try {
-            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
-                Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
-                final char[] apiKeyHashChars = apiKeyHash.toCharArray();
-                try {
-                    return hasher.verify(credentials.getKey(), apiKeyHashChars);
-                } finally {
-                    Arrays.fill(apiKeyHashChars, (char) 0);
-                }
-            }));
-        } catch (RejectedExecutionException e) {
-            listener.onFailure(e);
-        }
+        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
+            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+            final char[] apiKeyHashChars = apiKeyHash.toCharArray();
+            try {
+                return hasher.verify(credentials.getKey(), apiKeyHashChars);
+            } finally {
+                Arrays.fill(apiKeyHashChars, (char) 0);
+            }
+        }));
     }
 
     private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {

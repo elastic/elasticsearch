@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompo
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
@@ -578,7 +579,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         }
 
         @Override
-        protected void warmCache(String description, IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
+        protected void warmCache(
+            String description,
+            IndexShard indexShard,
+            StatelessCompoundCommit commit,
+            BlobStoreCacheDirectory directory,
+            ActionListener<Void> listener
+        ) {
             var wrappedListener = new SubscribableListener<Void>();
             CompletedWarmingDetails results = new CompletedWarmingDetails(description, commit);
             for (ActionListener<CompletedWarmingDetails> voidActionListener : warmingCompletedListeners) {
@@ -589,7 +596,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             for (Consumer<String> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(description);
             }
-            super.warmCache(description, indexShard, commit, wrappedListener);
+            super.warmCache(description, indexShard, commit, directory, wrappedListener);
             safeAwait(wrappedListener);
         }
     }

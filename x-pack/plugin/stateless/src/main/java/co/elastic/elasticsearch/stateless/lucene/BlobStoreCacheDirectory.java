@@ -85,7 +85,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     public void setBlobContainer(LongFunction<BlobContainer> blobContainer) {
-        this.blobContainer.trySet(blobContainer);
+        this.blobContainer.set(blobContainer);
     }
 
     public boolean containsFile(String name) {

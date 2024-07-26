@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -77,8 +76,6 @@ public class IndexShardCacheWarmer {
                 final var blobStore = objectStoreService.blobStore();
                 final ShardId shardId = indexShard.shardId();
                 final var shardBasePath = objectStoreService.shardBasePath(shardId);
-                BlobStoreCacheDirectory.unwrapDirectory(store.directory())
-                    .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
                 final BlobContainer existingBlobContainer = blobStore.blobContainer(shardBasePath);
                 final BatchedCompoundCommit batchedCompoundCommit = ObjectStoreService.readIndexingShardState(
                     existingBlobContainer,
@@ -87,10 +84,17 @@ public class IndexShardCacheWarmer {
                 if (batchedCompoundCommit != null) {
                     assert indexShard.routingEntry().isPromotableToPrimary();
                     StatelessCompoundCommit last = batchedCompoundCommit.last();
-                    // We read from the directory as part of warming, so we need to update
-                    // the cache directory commit
-                    IndexDirectory.unwrapDirectory(store.directory()).updateMetadataForPreWarming(last);
-                    warmingService.warmCacheForShardRecovery(description, indexShard, last);
+                    var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
+                    // We do not want to update the internal directory metadata this early as this gets dispatched
+                    // into the GENERIC thread pool and, it can make the directory to go backwards if the recovery
+                    // makes progress before this task gets executed, for that reason we create a new directory that
+                    // will be used _only_ during pre-warming.
+                    var preWarmingBlobStoreCacheDirectory = indexDirectory.getBlobStoreCacheDirectory()
+                        .createBlobStoreCacheDirectoryForWarming(last);
+                    preWarmingBlobStoreCacheDirectory.setBlobContainer(
+                        primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)))
+                    );
+                    warmingService.warmCacheForShardRecovery(description, indexShard, last, preWarmingBlobStoreCacheDirectory);
                     return true;
                 }
                 return false;

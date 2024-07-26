@@ -240,7 +240,7 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
         searchAndAssertFooValues("index-*", false, "1");
     }
 
-    public void testAliasUnderRcs1WithMixedPrivilegesWithRealFilter() throws Exception {
+    public void testAliasUnderRcs1WithMixedPrivilegesWithRealFilterV1() throws Exception {
         var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {

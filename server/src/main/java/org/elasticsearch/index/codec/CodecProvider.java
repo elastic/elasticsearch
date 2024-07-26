@@ -13,7 +13,11 @@ import org.apache.lucene.codecs.Codec;
 /**
  * Abstracts codec lookup by name, to make CodecService extensible.
  */
-@FunctionalInterface
 public interface CodecProvider {
     Codec codec(String name);
+
+    /**
+     * Returns all registered available codec names.
+     */
+    String[] availableCodecs();
 }

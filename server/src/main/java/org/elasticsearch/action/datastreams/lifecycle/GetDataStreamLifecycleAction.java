@@ -220,7 +220,7 @@ public class GetDataStreamLifecycleAction {
             this(
                 in.readCollectionAsList(DataStreamLifecycle::new),
                 in.readOptionalWriteable(RolloverConfiguration::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
                     ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
                     : null
             );
@@ -243,7 +243,7 @@ public class GetDataStreamLifecycleAction {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
         }

@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.AbstractBinaryOperatorTestCase;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -71,7 +70,7 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
 
     @Override
     protected boolean supportsType(DataType type) {
-        return type.isNumeric() && EsqlDataTypes.isRepresentable(type);
+        return type.isNumeric() && DataType.isRepresentable(type);
     }
 
     @Override

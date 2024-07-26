@@ -1,0 +1,6 @@
+pr: 108360
+summary: "ESQL: Fix variable shadowing when pushing down past Project"
+area: ES|QL
+type: bug
+issues:
+ - 108008

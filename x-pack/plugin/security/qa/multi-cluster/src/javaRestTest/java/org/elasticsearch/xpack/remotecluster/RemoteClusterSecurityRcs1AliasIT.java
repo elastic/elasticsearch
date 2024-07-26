@@ -284,6 +284,10 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
         searchAndAssertFooValues("index-*", true, "1", "2");
         // inconsistent with minimize roundtrips because we throw a 403
         expectThrows(Exception.class, () -> search("index-*", false));
+
+        // 403 on both because we don't have read privilege on index-alias
+        expectThrows(Exception.class, () -> search("index-alias", true));
+        expectThrows(Exception.class, () -> search("index-alias", false));
     }
 
     private void searchAndAssertFooValues(String indexPattern, boolean ccsMinimizeRoundtrips, String... expectedFooValues)

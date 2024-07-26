@@ -166,7 +166,11 @@ public class RightTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
+            case 0 -> "string";
+            case 1 -> "integer";
+            default -> throw new IllegalStateException("bad parameter number");
+        });
     }
 
     private static String unicodeRightSubstring(String str, int length) {

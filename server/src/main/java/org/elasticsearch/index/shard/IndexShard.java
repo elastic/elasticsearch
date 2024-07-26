@@ -1741,7 +1741,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             // TODO Consider closing the engine asynchronously, but since it should be already be closed,
                             // a sync call should complete immediately
                             IOUtils.close(
-                                engine != null ? () -> engine.close(ActionListener.noop()) : null,
+                                () -> Engine.close(engine, ActionListener.noop()),
                                 globalCheckpointListeners,
                                 refreshListeners,
                                 pendingReplicationActions,
@@ -1894,11 +1894,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .<Void>newForked(l -> ActionListener.runWithResource(ActionListener.assertOnce(l), () -> () -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 synchronized (engineMutex) {
-                    Engine old = currentEngineReference.getAndSet(null);
-                    if (old != null) {
-                        // TODO Remove no-op listener
-                        old.close(ActionListener.noop());
-                    }
+                    // TODO Remove no-op listener
+                    Engine.close(currentEngineReference.getAndSet(null), ActionListener.noop());
                 }
             }, (recoveryCompleteListener, ignoredRef) -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
@@ -2206,11 +2203,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert Thread.holdsLock(mutex) == false : "restart recovery under mutex";
         synchronized (engineMutex) {
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
-            Engine old = currentEngineReference.getAndSet(null);
-            if (old != null) {
-                // TODO Remove no-op listener
-                old.close(ActionListener.noop());
-            }
+            // TODO Remove no-op listener
+            Engine.close(currentEngineReference.getAndSet(null, ActionListener.noop()));
             resetRecoveryStage();
         }
     }
@@ -4270,6 +4264,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             newEngine = null;
                         }
                     }
+                    final var finalNewEngine = newEngine;
+                    IOUtils.close(super::close, () -> Engine.close(finalNewEngine));
                     try (var refs = new RefCountingListener(listener)) {
                         super.close(refs.acquire());
                         if (newEngine != null) {
@@ -4278,11 +4274,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             };
-            Engine old = currentEngineReference.getAndSet(readOnlyEngine);
-            if (old != null) {
-                // TODO Remove no-op listener
-                old.close(ActionListener.noop());
-            }
+            // TODO Remove no-op listener
+            Engine.close(currentEngineReference.getAndSet(readOnlyEngine), ActionListener.noop());
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
@@ -4298,11 +4291,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         newEngineReference.get().refresh("reset_engine");
         synchronized (engineMutex) {
             verifyNotClosed();
-            Engine old = currentEngineReference.getAndSet(newEngineReference.get());
-            if (old != null) {
-                // TODO Remove no-op listener
-                old.close(ActionListener.noop());
-            }
+            // TODO Remove no-op listener
+            Engine.close(currentEngineReference.getAndSet(newEngineReference.get(), ActionListener.noop()));
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);

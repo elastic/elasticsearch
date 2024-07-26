@@ -295,90 +295,90 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     public void testAccessStoredFieldsSequentially() throws Exception {
-        Store store = createStore();
-        Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try {
-            int smallBatch = between(5, 9);
-            long seqNo = 0;
-            for (int i = 0; i < smallBatch; i++) {
-                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
-                seqNo++;
-            }
-            engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), null), 1, 1000, true));
-            seqNo = 11;
-            int largeBatch = between(15, 100);
-            for (int i = 0; i < largeBatch; i++) {
-                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
-                seqNo++;
-            }
-            // disable optimization for a small batch
-            Translog.Operation op;
-            try (
-                LuceneChangesSnapshot snapshot = (LuceneChangesSnapshot) engine.newChangesSnapshot(
-                    "test",
-                    0L,
-                    between(1, smallBatch),
-                    false,
-                    randomBoolean(),
-                    randomBoolean()
-                )
-            ) {
-                while ((op = snapshot.next()) != null) {
-                    assertFalse(op.toString(), snapshot.useSequentialStoredFieldsReader());
+        try (Store store = createStore()) {
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
+            try {
+                int smallBatch = between(5, 9);
+                long seqNo = 0;
+                for (int i = 0; i < smallBatch; i++) {
+                    engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
+                    seqNo++;
                 }
-                assertFalse(snapshot.useSequentialStoredFieldsReader());
-            }
-            // disable optimization for non-sequential accesses
-            try (
-                LuceneChangesSnapshot snapshot = (LuceneChangesSnapshot) engine.newChangesSnapshot(
-                    "test",
-                    between(1, 3),
-                    between(20, 100),
-                    false,
-                    randomBoolean(),
-                    randomBoolean()
-                )
-            ) {
-                while ((op = snapshot.next()) != null) {
-                    assertFalse(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), null), 1, 1000, true));
+                seqNo = 11;
+                int largeBatch = between(15, 100);
+                for (int i = 0; i < largeBatch; i++) {
+                    engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
+                    seqNo++;
                 }
-                assertFalse(snapshot.useSequentialStoredFieldsReader());
-            }
-            // enable optimization for sequential access of 10+ docs
-            try (
-                LuceneChangesSnapshot snapshot = (LuceneChangesSnapshot) engine.newChangesSnapshot(
-                    "test",
-                    11,
-                    between(21, 100),
-                    false,
-                    true,
-                    randomBoolean()
-                )
-            ) {
-                while ((op = snapshot.next()) != null) {
-                    assertTrue(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                // disable optimization for a small batch
+                Translog.Operation op;
+                try (
+                    LuceneChangesSnapshot snapshot = (LuceneChangesSnapshot) engine.newChangesSnapshot(
+                        "test",
+                        0L,
+                        between(1, smallBatch),
+                        false,
+                        randomBoolean(),
+                        randomBoolean()
+                    )
+                ) {
+                    while ((op = snapshot.next()) != null) {
+                        assertFalse(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                    }
+                    assertFalse(snapshot.useSequentialStoredFieldsReader());
                 }
-                assertTrue(snapshot.useSequentialStoredFieldsReader());
-            }
-            // disable optimization if snapshot is accessed by multiple consumers
-            try (
-                LuceneChangesSnapshot snapshot = (LuceneChangesSnapshot) engine.newChangesSnapshot(
-                    "test",
-                    11,
-                    between(21, 100),
-                    false,
-                    false,
-                    randomBoolean()
-                )
-            ) {
-                while ((op = snapshot.next()) != null) {
-                    assertFalse(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                // disable optimization for non-sequential accesses
+                try (
+                    LuceneChangesSnapshot snapshot = (LuceneChangesSnapshot) engine.newChangesSnapshot(
+                        "test",
+                        between(1, 3),
+                        between(20, 100),
+                        false,
+                        randomBoolean(),
+                        randomBoolean()
+                    )
+                ) {
+                    while ((op = snapshot.next()) != null) {
+                        assertFalse(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                    }
+                    assertFalse(snapshot.useSequentialStoredFieldsReader());
                 }
-                assertFalse(snapshot.useSequentialStoredFieldsReader());
+                // enable optimization for sequential access of 10+ docs
+                try (
+                    LuceneChangesSnapshot snapshot = (LuceneChangesSnapshot) engine.newChangesSnapshot(
+                        "test",
+                        11,
+                        between(21, 100),
+                        false,
+                        true,
+                        randomBoolean()
+                    )
+                ) {
+                    while ((op = snapshot.next()) != null) {
+                        assertTrue(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                    }
+                    assertTrue(snapshot.useSequentialStoredFieldsReader());
+                }
+                // disable optimization if snapshot is accessed by multiple consumers
+                try (
+                    LuceneChangesSnapshot snapshot = (LuceneChangesSnapshot) engine.newChangesSnapshot(
+                        "test",
+                        11,
+                        between(21, 100),
+                        false,
+                        false,
+                        randomBoolean()
+                    )
+                ) {
+                    while ((op = snapshot.next()) != null) {
+                        assertFalse(op.toString(), snapshot.useSequentialStoredFieldsReader());
+                    }
+                    assertFalse(snapshot.useSequentialStoredFieldsReader());
+                }
+            } finally {
+                engine.close();
             }
-        } finally {
-            store.close();
-            close(engine);
         }
     }
 
@@ -472,79 +472,79 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     public void testStats() throws Exception {
-        Store store = createStore();
-        Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try {
-            int numOps = between(100, 5000);
-            long startingSeqNo = randomLongBetween(0, Integer.MAX_VALUE);
-            List<Engine.Operation> operations = generateHistoryOnReplica(
-                numOps,
-                startingSeqNo,
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean()
-            );
-            applyOperations(engine, operations);
-
-            LongSupplier fromSeqNo = () -> {
-                if (randomBoolean()) {
-                    return 0L;
-                } else if (randomBoolean()) {
-                    return startingSeqNo;
-                } else {
-                    return randomLongBetween(0, startingSeqNo);
-                }
-            };
-
-            LongSupplier toSeqNo = () -> {
-                final long maxSeqNo = engine.getSeqNoStats(-1).getMaxSeqNo();
-                if (randomBoolean()) {
-                    return maxSeqNo;
-                } else if (randomBoolean()) {
-                    return Long.MAX_VALUE;
-                } else {
-                    return randomLongBetween(maxSeqNo, Long.MAX_VALUE);
-                }
-            };
-            // Can't access stats if didn't request it
-            try (
-                Translog.Snapshot snapshot = engine.newChangesSnapshot(
-                    "test",
-                    fromSeqNo.getAsLong(),
-                    toSeqNo.getAsLong(),
-                    false,
+        try (Store store = createStore()) {
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
+            try {
+                int numOps = between(100, 5000);
+                long startingSeqNo = randomLongBetween(0, Integer.MAX_VALUE);
+                List<Engine.Operation> operations = generateHistoryOnReplica(
+                    numOps,
+                    startingSeqNo,
                     randomBoolean(),
-                    false
-                )
-            ) {
-                IllegalStateException error = expectThrows(IllegalStateException.class, snapshot::totalOperations);
-                assertThat(error.getMessage(), equalTo("Access stats of a snapshot created with [access_stats] is false"));
-                final List<Translog.Operation> translogOps = drainAll(snapshot);
-                assertThat(translogOps, hasSize(numOps));
-                error = expectThrows(IllegalStateException.class, snapshot::totalOperations);
-                assertThat(error.getMessage(), equalTo("Access stats of a snapshot created with [access_stats] is false"));
-            }
-            // Access stats and operations
-            try (
-                Translog.Snapshot snapshot = engine.newChangesSnapshot(
-                    "test",
-                    fromSeqNo.getAsLong(),
-                    toSeqNo.getAsLong(),
-                    false,
                     randomBoolean(),
-                    true
-                )
-            ) {
-                assertThat(snapshot.totalOperations(), equalTo(numOps));
-                final List<Translog.Operation> translogOps = drainAll(snapshot);
-                assertThat(translogOps, hasSize(numOps));
-                assertThat(snapshot.totalOperations(), equalTo(numOps));
+                    randomBoolean()
+                );
+                applyOperations(engine, operations);
+
+                LongSupplier fromSeqNo = () -> {
+                    if (randomBoolean()) {
+                        return 0L;
+                    } else if (randomBoolean()) {
+                        return startingSeqNo;
+                    } else {
+                        return randomLongBetween(0, startingSeqNo);
+                    }
+                };
+
+                LongSupplier toSeqNo = () -> {
+                    final long maxSeqNo = engine.getSeqNoStats(-1).getMaxSeqNo();
+                    if (randomBoolean()) {
+                        return maxSeqNo;
+                    } else if (randomBoolean()) {
+                        return Long.MAX_VALUE;
+                    } else {
+                        return randomLongBetween(maxSeqNo, Long.MAX_VALUE);
+                    }
+                };
+                // Can't access stats if didn't request it
+                try (
+                    Translog.Snapshot snapshot = engine.newChangesSnapshot(
+                        "test",
+                        fromSeqNo.getAsLong(),
+                        toSeqNo.getAsLong(),
+                        false,
+                        randomBoolean(),
+                        false
+                    )
+                ) {
+                    IllegalStateException error = expectThrows(IllegalStateException.class, snapshot::totalOperations);
+                    assertThat(error.getMessage(), equalTo("Access stats of a snapshot created with [access_stats] is false"));
+                    final List<Translog.Operation> translogOps = drainAll(snapshot);
+                    assertThat(translogOps, hasSize(numOps));
+                    error = expectThrows(IllegalStateException.class, snapshot::totalOperations);
+                    assertThat(error.getMessage(), equalTo("Access stats of a snapshot created with [access_stats] is false"));
+                }
+                // Access stats and operations
+                try (
+                    Translog.Snapshot snapshot = engine.newChangesSnapshot(
+                        "test",
+                        fromSeqNo.getAsLong(),
+                        toSeqNo.getAsLong(),
+                        false,
+                        randomBoolean(),
+                        true
+                    )
+                ) {
+                    assertThat(snapshot.totalOperations(), equalTo(numOps));
+                    final List<Translog.Operation> translogOps = drainAll(snapshot);
+                    assertThat(translogOps, hasSize(numOps));
+                    assertThat(snapshot.totalOperations(), equalTo(numOps));
+                }
+                // Verify count
+                assertThat(engine.countChanges("test", fromSeqNo.getAsLong(), toSeqNo.getAsLong()), equalTo(numOps));
+            } finally {
+                engine.close();
             }
-            // Verify count
-            assertThat(engine.countChanges("test", fromSeqNo.getAsLong(), toSeqNo.getAsLong()), equalTo(numOps));
-        } finally {
-            store.close();
-            close(engine);
         }
     }
 }

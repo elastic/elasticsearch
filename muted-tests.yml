@@ -102,9 +102,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithImplicitFlow
   issue: https://github.com/elastic/elasticsearch/issues/111191
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDisableFieldNameField {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111222
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testReadNonexistentBlobThrowsNoSuchFileException
   issue: https://github.com/elastic/elasticsearch/issues/111233
@@ -117,9 +114,14 @@ tests:
 - class: org.elasticsearch.action.admin.indices.create.SplitIndexIT
   method: testSplitIndexPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/111282
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {inlinestats.ShadowingSelf}
-  issue: https://github.com/elastic/elasticsearch/issues/111261
+- class: org.elasticsearch.upgrades.LogsIndexModeFullClusterRestartIT
+  method: testLogsIndexing {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111306
+- class: org.elasticsearch.xpack.core.ml.job.config.DetectionRuleTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/111308
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111319
 
 # Examples:
 #

@@ -1076,12 +1076,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cartesianShapeCases(ESTestCase::randomBoolean);
     }
 
+    /**
+     * Generate cases for {@link DataType#GEO_POINT}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#geoPointCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), DataType.GEO_POINT)
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#CARTESIAN_POINT}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#cartesianPointCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> cartesianPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(

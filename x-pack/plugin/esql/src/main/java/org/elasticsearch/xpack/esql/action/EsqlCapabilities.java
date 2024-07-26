@@ -191,6 +191,11 @@ public class EsqlCapabilities {
          * of mystical number theory things. This is just a weighted sum that is adjacent to magic.
          */
         MV_PSERIES_WEIGHTED_SUM;
+        
+        /**
+         * Support for match operator
+         */
+        MATCH_OPERATOR(true);
 
         private final boolean snapshotOnly;
 

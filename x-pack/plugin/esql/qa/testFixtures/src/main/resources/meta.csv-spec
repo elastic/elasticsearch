@@ -40,8 +40,8 @@ double e()
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
 "boolean|double|integer|long|date|ip max(field:boolean|double|integer|long|date|ip)"
-"double|integer|long median(number:double|integer|long)"
-"double|integer|long median_absolute_deviation(number:double|integer|long)"
+"double median(number:double|integer|long)"
+"double median_absolute_deviation(number:double|integer|long)"
 "boolean|double|integer|long|date|ip min(field:boolean|double|integer|long|date|ip)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(field1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, field2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "double mv_avg(number:double|integer|long|unsigned_long)"
@@ -285,8 +285,8 @@ log           |Returns the logarithm of a value to a base. The input can be any 
 log10         |Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.  Logs of 0 and negative numbers return `null` as well as a warning.
 ltrim         |Removes leading whitespaces from a string.
 max           |The maximum value of a field.
-median        |The value that is greater than half of all values and less than half of all values.
-median_absolut|The median absolute deviation, a measure of variability.
+median        |The value that is greater than half of all values and less than half of all values, also known as the 50% <<esql-percentile>>.
+median_absolut|"Returns the median absolute deviation, a measure of variability. It is a robust statistic, meaning that it is useful for describing data that may have outliers, or may not be normally distributed. For such data it can be more descriptive than standard deviation.  It is calculated as the median of each data point's deviation from the median of the entire sample. That is, for a random variable `X`, the median absolute deviation is `median(|median(X) - X|)`."
 min           |The minimum value of a field.
 mv_append     |Concatenates values of two multi-value fields.
 mv_avg        |Converts a multivalued field into a single valued field containing the average of all of the values.
@@ -317,7 +317,7 @@ sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric funct
 sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
 split         |Split a single valued string into multiple strings.
 sqrt          |Returns the square root of a number. The input can be any numeric value, the return value is always a double. Square roots of negative numbers and infinities are null.
-st_centroid_ag|The centroid of a spatial field.
+st_centroid_ag|Calculate the spatial centroid over a field with spatial point geometry type.
 st_contains   |Returns whether the first geometry contains the second geometry. This is the inverse of the <<esql-st_within,ST_WITHIN>> function.
 st_disjoint   |Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the <<esql-st_intersects,ST_INTERSECTS>> function. In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅
 st_distance   |Computes the distance between two points. For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates. For geographic geometries, this is the circular distance along the great circle in meters.
@@ -409,8 +409,8 @@ log           |double                                                           
 log10         |double                                                                                                                      |false                       |false           |false
 ltrim         |"keyword|text"                                                                                                              |false                       |false           |false
 max           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
-median        |"double|integer|long"                                                                                                       |false                       |false           |true
-median_absolut|"double|integer|long"                                                                                                       |false                       |false           |true
+median        |double                                                                                                                      |false                       |false           |true
+median_absolut|double                                                                                                                      |false                       |false           |true
 min           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
 mv_append     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false]              |false 		     |false
 mv_avg        |double                                                                                                                      |false                       |false           |false

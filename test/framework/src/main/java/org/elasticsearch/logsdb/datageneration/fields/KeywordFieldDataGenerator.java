@@ -14,12 +14,16 @@ import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.logsdb.datageneration.fields.FieldValues.injectNulls;
+import static org.elasticsearch.logsdb.datageneration.fields.FieldValues.wrappedInArray;
 
 public class KeywordFieldDataGenerator implements FieldDataGenerator {
-    private final Arbitrary arbitrary;
+    private final Supplier<Object> valueGenerator;
 
     public KeywordFieldDataGenerator(Arbitrary arbitrary) {
-        this.arbitrary = arbitrary;
+        this.valueGenerator = injectNulls(arbitrary).andThen(wrappedInArray(arbitrary)).apply(() -> arbitrary.stringValue(0, 50));
     }
 
     @Override
@@ -29,6 +33,6 @@ public class KeywordFieldDataGenerator implements FieldDataGenerator {
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-        return b -> b.value(arbitrary.stringValue(0, 50));
+        return b -> b.value(valueGenerator.get());
     }
 }

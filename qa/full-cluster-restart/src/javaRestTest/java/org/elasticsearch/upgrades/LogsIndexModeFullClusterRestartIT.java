@@ -37,6 +37,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
         .module("constant-keyword")
         .module("data-streams")
         .module("mapper-extras")
@@ -44,7 +45,6 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("cluster.logsdb.enabled", "true")
         .build();
 
     public LogsIndexModeFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

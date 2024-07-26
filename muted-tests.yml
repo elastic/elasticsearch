@@ -114,9 +114,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.create.SplitIndexIT
   method: testSplitIndexPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/111282
-- class: org.elasticsearch.upgrades.LogsIndexModeFullClusterRestartIT
-  method: testLogsIndexing {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111306
 - class: org.elasticsearch.xpack.core.ml.job.config.DetectionRuleTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/111308

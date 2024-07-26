@@ -53,7 +53,7 @@ The `inference_id` will not be validated when the mapping is created, but when d
 When the first document is indexed, the `inference_id` will be used to generate underlying indexing structures for the field.
 
 WARNING: Removing an inference endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that inference endpoint as their `inference_id`.
-Please check that inference endpoints are not used in `semantic_text` fields before removal.
+Trying to <<delete-inference-api,delete an inference endpoint>> that is used on a `semantic_text` field will result in an error.
 
 [discrete]
 [[auto-text-chunking]]
@@ -124,7 +124,8 @@ types and create an ingest pipeline with an
 [[update-script]]
 ==== Updates to `semantic_text` fields
 
-Updates that use scripts are not supported when the index contains a `semantic_text` field.
+Updates that use scripts are not supported for an index contains a `semantic_text` field.
+Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
 
 
 [discrete]

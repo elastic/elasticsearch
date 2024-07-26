@@ -1,4 +1,6 @@
 default
+required_capability: mv_pseries_weighted_sum
+
 // tag::example[]
 ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
 | EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 1.5)
@@ -13,6 +15,8 @@ score:double
 ;
 
 oneElement
+required_capability: mv_pseries_weighted_sum
+
 ROW data = [3.0]
 | EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 9999.9)
 | KEEP score;
@@ -22,6 +26,8 @@ score:double
 ;
 
 zeroP
+required_capability: mv_pseries_weighted_sum
+
 ROW data = [3.0, 10.0, 15.0]
 | EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 0.0)
 | KEEP score;
@@ -31,6 +37,8 @@ score:double
 ;
 
 negativeP
+required_capability: mv_pseries_weighted_sum
+
 ROW data = [10.0, 5.0, 3.0]
 | EVAL score = MV_PSERIES_WEIGHTED_SUM(data, -2.0)
 | KEEP score;
@@ -40,6 +48,8 @@ score:double
 ;
 
 composed
+required_capability: mv_pseries_weighted_sum
+
 ROW data = [21.0, 45.0, 21.0, 70.0, 21.0]
 | EVAL sorted = MV_SORT(data, "desc")
 | EVAL score = MV_PSERIES_WEIGHTED_SUM(sorted, 1.5)
@@ -51,6 +61,8 @@ normalized_score:double|score:double
 ;
 
 multivalueAggregation
+required_capability: mv_pseries_weighted_sum
+
 FROM alerts
 | WHERE host.name is not null
 | SORT host.name, kibana.alert.risk_score
@@ -66,6 +78,8 @@ test-host-2      |13.03                  |34.036822671263614
 ;
 
 asArgument
+required_capability: mv_pseries_weighted_sum
+
 ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
 | EVAL score = ROUND(MV_PSERIES_WEIGHTED_SUM(data, 1.5), 1)
 | KEEP score;

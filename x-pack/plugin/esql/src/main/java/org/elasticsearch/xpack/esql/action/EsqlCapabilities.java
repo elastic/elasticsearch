@@ -181,7 +181,16 @@ public class EsqlCapabilities {
          * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
          * https://github.com/elastic/elasticsearch/issues/108008
          */
-        FIXED_PUSHDOWN_PAST_PROJECT;
+        FIXED_PUSHDOWN_PAST_PROJECT,
+
+        /**
+         * Adds the {@code MV_PSERIES_WEIGHTED_SUM} function for converting sorted lists of numbers into
+         * a bounded score. This is a generalization of the
+         * <a href="https://en.wikipedia.org/wiki/Riemann_zeta_function">riemann zeta function</a> but we
+         * don't name it that because we don't support complex numbers and don't want to make folks think
+         * of mystical number theory things. This is just a weighted sum that is adjacent to magic.
+         */
+        MV_PSERIES_WEIGHTED_SUM;
 
         private final boolean snapshotOnly;
 

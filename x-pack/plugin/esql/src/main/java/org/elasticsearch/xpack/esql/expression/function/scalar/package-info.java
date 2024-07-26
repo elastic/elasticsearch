@@ -184,6 +184,19 @@
  *         looks ok.
  *     </li>
  *     <li>
+ *         Let's finish up the code by making the tests backwards compatible. Since this is a new
+ *         feature we just have to convince the tests not to run in a cluster that includes older
+ *         versions of Elasticsearch. We do that with a {@link org.elasticsearch.rest.RestHandler#supportedCapabilities capability}
+ *         on the REST handler. ESQL has a <strong>ton</strong> of capabilities so we list them
+ *         all in {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}. Add a new one
+ *         for your function. Now add something like {@code required_capability: my_function}
+ *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to double
+ *         check that they run on the main branch. A spelling mistake here will disable them. Do:
+ *         {@code ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ check} and open the test
+ *         results and double check that your test ran. You can use a command like this to open
+ *         the results: {@code firefox x-pack/plugin/esql/qa/server/single-node/build/reports/tests/javaRestTest/index.html}.
+ *     </li>
+ *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn
  *         into the commit message we see in the commit history. Good PR descriptions make me very
  *         happy. But functions don't need an essay.

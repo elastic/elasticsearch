@@ -66,8 +66,10 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -226,11 +228,16 @@ public class SearchEngine extends Engine {
     }
 
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
+        // capture the term/gen used by opened Lucene generational files
+        final var termAndGens = new HashSet<>(directory.getAcquiredGenerationalFileTermAndGenerations());
         // CHM iterators are weakly consistent, meaning that we're not guaranteed to see new insertions while we compute
         // the set of remaining open reader referenced BCCs, that's why we use a regular HashMap with synchronized.
         synchronized (openReaders) {
-            return openReaders.values().stream().flatMap(openReader -> openReader.referencedBCCs().stream()).collect(Collectors.toSet());
+            for (var openReader : openReaders.values()) {
+                termAndGens.addAll(openReader.referencedBCCs());
+            }
         }
+        return Collections.unmodifiableSet(termAndGens);
     }
 
     /**

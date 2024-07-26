@@ -111,6 +111,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                     randomIOContext(),
                     createBlobReader(fileName, input, sharedBlobCacheService),
+                    null,
                     input.length,
                     0
                 );
@@ -141,6 +142,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                 randomIOContext(),
                 createBlobReader(fileName, input, sharedBlobCacheService),
+                null,
                 input.length,
                 0
             );
@@ -221,6 +223,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), pos + fileLength),
                     randomIOContext(),
                     cacheBlobReader,
+                    null,
                     fileLength,
                     pos
                 );
@@ -237,6 +240,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), data.length),
                 randomIOContext(),
                 cacheBlobReader,
+                null,
                 data.length,
                 0
             );
@@ -257,6 +261,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             cacheFile,
             randomIOContext(),
             cacheBlobReader,
+            null,
             randomNonNegativeLong(),
             0
         );
@@ -340,6 +345,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             cacheFile,
             randomIOContext(),
             cacheBlobReader,
+            null,
             randomNonNegativeLong(),
             0
         );

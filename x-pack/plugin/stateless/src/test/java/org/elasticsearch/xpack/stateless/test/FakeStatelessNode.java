@@ -289,7 +289,13 @@ public class FakeStatelessNode implements Closeable {
             indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
             indexingDirectory.getBlobStoreCacheDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
             searchDirectory = localCloseables.add(
-                createSearchDirectory(sharedCacheService, shardId, cacheBlobReaderService, new AtomicMutableObjectStoreUploadTracker())
+                createSearchDirectory(
+                    sharedCacheService,
+                    shardId,
+                    cacheBlobReaderService,
+                    new AtomicMutableObjectStoreUploadTracker(),
+                    commitService.isGenerationalFilesTrackingEnabled()
+                )
             );
             searchDirectory.setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
@@ -306,9 +312,10 @@ public class FakeStatelessNode implements Closeable {
         StatelessSharedBlobCacheService sharedCacheService,
         ShardId shardId,
         CacheBlobReaderService cacheBlobReaderService,
-        MutableObjectStoreUploadTracker objectStoreUploadTracker
+        MutableObjectStoreUploadTracker objectStoreUploadTracker,
+        boolean trackGenerationalFiles
     ) {
-        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, trackGenerationalFiles, shardId);
     }
 
     protected StatelessSharedBlobCacheService createCacheService(

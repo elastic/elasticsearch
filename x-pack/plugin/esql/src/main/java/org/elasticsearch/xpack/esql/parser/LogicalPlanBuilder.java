@@ -359,7 +359,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public StringQueryPredicate visitQueryString(EsqlBaseParser.QueryStringContext ctx) {
         Source source = source(ctx);
-        String queryString = visitString(ctx.string()).fold().toString();
+        String queryString = unquote(ctx.QUOTED_STRING().getText());
         return new StringQueryPredicate(source, queryString, null);
     }
 

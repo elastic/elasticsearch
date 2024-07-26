@@ -5189,9 +5189,7 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class QueryStringContext extends ParserRuleContext {
-    public StringContext string() {
-      return getRuleContext(StringContext.class,0);
-    }
+    public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
     @SuppressWarnings("this-escape")
     public QueryStringContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -5219,7 +5217,7 @@ public class EsqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(574);
-      string();
+      match(QUOTED_STRING);
       }
     }
     catch (RecognitionException re) {
@@ -5640,12 +5638,12 @@ public class EsqlBaseParser extends Parser {
     "\u0005\u000b\u0000\u0000\u0237\u0238\u0003 \u0010\u0000\u0238\u0239\u0005"+
     "Y\u0000\u0000\u0239\u023a\u00038\u001c\u0000\u023as\u0001\u0000\u0000"+
     "\u0000\u023b\u023c\u0005\u0015\u0000\u0000\u023c\u023d\u0003v;\u0000\u023d"+
-    "u\u0001\u0000\u0000\u0000\u023e\u023f\u0003b1\u0000\u023fw\u0001\u0000"+
-    "\u0000\u00006\u0083\u008c\u009d\u00a9\u00b2\u00ba\u00be\u00c6\u00c8\u00cd"+
-    "\u00d4\u00d9\u00e0\u00e6\u00ee\u00f0\u00fb\u0102\u010d\u0110\u011e\u0126"+
-    "\u012e\u0132\u0139\u0141\u0149\u0156\u015a\u015e\u0165\u0169\u016f\u0176"+
-    "\u017e\u0186\u019c\u01a7\u01b2\u01b7\u01bb\u01c6\u01cb\u01cf\u01dd\u01e8"+
-    "\u01f6\u0201\u0204\u0209\u0222\u022a\u022d\u0232";
+    "u\u0001\u0000\u0000\u0000\u023e\u023f\u0005\u001f\u0000\u0000\u023fw\u0001"+
+    "\u0000\u0000\u00006\u0083\u008c\u009d\u00a9\u00b2\u00ba\u00be\u00c6\u00c8"+
+    "\u00cd\u00d4\u00d9\u00e0\u00e6\u00ee\u00f0\u00fb\u0102\u010d\u0110\u011e"+
+    "\u0126\u012e\u0132\u0139\u0141\u0149\u0156\u015a\u015e\u0165\u0169\u016f"+
+    "\u0176\u017e\u0186\u019c\u01a7\u01b2\u01b7\u01bb\u01c6\u01cb\u01cf\u01dd"+
+    "\u01e8\u01f6\u0201\u0204\u0209\u0222\u022a\u022d\u0232";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

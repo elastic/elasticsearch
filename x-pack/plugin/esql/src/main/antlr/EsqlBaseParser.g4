@@ -299,5 +299,5 @@ matchCommand
     ;
 
 queryString
-    : string
+    : QUOTED_STRING
     ;

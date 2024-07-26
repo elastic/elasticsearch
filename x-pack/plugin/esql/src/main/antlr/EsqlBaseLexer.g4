@@ -136,7 +136,7 @@ IS: 'is';
 LAST : 'last';
 LIKE: 'like';
 LP : '(';
-MATCH: 'match';
+MATCH_OPERATOR: 'match';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';

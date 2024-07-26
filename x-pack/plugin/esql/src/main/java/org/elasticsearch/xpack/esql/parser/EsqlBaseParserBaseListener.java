@@ -1025,13 +1025,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQueryString(EsqlBaseParser.QueryStringContext ctx) { }
+  @Override public void enterMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitQueryString(EsqlBaseParser.QueryStringContext ctx) { }
+  @Override public void exitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { }
 
   /**
    * {@inheritDoc}

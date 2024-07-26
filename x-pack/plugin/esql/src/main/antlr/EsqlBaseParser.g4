@@ -67,7 +67,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : qualifiedName MATCH queryString=string
+    : qualifiedName MATCH_OPERATOR queryString=string
     ;
 
 valueExpression
@@ -300,9 +300,9 @@ lookupCommand
     ;
 
 matchCommand
-    : MATCH queryString
+    : MATCH matchQuery
     ;
 
-queryString
+matchQuery
     : QUOTED_STRING
     ;

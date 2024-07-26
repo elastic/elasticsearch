@@ -20,6 +20,8 @@ setup:
 
 ---
 "Reject invalid top level field":
+  - skip:
+      awaits_fix: "We decided to allow top level fields for now: https://github.com/elastic/elasticsearch/pull/111091#discussion_r1692988536"
   - do:
       bulk:
         index: traces-generic.otel-default

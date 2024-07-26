@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -49,17 +48,13 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
         return BlobCacheUtils.computeRange(cacheRangeSize, position, length);
     }
 
-    private InputStream getRangeInputStream(long position, int length) throws IOException {
+    @Override
+    public InputStream getRangeInputStream(long position, int length) throws IOException {
         try {
             return blobContainer.readBlob(OperationPurpose.INDICES, blobName, position, length);
         } catch (RequestedRangeNotSatisfiedException e) {
             return InputStream.nullInputStream();
         }
-    }
-
-    @Override
-    public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        ActionListener.completeWith(listener, () -> getRangeInputStream(position, length));
     }
 
     @Override

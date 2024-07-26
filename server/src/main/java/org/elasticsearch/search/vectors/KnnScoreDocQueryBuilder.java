@@ -70,7 +70,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             this.fieldName = null;
             this.queryVector = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
             this.vectorSimilarity = in.readOptionalFloat();
         } else {
             this.vectorSimilarity = null;
@@ -114,7 +115,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 out.writeBoolean(false);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
     }

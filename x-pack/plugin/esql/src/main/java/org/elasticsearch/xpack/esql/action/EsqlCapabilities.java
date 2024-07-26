@@ -177,7 +177,7 @@ public class EsqlCapabilities {
          */
         UNIQUE_NAMES,
 
-        /*
+        /**
          * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
          * https://github.com/elastic/elasticsearch/issues/108008
          */

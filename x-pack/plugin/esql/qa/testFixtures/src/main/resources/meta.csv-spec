@@ -356,7 +356,7 @@ to_ver        |Converts an input string to a version value.
 to_version    |Converts an input string to a version value.
 top           |Collects the top values for a field. Includes repeated values.
 trim          |Removes leading and trailing whitespaces from a string.
-values        |Collect values for a field.
+values        |Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. If you need the values returned in order use <<esql-mv_sort>>.
 weighted_avg  |The weighted average of a numeric field.
 ;
 

@@ -37,17 +37,17 @@ public class Values extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
         preview = true,
-        description = """
-            Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed.
-            If you need the values returned in order use <<esql-mv_sort>>.
-
-            WARNING: This can use a significant amount of memory and ES|QL doesn't yet
-                     grow aggregations beyond memory. So this aggregation will work until
-                     it is used to collect more values than can fit into memory. Once it
-                     collects too many values it will fail the query with
-                     a <<circuit-breaker-errors, Circuit Breaker Error>>.""",
+        description = "Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed." +
+            " If you need the values returned in order use <<esql-mv_sort>>.",
         appendix = """
-            """,
+            [WARNING]
+            ====
+            This can use a significant amount of memory and ES|QL doesn't yet
+            grow aggregations beyond memory. So this aggregation will work until
+            it is used to collect more values than can fit into memory. Once it
+            collects too many values it will fail the query with
+            a <<circuit-breaker-errors, Circuit Breaker Error>>.
+            ====""",
         isAggregation = true,
         examples = @Example(file = "string", tag = "values-grouped")
     )

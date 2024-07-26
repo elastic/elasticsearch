@@ -4520,7 +4520,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
         try (Store store = createStore(newFSDirectory(storeDir))) {
-            engine = new InternalEngine(configSupplier.apply(store));
+            InternalEngine engine = new InternalEngine(configSupplier.apply(store));
             try {
                 assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
                 recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
@@ -4551,7 +4551,7 @@ public class InternalEngineTests extends EngineTestCase {
                 );
                 store.associateIndexWithNewTranslog(translogUUID);
             }
-            engine = new InternalEngine(configSupplier.apply(store));
+            InternalEngine engine = new InternalEngine(configSupplier.apply(store));
             try {
                 assertEquals(maxTimestamp12, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
             } finally {

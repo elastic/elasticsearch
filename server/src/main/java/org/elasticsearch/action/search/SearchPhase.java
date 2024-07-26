@@ -42,7 +42,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
         }
     }
 
-    static void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
+    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (request.allowPartialSearchResults() == false) {
             final StringBuilder missingShards = new StringBuilder();

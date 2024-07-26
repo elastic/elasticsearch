@@ -219,7 +219,7 @@ Currently you can:
 * Integrate directly with the <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type
 * Integrate directly with the <<infer-service-google-vertex-ai,Google Vertex AI inference endpoint>> using the `rerank` task type
 * Upload a model to {es} with {eland-docs}/machine-learning.html#ml-nlp-pytorch[Eland]
-** Then set up an the <<inference-example-eland,`{es}` service inference endpoint>> with the `rerank` task type
+** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type
 
 ===== Parameters
 

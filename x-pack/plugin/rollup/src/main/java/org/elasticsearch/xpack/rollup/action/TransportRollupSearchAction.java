@@ -95,7 +95,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         ClusterService clusterService,
         IndexNameExpressionResolver resolver
     ) {
-        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
+        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;

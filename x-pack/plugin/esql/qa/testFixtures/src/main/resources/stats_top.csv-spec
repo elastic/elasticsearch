@@ -190,3 +190,37 @@ ROW constant = true, mv = [true, false]
 constant_asc:boolean | constant_desc:boolean | mv_asc:boolean | mv_desc:boolean
 true                 | true                  | [false, true]  | [true, false]
 ;
+
+topIps
+required_capability: agg_top
+required_capability: agg_top_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats
+    a = TOP(ip0, 2, "desc"),
+    b = TOP(x, 2, "desc"),
+    c = TOP(case(host == "beta", ip0, ip1), 2, "desc");
+
+a:ip | b:ip | c:ip
+[fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9]
+;
+
+topIpsGrouping
+required_capability: agg_top
+required_capability: agg_top_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats
+    a = TOP(ip0, 2, "desc"),
+    b = TOP(x, 2, "desc"),
+    c = TOP(case(host == "beta", ip0, ip1), 2, "desc")
+    by host
+| sort host asc;
+
+a:ip | b:ip | c:ip | host:keyword
+[127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | beta
+[fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | epsilon
+[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe81::cae2:65ff:fece:feb9, 127.0.0.3] | gamma
+;

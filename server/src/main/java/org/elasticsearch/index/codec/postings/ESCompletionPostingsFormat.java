@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.codec;
+package org.elasticsearch.index.codec.postings;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;

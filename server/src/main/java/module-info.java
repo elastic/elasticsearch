@@ -443,7 +443,8 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
-            org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+            org.elasticsearch.index.codec.postings.ES812PostingsFormat,
+            org.elasticsearch.index.codec.postings.ESCompletionPostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
@@ -463,5 +464,6 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
+    exports org.elasticsearch.index.codec.postings;
 
 }

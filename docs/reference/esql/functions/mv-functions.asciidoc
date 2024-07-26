@@ -18,11 +18,11 @@
 * <<esql-mv_max>>
 * <<esql-mv_median>>
 * <<esql-mv_min>>
+* <<esql-mv_pseries_weighted_sum>>
 * <<esql-mv_sort>>
 * <<esql-mv_slice>>
 * <<esql-mv_sum>>
 * <<esql-mv_zip>>
-* <<esql-mv_pseries_weighted_sum>>
 // end::mv_list[]
 
 include::layout/mv_append.asciidoc[]
@@ -35,8 +35,8 @@ include::layout/mv_last.asciidoc[]
 include::layout/mv_max.asciidoc[]
 include::layout/mv_median.asciidoc[]
 include::layout/mv_min.asciidoc[]
+include::layout/mv_pseries_weighted_sum.asciidoc[]
 include::layout/mv_slice.asciidoc[]
 include::layout/mv_sort.asciidoc[]
 include::layout/mv_sum.asciidoc[]
 include::layout/mv_zip.asciidoc[]
-include::layout/mv_pseries_weighted_sum.asciidoc[]

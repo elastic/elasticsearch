@@ -117,9 +117,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.create.SplitIndexIT
   method: testSplitIndexPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/111282
-- class: org.elasticsearch.http.netty4.Netty4ChunkedContinuationsIT
-  method: testContinuationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/111283
 - class: org.elasticsearch.upgrades.LogsIndexModeFullClusterRestartIT
   method: testLogsIndexing {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111306

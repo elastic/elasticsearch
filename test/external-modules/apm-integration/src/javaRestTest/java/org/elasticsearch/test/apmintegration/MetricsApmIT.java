@@ -91,8 +91,15 @@ public class MetricsApmIT extends ESRestTestCase {
 
                 samples.entrySet().forEach(sampleEntry -> {
                     var assertion = sampleAssertions.get(sampleEntry.getKey());// sample name
-                    if (assertion != null && assertion.test((Map<String, Object>) sampleEntry.getValue())) {// sample object
-                        sampleAssertions.remove(sampleEntry.getKey());
+                    if (assertion != null) {
+                        logger.info("Matched {}", sampleEntry.getKey());
+                        var sampleObject = (Map<String, Object>) sampleEntry.getValue();
+                        if (assertion.test(sampleObject)) {// sample object
+                            logger.error("{} assertion PASSED", sampleEntry.getKey());
+                            sampleAssertions.remove(sampleEntry.getKey());
+                        } else {
+                            logger.error("{} assertion FAILED: {}", sampleEntry.getKey(), sampleObject.get("value"));
+                        }
                     }
                 });
             }

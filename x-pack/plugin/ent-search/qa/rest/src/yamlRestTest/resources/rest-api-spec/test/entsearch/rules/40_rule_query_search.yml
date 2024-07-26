@@ -38,6 +38,9 @@ setup:
           - index:
               _id: doc7
           - { "text": "observability" }
+          - index:
+              _id: doc8
+          - { "text": "elastic search" }
 
   - do:
       query_rules.put_ruleset:
@@ -82,6 +85,15 @@ setup:
               actions:
                 ids:
                   - 'doc7'
+            - rule_id: rule5
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ search ]
+              actions:
+                ids:
+                  - 'doc8'
 
   - do:
       query_rules.put_ruleset:
@@ -306,7 +318,7 @@ teardown:
               ruleset_ids:
                 - test-ruleset
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 5 }
   - match: { hits.hits.0._id: 'doc2' }
   - match: { hits.hits.1._id: 'doc3' }
 

@@ -15,17 +15,23 @@ import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Ite
 public class AppliedQueryRules {
 
     private final List<Item> pinnedDocs;
+    private final List<Item> excludedDocs;
 
     public AppliedQueryRules() {
-        this(new ArrayList<>(0));
+        this(new ArrayList<>(0), new ArrayList<>(0));
     }
 
-    public AppliedQueryRules(List<Item> pinnedDocs) {
+    public AppliedQueryRules(List<Item> pinnedDocs, List<Item> excludedDocs) {
         this.pinnedDocs = pinnedDocs;
+        this.excludedDocs = excludedDocs;
     }
 
     public List<Item> pinnedDocs() {
         return pinnedDocs;
+    }
+
+    public List<Item> excludedDocs() {
+        return excludedDocs;
     }
 
 }

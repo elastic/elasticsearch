@@ -169,6 +169,14 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             Item other = (Item) o;
             return Objects.equals(index, other.index) && Objects.equals(id, other.id);
         }
+
+        public String id() {
+            return id;
+        }
+
+        public String index() {
+            return index;
+        }
     }
 
     public PinnedQueryBuilder(QueryBuilder organicQuery, String... ids) {

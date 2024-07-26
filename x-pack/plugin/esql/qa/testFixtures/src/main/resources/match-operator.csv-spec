@@ -1,0 +1,68 @@
+###############################################
+# Tests for MATCH operator
+#
+
+singleMatchWithTextField
+required_capability: match_operator
+from airports | where name match "london" | keep abbrev, name | sort abbrev;
+
+abbrev:keyword | name:text
+LGW            | London Gatwick
+LHR            | London Heathrow
+LTN            | London Luton
+;
+
+singleMatchWithKeywordField
+required_capability: match_operator
+from airports | where abbrev match "LTN" | keep abbrev, name | sort abbrev;
+
+abbrev:keyword | name:text
+LTN            | London Luton
+;
+
+multipleMatch
+required_capability: match_operator
+from airports | where name match "london" or name match "liverpool "| keep abbrev, name | sort abbrev;
+
+abbrev:keyword | name:text
+LGW            | London Gatwick
+LHR            | London Heathrow
+LPL            | Liverpool John Lennon
+LTN            | London Luton
+;
+
+multipleWhereWithMatch
+required_capability: match_operator
+from airports | where name match "john" | WHERE name match "St" | keep abbrev, name | sort abbrev;
+
+abbrev:keyword | name:text
+YXJ            | Fort St. John (N. Peace)
+;
+
+combinedMatchWithFunctions
+required_capability: match_operator
+from airports
+| where name match "john" AND country match "Canada" AND scalerank > 5
+| where length(name) > 10
+| keep abbrev, name, country, scalerank
+| sort abbrev
+;
+
+abbrev:keyword | name:text                    | country:keyword | scalerank: integer
+YHM            | John C. Munro Hamilton Int'l | Canada          | 8
+YXJ            | Fort St. John (N. Peace)     | Canada          | 8
+;
+
+matchWithStats
+required_capability: match_operator
+from airports
+| where name match "john" AND scalerank > 5
+| where length(name) > 10
+| stats count(*) BY type
+| sort type
+;
+
+count(*): long  | type:keyword                   
+1               | major
+2               | mid
+;

@@ -232,9 +232,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     }
                     if (missingShards.isEmpty() == false) {
                         // Status red - shard is missing all copies and would produce partial results for an index search
-                        final String msg = "Search rejected - cannot execute [open_point_in_time_action] due to missing shards ["
-                            + missingShards
-                            + "].";
+                        final String msg = "Cannot execute [open_point_in_time] action due to missing shards [" + missingShards + "].";
                         throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
                     }
                 }

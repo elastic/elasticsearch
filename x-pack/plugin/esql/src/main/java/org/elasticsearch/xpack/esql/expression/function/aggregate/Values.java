@@ -34,13 +34,13 @@ public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
 
     @FunctionInfo(
-        returnType = { "boolean|date|double|integer|ip|keyword|long|text|version" },
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
         description = "Collect values for a field.",
         isAggregation = true
     )
     public Values(
         Source source,
-        @Param(name = "field", type = { "boolean|date|double|integer|ip|keyword|long|text|version" }) Expression v
+        @Param(name = "field", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression v
     ) {
         super(source, v);
     }

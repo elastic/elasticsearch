@@ -15,7 +15,6 @@ import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -43,7 +42,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
         }
     }
 
-    protected String missingShardsErrorMessage(StringBuilder missingShards){
+    protected String missingShardsErrorMessage(StringBuilder missingShards) {
         return "Search rejected due to missing shards ["
             + missingShards
             + "]. Consider using `allow_partial_search_results` setting to bypass this error.";

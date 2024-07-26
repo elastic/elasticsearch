@@ -1,5 +1,5 @@
 pr: 111285
-summary: "[Bugfix] Add `accessDeclaredMembers` permission for `ObjectMapper` to work"
+summary: "[Bugfix] Add `accessDeclaredMembers` permission to fix bug in rendered search application templates"
 area: Relevance
 type: bug
 issues: []

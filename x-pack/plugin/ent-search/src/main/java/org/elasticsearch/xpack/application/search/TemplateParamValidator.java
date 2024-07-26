@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.security.AccessController;
+import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 import java.util.Objects;
@@ -90,7 +91,7 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
             secondParam = AccessController.doPrivileged((PrivilegedExceptionAction<JsonNode>) () -> {
                 return OBJECT_MAPPER.valueToTree(templateParams);
             });
-        } catch (Exception e) {
+        } catch (PrivilegedActionException e) {
             throw new ElasticsearchException("failed to convert parameters while validating", e);
         }
         validateWithSchema(this.jsonSchema, secondParam);

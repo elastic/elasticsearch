@@ -1,4 +1,4 @@
 grant {
-  // needed for Jackson ObjectMapper
+  // needed for Jackson ObjectMapper to parse floats
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

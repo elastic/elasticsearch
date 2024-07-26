@@ -40,6 +40,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.junit.Before;
@@ -416,6 +417,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/111343",
+        value = "org.elasticsearch.repositories.blobstore.testkit:TRACE"
+    )
     public void testFailsIfEmptyRegisterRejected() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         blobStore.setDisruption(new Disruption() {

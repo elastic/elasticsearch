@@ -85,11 +85,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             Integer configuredTopN = null;
             if (r.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
                 configuredTopN = cohereTaskSettings.getTopNDocumentsOnly();
-            } else if (r.getEndpoints()
-                .get(0)
-                .getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
-                    configuredTopN = googleVertexAiTaskSettings.topN();
-                }
+            } else if (r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
+                configuredTopN = googleVertexAiTaskSettings.topN();
+            }
             if (configuredTopN != null && configuredTopN < featureDocs.length) {
                 l.onFailure(
                     new IllegalArgumentException(

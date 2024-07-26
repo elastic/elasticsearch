@@ -247,17 +247,28 @@ public class SharedBlobCacheWarmingService {
      * @param indexShard the shard to warm in cache
      * @param commit the commit to be recovered
      */
-    public void warmCacheForShardRecovery(String description, IndexShard indexShard, StatelessCompoundCommit commit) {
-        warmCache(description, indexShard, commit, ActionListener.noop());
+    public void warmCacheForShardRecovery(
+        String description,
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory
+    ) {
+        warmCache(description, indexShard, commit, directory, ActionListener.noop());
     }
 
-    protected void warmCache(String description, IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
+    protected void warmCache(
+        String description,
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory,
+        ActionListener<Void> listener
+    ) {
         final Store store = indexShard.store();
         if (store.isClosing() || store.tryIncRef() == false) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache for " + indexShard + ", store is closing"));
             return;
         }
-        try (var warmer = new Warmer(description, indexShard, commit, ActionListener.runAfter(listener, store::decRef))) {
+        try (var warmer = new Warmer(description, indexShard, commit, directory, ActionListener.runAfter(listener, store::decRef))) {
             warmer.run();
         }
     }
@@ -279,6 +290,7 @@ public class SharedBlobCacheWarmingService {
         private final String description;
         private final IndexShard indexShard;
         private final StatelessCompoundCommit commit;
+        private final BlobStoreCacheDirectory directory;
         private final ConcurrentMap<BlobRegion, CacheRegionWarmingTask> tasks;
         private final ConcurrentMap<BlobRegion, BlobRangesQueue> queues; // used when stateless upload delayed is enabled
         private final RefCountingListener listeners;
@@ -286,10 +298,17 @@ public class SharedBlobCacheWarmingService {
         private final AtomicLong tasksCount = new AtomicLong(0L);
         private final AtomicLong totalBytesCopied = new AtomicLong(0L);
 
-        Warmer(String description, IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
+        Warmer(
+            String description,
+            IndexShard indexShard,
+            StatelessCompoundCommit commit,
+            BlobStoreCacheDirectory directory,
+            ActionListener<Void> listener
+        ) {
             this.description = description;
             this.indexShard = indexShard;
             this.commit = commit;
+            this.directory = directory;
             this.tasks = new ConcurrentHashMap<>();
             this.queues = new ConcurrentHashMap<>();
             this.listeners = new RefCountingListener(metering(logging(listener)));
@@ -421,7 +440,7 @@ public class SharedBlobCacheWarmingService {
 
         private void addRegion(BlobRegion region, String fileName, ActionListener<Void> listener) {
             var task = tasks.computeIfAbsent(region, k -> {
-                var t = new CacheRegionWarmingTask(description, indexShard, region, totalBytesCopied::addAndGet);
+                var t = new CacheRegionWarmingTask(description, indexShard, region, directory, totalBytesCopied::addAndGet);
                 throttledTaskRunner.enqueueTask(t);
                 tasksCount.incrementAndGet();
                 return t;
@@ -433,7 +452,7 @@ public class SharedBlobCacheWarmingService {
         private void addCfe(String fileName) {
             assert indexShard.store().hasReferences();// store.incRef() is held by toplevel warmCache until warming is complete
             ActionListener.completeWith(listeners.acquire(), () -> {
-                try (var in = indexShard.store().directory().openInput(fileName, IOContext.READONCE)) {
+                try (var in = directory.openInput(fileName, IOContext.READONCE)) {
                     var entries = Lucene90CompoundEntriesReader.readEntries(in);
 
                     var cfs = fileName.replace(".cfe", ".cfs");
@@ -500,7 +519,6 @@ public class SharedBlobCacheWarmingService {
             public void onResponse(Releasable releasable) {
                 try (RefCountingRunnable refs = new RefCountingRunnable(() -> Releasables.close(releasable))) {
                     var cacheKey = new FileCacheKey(indexShard.shardId(), blobRegion.blob.primaryTerm(), blobRegion.blob.blobName());
-                    var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
 
                     var remaining = queue.counter.get();
                     assert 0 < remaining : remaining;
@@ -516,7 +534,7 @@ public class SharedBlobCacheWarmingService {
                             }
 
                             var blobLocation = item.blobLocation();
-                            var cacheBlobReader = blobStoreCacheDirectory.getCacheBlobReaderForWarming(blobLocation);
+                            var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobLocation);
                             // compute the range to warm in cache
                             var range = cacheBlobReader.getRange(
                                 item.position(),
@@ -575,12 +593,20 @@ public class SharedBlobCacheWarmingService {
         private final SubscribableListener<Void> listener = new SubscribableListener<>();
         private final Set<String> files = ConcurrentCollections.newConcurrentSet();
         private final AtomicLong size = new AtomicLong(0);
+        private final BlobStoreCacheDirectory directory;
         private final LongConsumer totalBytesCopied;
 
-        CacheRegionWarmingTask(String description, IndexShard indexShard, BlobRegion target, LongConsumer totalBytesCopied) {
+        CacheRegionWarmingTask(
+            String description,
+            IndexShard indexShard,
+            BlobRegion target,
+            BlobStoreCacheDirectory directory,
+            LongConsumer totalBytesCopied
+        ) {
             this.description = description;
             this.indexShard = indexShard;
             this.target = target;
+            this.directory = directory;
             this.totalBytesCopied = totalBytesCopied;
             logger.trace("{} {}: scheduled {}", indexShard.shardId(), description, target);
         }
@@ -603,8 +629,7 @@ public class SharedBlobCacheWarmingService {
                         (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
                             assert streamFactory == null : streamFactory;
                             long position = (long) target.region * cacheService.getRegionSize() + relativePos;
-                            var blobContainer = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory())
-                                .getBlobContainer(target.blob.primaryTerm());
+                            var blobContainer = directory.getBlobContainer(target.blob.primaryTerm());
                             try (var in = blobContainer.readBlob(OperationPurpose.INDICES, target.blob.blobName(), position, length)) {
                                 assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
                                 int bytesCopied = SharedBytes.copyToCacheFileAligned(

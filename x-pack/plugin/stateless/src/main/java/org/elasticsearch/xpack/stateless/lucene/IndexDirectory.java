@@ -329,10 +329,6 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
     }
 
-    public void updateMetadataForPreWarming(StatelessCompoundCommit preWarmingCommit) {
-        cacheDirectory.updateMetadata(preWarmingCommit.commitFiles(), preWarmingCommit.getAllFilesSizeInBytes());
-    }
-
     public Optional<String> getRecoveryCommitMetadataNodeEphemeralId() {
         String nodeEphemeralId = recoveryCommitMetadataNodeEphemeralId.get();
         return nodeEphemeralId != null ? Optional.of(nodeEphemeralId) : Optional.empty();

@@ -22,9 +22,11 @@ import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
@@ -47,18 +49,43 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
 
     @Override
     protected CacheBlobReader getCacheBlobReader(BlobLocation location) {
+        return doGetCacheBlobReader(getBlobContainer(location.primaryTerm()), location.blobName());
+    }
+
+    private MeteringCacheBlobReader doGetCacheBlobReader(BlobContainer blobContainer, String blobName) {
         return new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(getBlobContainer(location.primaryTerm()), location.blobName(), getCacheService().getRangeSize()),
+            new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize()),
             totalBytesReadFromObjectStore::add
         );
     }
 
     @Override
     public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation location) {
+        return doGetCacheBlobReaderForWarming(getBlobContainer(location.primaryTerm()), location.blobName());
+    }
+
+    private MeteringCacheBlobReader doGetCacheBlobReaderForWarming(BlobContainer blobContainer, String blobName) {
         return new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(getBlobContainer(location.primaryTerm()), location.blobName(), getCacheService().getRangeSize()),
+            new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize()),
             totalBytesWarmedFromObjectStore::add
         );
+    }
+
+    public BlobStoreCacheDirectory createBlobStoreCacheDirectoryForWarming(StatelessCompoundCommit preWarmCommit) {
+        var preWarmDirectory = new BlobStoreCacheDirectory(cacheService, shardId) {
+            @Override
+            protected CacheBlobReader getCacheBlobReader(BlobLocation blobLocation) {
+                return doGetCacheBlobReader(getBlobContainer(blobLocation.primaryTerm()), blobLocation.blobName());
+            }
+
+            @Override
+            public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation location) {
+                return doGetCacheBlobReaderForWarming(getBlobContainer(location.primaryTerm()), location.blobName());
+            }
+        };
+        preWarmDirectory.currentMetadata = preWarmCommit.commitFiles();
+        preWarmDirectory.currentDataSetSizeInBytes = preWarmCommit.getAllFilesSizeInBytes();
+        return preWarmDirectory;
     }
 
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {

@@ -126,6 +126,9 @@ tests:
 - class: org.elasticsearch.xpack.core.ml.job.config.DetectionRuleTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/111308
+- class: org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluatorTests
+  method: testTermsQueryShuffled
+  issue: https://github.com/elastic/elasticsearch/issues/111318
 
 # Examples:
 #

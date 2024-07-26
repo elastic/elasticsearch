@@ -75,7 +75,7 @@ setup:
   - match: { _source.non_inference_field: "non inference test" }
 
 ---
-"Calculates text expansion and embedding results for new documents with integer value":
+"Calculates sparse embedding and text embedding results for new documents with integer value":
   - do:
       index:
         index: test-index
@@ -97,7 +97,7 @@ setup:
   - match: { _source.dense_field.inference.chunks.0.text: "100" }
 
 ---
-"Calculates text expansion and embedding results for new documents with boolean value":
+"Calculates sparse embedding and text embedding results for new documents with boolean value":
   - do:
       index:
         index: test-index
@@ -119,7 +119,7 @@ setup:
   - match: { _source.dense_field.inference.chunks.0.text: "false" }
 
 ---
-"Calculates text expansion and embedding results for new documents with collection":
+"Calculates sparse embedding and text embedding results for new documents with a collection of mixed data types":
   - do:
       index:
         index: test-index

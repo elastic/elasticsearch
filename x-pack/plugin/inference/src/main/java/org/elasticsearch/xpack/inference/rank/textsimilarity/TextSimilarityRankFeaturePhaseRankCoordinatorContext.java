@@ -56,7 +56,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
-        final ActionListener<InferenceAction.Response> actionListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+        final ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             InferenceServiceResults results = r.getResults();
             assert results instanceof RankedDocsResults;
 
@@ -79,19 +79,19 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         });
 
         // top N listener
-        ActionListener<GetInferenceModelAction.Response> topNListener = ActionListener.wrap(response -> {
+        ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
             // assigning scores to the wrong input
             Integer configuredTopN = null;
-            if (response.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
+            if (r.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
                 configuredTopN = cohereTaskSettings.getTopNDocumentsOnly();
-            } else if (response.getEndpoints()
+            } else if (r.getEndpoints()
                 .get(0)
                 .getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
                     configuredTopN = googleVertexAiTaskSettings.topN();
                 }
             if (configuredTopN != null && configuredTopN < featureDocs.length) {
-                scoreListener.onFailure(
+                l.onFailure(
                     new IllegalArgumentException(
                         "Inference endpoint ["
                             + inferenceId
@@ -107,11 +107,11 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
             InferenceAction.Request inferenceRequest = generateRequest(featureData);
             try {
-                client.execute(InferenceAction.INSTANCE, inferenceRequest, actionListener);
+                client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
             } finally {
                 inferenceRequest.decRef();
             }
-        }, scoreListener::onFailure);
+        });
 
         GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
         client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, topNListener);

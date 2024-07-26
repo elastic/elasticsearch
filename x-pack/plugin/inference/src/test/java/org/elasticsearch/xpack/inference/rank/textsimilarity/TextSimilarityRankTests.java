@@ -30,8 +30,28 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TextSimilarityRankTests extends ESSingleNodeTestCase {
+
+    /**
+     * {@code TextSimilarityRankBuilder} that sets top_n in the inference endpoint's task settings.
+     * See {@code TextSimilarityTestPlugin -> TestFilter -> handleGetInferenceModelActionRequest} for the logic that extracts the top_n
+     * value.
+     */
+    public static class TopNConfigurationAcceptingTextSimilarityRankBuilder extends TextSimilarityRankBuilder {
+
+        public TopNConfigurationAcceptingTextSimilarityRankBuilder(
+            String field,
+            String inferenceId,
+            String inferenceText,
+            int rankWindowSize,
+            Float minScore,
+            int topN
+        ) {
+            super(field, inferenceId + "-task-settings-top-" + topN, inferenceText, rankWindowSize, minScore);
+        }
+    }
 
     /**
      * {@code TextSimilarityRankBuilder} that simulates an inference call returning N results.
@@ -164,13 +184,14 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 .setRankBuilder(
                     // Simulate reranker configuration with top_n=3 in task_settings, which is different from rank_window_size=10
                     // (Note: top_n comes from inferenceId, there's no other easy way of passing this to the mocked get model request)
-                    new TextSimilarityRankBuilder("text", "my-rerank-model-task-settings-top-3", "my query", 100, 1.5f)
+                    new TopNConfigurationAcceptingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, 3)
                 )
                 .setQuery(QueryBuilders.matchAllQuery())
         );
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             ex.getDetailedMessage(),
-            containsString("Reduce rank_window_size to be less than or equal to the configured top N value.")
+            containsString("Reduce rank_window_size to be less than or equal to the configured top N value")
         );
     }
 
@@ -185,6 +206,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 )
                 .setQuery(QueryBuilders.matchAllQuery())
         );
+        assertThat(ex.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(ex.getDetailedMessage(), containsString("Reranker input document count and returned score count mismatch"));
     }
 

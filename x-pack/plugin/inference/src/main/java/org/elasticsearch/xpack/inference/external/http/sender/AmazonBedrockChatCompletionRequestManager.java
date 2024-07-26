@@ -41,13 +41,13 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, input);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, docsInput);
         var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 

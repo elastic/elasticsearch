@@ -309,6 +309,11 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public DenseVectorFieldMapper.ElementType elementType() {
             return elementType != null ? elementType : DenseVectorFieldMapper.ElementType.FLOAT;
         }
+
+        @Override
+        public String modelId() {
+            return model;
+        }
     }
 
 }

@@ -82,6 +82,7 @@ public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
         return projectId;
     }
 
+    @Override
     public String modelId() {
         return modelId;
     }

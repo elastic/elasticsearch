@@ -151,7 +151,6 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110398")
     public void testRerankInferenceResultMismatch() {
         ElasticsearchAssertions.assertFailures(
             // Execute search with text similarity reranking

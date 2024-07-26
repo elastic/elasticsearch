@@ -23,8 +23,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Aggregate extends UnaryPlan {
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
+public class Aggregate extends UnaryPlan implements Stats {
     public enum AggregateType {
         STANDARD,
         // include metrics aggregates such as rates
@@ -50,6 +52,7 @@ public class Aggregate extends UnaryPlan {
     private final AggregateType aggregateType;
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+    private List<Attribute> lazyOutput;
 
     public Aggregate(
         Source source,
@@ -92,6 +95,11 @@ public class Aggregate extends UnaryPlan {
         return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
     }
 
+    @Override
+    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return new Aggregate(source(), child(), aggregateType(), newGroupings, newAggregates);
+    }
+
     public AggregateType aggregateType() {
         return aggregateType;
     }
@@ -111,7 +119,10 @@ public class Aggregate extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(Expressions.asAttributes(aggregates()), emptyList());
+        }
+        return lazyOutput;
     }
 
     @Override

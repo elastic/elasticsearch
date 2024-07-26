@@ -207,7 +207,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 modelIdAndSizeInBytes.v1(),
                 request.getDeploymentId(),
                 modelIdAndSizeInBytes.v2(),
-                request.getNumberOfAllocations(),
+                request.computeNumberOfAllocations(),
                 request.getThreadsPerAllocation(),
                 request.getQueueCapacity(),
                 Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),
@@ -219,7 +219,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             memoryTracker.refresh(
                 persistentTasks,
                 ActionListener.wrap(
-                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
+                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(
+                        new CreateTrainedModelAssignmentAction.Request(taskParams, request.getAdaptiveAllocationsSettings()),
+                        waitForDeploymentToStart
+                    ),
                     listener::onFailure
                 )
             );

@@ -51,7 +51,7 @@ public class EsqlParser {
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
         try {
-            EsqlBaseLexer lexer = new EsqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(query), false));
+            EsqlBaseLexer lexer = new EsqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(query)));
 
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);

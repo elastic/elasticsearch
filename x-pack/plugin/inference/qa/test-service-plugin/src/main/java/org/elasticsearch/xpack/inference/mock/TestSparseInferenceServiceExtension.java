@@ -225,6 +225,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         @Override
+        public String modelId() {
+            return model;
+        }
+
+        @Override
         public ToXContentObject getFilteredXContentObject() {
             return (builder, params) -> {
                 builder.startObject();

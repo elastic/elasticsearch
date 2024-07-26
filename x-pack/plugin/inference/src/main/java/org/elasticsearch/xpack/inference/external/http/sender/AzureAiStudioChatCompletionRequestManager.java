@@ -37,13 +37,13 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, input);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, docsInput);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

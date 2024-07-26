@@ -748,7 +748,7 @@ public class SecurityTests extends ESTestCase {
                 // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
                 verifyHasAuthenticationHeaderValue(
                     e,
-                    "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"",
+                    "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"",
                     "Negotiate",
                     "ApiKey"
                 );
@@ -760,7 +760,7 @@ public class SecurityTests extends ESTestCase {
             request.getHttpRequest(),
             ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
                 // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
-                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
+                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"", "ApiKey");
             })
         );
         if (completed.get()) {

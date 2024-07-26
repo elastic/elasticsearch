@@ -76,7 +76,7 @@ public abstract class TransportWriteAction<
         Writeable.Reader<Request> request,
         Writeable.Reader<ReplicaRequest> replicaRequest,
         BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
-        boolean forceExecutionOnPrimary,
+        PrimaryActionExecution primaryActionExecution,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices
     ) {
@@ -94,8 +94,8 @@ public abstract class TransportWriteAction<
             request,
             replicaRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            true,
-            forceExecutionOnPrimary
+            SyncGlobalCheckpointAfterOperation.AttemptAfterSuccess,
+            primaryActionExecution
         );
         this.executorFunction = executorFunction;
         this.indexingPressure = indexingPressure;

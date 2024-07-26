@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitiveAndSupported;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.inUnsignedLongRange;
@@ -77,6 +77,8 @@ public final class DataTypeConverter {
             return right;
         }
         if (left.isNumeric() && right.isNumeric()) {
+            int lsize = left.estimatedSize().orElseThrow();
+            int rsize = right.estimatedSize().orElseThrow();
             // if one is int
             if (left.isWholeNumber()) {
                 // promote the highest int
@@ -84,7 +86,7 @@ public final class DataTypeConverter {
                     if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
                         return UNSIGNED_LONG;
                     }
-                    return left.size() > right.size() ? left : right;
+                    return lsize > rsize ? left : right;
                 }
                 // promote the rational
                 return right;
@@ -94,7 +96,7 @@ public final class DataTypeConverter {
                 return left;
             }
             // promote the highest rational
-            return left.size() > right.size() ? left : right;
+            return lsize > rsize ? left : right;
         }
         if (isString(left)) {
             if (right.isNumeric()) {
@@ -124,7 +126,7 @@ public final class DataTypeConverter {
             return true;
         }
         // only primitives are supported so far
-        return isPrimitive(from) && isPrimitive(to) && converterFor(from, to) != null;
+        return isPrimitiveAndSupported(from) && isPrimitiveAndSupported(to) && converterFor(from, to) != null;
     }
 
     /**

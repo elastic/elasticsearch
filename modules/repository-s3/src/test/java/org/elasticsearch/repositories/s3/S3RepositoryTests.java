@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -28,6 +29,7 @@ import org.mockito.Mockito;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -150,6 +152,26 @@ public class S3RepositoryTests extends ESTestCase {
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             S3RepositoriesMetrics.NOOP
         );
+    }
+
+    public void testAnalysisFailureDetail() {
+        try (
+            S3Repository s3repo = createS3Repo(
+                new RepositoryMetadata("dummy-repo", "mock", Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").build())
+            )
+        ) {
+            assertThat(
+                s3repo.getAnalysisFailureExtraDetail(),
+                allOf(
+                    containsString("storage system underneath this repository behaved incorrectly"),
+                    containsString("incorrectly claims to be S3-compatible"),
+                    containsString("report this incompatibility to your storage supplier"),
+                    containsString("unless you can demonstrate that the same issue exists when using a genuine AWS S3 repository"),
+                    containsString(ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS.toString()),
+                    containsString(ReferenceDocs.S3_COMPATIBLE_REPOSITORIES.toString())
+                )
+            );
+        }
     }
 
 }

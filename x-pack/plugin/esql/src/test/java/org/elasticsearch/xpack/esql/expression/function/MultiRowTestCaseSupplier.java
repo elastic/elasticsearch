@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -15,6 +20,8 @@ import java.util.List;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomList;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedDataSupplier;
 
 /**
@@ -275,6 +282,102 @@ public final class MultiRowTestCaseSupplier {
                 true
             )
         );
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
+        return List.of(
+            new TypedDataSupplier("<true booleans>", () -> randomList(minRows, maxRows, () -> true), DataType.BOOLEAN, false, true),
+            new TypedDataSupplier("<false booleans>", () -> randomList(minRows, maxRows, () -> false), DataType.BOOLEAN, false, true),
+            new TypedDataSupplier(
+                "<random booleans>",
+                () -> randomList(minRows, maxRows, ESTestCase::randomBoolean),
+                DataType.BOOLEAN,
+                false,
+                true
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> ipCases(int minRows, int maxRows) {
+        return List.of(
+            new TypedDataSupplier(
+                "<127.0.0.1 ips>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")))),
+                DataType.IP,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<v4 ips>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(true)))),
+                DataType.IP,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<v6 ips>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(false)))),
+                DataType.IP,
+                false,
+                true
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> geoPointCases(int minRows, int maxRows, boolean withAltitude) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        cases.add(
+            new TypedDataSupplier(
+                "<no alt geo_points>",
+                () -> randomList(minRows, maxRows, () -> GEO.asWkb(GeometryTestUtils.randomPoint(false))),
+                DataType.GEO_POINT,
+                false,
+                true
+            )
+        );
+
+        if (withAltitude) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<with alt geo_points>",
+                    () -> randomList(minRows, maxRows, () -> GEO.asWkb(GeometryTestUtils.randomPoint(true))),
+                    DataType.GEO_POINT,
+                    false,
+                    true
+                )
+            );
+        }
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> cartesianPointCases(int minRows, int maxRows, boolean withAltitude) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        cases.add(
+            new TypedDataSupplier(
+                "<no alt cartesian_points>",
+                () -> randomList(minRows, maxRows, () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(false))),
+                DataType.CARTESIAN_POINT,
+                false,
+                true
+            )
+        );
+
+        if (withAltitude) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<with alt cartesian_points>",
+                    () -> randomList(minRows, maxRows, () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(true))),
+                    DataType.CARTESIAN_POINT,
+                    false,
+                    true
+                )
+            );
+        }
 
         return cases;
     }

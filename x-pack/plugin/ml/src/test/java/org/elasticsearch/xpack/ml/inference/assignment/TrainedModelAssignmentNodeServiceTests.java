@@ -353,17 +353,17 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     modelOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     modelTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     notUsedModel,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel))
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel), null)
                                         .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -411,7 +411,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                                 )
                                 .build()
@@ -464,7 +464,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                                         .addRoutingEntry(node2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
@@ -507,7 +507,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                                 )
                                 .build()
@@ -548,7 +548,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -590,7 +590,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .stopAssignment("stopping")
                                 )
@@ -639,12 +639,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     deploymentTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -658,7 +658,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAssignment(
                                     previouslyUsedDeployment,
-                                    TrainedModelAssignment.Builder.empty(newParams(previouslyUsedDeployment, previouslyUsedModel))
+                                    TrainedModelAssignment.Builder.empty(newParams(previouslyUsedDeployment, previouslyUsedModel), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -672,7 +672,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAssignment(
                                     notUsedDeployment,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel))
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel), null)
                                         .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -697,17 +697,17 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     deploymentTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo), null)
                                         .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     notUsedDeployment,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel))
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedDeployment, notUsedModel), null)
                                         .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -751,7 +751,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
@@ -793,12 +793,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     deploymentOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 3, RoutingState.STARTED, ""))
                                 )
                                 .addNewAssignment(
                                     deploymentTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(deploymentTwo, modelTwo), null)
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(2, 1, RoutingState.STARTED, ""))
                                 )
                                 .build()
@@ -845,7 +845,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         for (int i = 0; i < modelIds.size(); i++) {
             builder.addNewAssignment(
                 deploymentIds.get(i),
-                TrainedModelAssignment.Builder.empty(newParams(deploymentIds.get(i), modelIds.get(i)))
+                TrainedModelAssignment.Builder.empty(newParams(deploymentIds.get(i), modelIds.get(i)), null)
                     .addRoutingEntry("test-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
             );
         }

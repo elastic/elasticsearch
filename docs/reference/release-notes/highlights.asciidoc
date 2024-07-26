@@ -30,13 +30,158 @@ Other versions:
 
 endif::[]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+
+[discrete]
+[[stored_fields_are_compressed_with_zstandard_instead_of_lz4_deflate]]
+=== Stored fields are now compressed with ZStandard instead of LZ4/DEFLATE
+Stored fields are now compressed by splitting documents into blocks, which
+are then compressed independently with ZStandard. `index.codec: default`
+(default) uses blocks of at most 14kB or 128 documents compressed with level
+0, while `index.codec: best_compression` uses blocks of at most 240kB or
+2048 documents compressed at level 3. On most datasets that we tested
+against, this yielded storage improvements in the order of 10%, slightly
+faster indexing and similar retrieval latencies.
+
+{es-pull}103374[#103374]
+
+[discrete]
+[[stricter_failure_handling_in_multi_repo_get_snapshots_request_handling]]
+=== Stricter failure handling in multi-repo get-snapshots request handling
+If a multi-repo get-snapshots request encounters a failure in one of the
+targeted repositories then earlier versions of Elasticsearch would proceed
+as if the faulty repository did not exist, except for a per-repository
+failure report in a separate section of the response body. This makes it
+impossible to paginate the results properly in the presence of failures. In
+versions 8.15.0 and later this API's failure handling behaviour has been
+made stricter, reporting an overall failure if any targeted repository's
+contents cannot be listed.
+
+{es-pull}107191[#107191]
+
+[discrete]
+[[add_new_int4_quantization_to_dense_vector]]
+=== Add new int4 quantization to dense_vector
+New int4 (half-byte) scalar quantization support via two knew index types: `int4_hnsw` and `int4_flat`.
+This gives an 8x reduction from `float32` with some accuracy loss. In addition to less memory required, this
+improves query and merge speed significantly when compared to raw vectors.
+
+{es-pull}109317[#109317]
+
+[discrete]
+[[mark_query_rules_as_ga]]
+=== Mark Query Rules as GA
+This PR marks query rules as Generally Available. All APIs are no longer
+in tech preview.
+
+{es-pull}110004[#110004]
+
+[discrete]
+[[adds_new_bit_element_type_for_dense_vectors]]
+=== Adds new `bit` `element_type` for `dense_vectors`
+This adds `bit` vector support by adding `element_type: bit` for
+vectors. This new element type works for indexed and non-indexed
+vectors. Additionally, it works with `hnsw` and `flat` index types. No
+quantization based codec works with this element type, this is
+consistent with `byte` vectors.
+
+`bit` vectors accept up to `32768` dimensions in size and expect vectors
+that are being indexed to be encoded either as a hexidecimal string or a
+`byte[]` array where each element of the `byte` array represents `8`
+bits of the vector.
+
+`bit` vectors support script usage and regular query usage. When
+indexed, all comparisons done are `xor` and `popcount` summations (aka,
+hamming distance), and the scores are transformed and normalized given
+the vector dimensions.
+
+For scripts, `l1norm` is the same as `hamming` distance and `l2norm` is
+`sqrt(l1norm)`. `dotProduct` and `cosineSimilarity` are not supported. 
+
+Note, the dimensions expected by this element_type are always to be
+divisible by `8`, and the `byte[]` vectors provided for index must be
+have size `dim/8` size, where each byte element represents `8` bits of
+the vectors.
+
+{es-pull}110059[#110059]
+
+[discrete]
+[[redact_processor_generally_available]]
+=== The Redact processor is Generally Available
+The Redact processor uses the Grok rules engine to obscure text in the input document matching the given Grok patterns. The Redact processor was initially released as Technical Preview in `8.7.0`, and is now released as Generally Available.
+
+{es-pull}110395[#110395]
+
 // end::notable-highlights[]
 
+
+[discrete]
+[[new_custom_parser_for_iso_8601_datetimes]]
+=== New custom parser for ISO-8601 datetimes
+This introduces a new custom parser for ISO-8601 datetimes, for the `iso8601`, `strict_date_optional_time`, and
+`strict_date_optional_time_nanos` built-in date formats. This provides a performance improvement over the
+default Java date-time parsing. Whilst it maintains much of the same behaviour,
+the new parser does not accept nonsensical date-time strings that have multiple fractional seconds fields
+or multiple timezone specifiers. If the new parser fails to parse a string, it will then use the previous parser
+to parse it. If a large proportion of the input data consists of these invalid strings, this may cause
+a small performance degradation. If you wish to force the use of the old parsers regardless,
+set the JVM property `es.datetime.java_time_parsers=true` on all ES nodes.
+
+{es-pull}106486[#106486]
+
+[discrete]
+[[new_custom_parser_for_more_iso_8601_date_formats]]
+=== New custom parser for more ISO-8601 date formats
+Following on from #106486, this extends the custom ISO-8601 datetime parser to cover the `strict_year`,
+`strict_year_month`, `strict_date_time`, `strict_date_time_no_millis`, `strict_date_hour_minute_second`,
+`strict_date_hour_minute_second_millis`, and `strict_date_hour_minute_second_fraction` date formats.
+As before, the parser will use the existing java.time parser if there are parsing issues, and the
+`es.datetime.java_time_parsers=true` JVM property will force the use of the old parsers regardless.
+
+{es-pull}108606[#108606]
+
+[discrete]
+[[preview_support_for_connection_type_domain_isp_databases_in_geoip_processor]]
+=== Preview: Support for the 'Connection Type, 'Domain', and 'ISP' databases in the geoip processor
+As a Technical Preview, the {ref}/geoip-processor.html[`geoip`] processor can now use the commercial
+https://dev.maxmind.com/geoip/docs/databases/connection-type[GeoIP2 'Connection Type'],
+https://dev.maxmind.com/geoip/docs/databases/domain[GeoIP2 'Domain'],
+and
+https://dev.maxmind.com/geoip/docs/databases/isp[GeoIP2 'ISP']
+databases from MaxMind.
+
+{es-pull}108683[#108683]
+
+[discrete]
+[[update_elasticsearch_to_lucene_9_11]]
+=== Update Elasticsearch to Lucene 9.11
+Elasticsearch is now updated using the latest Lucene version 9.11.
+Here are the full release notes:
+But, here are some particular highlights:
+- Usage of MADVISE for better memory management: https://github.com/apache/lucene/pull/13196
+- Use RWLock to access LRUQueryCache to reduce contention: https://github.com/apache/lucene/pull/13306
+- Speedup multi-segment HNSW graph search for nested kNN queries: https://github.com/apache/lucene/pull/13121
+- Add a MemorySegment Vector scorer - for scoring without copying on-heap vectors: https://github.com/apache/lucene/pull/13339
+
+{es-pull}109219[#109219]
+
+[discrete]
+[[synthetic_source_improvements]]
+=== Synthetic `_source` improvements
+There are multiple improvements to synthetic `_source` functionality:
+
+* Synthetic `_source` is now supported for all field types including `nested` and `object`. `object` fields are supported with `enabled` set to `false`.
+
+* Synthetic `_source` can be enabled together with `ignore_malformed` and `ignore_above` parameters for all field types that support them.
+
+{es-pull}109501[#109501]
+
+[discrete]
+[[index_sorting_on_indexes_with_nested_fields]]
+=== Index sorting on indexes with nested fields
+Index sorting is now supported for indexes with mappings containing nested objects.
+The index sort spec (as specified by `index.sort.field`) can't contain any nested
+fields, still.
+
+{es-pull}110251[#110251]
 

@@ -122,15 +122,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.inputType = InputType.UNSPECIFIED;
             }
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 this.query = in.readOptionalString();
-            } else {
-                this.query = null;
-            }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
+                this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
         }
@@ -209,11 +205,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalString(query);
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
                 out.writeTimeValue(inferenceTimeout);
             }
         }

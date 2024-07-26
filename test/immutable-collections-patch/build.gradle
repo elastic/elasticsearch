@@ -35,7 +35,7 @@ generatePatch.configure {
     executable = "${BuildParams.runtimeJavaHome}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
   } else {
     javaLauncher = javaToolchains.launcherFor {
-      languageVersion = JavaLanguageVersion.of(BuildParams.runtimeJavaVersion.majorVersion)
+      languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
       vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
         JvmVendorSpec.ORACLE :
         JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)

@@ -22,7 +22,6 @@ module org.elasticsearch.xcore {
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.xcore.templates;
-    requires com.nimbusds.jose.jwt;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;

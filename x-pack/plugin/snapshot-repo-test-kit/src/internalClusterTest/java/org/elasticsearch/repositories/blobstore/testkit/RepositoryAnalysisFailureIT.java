@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -363,6 +364,17 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    private static void assertAnalysisFailureMessage(String message) {
+        assertThat(
+            message,
+            allOf(
+                containsString("Elasticsearch observed the storage system underneath this repository behaved incorrectly"),
+                containsString("not suitable for use with Elasticsearch snapshots"),
+                containsString(ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS.toString())
+            )
+        );
+    }
+
     public void testTimesOutSpinningRegisterAnalysis() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.timeout(TimeValue.timeValueMillis(between(1, 1000)));
@@ -375,7 +387,13 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
         final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
-        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertThat(
+            exception.getMessage(),
+            allOf(
+                containsString("Repository analysis timed out. Consider specifying a longer timeout"),
+                containsString(ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS.toString())
+            )
+        );
         assertThat(
             asInstanceOf(RepositoryVerificationException.class, exception.getCause()).getMessage(),
             containsString("analysis timed out")
@@ -391,7 +409,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
         final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
-        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertAnalysisFailureMessage(exception.getMessage());
         assertThat(
             asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
             allOf(containsString("uncontended register operation failed"), containsString("did not observe any value"))
@@ -407,7 +425,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
         final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
-        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertAnalysisFailureMessage(exception.getMessage());
         final var cause = ExceptionsHelper.unwrapCause(exception.getCause());
         if (cause instanceof IOException ioException) {
             assertThat(ioException.getMessage(), containsString("empty register update rejected"));

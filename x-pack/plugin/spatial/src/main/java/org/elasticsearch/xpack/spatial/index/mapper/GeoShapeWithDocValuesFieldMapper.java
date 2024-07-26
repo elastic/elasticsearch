@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -36,7 +35,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -80,13 +78,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Extension of {@link org.elasticsearch.index.mapper.GeoShapeFieldMapper} that supports docValues
- *
  * FieldMapper for indexing {@link LatLonShape}s.
- * <p>
- * Currently Shapes can only be indexed and can only be queried using
- * {@link org.elasticsearch.index.query.GeoShapeQueryBuilder}, consequently
- * a lot of behavior in this Mapper is disabled.
  * <p>
  * Format supported:
  * <p>
@@ -103,8 +95,6 @@ import java.util.function.Function;
  */
 public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
 
     private static Builder builder(FieldMapper in) {
         return ((GeoShapeWithDocValuesFieldMapper) in).builder;

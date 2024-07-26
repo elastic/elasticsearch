@@ -81,7 +81,7 @@ import java.util.stream.Collectors;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  *
- * @deprecated use {@link org.elasticsearch.index.mapper.GeoShapeFieldMapper}
+ * @deprecated use the field mapper in the spatial module
  */
 @Deprecated
 public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>> {

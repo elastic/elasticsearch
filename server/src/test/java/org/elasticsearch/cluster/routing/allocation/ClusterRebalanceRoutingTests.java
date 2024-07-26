@@ -583,20 +583,28 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     public void testRebalanceWithIgnoredUnassignedShards() {
         final AtomicBoolean allocateTest1 = new AtomicBoolean(false);
 
-        AllocationService strategy = createAllocationService(Settings.EMPTY, new TestGatewayAllocator() {
-            @Override
-            public void allocateUnassigned(
-                ShardRouting shardRouting,
-                RoutingAllocation allocation,
-                UnassignedAllocationHandler unassignedAllocationHandler
-            ) {
-                if (allocateTest1.get() == false && "test1".equals(shardRouting.index().getName())) {
-                    unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
-                } else {
-                    super.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()
+                )
+                .build(),
+            new TestGatewayAllocator() {
+                @Override
+                public void allocateUnassigned(
+                    ShardRouting shardRouting,
+                    RoutingAllocation allocation,
+                    UnassignedAllocationHandler unassignedAllocationHandler
+                ) {
+                    if (allocateTest1.get() == false && "test1".equals(shardRouting.index().getName())) {
+                        unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                    } else {
+                        super.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
+                    }
                 }
             }
-        });
+        );
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(0))

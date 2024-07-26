@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.action.amazonbedrock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -43,7 +44,7 @@ public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
             timeout
         );
         var errorMessage = constructFailedToSendRequestMessage(null, "Amazon Bedrock embeddings");
-        return new AmazonBedrockEmbeddingsAction(sender, requestManager, errorMessage);
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 
     @Override
@@ -51,6 +52,6 @@ public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
         var overriddenModel = AmazonBedrockChatCompletionModel.of(completionModel, taskSettings);
         var requestManager = new AmazonBedrockChatCompletionRequestManager(overriddenModel, serviceComponents.threadPool(), timeout);
         var errorMessage = constructFailedToSendRequestMessage(null, "Amazon Bedrock completion");
-        return new AmazonBedrockChatCompletionAction(sender, requestManager, errorMessage);
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

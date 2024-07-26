@@ -363,13 +363,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 indexId
             )
         ).build();
-        IndexMetadata metadata = runAsSnapshot(
-            threadPool,
-            () -> repository.getSnapshotIndexMetaData(
-                PlainActionFuture.get(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)),
-                snapshotId,
-                indexId
-            )
+
+        IndexMetadata metadata = repository.getSnapshotIndexMetaData(
+            safeAwait(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)),
+            snapshotId,
+            indexId
         );
         IndexShard restoredShard = newShard(
             shardRouting,

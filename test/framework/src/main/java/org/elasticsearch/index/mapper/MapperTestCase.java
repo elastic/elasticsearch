@@ -578,7 +578,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             } : SourceProvider.fromStoredFields();
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
-                new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                new FieldDataContext(
+                    "",
+                    mapperService.getIndexSettings(),
+                    () -> searchLookup,
+                    Set::of,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                )
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             DocValuesScriptFieldFactory sff = lfd.getScriptFieldFactory("field");
@@ -1322,6 +1328,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public IndexSettings indexSettings() {
                     throw new UnsupportedOperationException();
                 }
 

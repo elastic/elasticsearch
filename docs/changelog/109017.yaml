@@ -2,5 +2,5 @@ pr: 109017
 summary: "ESQL: Add `MV_PSERIES_WEIGHTED_SUM` for score calculations used by security\
   \ solution"
 area: ES|QL
-type: "enhancement, feature"
-issues: []
+type: "feature"
+issues: [ ]

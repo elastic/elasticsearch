@@ -56,7 +56,8 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     @FunctionInfo(
         returnType = { "double" },
 
-        description = "Converts a multivalued expression into a single valued column " + "containing the weighted sum applying P-Series.",
+        description = "Converts a multivalued expression into a single-valued column by multiplying every "
+            + "element on the input list by its corresponding term in P-Series and computing the sum.",
         examples = @Example(file = "mv_pseries_weighted_sum", tag = "example")
     )
     public MvPSeriesWeightedSum(
@@ -65,7 +66,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         @Param(
             name = "p",
             type = { "double" },
-            description = "It is a constant number that represents the 'p' parameter in the P-Series."
+            description = "It is a constant number that represents the 'p' parameter in the P-Series. "
                 + "It impacts every element's contribution to the weighted sum."
         ) Expression p
     ) {

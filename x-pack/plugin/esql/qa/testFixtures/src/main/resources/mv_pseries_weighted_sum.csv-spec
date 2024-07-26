@@ -2,14 +2,14 @@ default
 required_capability: mv_pseries_weighted_sum
 
 // tag::example[]
-ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
-| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 1.5)
-| KEEP score
+ROW a = [70.0, 45.0, 21.0, 21.0, 21.0]
+| EVAL sum = MV_PSERIES_WEIGHTED_SUM(a, 1.5)
+| KEEP sum
 // end::example[]
 ;
 
 // tag::example-result[]
-score:double
+sum:double
 94.45465156212452
 // end::example-result[]
 ;

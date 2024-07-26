@@ -6,4 +6,4 @@
 Multivalue expression.
 
 `p`::
-It is the P parameter of the P series function. It a constant number that define how the P series function grow. It impacts every element contribution in the weighted sum.
+It is a constant number that represents the 'p' parameter in the P-Series.It impacts every element's contribution to the weighted sum.

@@ -2,4 +2,4 @@
 
 *Description*
 
-Converts a multivalued expression into a single valued column containing the weighted sum applying the P series function.
+Converts a multivalued expression into a single valued column containing the weighted sum applying P-Series.

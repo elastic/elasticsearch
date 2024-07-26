@@ -12,7 +12,7 @@ score:double
 // end::example-result[]
 ;
 
-one-element
+oneElement
 ROW data = [3.0]
 | EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 9999.9)
 | KEEP score;
@@ -21,7 +21,7 @@ score:double
 3.0
 ;
 
-zero-p
+zeroP
 ROW data = [3.0, 10.0, 15.0]
 | EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 0.0)
 | KEEP score;
@@ -30,7 +30,7 @@ score:double
 28.0
 ;
 
-negative-p
+negativeP
 ROW data = [10.0, 5.0, 3.0]
 | EVAL score = MV_PSERIES_WEIGHTED_SUM(data, -2.0)
 | KEEP score;
@@ -50,7 +50,7 @@ normalized_score:double|score:double
 36.16                  |94.45465156212452
 ;
 
-multivalue-aggregation
+multivalueAggregation
 FROM alerts
 | WHERE host.name is not null
 | SORT host.name, kibana.alert.risk_score

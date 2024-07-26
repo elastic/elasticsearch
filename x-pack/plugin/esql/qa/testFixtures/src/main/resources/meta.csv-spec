@@ -175,7 +175,7 @@ mv_last       |field                               |"boolean|cartesian_point|car
 mv_max        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |Multivalue expression.
 mv_median     |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_min        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |Multivalue expression.
-mv_pseries_wei|[number, p]                         |[double, double]                                                                                                                  |[Multivalue expression., It is the P parameter of the P series function. It a constant number that define how the P series function grow. It impacts every element contribution in the weighted sum.]
+mv_pseries_wei|[number, p]                         |[double, double]                                                                                                                  |[Multivalue expression., It is a constant number that represents the 'p' parameter in the P-Series.It impacts every element's contribution to the weighted sum.]
 mv_slice      |[field, start, end]                 |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", integer, integer]|[Multivalue expression. If `null`\, the function returns `null`., Start position. If `null`\, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list., End position(included). Optional; if omitted\, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list.]
 mv_sort       |[field, order]                      |["boolean|date|double|integer|ip|keyword|long|text|version", keyword]                                                             |[Multivalue expression. If `null`\, the function returns `null`., Sort order. The valid options are ASC and DESC\, the default is ASC.]
 mv_sum        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
@@ -298,7 +298,7 @@ mv_last       |Converts a multivalue expression into a single valued column cont
 mv_max        |Converts a multivalued expression into a single valued column containing the maximum value.
 mv_median     |Converts a multivalued field into a single valued field containing the median value.
 mv_min        |Converts a multivalued expression into a single valued column containing the minimum value.
-mv_pseries_wei|Converts a multivalued expression into a single valued column containing the weighted sum applying the P series function.
+mv_pseries_wei|Converts a multivalued expression into a single valued column containing the weighted sum applying P-Series.
 mv_slice      |Returns a subset of the multivalued field using the start and end index values.
 mv_sort       |Sorts a multivalued field in lexicographical order.
 mv_sum        |Converts a multivalued field into a single valued field containing the sum of all of the values.

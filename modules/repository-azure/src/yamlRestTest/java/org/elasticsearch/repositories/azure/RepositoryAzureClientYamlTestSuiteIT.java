@@ -13,6 +13,7 @@ import fixture.azure.AzureHttpFixture;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -33,7 +34,9 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
-        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
+        Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
+            ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
+            : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
     );
 
     private static TestTrustStore trustStore = new TestTrustStore(
@@ -58,6 +61,7 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
             () -> "ignored;DefaultEndpointsProtocol=https;BlobEndpoint=" + fixture.getAddress(),
             s -> USE_FIXTURE
         )
+        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();

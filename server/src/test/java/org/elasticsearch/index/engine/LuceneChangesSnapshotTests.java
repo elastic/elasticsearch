@@ -377,7 +377,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     assertFalse(snapshot.useSequentialStoredFieldsReader());
                 }
             } finally {
-                engine.close();
+                close(engine);
             }
         }
     }
@@ -543,7 +543,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 // Verify count
                 assertThat(engine.countChanges("test", fromSeqNo.getAsLong(), toSeqNo.getAsLong()), equalTo(numOps));
             } finally {
-                engine.close();
+                close(engine);
             }
         }
     }

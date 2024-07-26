@@ -101,10 +101,10 @@ public class DriverStatus implements Task.Status {
 
     public DriverStatus(StreamInput in) throws IOException {
         this.sessionId = in.readString();
-        this.started = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readLong() : 0;
+        this.started = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0;
         this.lastUpdated = in.readLong();
-        this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
-        this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
+        this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
+        this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
         this.status = Status.valueOf(in.readString());
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
@@ -117,11 +117,11 @@ public class DriverStatus implements Task.Status {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeLong(started);
         }
         out.writeLong(lastUpdated);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeVLong(cpuNanos);
             out.writeVLong(iterations);
         }

@@ -76,9 +76,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
   issue: https://github.com/elastic/elasticsearch/issues/110789
-- class: org.elasticsearch.xpack.security.ScrollHelperIntegTests
-  method: testFetchAllEntities
-  issue: https://github.com/elastic/elasticsearch/issues/110786
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
   method: testCacheFileCreatedAsSparseFile
   issue: https://github.com/elastic/elasticsearch/issues/110801
@@ -88,9 +85,6 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
-  method: testKnnSearchAction
-  issue: https://github.com/elastic/elasticsearch/issues/111072
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoPointIT
   method: testPushedDownQueriesSingleValue
   issue: https://github.com/elastic/elasticsearch/issues/111084
@@ -99,24 +93,35 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/110982
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
-- class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
-  method: testGetPrivilegesUsesCache
-  issue: https://github.com/elastic/elasticsearch/issues/110788
-- class: org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankTests
-  method: testRerankInferenceResultMismatch
-  issue: https://github.com/elastic/elasticsearch/issues/111133
 - class: org.elasticsearch.cluster.PrevalidateShardPathIT
   method: testCheckShards
   issue: https://github.com/elastic/elasticsearch/issues/111134
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test600Interrupt
-  issue: https://github.com/elastic/elasticsearch/issues/111132
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithImplicitFlow
   issue: https://github.com/elastic/elasticsearch/issues/111191
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testReadNonexistentBlobThrowsNoSuchFileException
+  issue: https://github.com/elastic/elasticsearch/issues/111233
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testInlineStatsProfile {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111263
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testInlineStatsProfile {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/111264
+- class: org.elasticsearch.action.admin.indices.create.SplitIndexIT
+  method: testSplitIndexPrimaryTerm
+  issue: https://github.com/elastic/elasticsearch/issues/111282
+- class: org.elasticsearch.upgrades.LogsIndexModeFullClusterRestartIT
+  method: testLogsIndexing {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111306
+- class: org.elasticsearch.xpack.core.ml.job.config.DetectionRuleTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/111308
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111319
 
 # Examples:
 #

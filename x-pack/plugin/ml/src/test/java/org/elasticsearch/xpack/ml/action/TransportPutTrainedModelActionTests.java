@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -19,7 +20,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -70,6 +73,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.getTaskInfoListOfOne;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockClientWithTasksResponse;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockListTasksClient;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -281,7 +285,6 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
     }
 
     public void testValidateModelDefinition_FailsWhenLicenseIsNotSupported() throws IOException {
-
         ModelPackageConfig packageConfig = ModelPackageConfigTests.randomModulePackageConfig();
 
         TrainedModelConfig.Builder trainedModelConfigBuilder = new TrainedModelConfig.Builder().setModelId(
@@ -309,16 +312,16 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         ActionListener<PutTrainedModelAction.Response> responseListener = ActionListener.wrap(
             response -> fail("Expected exception, but got response: " + response),
             exception -> {
-                fail("Exception: " + exception);
+                assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
+                assertThat(exception.getMessage(), is("Model of type [learning_to_rank] requires [ENTERPRISE] license level"));
             }
         );
 
-        AtomicInteger currentTime = new AtomicInteger(100);
-
         var mockClusterState = mock(ClusterState.class);
-        // if (state.getMinTransportVersion().before(minCompatibilityVersion)) -> true
 
-        var mockLicenseState = new MockLicenseState(currentTime::get);
+        AtomicInteger currentTime = new AtomicInteger(100);
+        var mockXPackLicenseStatus = new XPackLicenseStatus(License.OperationMode.BASIC, true, "");
+        var mockLicenseState = new XPackLicenseState(currentTime::get, mockXPackLicenseStatus);
 
         assertThat(
             TransportPutTrainedModelAction.validateModelDefinition(

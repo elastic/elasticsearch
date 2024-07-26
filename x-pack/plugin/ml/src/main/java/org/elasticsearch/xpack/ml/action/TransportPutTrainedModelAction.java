@@ -510,13 +510,14 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             return false;
         }
 
-        if (inferenceConfig.isLicenseAllowedForAction(RestRequest.Method.PUT, licenseState) == false) {
+        var minLicenseSupported = inferenceConfig.getMinLicenseSupportedForAction(RestRequest.Method.PUT);
+        if (licenseState.isAllowedByLicense(minLicenseSupported) == false) {
             finalResponseListener.onFailure(
                 new ElasticsearchSecurityException(
                     "Model of type [{}] requires [{}] license level",
                     RestStatus.FORBIDDEN,
                     config.getInferenceConfig().getName(),
-                    config.getInferenceConfig().getMinLicenseSupported().description()
+                    minLicenseSupported
                 )
             );
             return false;

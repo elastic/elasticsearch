@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -123,7 +122,7 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
         return ML_API_FEATURE.getMinimumOperationMode();
     }
 
-    default boolean isLicenseAllowedForAction(RestRequest.Method method, XPackLicenseState licenseState) {
-        return licenseState.isAllowedByLicense(this.getMinLicenseSupported());
+    default License.OperationMode getMinLicenseSupportedForAction(RestRequest.Method method) {
+        return getMinLicenseSupported();
     }
 }

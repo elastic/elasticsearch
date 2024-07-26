@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -230,11 +229,11 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
     }
 
     @Override
-    public boolean isLicenseAllowedForAction(RestRequest.Method method, XPackLicenseState licenseState) {
+    public License.OperationMode getMinLicenseSupportedForAction(RestRequest.Method method) {
         if (method == RestRequest.Method.PUT) {
-            return licenseState.isAllowedByLicense(License.OperationMode.ENTERPRISE);
+            return License.OperationMode.ENTERPRISE;
         }
-        return super.isLicenseAllowedForAction(method, licenseState);
+        return super.getMinLicenseSupportedForAction(method);
     }
 
     @Override

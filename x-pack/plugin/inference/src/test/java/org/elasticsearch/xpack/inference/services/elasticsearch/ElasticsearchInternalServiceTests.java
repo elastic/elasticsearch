@@ -30,12 +30,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
@@ -525,6 +527,61 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                new ChunkingOptions(null, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
+            );
+
+            assertTrue("Listener not called", gotResults.get());
+        } finally {
+            terminate(threadpool);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testChunkInfer_FailsBatch() {
+        var mlTrainedModelResults = new ArrayList<InferenceResults>();
+        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
+        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
+
+        ThreadPool threadpool = new TestThreadPool("test");
+        try {
+            Client client = mock(Client.class);
+            when(client.threadPool()).thenReturn(threadpool);
+            doAnswer(invocationOnMock -> {
+                var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+                listener.onResponse(response);
+                return null;
+            }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+            var model = new MultilingualE5SmallModel(
+                "foo",
+                TaskType.TEXT_EMBEDDING,
+                "e5",
+                new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null)
+            );
+            var service = createService(client);
+
+            var gotResults = new AtomicBoolean();
+            var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
+                assertThat(chunkedResponse, hasSize(3));
+                // a single failure fails the batch
+                for (var er : chunkedResponse) {
+                    assertThat(er, instanceOf(ErrorChunkedInferenceResults.class));
+                    assertEquals("boom", ((ErrorChunkedInferenceResults) er).getException().getMessage());
+                }
+
+                gotResults.set(true);
+            }, ESTestCase::fail);
+
+            service.chunkedInfer(
+                model,
+                null,
+                List.of("foo", "bar", "baz"),
                 Map.of(),
                 InputType.SEARCH,
                 new ChunkingOptions(null, null),

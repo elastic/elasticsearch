@@ -313,223 +313,233 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testVerboseSegments() throws Exception {
-        Store store = createStore();
-        Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try {
-            List<Segment> segments = engine.segments();
-            assertThat(segments.isEmpty(), equalTo(true));
+        try (Store store = createStore()) {
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
+            try {
+                List<Segment> segments = engine.segments();
+                assertThat(segments.isEmpty(), equalTo(true));
 
-            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
-            engine.index(indexForDoc(doc));
-            engine.refresh("test");
+                ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+                engine.index(indexForDoc(doc));
+                engine.refresh("test");
 
-            segments = engine.segments();
-            assertThat(segments.size(), equalTo(1));
+                segments = engine.segments();
+                assertThat(segments.size(), equalTo(1));
 
-            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
-            engine.index(indexForDoc(doc2));
-            engine.refresh("test");
-            ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_3, null);
-            engine.index(indexForDoc(doc3));
-            engine.refresh("test");
+                ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+                engine.index(indexForDoc(doc2));
+                engine.refresh("test");
+                ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_3, null);
+                engine.index(indexForDoc(doc3));
+                engine.refresh("test");
 
-            segments = engine.segments();
-            assertThat(segments.size(), equalTo(3));
-        } finally {
-            store.close();
-            engine.close();
+                segments = engine.segments();
+                assertThat(segments.size(), equalTo(3));
+            } finally {
+                engine.close();
+            }
         }
     }
 
     public void testSegmentsWithMergeFlag() throws Exception {
-        Store store = createStore();
-        Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy());
-        try {
-            ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
-            Engine.Index index = indexForDoc(doc);
-            engine.index(index);
-            engine.flush();
-            assertThat(engine.segments().size(), equalTo(1));
-            index = indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null));
-            engine.index(index);
-            engine.flush();
-            List<Segment> segments = engine.segments();
-            assertThat(segments.size(), equalTo(2));
-            for (Segment segment : segments) {
-                assertThat(segment.getMergeId(), nullValue());
-            }
-            index = indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null));
-            engine.index(index);
-            engine.flush();
-            segments = engine.segments();
-            assertThat(segments.size(), equalTo(3));
-            for (Segment segment : segments) {
-                assertThat(segment.getMergeId(), nullValue());
-            }
+        try (Store store = createStore()) {
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy());
+            try {
+                ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+                Engine.Index index = indexForDoc(doc);
+                engine.index(index);
+                engine.flush();
+                assertThat(engine.segments().size(), equalTo(1));
+                index = indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null));
+                engine.index(index);
+                engine.flush();
+                List<Segment> segments = engine.segments();
+                assertThat(segments.size(), equalTo(2));
+                for (Segment segment : segments) {
+                    assertThat(segment.getMergeId(), nullValue());
+                }
+                index = indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null));
+                engine.index(index);
+                engine.flush();
+                segments = engine.segments();
+                assertThat(segments.size(), equalTo(3));
+                for (Segment segment : segments) {
+                    assertThat(segment.getMergeId(), nullValue());
+                }
 
-            index = indexForDoc(doc);
-            engine.index(index);
-            engine.flush();
-            final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
-            // now, optimize and wait for merges, see that we have no merge flag
-            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                index = indexForDoc(doc);
+                engine.index(index);
+                engine.flush();
+                final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
+                // now, optimize and wait for merges, see that we have no merge flag
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
 
-            // ensure that we have released the older segments with a refresh so they can be removed
-            assertFalse(engine.refreshNeeded());
+                // ensure that we have released the older segments with a refresh so they can be removed
+                assertFalse(engine.refreshNeeded());
 
-            for (Segment segment : engine.segments()) {
-                assertThat(segment.getMergeId(), nullValue());
+                for (Segment segment : engine.segments()) {
+                    assertThat(segment.getMergeId(), nullValue());
+                }
+                // we could have multiple underlying merges, so the generation may increase more than once
+                assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
+
+                final boolean flush = randomBoolean();
+                final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
+                engine.forceMerge(flush, 1, false, UUIDs.randomBase64UUID());
+                for (Segment segment : engine.segments()) {
+                    assertThat(segment.getMergeId(), nullValue());
+                }
+
+                if (flush) {
+                    // we should have had just 1 merge, so last generation should be exact
+                    assertEquals(gen2, store.readLastCommittedSegmentsInfo().getLastGeneration());
+                }
+            } finally {
+                engine.close();
             }
-            // we could have multiple underlying merges, so the generation may increase more than once
-            assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
-
-            final boolean flush = randomBoolean();
-            final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-            engine.forceMerge(flush, 1, false, UUIDs.randomBase64UUID());
-            for (Segment segment : engine.segments()) {
-                assertThat(segment.getMergeId(), nullValue());
-            }
-
-            if (flush) {
-                // we should have had just 1 merge, so last generation should be exact
-                assertEquals(gen2, store.readLastCommittedSegmentsInfo().getLastGeneration());
-            }
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
     public void testSegmentsWithIndexSort() throws Exception {
         Sort indexSort = new Sort(new SortedSetSortField("field", false));
-        Store store = createStore();
-        Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, null, indexSort, null);
-        try {
-            List<Segment> segments = engine.segments();
-            assertThat(segments.isEmpty(), equalTo(true));
+        try (Store store = createStore()) {
+            Engine engine = createEngine(
+                defaultSettings,
+                store,
+                createTempDir(),
+                NoMergePolicy.INSTANCE,
+                null,
+                null,
+                null,
+                indexSort,
+                null
+            );
+            try {
+                List<Segment> segments = engine.segments();
+                assertThat(segments.isEmpty(), equalTo(true));
 
-            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
-            engine.index(indexForDoc(doc));
-            engine.refresh("test");
+                ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+                engine.index(indexForDoc(doc));
+                engine.refresh("test");
 
-            segments = engine.segments();
-            assertThat(segments.size(), equalTo(1));
-            assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
+                segments = engine.segments();
+                assertThat(segments.size(), equalTo(1));
+                assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
 
-            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
-            engine.index(indexForDoc(doc2));
-            engine.refresh("test");
-            ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_3, null);
-            engine.index(indexForDoc(doc3));
-            engine.refresh("test");
+                ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+                engine.index(indexForDoc(doc2));
+                engine.refresh("test");
+                ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_3, null);
+                engine.index(indexForDoc(doc3));
+                engine.refresh("test");
 
-            segments = engine.segments();
-            assertThat(segments.size(), equalTo(3));
-            assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
-            assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
-            assertThat(segments.get(2).getSegmentSort(), equalTo(indexSort));
-        } finally {
-            store.close();
-            engine.close();
+                segments = engine.segments();
+                assertThat(segments.size(), equalTo(3));
+                assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
+                assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
+                assertThat(segments.get(2).getSegmentSort(), equalTo(indexSort));
+            } finally {
+                engine.close();
+            }
         }
     }
 
     public void testSegmentsStatsIncludingFileSizes() throws Exception {
-        Store store = createStore();
-        Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try {
-            assertThat(engine.segmentsStats(true, false).getFiles().size(), equalTo(0));
+        try (Store store = createStore()) {
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
+            try {
+                assertThat(engine.segmentsStats(true, false).getFiles().size(), equalTo(0));
 
-            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
-            engine.index(indexForDoc(doc));
-            engine.refresh("test");
+                ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+                engine.index(indexForDoc(doc));
+                engine.refresh("test");
 
-            final SegmentsStats stats1 = engine.segmentsStats(true, false);
-            assertThat(stats1.getFiles().size(), greaterThan(0));
-            for (Map.Entry<String, SegmentsStats.FileStats> fileStats : stats1.getFiles().entrySet()) {
-                assertThat(fileStats.getValue().getTotal(), greaterThan(0L));
-                assertThat(fileStats.getValue().getCount(), greaterThan(0L));
-                assertThat(fileStats.getValue().getMin(), greaterThan(0L));
-                assertThat(fileStats.getValue().getMax(), greaterThan(0L));
+                final SegmentsStats stats1 = engine.segmentsStats(true, false);
+                assertThat(stats1.getFiles().size(), greaterThan(0));
+                for (Map.Entry<String, SegmentsStats.FileStats> fileStats : stats1.getFiles().entrySet()) {
+                    assertThat(fileStats.getValue().getTotal(), greaterThan(0L));
+                    assertThat(fileStats.getValue().getCount(), greaterThan(0L));
+                    assertThat(fileStats.getValue().getMin(), greaterThan(0L));
+                    assertThat(fileStats.getValue().getMax(), greaterThan(0L));
+                }
+
+                ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+                engine.index(indexForDoc(doc2));
+                engine.refresh("test");
+
+                final SegmentsStats stats2 = engine.segmentsStats(true, false);
+                for (Map.Entry<String, SegmentsStats.FileStats> cursor : stats1.getFiles().entrySet()) {
+                    final String extension = cursor.getKey();
+                    assertThat(stats2.getFiles().get(extension).getTotal(), greaterThan((stats1.getFiles().get(extension).getTotal())));
+                    assertThat(stats2.getFiles().get(extension).getCount(), greaterThan((stats1.getFiles().get(extension).getCount())));
+                    assertThat(stats2.getFiles().get(extension).getMin(), greaterThan((0L)));
+                    assertThat(stats2.getFiles().get(extension).getMax(), greaterThan((0L)));
+                }
+            } finally {
+                engine.close();
             }
-
-            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
-            engine.index(indexForDoc(doc2));
-            engine.refresh("test");
-
-            final SegmentsStats stats2 = engine.segmentsStats(true, false);
-            for (Map.Entry<String, SegmentsStats.FileStats> cursor : stats1.getFiles().entrySet()) {
-                final String extension = cursor.getKey();
-                assertThat(stats2.getFiles().get(extension).getTotal(), greaterThan((stats1.getFiles().get(extension).getTotal())));
-                assertThat(stats2.getFiles().get(extension).getCount(), greaterThan((stats1.getFiles().get(extension).getCount())));
-                assertThat(stats2.getFiles().get(extension).getMin(), greaterThan((0L)));
-                assertThat(stats2.getFiles().get(extension).getMax(), greaterThan((0L)));
-            }
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
     public void testSegments() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        Store store = createStore();
-        InternalEngine engine = createEngine(
-            config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)
-        );
-        try {
-            assertThat(engine.segments(), empty());
-            int numDocsFirstSegment = randomIntBetween(5, 50);
-            Set<String> liveDocsFirstSegment = new HashSet<>();
-            for (int i = 0; i < numDocsFirstSegment; i++) {
-                String id = Integer.toString(i);
-                ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
-                engine.index(indexForDoc(doc));
-                liveDocsFirstSegment.add(id);
-            }
-            engine.refresh("test");
-            List<Segment> segments = engine.segments();
-            assertThat(segments, hasSize(1));
-            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
-            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-            assertFalse(segments.get(0).committed);
-            int deletes = 0;
-            int updates = 0;
-            int appends = 0;
-            int iterations = scaledRandomIntBetween(1, 50);
-            for (int i = 0; i < iterations && liveDocsFirstSegment.isEmpty() == false; i++) {
-                String idToUpdate = randomFrom(liveDocsFirstSegment);
-                liveDocsFirstSegment.remove(idToUpdate);
-                ParsedDocument doc = testParsedDocument(idToUpdate, null, testDocument(), B_1, null);
-                if (randomBoolean()) {
-                    engine.delete(new Engine.Delete(doc.id(), newUid(doc), primaryTerm.get()));
-                    deletes++;
-                } else {
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(
+                config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)
+            );
+            try {
+                assertThat(engine.segments(), empty());
+                int numDocsFirstSegment = randomIntBetween(5, 50);
+                Set<String> liveDocsFirstSegment = new HashSet<>();
+                for (int i = 0; i < numDocsFirstSegment; i++) {
+                    String id = Integer.toString(i);
+                    ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
                     engine.index(indexForDoc(doc));
-                    updates++;
+                    liveDocsFirstSegment.add(id);
                 }
-                if (randomBoolean()) {
-                    engine.index(indexForDoc(testParsedDocument(UUIDs.randomBase64UUID(), null, testDocument(), B_1, null)));
-                    appends++;
+                engine.refresh("test");
+                List<Segment> segments = engine.segments();
+                assertThat(segments, hasSize(1));
+                assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+                assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+                assertFalse(segments.get(0).committed);
+                int deletes = 0;
+                int updates = 0;
+                int appends = 0;
+                int iterations = scaledRandomIntBetween(1, 50);
+                for (int i = 0; i < iterations && liveDocsFirstSegment.isEmpty() == false; i++) {
+                    String idToUpdate = randomFrom(liveDocsFirstSegment);
+                    liveDocsFirstSegment.remove(idToUpdate);
+                    ParsedDocument doc = testParsedDocument(idToUpdate, null, testDocument(), B_1, null);
+                    if (randomBoolean()) {
+                        engine.delete(new Engine.Delete(doc.id(), newUid(doc), primaryTerm.get()));
+                        deletes++;
+                    } else {
+                        engine.index(indexForDoc(doc));
+                        updates++;
+                    }
+                    if (randomBoolean()) {
+                        engine.index(indexForDoc(testParsedDocument(UUIDs.randomBase64UUID(), null, testDocument(), B_1, null)));
+                        appends++;
+                    }
                 }
-            }
-            boolean committed = randomBoolean();
-            if (committed) {
-                engine.flush();
-            }
-            engine.refresh("test");
-            segments = engine.segments();
-            assertThat(segments, hasSize(2));
-            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
-            assertThat(segments.get(0).getDeletedDocs(), equalTo(updates + deletes));
-            assertThat(segments.get(0).committed, equalTo(committed));
+                boolean committed = randomBoolean();
+                if (committed) {
+                    engine.flush();
+                }
+                engine.refresh("test");
+                segments = engine.segments();
+                assertThat(segments, hasSize(2));
+                assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+                assertThat(segments.get(0).getDeletedDocs(), equalTo(updates + deletes));
+                assertThat(segments.get(0).committed, equalTo(committed));
 
-            assertThat(segments.get(1).getNumDocs(), equalTo(updates + appends));
-            assertThat(segments.get(1).getDeletedDocs(), equalTo(deletes)); // delete tombstones
-            assertThat(segments.get(1).committed, equalTo(committed));
-        } finally {
-            store.close();
-            engine.close();
+                assertThat(segments.get(1).getNumDocs(), equalTo(updates + appends));
+                assertThat(segments.get(1).getDeletedDocs(), equalTo(deletes)); // delete tombstones
+                assertThat(segments.get(1).committed, equalTo(committed));
+            } finally {
+                engine.close();
+            }
         }
     }
 
@@ -537,58 +547,60 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong maxSeqNo = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicLong localCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicLong globalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(store, createTempDir(), (maxSeq, localCP) -> new LocalCheckpointTracker(maxSeq, localCP) {
+                @Override
+                public long getMaxSeqNo() {
+                    return maxSeqNo.get();
+                }
 
-        Store store = createStore();
-        InternalEngine engine = createEngine(store, createTempDir(), (maxSeq, localCP) -> new LocalCheckpointTracker(maxSeq, localCP) {
-            @Override
-            public long getMaxSeqNo() {
-                return maxSeqNo.get();
+                @Override
+                public long getProcessedCheckpoint() {
+                    return localCheckpoint.get();
+                }
+            });
+            try {
+                CommitStats stats1 = engine.commitStats();
+                assertThat(stats1.getGeneration(), greaterThan(0L));
+                assertThat(stats1.getId(), notNullValue());
+                assertThat(stats1.getUserData(), hasKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                assertThat(
+                    Long.parseLong(stats1.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+                    equalTo(SequenceNumbers.NO_OPS_PERFORMED)
+                );
+
+                assertThat(stats1.getUserData(), hasKey(SequenceNumbers.MAX_SEQ_NO));
+                assertThat(Long.parseLong(stats1.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+
+                maxSeqNo.set(rarely() ? SequenceNumbers.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
+                localCheckpoint.set(
+                    rarely() || maxSeqNo.get() == SequenceNumbers.NO_OPS_PERFORMED
+                        ? SequenceNumbers.NO_OPS_PERFORMED
+                        : randomIntBetween(0, 1024)
+                );
+                globalCheckpoint.set(
+                    rarely() || localCheckpoint.get() == SequenceNumbers.NO_OPS_PERFORMED
+                        ? UNASSIGNED_SEQ_NO
+                        : randomIntBetween(0, (int) localCheckpoint.get())
+                );
+
+                engine.flush(true, true);
+
+                CommitStats stats2 = engine.commitStats();
+                assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
+                assertThat(stats2.getId(), notNullValue());
+                assertThat(stats2.getId(), not(equalTo(stats1.getId())));
+                assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
+                assertThat(
+                    stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY),
+                    equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY))
+                );
+                assertThat(Long.parseLong(stats2.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
+                assertThat(stats2.getUserData(), hasKey(SequenceNumbers.MAX_SEQ_NO));
+                assertThat(Long.parseLong(stats2.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo.get()));
+            } finally {
+                engine.close();
             }
-
-            @Override
-            public long getProcessedCheckpoint() {
-                return localCheckpoint.get();
-            }
-        });
-        try {
-            CommitStats stats1 = engine.commitStats();
-            assertThat(stats1.getGeneration(), greaterThan(0L));
-            assertThat(stats1.getId(), notNullValue());
-            assertThat(stats1.getUserData(), hasKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            assertThat(
-                Long.parseLong(stats1.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-                equalTo(SequenceNumbers.NO_OPS_PERFORMED)
-            );
-
-            assertThat(stats1.getUserData(), hasKey(SequenceNumbers.MAX_SEQ_NO));
-            assertThat(Long.parseLong(stats1.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
-
-            maxSeqNo.set(rarely() ? SequenceNumbers.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
-            localCheckpoint.set(
-                rarely() || maxSeqNo.get() == SequenceNumbers.NO_OPS_PERFORMED
-                    ? SequenceNumbers.NO_OPS_PERFORMED
-                    : randomIntBetween(0, 1024)
-            );
-            globalCheckpoint.set(
-                rarely() || localCheckpoint.get() == SequenceNumbers.NO_OPS_PERFORMED
-                    ? UNASSIGNED_SEQ_NO
-                    : randomIntBetween(0, (int) localCheckpoint.get())
-            );
-
-            engine.flush(true, true);
-
-            CommitStats stats2 = engine.commitStats();
-            assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
-            assertThat(stats2.getId(), notNullValue());
-            assertThat(stats2.getId(), not(equalTo(stats1.getId())));
-            assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
-            assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
-            assertThat(Long.parseLong(stats2.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
-            assertThat(stats2.getUserData(), hasKey(SequenceNumbers.MAX_SEQ_NO));
-            assertThat(Long.parseLong(stats2.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo.get()));
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -1649,27 +1661,26 @@ public class InternalEngineTests extends EngineTestCase {
     public void testUpdateWithFullyDeletedSegments() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final Set<String> liveDocs = new HashSet<>();
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(
+                config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+            );
+            try {
+                int numDocs = scaledRandomIntBetween(10, 100);
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
+                    engine.index(indexForDoc(doc));
+                    liveDocs.add(doc.id());
+                }
 
-        Store store = createStore();
-        InternalEngine engine = createEngine(
-            config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
-        );
-        try {
-            int numDocs = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
-                engine.index(indexForDoc(doc));
-                liveDocs.add(doc.id());
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
+                    engine.index(indexForDoc(doc));
+                    liveDocs.add(doc.id());
+                }
+            } finally {
+                engine.close();
             }
-
-            for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
-                engine.index(indexForDoc(doc));
-                liveDocs.add(doc.id());
-            }
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -1682,72 +1693,79 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final Set<String> liveDocs = new HashSet<>();
-
-        Store store = createStore();
-        InternalEngine engine = createEngine(
-            config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
-        );
-        try {
-            int numDocs = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
-                engine.index(indexForDoc(doc));
-                liveDocs.add(doc.id());
-            }
-            for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
-                if (randomBoolean()) {
-                    String id = doc.id();
-                    engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(id), primaryTerm.get()));
-                    liveDocs.remove(doc.id());
-                }
-                if (randomBoolean()) {
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+            );
+            try {
+                int numDocs = scaledRandomIntBetween(10, 100);
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
                 }
-                if (randomBoolean()) {
-                    engine.flush(randomBoolean(), true);
-                }
-            }
-            engine.flush();
-
-            long localCheckpoint = engine.getProcessedLocalCheckpoint();
-            globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
-            engine.syncTranslog();
-            final long safeCommitCheckpoint;
-            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-                safeCommitCheckpoint = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            }
-            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-            Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine).stream()
-                .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
-            for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
-                long minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitCheckpoint + 1);
-                String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
-                if (seqno < minSeqNoToRetain) {
-                    Translog.Operation op = ops.get(seqno);
-                    if (op != null) {
-                        assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
-                        assertEquals(msg, ((Translog.Index) op).source(), B_1);
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
+                    if (randomBoolean()) {
+                        String id = doc.id();
+                        engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(id), primaryTerm.get()));
+                        liveDocs.remove(doc.id());
                     }
-                } else {
-                    assertThat(msg, ops.get(seqno), notNullValue());
+                    if (randomBoolean()) {
+                        engine.index(indexForDoc(doc));
+                        liveDocs.add(doc.id());
+                    }
+                    if (randomBoolean()) {
+                        engine.flush(randomBoolean(), true);
+                    }
                 }
-            }
-            settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
-            indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
-            engine.onSettingsChanged();
-            globalCheckpoint.set(localCheckpoint);
-            engine.syncTranslog();
+                engine.flush();
 
-            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-            assertThat(readAllOperationsInLucene(engine), hasSize(liveDocs.size()));
-        } finally {
-            store.close();
-            engine.close();
+                long localCheckpoint = engine.getProcessedLocalCheckpoint();
+                globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
+                engine.syncTranslog();
+                final long safeCommitCheckpoint;
+                try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                    safeCommitCheckpoint = Long.parseLong(
+                        safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                    );
+                }
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+                Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine).stream()
+                    .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
+                for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
+                    long minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitCheckpoint + 1);
+                    String msg = "seq# ["
+                        + seqno
+                        + "], global checkpoint ["
+                        + globalCheckpoint
+                        + "], retained-ops ["
+                        + retainedExtraOps
+                        + "]";
+                    if (seqno < minSeqNoToRetain) {
+                        Translog.Operation op = ops.get(seqno);
+                        if (op != null) {
+                            assertThat(op, instanceOf(Translog.Index.class));
+                            assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
+                            assertEquals(msg, ((Translog.Index) op).source(), B_1);
+                        }
+                    } else {
+                        assertThat(msg, ops.get(seqno), notNullValue());
+                    }
+                }
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
+                indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
+                engine.onSettingsChanged();
+                globalCheckpoint.set(localCheckpoint);
+                engine.syncTranslog();
+
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+                assertThat(readAllOperationsInLucene(engine), hasSize(liveDocs.size()));
+            } finally {
+                engine.close();
+            }
         }
     }
 
@@ -1762,103 +1780,109 @@ public class InternalEngineTests extends EngineTestCase {
         final boolean omitSourceAllTheTime = randomBoolean();
         final Set<String> liveDocs = new HashSet<>();
         final Set<String> liveDocsWithSource = new HashSet<>();
-
-        Store store = createStore();
-        InternalEngine engine = createEngine(
-            config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
-        );
-        try {
-            int numDocs = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < numDocs; i++) {
-                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
-                engine.index(indexForDoc(doc));
-                liveDocs.add(doc.id());
-                if (useRecoverySource == false) {
-                    liveDocsWithSource.add(Integer.toString(i));
-                }
-            }
-            for (int i = 0; i < numDocs; i++) {
-                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
-                if (randomBoolean()) {
-                    String id = doc.id();
-                    engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(id), primaryTerm.get()));
-                    liveDocs.remove(doc.id());
-                    liveDocsWithSource.remove(doc.id());
-                }
-                if (randomBoolean()) {
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+            );
+            try {
+                int numDocs = scaledRandomIntBetween(10, 100);
+                for (int i = 0; i < numDocs; i++) {
+                    boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
                     if (useRecoverySource == false) {
-                        liveDocsWithSource.add(doc.id());
-                    } else {
+                        liveDocsWithSource.add(Integer.toString(i));
+                    }
+                }
+                for (int i = 0; i < numDocs; i++) {
+                    boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
+                    if (randomBoolean()) {
+                        String id = doc.id();
+                        engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(id), primaryTerm.get()));
+                        liveDocs.remove(doc.id());
                         liveDocsWithSource.remove(doc.id());
                     }
+                    if (randomBoolean()) {
+                        engine.index(indexForDoc(doc));
+                        liveDocs.add(doc.id());
+                        if (useRecoverySource == false) {
+                            liveDocsWithSource.add(doc.id());
+                        } else {
+                            liveDocsWithSource.remove(doc.id());
+                        }
+                    }
+                    if (randomBoolean()) {
+                        engine.flush(randomBoolean(), true);
+                    }
                 }
-                if (randomBoolean()) {
+                engine.flush();
+                globalCheckpoint.set(randomLongBetween(0, engine.getPersistedLocalCheckpoint()));
+                engine.syncTranslog();
+                final long minSeqNoToRetain;
+                try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                    long safeCommitLocalCheckpoint = Long.parseLong(
+                        safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                    );
+                    minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
+                }
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+                Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine).stream()
+                    .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
+                for (long seqno = 0; seqno <= engine.getPersistedLocalCheckpoint(); seqno++) {
+                    String msg = "seq# ["
+                        + seqno
+                        + "], global checkpoint ["
+                        + globalCheckpoint
+                        + "], retained-ops ["
+                        + retainedExtraOps
+                        + "]";
+                    if (seqno < minSeqNoToRetain) {
+                        Translog.Operation op = ops.get(seqno);
+                        if (op != null) {
+                            assertThat(op, instanceOf(Translog.Index.class));
+                            assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
+                        }
+                    } else {
+                        Translog.Operation op = ops.get(seqno);
+                        assertThat(msg, op, notNullValue());
+                        if (op instanceof Translog.Index) {
+                            assertEquals(msg, ((Translog.Index) op).source(), B_1);
+                        }
+                    }
+                }
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
+                indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
+                engine.onSettingsChanged();
+                // If we already merged down to 1 segment, then the next force-merge will be a noop. We need to add an extra segment to make
+                // merges happen so we can verify that _recovery_source are pruned. See:
+                // https://github.com/elastic/elasticsearch/issues/41628.
+                final int numSegments;
+                try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                    numSegments = searcher.getDirectoryReader().leaves().size();
+                }
+                if (numSegments == 1) {
+                    boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
+                    ParsedDocument doc = testParsedDocument("dummy", null, testDocument(), B_1, null, useRecoverySource);
+                    engine.index(indexForDoc(doc));
+                    if (useRecoverySource == false) {
+                        liveDocsWithSource.add(doc.id());
+                    }
+                    engine.syncTranslog();
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                     engine.flush(randomBoolean(), true);
-                }
-            }
-            engine.flush();
-            globalCheckpoint.set(randomLongBetween(0, engine.getPersistedLocalCheckpoint()));
-            engine.syncTranslog();
-            final long minSeqNoToRetain;
-            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-                long safeCommitLocalCheckpoint = Long.parseLong(
-                    safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-                );
-                minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
-            }
-            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-            Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine).stream()
-                .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
-            for (long seqno = 0; seqno <= engine.getPersistedLocalCheckpoint(); seqno++) {
-                String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
-                if (seqno < minSeqNoToRetain) {
-                    Translog.Operation op = ops.get(seqno);
-                    if (op != null) {
-                        assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
-                    }
                 } else {
-                    Translog.Operation op = ops.get(seqno);
-                    assertThat(msg, op, notNullValue());
-                    if (op instanceof Translog.Index) {
-                        assertEquals(msg, ((Translog.Index) op).source(), B_1);
-                    }
+                    globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
+                    engine.syncTranslog();
                 }
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+                assertThat(readAllOperationsInLucene(engine), hasSize(liveDocsWithSource.size()));
+            } finally {
+                engine.close();
             }
-            settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
-            indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
-            engine.onSettingsChanged();
-            // If we already merged down to 1 segment, then the next force-merge will be a noop. We need to add an extra segment to make
-            // merges happen so we can verify that _recovery_source are pruned. See: https://github.com/elastic/elasticsearch/issues/41628.
-            final int numSegments;
-            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                numSegments = searcher.getDirectoryReader().leaves().size();
-            }
-            if (numSegments == 1) {
-                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
-                ParsedDocument doc = testParsedDocument("dummy", null, testDocument(), B_1, null, useRecoverySource);
-                engine.index(indexForDoc(doc));
-                if (useRecoverySource == false) {
-                    liveDocsWithSource.add(doc.id());
-                }
-                engine.syncTranslog();
-                globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
-                engine.flush(randomBoolean(), true);
-            } else {
-                globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
-                engine.syncTranslog();
-            }
-            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-            assertThat(readAllOperationsInLucene(engine), hasSize(liveDocsWithSource.size()));
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -2867,98 +2891,99 @@ public class InternalEngineTests extends EngineTestCase {
     // and ensuring that the commit points contain the correct sequence number data
     public void testConcurrentWritesAndCommits() throws Exception {
         List<Engine.IndexCommitRef> commits = new ArrayList<>();
-        Store store = createStore();
-        InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
-        try {
-            final int numIndexingThreads = scaledRandomIntBetween(2, 4);
-            final int numDocsPerThread = randomIntBetween(500, 1000);
-            final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
-            final List<Thread> indexingThreads = new ArrayList<>();
-            final CountDownLatch doneLatch = new CountDownLatch(numIndexingThreads);
-            // create N indexing threads to index documents simultaneously
-            for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
-                final int threadIdx = threadNum;
-                Thread indexingThread = new Thread(() -> {
-                    try {
-                        barrier.await(); // wait for all threads to start at the same time
-                        // index random number of docs
-                        for (int i = 0; i < numDocsPerThread; i++) {
-                            final String id = "thread" + threadIdx + "#" + i;
-                            ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
-                            engine.index(indexForDoc(doc));
+
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
+            try {
+                final int numIndexingThreads = scaledRandomIntBetween(2, 4);
+                final int numDocsPerThread = randomIntBetween(500, 1000);
+                final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
+                final List<Thread> indexingThreads = new ArrayList<>();
+                final CountDownLatch doneLatch = new CountDownLatch(numIndexingThreads);
+                // create N indexing threads to index documents simultaneously
+                for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
+                    final int threadIdx = threadNum;
+                    Thread indexingThread = new Thread(() -> {
+                        try {
+                            barrier.await(); // wait for all threads to start at the same time
+                            // index random number of docs
+                            for (int i = 0; i < numDocsPerThread; i++) {
+                                final String id = "thread" + threadIdx + "#" + i;
+                                ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                                engine.index(indexForDoc(doc));
+                            }
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        } finally {
+                            doneLatch.countDown();
                         }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    } finally {
-                        doneLatch.countDown();
-                    }
 
-                });
-                indexingThreads.add(indexingThread);
-            }
-
-            // start the indexing threads
-            for (Thread thread : indexingThreads) {
-                thread.start();
-            }
-            barrier.await(); // wait for indexing threads to all be ready to start
-            int commitLimit = randomIntBetween(10, 20);
-            long sleepTime = 1;
-            // create random commit points
-            boolean doneIndexing;
-            do {
-                doneIndexing = doneLatch.await(sleepTime, TimeUnit.MILLISECONDS);
-                commits.add(engine.acquireLastIndexCommit(true));
-                if (commits.size() > commitLimit) { // don't keep on piling up too many commits
-                    IOUtils.close(commits.remove(randomIntBetween(0, commits.size() - 1)));
-                    // we increase the wait time to make sure we eventually if things are slow wait for threads to finish.
-                    // this will reduce pressure on disks and will allow threads to make progress without piling up too many commits
-                    sleepTime = sleepTime * 2;
+                    });
+                    indexingThreads.add(indexingThread);
                 }
-            } while (doneIndexing == false);
 
-            // now, verify all the commits have the correct docs according to the user commit data
-            long prevLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-            long prevMaxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-            for (Engine.IndexCommitRef commitRef : commits) {
-                final IndexCommit commit = commitRef.getIndexCommit();
-                Map<String, String> userData = commit.getUserData();
-                long localCheckpoint = userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-                    ? Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))
-                    : SequenceNumbers.NO_OPS_PERFORMED;
-                long maxSeqNo = userData.containsKey(SequenceNumbers.MAX_SEQ_NO)
-                    ? Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO))
-                    : UNASSIGNED_SEQ_NO;
-                // local checkpoint and max seq no shouldn't go backwards
-                assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint));
-                assertThat(maxSeqNo, greaterThanOrEqualTo(prevMaxSeqNo));
-                try (IndexReader reader = DirectoryReader.open(commit)) {
-                    Long highest = getHighestSeqNo(reader);
-                    final long highestSeqNo;
-                    if (highest != null) {
-                        highestSeqNo = highest.longValue();
-                    } else {
-                        highestSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-                    }
-                    // make sure localCheckpoint <= highest seq no found <= maxSeqNo
-                    assertThat(highestSeqNo, greaterThanOrEqualTo(localCheckpoint));
-                    assertThat(highestSeqNo, lessThanOrEqualTo(maxSeqNo));
-                    // make sure all sequence numbers up to and including the local checkpoint are in the index
-                    FixedBitSet seqNosBitSet = getSeqNosSet(reader, highestSeqNo);
-                    for (int i = 0; i <= localCheckpoint; i++) {
-                        assertTrue(
-                            "local checkpoint [" + localCheckpoint + "], _seq_no [" + i + "] should be indexed",
-                            seqNosBitSet.get(i)
-                        );
-                    }
+                // start the indexing threads
+                for (Thread thread : indexingThreads) {
+                    thread.start();
                 }
-                prevLocalCheckpoint = localCheckpoint;
-                prevMaxSeqNo = maxSeqNo;
+                barrier.await(); // wait for indexing threads to all be ready to start
+                int commitLimit = randomIntBetween(10, 20);
+                long sleepTime = 1;
+                // create random commit points
+                boolean doneIndexing;
+                do {
+                    doneIndexing = doneLatch.await(sleepTime, TimeUnit.MILLISECONDS);
+                    commits.add(engine.acquireLastIndexCommit(true));
+                    if (commits.size() > commitLimit) { // don't keep on piling up too many commits
+                        IOUtils.close(commits.remove(randomIntBetween(0, commits.size() - 1)));
+                        // we increase the wait time to make sure we eventually if things are slow wait for threads to finish.
+                        // this will reduce pressure on disks and will allow threads to make progress without piling up too many commits
+                        sleepTime = sleepTime * 2;
+                    }
+                } while (doneIndexing == false);
+
+                // now, verify all the commits have the correct docs according to the user commit data
+                long prevLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+                long prevMaxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+                for (Engine.IndexCommitRef commitRef : commits) {
+                    final IndexCommit commit = commitRef.getIndexCommit();
+                    Map<String, String> userData = commit.getUserData();
+                    long localCheckpoint = userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                        ? Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))
+                        : SequenceNumbers.NO_OPS_PERFORMED;
+                    long maxSeqNo = userData.containsKey(SequenceNumbers.MAX_SEQ_NO)
+                        ? Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO))
+                        : UNASSIGNED_SEQ_NO;
+                    // local checkpoint and max seq no shouldn't go backwards
+                    assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint));
+                    assertThat(maxSeqNo, greaterThanOrEqualTo(prevMaxSeqNo));
+                    try (IndexReader reader = DirectoryReader.open(commit)) {
+                        Long highest = getHighestSeqNo(reader);
+                        final long highestSeqNo;
+                        if (highest != null) {
+                            highestSeqNo = highest.longValue();
+                        } else {
+                            highestSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+                        }
+                        // make sure localCheckpoint <= highest seq no found <= maxSeqNo
+                        assertThat(highestSeqNo, greaterThanOrEqualTo(localCheckpoint));
+                        assertThat(highestSeqNo, lessThanOrEqualTo(maxSeqNo));
+                        // make sure all sequence numbers up to and including the local checkpoint are in the index
+                        FixedBitSet seqNosBitSet = getSeqNosSet(reader, highestSeqNo);
+                        for (int i = 0; i <= localCheckpoint; i++) {
+                            assertTrue(
+                                "local checkpoint [" + localCheckpoint + "], _seq_no [" + i + "] should be indexed",
+                                seqNosBitSet.get(i)
+                            );
+                        }
+                    }
+                    prevLocalCheckpoint = localCheckpoint;
+                    prevMaxSeqNo = maxSeqNo;
+                }
+                IOUtils.close(commits);
+            } finally {
+                engine.close();
             }
-            IOUtils.close(commits);
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -3036,27 +3061,91 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testEnableGcDeletes() throws Exception {
-        Store store = createStore();
-        Engine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
-        try {
-            engine.config().setEnableGcDeletes(false);
+        try (Store store = createStore()) {
+            Engine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
+            try {
+                engine.config().setEnableGcDeletes(false);
 
-            MapperService mapperService = createMapperService();
-            final MappingLookup mappingLookup = mapperService.mappingLookup();
-            final DocumentParser documentParser = mapperService.documentParser();
+                MapperService mapperService = createMapperService();
+                final MappingLookup mappingLookup = mapperService.mappingLookup();
+                final DocumentParser documentParser = mapperService.documentParser();
 
-            // Add document
-            LuceneDocument document = testDocument();
-            document.add(new TextField("value", "test1", Field.Store.YES));
+                // Add document
+                LuceneDocument document = testDocument();
+                document.add(new TextField("value", "test1", Field.Store.YES));
 
-            ParsedDocument doc = testParsedDocument("1", null, document, B_2, null);
-            engine.index(
-                new Engine.Index(
+                ParsedDocument doc = testParsedDocument("1", null, document, B_2, null);
+                engine.index(
+                    new Engine.Index(
+                        newUid(doc),
+                        doc,
+                        UNASSIGNED_SEQ_NO,
+                        0,
+                        1,
+                        VersionType.EXTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        System.nanoTime(),
+                        -1,
+                        false,
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    )
+                );
+
+                // Delete document we just added:
+                engine.delete(
+                    new Engine.Delete(
+                        "1",
+                        newUid(doc),
+                        UNASSIGNED_SEQ_NO,
+                        0,
+                        10,
+                        VersionType.EXTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        System.nanoTime(),
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    )
+                );
+
+                // Get should not find the document
+                Engine.GetResult getResult = engine.get(newGet(true, doc), mappingLookup, documentParser, randomSearcherWrapper());
+                assertThat(getResult.exists(), equalTo(false));
+
+                // Give the gc pruning logic a chance to kick in
+                Thread.sleep(1000);
+
+                if (randomBoolean()) {
+                    engine.refresh("test");
+                }
+
+                // Delete non-existent document
+                engine.delete(
+                    new Engine.Delete(
+                        "2",
+                        Uid.encodeId("2"),
+                        UNASSIGNED_SEQ_NO,
+                        0,
+                        10,
+                        VersionType.EXTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        System.nanoTime(),
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    )
+                );
+
+                // Get should not find the document (we never indexed uid=2):
+                getResult = engine.get(new Engine.Get(true, false, "2"), mappingLookup, documentParser, randomSearcherWrapper());
+                assertThat(getResult.exists(), equalTo(false));
+
+                // Try to index uid=1 with a too-old version, should fail:
+                Engine.Index index = new Engine.Index(
                     newUid(doc),
                     doc,
                     UNASSIGNED_SEQ_NO,
                     0,
-                    1,
+                    2,
                     VersionType.EXTERNAL,
                     Engine.Operation.Origin.PRIMARY,
                     System.nanoTime(),
@@ -3064,104 +3153,40 @@ public class InternalEngineTests extends EngineTestCase {
                     false,
                     UNASSIGNED_SEQ_NO,
                     0
-                )
-            );
+                );
+                Engine.IndexResult indexResult = engine.index(index);
+                assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
-            // Delete document we just added:
-            engine.delete(
-                new Engine.Delete(
-                    "1",
+                // Get should still not find the document
+                getResult = engine.get(newGet(true, doc), mappingLookup, documentParser, randomSearcherWrapper());
+                assertThat(getResult.exists(), equalTo(false));
+
+                // Try to index uid=2 with a too-old version, should fail:
+                Engine.Index index1 = new Engine.Index(
                     newUid(doc),
+                    doc,
                     UNASSIGNED_SEQ_NO,
                     0,
-                    10,
+                    2,
                     VersionType.EXTERNAL,
                     Engine.Operation.Origin.PRIMARY,
                     System.nanoTime(),
+                    -1,
+                    false,
                     UNASSIGNED_SEQ_NO,
                     0
-                )
-            );
+                );
+                indexResult = engine.index(index1);
+                assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
-            // Get should not find the document
-            Engine.GetResult getResult = engine.get(newGet(true, doc), mappingLookup, documentParser, randomSearcherWrapper());
-            assertThat(getResult.exists(), equalTo(false));
-
-            // Give the gc pruning logic a chance to kick in
-            Thread.sleep(1000);
-
-            if (randomBoolean()) {
-                engine.refresh("test");
+                // Get should not find the document
+                getResult = engine.get(newGet(true, doc), mappingLookup, documentParser, randomSearcherWrapper());
+                assertThat(getResult.exists(), equalTo(false));
+            } finally {
+                engine.close();
             }
-
-            // Delete non-existent document
-            engine.delete(
-                new Engine.Delete(
-                    "2",
-                    Uid.encodeId("2"),
-                    UNASSIGNED_SEQ_NO,
-                    0,
-                    10,
-                    VersionType.EXTERNAL,
-                    Engine.Operation.Origin.PRIMARY,
-                    System.nanoTime(),
-                    UNASSIGNED_SEQ_NO,
-                    0
-                )
-            );
-
-            // Get should not find the document (we never indexed uid=2):
-            getResult = engine.get(new Engine.Get(true, false, "2"), mappingLookup, documentParser, randomSearcherWrapper());
-            assertThat(getResult.exists(), equalTo(false));
-
-            // Try to index uid=1 with a too-old version, should fail:
-            Engine.Index index = new Engine.Index(
-                newUid(doc),
-                doc,
-                UNASSIGNED_SEQ_NO,
-                0,
-                2,
-                VersionType.EXTERNAL,
-                Engine.Operation.Origin.PRIMARY,
-                System.nanoTime(),
-                -1,
-                false,
-                UNASSIGNED_SEQ_NO,
-                0
-            );
-            Engine.IndexResult indexResult = engine.index(index);
-            assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
-            assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
-
-            // Get should still not find the document
-            getResult = engine.get(newGet(true, doc), mappingLookup, documentParser, randomSearcherWrapper());
-            assertThat(getResult.exists(), equalTo(false));
-
-            // Try to index uid=2 with a too-old version, should fail:
-            Engine.Index index1 = new Engine.Index(
-                newUid(doc),
-                doc,
-                UNASSIGNED_SEQ_NO,
-                0,
-                2,
-                VersionType.EXTERNAL,
-                Engine.Operation.Origin.PRIMARY,
-                System.nanoTime(),
-                -1,
-                false,
-                UNASSIGNED_SEQ_NO,
-                0
-            );
-            indexResult = engine.index(index1);
-            assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
-            assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
-
-            // Get should not find the document
-            getResult = engine.get(newGet(true, doc), mappingLookup, documentParser, randomSearcherWrapper());
-            assertThat(getResult.exists(), equalTo(false));
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -4477,46 +4502,46 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             globalCheckpoint::get
         );
-        Store store = createStore(newFSDirectory(storeDir));
-        Engine engine = createEngine(configSupplier.apply(store));
-        try {
-            assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
-            final ParsedDocument doc = testParsedDocument(
-                "1",
-                null,
-                testDocumentWithTextField(),
-                new BytesArray("{}".getBytes(Charset.defaultCharset())),
-                null
-            );
-            engine.index(appendOnlyPrimary(doc, true, timestamp1));
-            assertEquals(timestamp1, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
-        } finally {
-            store.close();
-            engine.close();
+        try (Store store = createStore(newFSDirectory(storeDir))) {
+            Engine engine = createEngine(configSupplier.apply(store));
+            try {
+                assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+                final ParsedDocument doc = testParsedDocument(
+                    "1",
+                    null,
+                    testDocumentWithTextField(),
+                    new BytesArray("{}".getBytes(Charset.defaultCharset())),
+                    null
+                );
+                engine.index(appendOnlyPrimary(doc, true, timestamp1));
+                assertEquals(timestamp1, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+            } finally {
+                engine.close();
+            }
         }
-        store = createStore(newFSDirectory(storeDir));
-        engine = new InternalEngine(configSupplier.apply(store));
-        try {
-            assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
-            recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
-            assertEquals(timestamp1, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
-            final ParsedDocument doc = testParsedDocument(
-                "1",
-                null,
-                testDocumentWithTextField(),
-                new BytesArray("{}".getBytes(Charset.defaultCharset())),
-                null
-            );
-            engine.index(appendOnlyPrimary(doc, true, timestamp2, false));
-            assertEquals(maxTimestamp12, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
-            globalCheckpoint.set(1); // make sure flush cleans up commits for later.
-            engine.flush();
-        } finally {
-            store.close();
-            engine.close();
+        try (Store store = createStore(newFSDirectory(storeDir))) {
+            engine = new InternalEngine(configSupplier.apply(store));
+            try {
+                assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+                recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+                assertEquals(timestamp1, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+                final ParsedDocument doc = testParsedDocument(
+                    "1",
+                    null,
+                    testDocumentWithTextField(),
+                    new BytesArray("{}".getBytes(Charset.defaultCharset())),
+                    null
+                );
+                engine.index(appendOnlyPrimary(doc, true, timestamp2, false));
+                assertEquals(maxTimestamp12, engine.segmentsStats(false, false).getMaxUnsafeAutoIdTimestamp());
+                globalCheckpoint.set(1); // make sure flush cleans up commits for later.
+                engine.flush();
+            } finally {
+                engine.close();
+
+            }
         }
-        store = createStore(newFSDirectory(storeDir));
-        try {
+        try (Store store = createStore(newFSDirectory(storeDir))) {
             if (randomBoolean() || true) {
                 final String translogUUID = Translog.createEmptyTranslog(
                     translogDir,
@@ -4532,8 +4557,6 @@ public class InternalEngineTests extends EngineTestCase {
             } finally {
                 engine.close();
             }
-        } finally {
-            store.close();
         }
     }
 
@@ -4786,59 +4809,63 @@ public class InternalEngineTests extends EngineTestCase {
         }
         Randomness.shuffle(operations);
         Map<String, Engine.Operation> latestOps = new HashMap<>(); // id -> latest seq_no
-        Store store = createStore();
-        InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
-        try {
-            CheckedRunnable<IOException> lookupAndCheck = () -> {
-                try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                    Map<String, Long> liveOps = latestOps.entrySet()
-                        .stream()
-                        .filter(e -> e.getValue().operationType() == Engine.Operation.TYPE.INDEX)
-                        .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().seqNo()));
-                    assertThat(getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.id(), e -> e.seqNo())), equalTo(liveOps));
-                    for (String id : latestOps.keySet()) {
-                        String msg = "latestOps=" + latestOps + " op=" + id;
-                        DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
-                            searcher.getIndexReader(),
-                            Uid.encodeId(id)
+
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null));
+            try {
+                CheckedRunnable<IOException> lookupAndCheck = () -> {
+                    try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                        Map<String, Long> liveOps = latestOps.entrySet()
+                            .stream()
+                            .filter(e -> e.getValue().operationType() == Engine.Operation.TYPE.INDEX)
+                            .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().seqNo()));
+                        assertThat(
+                            getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.id(), e -> e.seqNo())),
+                            equalTo(liveOps)
                         );
-                        if (liveOps.containsKey(id) == false) {
-                            assertNull(msg, docIdAndSeqNo);
-                        } else {
-                            assertNotNull(msg, docIdAndSeqNo);
-                            assertThat(msg, docIdAndSeqNo.seqNo, equalTo(latestOps.get(id).seqNo()));
+                        for (String id : latestOps.keySet()) {
+                            String msg = "latestOps=" + latestOps + " op=" + id;
+                            DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
+                                searcher.getIndexReader(),
+                                Uid.encodeId(id)
+                            );
+                            if (liveOps.containsKey(id) == false) {
+                                assertNull(msg, docIdAndSeqNo);
+                            } else {
+                                assertNotNull(msg, docIdAndSeqNo);
+                                assertThat(msg, docIdAndSeqNo.seqNo, equalTo(latestOps.get(id).seqNo()));
+                            }
+                        }
+                        String notFoundId = randomValueOtherThanMany(liveOps::containsKey, () -> Long.toString(randomNonNegativeLong()));
+                        assertNull(VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId(notFoundId)));
+                    }
+                };
+                for (Engine.Operation op : operations) {
+                    if (op instanceof Engine.Index) {
+                        engine.index((Engine.Index) op);
+                        if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
+                            latestOps.put(op.id(), op);
+                        }
+                    } else if (op instanceof Engine.Delete) {
+                        engine.delete((Engine.Delete) op);
+                        if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
+                            latestOps.put(op.id(), op);
                         }
                     }
-                    String notFoundId = randomValueOtherThanMany(liveOps::containsKey, () -> Long.toString(randomNonNegativeLong()));
-                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId(notFoundId)));
-                }
-            };
-            for (Engine.Operation op : operations) {
-                if (op instanceof Engine.Index) {
-                    engine.index((Engine.Index) op);
-                    if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
-                        latestOps.put(op.id(), op);
+                    if (randomInt(100) < 10) {
+                        engine.refresh("test");
+                        lookupAndCheck.run();
                     }
-                } else if (op instanceof Engine.Delete) {
-                    engine.delete((Engine.Delete) op);
-                    if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
-                        latestOps.put(op.id(), op);
+                    if (rarely()) {
+                        engine.flush(false, true);
+                        lookupAndCheck.run();
                     }
                 }
-                if (randomInt(100) < 10) {
-                    engine.refresh("test");
-                    lookupAndCheck.run();
-                }
-                if (rarely()) {
-                    engine.flush(false, true);
-                    lookupAndCheck.run();
-                }
+                engine.refresh("test");
+                lookupAndCheck.run();
+            } finally {
+                engine.close();
             }
-            engine.refresh("test");
-            lookupAndCheck.run();
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -5507,80 +5534,81 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testRefreshScopedSearcher() throws IOException {
-        Store store = createStore();
-        InternalEngine engine =
-            // disable merges to make sure that the reader doesn't change unexpectedly during the test
-            createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try {
-            engine.refresh("warm_up");
-            try (
-                Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
-            ) {
-                assertSameReader(getSearcher, searchSearcher);
-            }
-            for (int i = 0; i < 10; i++) {
-                final String docId = Integer.toString(i);
+
+        try (Store store = createStore()) {
+            InternalEngine engine =
+                // disable merges to make sure that the reader doesn't change unexpectedly during the test
+                createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
+            try {
+                engine.refresh("warm_up");
+                try (
+                    Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+                    Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
+                ) {
+                    assertSameReader(getSearcher, searchSearcher);
+                }
+                for (int i = 0; i < 10; i++) {
+                    final String docId = Integer.toString(i);
+                    final ParsedDocument doc = testParsedDocument(docId, null, testDocumentWithTextField(), SOURCE, null);
+                    Engine.Index primaryResponse = indexForDoc(doc);
+                    engine.index(primaryResponse);
+                }
+                assertTrue(engine.refreshNeeded());
+                var refreshResult = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+                assertTrue(refreshResult.refreshed());
+                assertNotEquals(refreshResult.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
+                try (
+                    Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+                    Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
+                ) {
+                    assertEquals(10, getSearcher.getIndexReader().numDocs());
+                    assertEquals(0, searchSearcher.getIndexReader().numDocs());
+                    assertNotSameReader(getSearcher, searchSearcher);
+                }
+                engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
+
+                try (
+                    Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+                    Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
+                ) {
+                    assertEquals(10, getSearcher.getIndexReader().numDocs());
+                    assertEquals(10, searchSearcher.getIndexReader().numDocs());
+                    assertSameReader(getSearcher, searchSearcher);
+                }
+
+                // now ensure external refreshes are reflected on the internal reader
+                final String docId = Integer.toString(10);
                 final ParsedDocument doc = testParsedDocument(docId, null, testDocumentWithTextField(), SOURCE, null);
                 Engine.Index primaryResponse = indexForDoc(doc);
                 engine.index(primaryResponse);
-            }
-            assertTrue(engine.refreshNeeded());
-            var refreshResult = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
-            assertTrue(refreshResult.refreshed());
-            assertNotEquals(refreshResult.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
-            try (
-                Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
-            ) {
-                assertEquals(10, getSearcher.getIndexReader().numDocs());
-                assertEquals(0, searchSearcher.getIndexReader().numDocs());
-                assertNotSameReader(getSearcher, searchSearcher);
-            }
-            engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
 
-            try (
-                Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
-            ) {
-                assertEquals(10, getSearcher.getIndexReader().numDocs());
-                assertEquals(10, searchSearcher.getIndexReader().numDocs());
-                assertSameReader(getSearcher, searchSearcher);
-            }
-
-            // now ensure external refreshes are reflected on the internal reader
-            final String docId = Integer.toString(10);
-            final ParsedDocument doc = testParsedDocument(docId, null, testDocumentWithTextField(), SOURCE, null);
-            Engine.Index primaryResponse = indexForDoc(doc);
-            engine.index(primaryResponse);
-
-            engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
-
-            try (
-                Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
-            ) {
-                assertEquals(11, getSearcher.getIndexReader().numDocs());
-                assertEquals(11, searchSearcher.getIndexReader().numDocs());
-                assertSameReader(getSearcher, searchSearcher);
-            }
-
-            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
-                try (Engine.Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                    assertSame(searcher.getIndexReader(), nextSearcher.getIndexReader());
-                }
-            }
-
-            try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
                 engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
-                try (Engine.Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
-                    assertSame(searcher.getIndexReader(), nextSearcher.getIndexReader());
+
+                try (
+                    Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+                    Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
+                ) {
+                    assertEquals(11, getSearcher.getIndexReader().numDocs());
+                    assertEquals(11, searchSearcher.getIndexReader().numDocs());
+                    assertSameReader(getSearcher, searchSearcher);
                 }
+
+                try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                    engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+                    try (Engine.Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                        assertSame(searcher.getIndexReader(), nextSearcher.getIndexReader());
+                    }
+                }
+
+                try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+                    engine.refresh("test", Engine.SearcherScope.EXTERNAL, true);
+                    try (Engine.Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
+                        assertSame(searcher.getIndexReader(), nextSearcher.getIndexReader());
+                    }
+                }
+            } finally {
+                engine.close();
             }
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -5865,41 +5893,40 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         store.close();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-
-        Store store = createStore();
-        InternalEngine engine = createEngine(
-            config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
-        );
-        try {
-            final int numDocs = scaledRandomIntBetween(10, 100);
-            for (int docId = 0; docId < numDocs; docId++) {
-                index(engine, docId);
-                if (rarely()) {
-                    engine.flush(randomBoolean(), true);
-                }
-            }
-            engine.flush(false, randomBoolean());
-            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
-            engine.syncTranslog();
-            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-            assertThat(
-                Long.parseLong(commits.get(0).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                lessThanOrEqualTo(globalCheckpoint.get())
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(
+                config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
             );
-            for (int i = 1; i < commits.size(); i++) {
+            try {
+                final int numDocs = scaledRandomIntBetween(10, 100);
+                for (int docId = 0; docId < numDocs; docId++) {
+                    index(engine, docId);
+                    if (rarely()) {
+                        engine.flush(randomBoolean(), true);
+                    }
+                }
+                engine.flush(false, randomBoolean());
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
+                engine.syncTranslog();
+                List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
                 assertThat(
-                    Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                    greaterThan(globalCheckpoint.get())
+                    Long.parseLong(commits.get(0).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                    lessThanOrEqualTo(globalCheckpoint.get())
                 );
+                for (int i = 1; i < commits.size(); i++) {
+                    assertThat(
+                        Long.parseLong(commits.get(i).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                        greaterThan(globalCheckpoint.get())
+                    );
+                }
+                // Global checkpoint advanced enough - only the last commit is kept.
+                globalCheckpoint.set(randomLongBetween(engine.getPersistedLocalCheckpoint(), Long.MAX_VALUE));
+                engine.syncTranslog();
+                assertThat(DirectoryReader.listCommits(store.directory()), contains(commits.get(commits.size() - 1)));
+                assertThat(engine.getTranslog().totalOperations(), equalTo(0));
+            } finally {
+                engine.close();
             }
-            // Global checkpoint advanced enough - only the last commit is kept.
-            globalCheckpoint.set(randomLongBetween(engine.getPersistedLocalCheckpoint(), Long.MAX_VALUE));
-            engine.syncTranslog();
-            assertThat(DirectoryReader.listCommits(store.directory()), contains(commits.get(commits.size() - 1)));
-            assertThat(engine.getTranslog().totalOperations(), equalTo(0));
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -6088,44 +6115,79 @@ public class InternalEngineTests extends EngineTestCase {
         final int iters = randomIntBetween(1, 1);
         for (int i = 0; i < iters; i++) {
             // this is a reproduction of https://github.com/elastic/elasticsearch/issues/28714
-            Store store = createStore();
-            InternalEngine engine = createEngine(store, createTempDir());
-            try {
-                final IndexSettings indexSettings = engine.config().getIndexSettings();
-                final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
-                    .settings(
-                        Settings.builder()
-                            .put(indexSettings.getSettings())
-                            .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(1))
-                    )
-                    .build();
-                engine.engineConfig.getIndexSettings().updateIndexMetadata(indexMetadata);
-                engine.onSettingsChanged();
-                ParsedDocument document = testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);
-                final Engine.Index doc = new Engine.Index(
-                    newUid(document),
-                    document,
-                    UNASSIGNED_SEQ_NO,
-                    0,
-                    Versions.MATCH_ANY,
-                    VersionType.INTERNAL,
-                    Engine.Operation.Origin.PRIMARY,
-                    System.nanoTime(),
-                    IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-                    false,
-                    UNASSIGNED_SEQ_NO,
-                    0
-                );
-                // first index an append only document and then delete it. such that we have it in the tombstones
-                engine.index(doc);
-                engine.delete(new Engine.Delete(doc.id(), doc.uid(), primaryTerm.get()));
+            try (Store store = createStore()) {
+                InternalEngine engine = createEngine(store, createTempDir());
+                try {
+                    final IndexSettings indexSettings = engine.config().getIndexSettings();
+                    final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
+                        .settings(
+                            Settings.builder()
+                                .put(indexSettings.getSettings())
+                                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(1))
+                        )
+                        .build();
+                    engine.engineConfig.getIndexSettings().updateIndexMetadata(indexMetadata);
+                    engine.onSettingsChanged();
+                    ParsedDocument document = testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);
+                    final Engine.Index doc = new Engine.Index(
+                        newUid(document),
+                        document,
+                        UNASSIGNED_SEQ_NO,
+                        0,
+                        Versions.MATCH_ANY,
+                        VersionType.INTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        System.nanoTime(),
+                        IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                        false,
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    );
+                    // first index an append only document and then delete it. such that we have it in the tombstones
+                    engine.index(doc);
+                    engine.delete(new Engine.Delete(doc.id(), doc.uid(), primaryTerm.get()));
 
-                // now index more append only docs and refresh so we re-enabel the optimization for unsafe version map
-                ParsedDocument document1 = testParsedDocument(Integer.toString(1), null, testDocumentWithTextField(), SOURCE, null);
-                engine.index(
-                    new Engine.Index(
-                        newUid(document1),
-                        document1,
+                    // now index more append only docs and refresh so we re-enabel the optimization for unsafe version map
+                    ParsedDocument document1 = testParsedDocument(Integer.toString(1), null, testDocumentWithTextField(), SOURCE, null);
+                    engine.index(
+                        new Engine.Index(
+                            newUid(document1),
+                            document1,
+                            UNASSIGNED_SEQ_NO,
+                            0,
+                            Versions.MATCH_ANY,
+                            VersionType.INTERNAL,
+                            Engine.Operation.Origin.PRIMARY,
+                            System.nanoTime(),
+                            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                            false,
+                            UNASSIGNED_SEQ_NO,
+                            0
+                        )
+                    );
+                    engine.refresh("test");
+                    ParsedDocument document2 = testParsedDocument(Integer.toString(2), null, testDocumentWithTextField(), SOURCE, null);
+                    engine.index(
+                        new Engine.Index(
+                            newUid(document2),
+                            document2,
+                            UNASSIGNED_SEQ_NO,
+                            0,
+                            Versions.MATCH_ANY,
+                            VersionType.INTERNAL,
+                            Engine.Operation.Origin.PRIMARY,
+                            System.nanoTime(),
+                            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                            false,
+                            UNASSIGNED_SEQ_NO,
+                            0
+                        )
+                    );
+                    engine.refresh("test");
+                    ParsedDocument document3 = testParsedDocument(Integer.toString(3), null, testDocumentWithTextField(), SOURCE, null);
+                    final Engine.Index doc3 = new Engine.Index(
+                        newUid(document3),
+                        document3,
                         UNASSIGNED_SEQ_NO,
                         0,
                         Versions.MATCH_ANY,
@@ -6136,78 +6198,44 @@ public class InternalEngineTests extends EngineTestCase {
                         false,
                         UNASSIGNED_SEQ_NO,
                         0
-                    )
-                );
-                engine.refresh("test");
-                ParsedDocument document2 = testParsedDocument(Integer.toString(2), null, testDocumentWithTextField(), SOURCE, null);
-                engine.index(
-                    new Engine.Index(
-                        newUid(document2),
-                        document2,
-                        UNASSIGNED_SEQ_NO,
-                        0,
-                        Versions.MATCH_ANY,
-                        VersionType.INTERNAL,
-                        Engine.Operation.Origin.PRIMARY,
-                        System.nanoTime(),
-                        IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-                        false,
-                        UNASSIGNED_SEQ_NO,
-                        0
-                    )
-                );
-                engine.refresh("test");
-                ParsedDocument document3 = testParsedDocument(Integer.toString(3), null, testDocumentWithTextField(), SOURCE, null);
-                final Engine.Index doc3 = new Engine.Index(
-                    newUid(document3),
-                    document3,
-                    UNASSIGNED_SEQ_NO,
-                    0,
-                    Versions.MATCH_ANY,
-                    VersionType.INTERNAL,
-                    Engine.Operation.Origin.PRIMARY,
-                    System.nanoTime(),
-                    IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-                    false,
-                    UNASSIGNED_SEQ_NO,
-                    0
-                );
-                engine.index(doc3);
-                engine.engineConfig.setEnableGcDeletes(true);
-                // once we are here the version map is unsafe again and we need to do a refresh inside the get calls to ensure we
-                // de-optimize. We also enabled GCDeletes which now causes pruning tombstones inside that refresh that is done internally
-                // to ensure we de-optimize. One get call will purne and the other will try to lock the version map concurrently while
-                // holding the lock that pruneTombstones needs and we have a deadlock
-                CountDownLatch awaitStarted = new CountDownLatch(1);
-                Thread thread = new Thread(() -> {
-                    awaitStarted.countDown();
+                    );
+                    engine.index(doc3);
+                    engine.engineConfig.setEnableGcDeletes(true);
+                    // once we are here the version map is unsafe again and we need to do a refresh inside the get calls to ensure we
+                    // de-optimize. We also enabled GCDeletes which now causes pruning tombstones inside that refresh that is done
+                    // internally
+                    // to ensure we de-optimize. One get call will purne and the other will try to lock the version map concurrently while
+                    // holding the lock that pruneTombstones needs and we have a deadlock
+                    CountDownLatch awaitStarted = new CountDownLatch(1);
+                    Thread thread = new Thread(() -> {
+                        awaitStarted.countDown();
+                        try (
+                            Engine.GetResult getResult = engine.get(
+                                new Engine.Get(true, false, doc3.id()),
+                                mappingLookup,
+                                documentParser,
+                                searcher -> searcher
+                            )
+                        ) {
+                            assertTrue(getResult.exists());
+                        }
+                    });
+                    thread.start();
+                    awaitStarted.await();
                     try (
                         Engine.GetResult getResult = engine.get(
-                            new Engine.Get(true, false, doc3.id()),
+                            new Engine.Get(true, false, doc.id()),
                             mappingLookup,
                             documentParser,
-                            searcher -> searcher
+                            searcher -> SearcherHelper.wrapSearcher(searcher, r -> new MatchingDirectoryReader(r, new MatchAllDocsQuery()))
                         )
                     ) {
-                        assertTrue(getResult.exists());
+                        assertFalse(getResult.exists());
                     }
-                });
-                thread.start();
-                awaitStarted.await();
-                try (
-                    Engine.GetResult getResult = engine.get(
-                        new Engine.Get(true, false, doc.id()),
-                        mappingLookup,
-                        documentParser,
-                        searcher -> SearcherHelper.wrapSearcher(searcher, r -> new MatchingDirectoryReader(r, new MatchAllDocsQuery()))
-                    )
-                ) {
-                    assertFalse(getResult.exists());
+                    thread.join();
+                } finally {
+                    engine.close();
                 }
-                thread.join();
-            } finally {
-                store.close();
-                engine.close();
             }
         }
     }
@@ -6226,57 +6254,57 @@ public class InternalEngineTests extends EngineTestCase {
             )
             .build();
         indexSettings.updateIndexMetadata(indexMetadata);
-        Store store = createStore();
-        InternalEngine engine = createEngine(store, createTempDir());
-        try {
-            engine.config().setEnableGcDeletes(false);
-            for (int i = 0, docs = scaledRandomIntBetween(0, 10); i < docs; i++) {
-                index(engine, i);
-            }
-            final long deleteBatch = between(10, 20);
-            final long gapSeqNo = randomLongBetween(
-                engine.getSeqNoStats(-1).getMaxSeqNo() + 1,
-                engine.getSeqNoStats(-1).getMaxSeqNo() + deleteBatch
-            );
-            for (int i = 0; i < deleteBatch; i++) {
-                final long seqno = generateNewSeqNo(engine);
-                if (seqno != gapSeqNo) {
-                    if (randomBoolean()) {
-                        clock.incrementAndGet();
-                    }
-                    engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(store, createTempDir());
+            try {
+                engine.config().setEnableGcDeletes(false);
+                for (int i = 0, docs = scaledRandomIntBetween(0, 10); i < docs; i++) {
+                    index(engine, i);
                 }
-            }
+                final long deleteBatch = between(10, 20);
+                final long gapSeqNo = randomLongBetween(
+                    engine.getSeqNoStats(-1).getMaxSeqNo() + 1,
+                    engine.getSeqNoStats(-1).getMaxSeqNo() + deleteBatch
+                );
+                for (int i = 0; i < deleteBatch; i++) {
+                    final long seqno = generateNewSeqNo(engine);
+                    if (seqno != gapSeqNo) {
+                        if (randomBoolean()) {
+                            clock.incrementAndGet();
+                        }
+                        engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
+                    }
+                }
 
-            List<DeleteVersionValue> tombstones = new ArrayList<>(tombstonesInVersionMap(engine).values());
-            engine.config().setEnableGcDeletes(true);
-            // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gcInterval.
-            clock.set(randomLongBetween(gcInterval, deleteBatch + gcInterval));
-            engine.refresh("test");
-            tombstones.removeIf(v -> v.seqNo < gapSeqNo && v.time < clock.get() - gcInterval);
-            assertThat(tombstonesInVersionMap(engine).values(), containsInAnyOrder(tombstones.toArray()));
-            // Prune tombstones whose seqno at most the local checkpoint (eg. seqno < gap_seqno).
-            clock.set(randomLongBetween(deleteBatch + gcInterval * 4 / 3, 100)); // Need a margin for gcInterval/4.
-            engine.refresh("test");
-            tombstones.removeIf(v -> v.seqNo < gapSeqNo);
-            assertThat(tombstonesInVersionMap(engine).values(), containsInAnyOrder(tombstones.toArray()));
-            // Fill the seqno gap - should prune all tombstones.
-            clock.set(between(0, 100));
-            if (randomBoolean()) {
-                engine.index(
-                    replicaIndexForDoc(testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, gapSeqNo, false)
-                );
-            } else {
-                engine.delete(
-                    replicaDeleteForDoc(UUIDs.randomBase64UUID(), Versions.MATCH_ANY, gapSeqNo, threadPool.relativeTimeInMillis())
-                );
+                List<DeleteVersionValue> tombstones = new ArrayList<>(tombstonesInVersionMap(engine).values());
+                engine.config().setEnableGcDeletes(true);
+                // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gcInterval.
+                clock.set(randomLongBetween(gcInterval, deleteBatch + gcInterval));
+                engine.refresh("test");
+                tombstones.removeIf(v -> v.seqNo < gapSeqNo && v.time < clock.get() - gcInterval);
+                assertThat(tombstonesInVersionMap(engine).values(), containsInAnyOrder(tombstones.toArray()));
+                // Prune tombstones whose seqno at most the local checkpoint (eg. seqno < gap_seqno).
+                clock.set(randomLongBetween(deleteBatch + gcInterval * 4 / 3, 100)); // Need a margin for gcInterval/4.
+                engine.refresh("test");
+                tombstones.removeIf(v -> v.seqNo < gapSeqNo);
+                assertThat(tombstonesInVersionMap(engine).values(), containsInAnyOrder(tombstones.toArray()));
+                // Fill the seqno gap - should prune all tombstones.
+                clock.set(between(0, 100));
+                if (randomBoolean()) {
+                    engine.index(
+                        replicaIndexForDoc(testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, gapSeqNo, false)
+                    );
+                } else {
+                    engine.delete(
+                        replicaDeleteForDoc(UUIDs.randomBase64UUID(), Versions.MATCH_ANY, gapSeqNo, threadPool.relativeTimeInMillis())
+                    );
+                }
+                clock.set(randomLongBetween(100 + gcInterval * 4 / 3, Long.MAX_VALUE)); // Need a margin for gcInterval/4.
+                engine.refresh("test");
+                assertThat(tombstonesInVersionMap(engine).values(), empty());
+            } finally {
+                engine.close();
             }
-            clock.set(randomLongBetween(100 + gcInterval * 4 / 3, Long.MAX_VALUE)); // Need a margin for gcInterval/4.
-            engine.refresh("test");
-            assertThat(tombstonesInVersionMap(engine).values(), empty());
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -6382,35 +6410,35 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         Set<Long> expectedSeqNos = new HashSet<>();
-        Store store = createStore();
-        Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP, null));
-        try {
-            for (Engine.Operation op : operations) {
-                if (op instanceof Engine.Index) {
-                    Engine.IndexResult indexResult = engine.index((Engine.Index) op);
-                    assertThat(indexResult.getFailure(), nullValue());
-                    expectedSeqNos.add(indexResult.getSeqNo());
-                } else {
-                    Engine.DeleteResult deleteResult = engine.delete((Engine.Delete) op);
-                    assertThat(deleteResult.getFailure(), nullValue());
-                    expectedSeqNos.add(deleteResult.getSeqNo());
+        try (Store store = createStore()) {
+            Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP, null));
+            try {
+                for (Engine.Operation op : operations) {
+                    if (op instanceof Engine.Index) {
+                        Engine.IndexResult indexResult = engine.index((Engine.Index) op);
+                        assertThat(indexResult.getFailure(), nullValue());
+                        expectedSeqNos.add(indexResult.getSeqNo());
+                    } else {
+                        Engine.DeleteResult deleteResult = engine.delete((Engine.Delete) op);
+                        assertThat(deleteResult.getFailure(), nullValue());
+                        expectedSeqNos.add(deleteResult.getSeqNo());
+                    }
+                    if (rarely()) {
+                        engine.refresh("test");
+                    }
+                    if (rarely()) {
+                        engine.flush();
+                    }
+                    if (rarely()) {
+                        engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                    }
                 }
-                if (rarely()) {
-                    engine.refresh("test");
-                }
-                if (rarely()) {
-                    engine.flush();
-                }
-                if (rarely()) {
-                    engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-                }
+                List<Translog.Operation> actualOps = readAllOperationsInLucene(engine);
+                assertThat(actualOps.stream().map(o -> o.seqNo()).toList(), containsInAnyOrder(expectedSeqNos.toArray()));
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+            } finally {
+                engine.close();
             }
-            List<Translog.Operation> actualOps = readAllOperationsInLucene(engine);
-            assertThat(actualOps.stream().map(o -> o.seqNo()).toList(), containsInAnyOrder(expectedSeqNos.toArray()));
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -6546,74 +6574,74 @@ public class InternalEngineTests extends EngineTestCase {
     public void testLuceneSnapshotRefreshesOnlyOnce() throws Exception {
         final long maxSeqNo = randomLongBetween(10, 50);
         final AtomicLong refreshCounter = new AtomicLong();
-        Store store = createStore();
-        InternalEngine engine = createEngine(
-            config(defaultSettings, store, createTempDir(), newMergePolicy(), null, new ReferenceManager.RefreshListener() {
-                @Override
-                public void beforeRefresh() {
-                    refreshCounter.incrementAndGet();
-                }
-
-                @Override
-                public void afterRefresh(boolean didRefresh) {
-
-                }
-            }, null, () -> SequenceNumbers.NO_OPS_PERFORMED, new NoneCircuitBreakerService())
-        );
-        try {
-            for (long seqNo = 0; seqNo <= maxSeqNo; seqNo++) {
-                final ParsedDocument doc = testParsedDocument(
-                    "id_" + seqNo,
-                    null,
-                    testDocumentWithTextField("test"),
-                    new BytesArray("{}".getBytes(Charset.defaultCharset())),
-                    null
-                );
-                engine.index(replicaIndexForDoc(doc, 1, seqNo, randomBoolean()));
-            }
-
-            final long initialRefreshCount = refreshCounter.get();
-            final Thread[] snapshotThreads = new Thread[between(1, 3)];
-            CountDownLatch latch = new CountDownLatch(1);
-            for (int i = 0; i < snapshotThreads.length; i++) {
-                final long min = randomLongBetween(0, maxSeqNo - 5);
-                final long max = randomLongBetween(min, maxSeqNo);
-                snapshotThreads[i] = new Thread(new AbstractRunnable() {
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(
+                config(defaultSettings, store, createTempDir(), newMergePolicy(), null, new ReferenceManager.RefreshListener() {
                     @Override
-                    public void onFailure(Exception e) {
-                        throw new AssertionError(e);
+                    public void beforeRefresh() {
+                        refreshCounter.incrementAndGet();
                     }
 
                     @Override
-                    protected void doRun() throws Exception {
-                        latch.await();
-                        if (randomBoolean()) {
-                            try (
-                                Translog.Snapshot ignored = engine.newChangesSnapshot(
-                                    "test",
-                                    min,
-                                    max,
-                                    true,
-                                    randomBoolean(),
-                                    randomBoolean()
-                                )
-                            ) {}
-                        } else {
-                            engine.countChanges("test", min, max);
+                    public void afterRefresh(boolean didRefresh) {
+
+                    }
+                }, null, () -> SequenceNumbers.NO_OPS_PERFORMED, new NoneCircuitBreakerService())
+            );
+            try {
+                for (long seqNo = 0; seqNo <= maxSeqNo; seqNo++) {
+                    final ParsedDocument doc = testParsedDocument(
+                        "id_" + seqNo,
+                        null,
+                        testDocumentWithTextField("test"),
+                        new BytesArray("{}".getBytes(Charset.defaultCharset())),
+                        null
+                    );
+                    engine.index(replicaIndexForDoc(doc, 1, seqNo, randomBoolean()));
+                }
+
+                final long initialRefreshCount = refreshCounter.get();
+                final Thread[] snapshotThreads = new Thread[between(1, 3)];
+                CountDownLatch latch = new CountDownLatch(1);
+                for (int i = 0; i < snapshotThreads.length; i++) {
+                    final long min = randomLongBetween(0, maxSeqNo - 5);
+                    final long max = randomLongBetween(min, maxSeqNo);
+                    snapshotThreads[i] = new Thread(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new AssertionError(e);
                         }
-                    }
-                });
-                snapshotThreads[i].start();
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            latch.await();
+                            if (randomBoolean()) {
+                                try (
+                                    Translog.Snapshot ignored = engine.newChangesSnapshot(
+                                        "test",
+                                        min,
+                                        max,
+                                        true,
+                                        randomBoolean(),
+                                        randomBoolean()
+                                    )
+                                ) {}
+                            } else {
+                                engine.countChanges("test", min, max);
+                            }
+                        }
+                    });
+                    snapshotThreads[i].start();
+                }
+                latch.countDown();
+                for (Thread thread : snapshotThreads) {
+                    thread.join();
+                }
+                assertThat(refreshCounter.get(), equalTo(initialRefreshCount + 1L));
+                assertThat(engine.lastRefreshedCheckpoint(), equalTo(maxSeqNo));
+            } finally {
+                engine.close();
             }
-            latch.countDown();
-            for (Thread thread : snapshotThreads) {
-                thread.join();
-            }
-            assertThat(refreshCounter.get(), equalTo(initialRefreshCount + 1L));
-            assertThat(engine.lastRefreshedCheckpoint(), equalTo(maxSeqNo));
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -6624,30 +6652,30 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testNoOpOnClosingEngine() throws Exception {
         engine.close();
-        Store store = createStore();
-        InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-        try {
-            engine.close();
-            expectThrows(
-                AlreadyClosedException.class,
-                () -> engine.noOp(new Engine.NoOp(2, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), "reason"))
-            );
-        } finally {
-            store.close();
-            engine.close();
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
+            try {
+                engine.close();
+                expectThrows(
+                    AlreadyClosedException.class,
+                    () -> engine.noOp(new Engine.NoOp(2, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), "reason"))
+                );
+            } finally {
+                engine.close();
+            }
         }
     }
 
     public void testSoftDeleteOnClosingEngine() throws Exception {
         engine.close();
-        Store store = createStore();
-        InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-        try {
-            engine.close();
-            expectThrows(AlreadyClosedException.class, () -> engine.delete(replicaDeleteForDoc("test", 42, 7, System.nanoTime())));
-        } finally {
-            store.close();
-            engine.close();
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
+            try {
+                engine.close();
+                expectThrows(AlreadyClosedException.class, () -> engine.delete(replicaDeleteForDoc("test", 42, 7, System.nanoTime())));
+            } finally {
+                engine.close();
+            }
         }
     }
 
@@ -6923,25 +6951,25 @@ public class InternalEngineTests extends EngineTestCase {
         )) {
             Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-            Store store = createStore(indexSettings, newDirectory());
-            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-            try {
-                ParsedDocument doc = testParsedDocument(
-                    "1",
-                    null,
-                    new LuceneDocument(),
-                    new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-                    null
-                );
-                engine.index(appendOnlyPrimary(doc, false, 1));
-                engine.refresh("test");
-                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                    LeafReader leafReader = getOnlyLeafReader(searcher.getIndexReader());
-                    assertEquals(createdVersion.luceneVersion().major, leafReader.getMetaData().getCreatedVersionMajor());
+            try (Store store = createStore(indexSettings, newDirectory())) {
+                InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
+                try {
+                    ParsedDocument doc = testParsedDocument(
+                        "1",
+                        null,
+                        new LuceneDocument(),
+                        new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+                        null
+                    );
+                    engine.index(appendOnlyPrimary(doc, false, 1));
+                    engine.refresh("test");
+                    try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                        LeafReader leafReader = getOnlyLeafReader(searcher.getIndexReader());
+                        assertEquals(createdVersion.luceneVersion().major, leafReader.getMetaData().getCreatedVersionMajor());
+                    }
+                } finally {
+                    engine.close();
                 }
-            } finally {
-                store.close();
-                engine.close();
             }
         }
     }
@@ -7161,32 +7189,32 @@ public class InternalEngineTests extends EngineTestCase {
                 return addDocument(col.iterator().next());
             }
         };
-        Store store = createStore();
-        InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory);
-        try {
-            final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
-            Engine.Operation.Origin origin = randomFrom(REPLICA, LOCAL_RESET, PEER_RECOVERY);
-            Engine.Index index = new Engine.Index(
-                newUid(doc),
-                doc,
-                randomNonNegativeLong(),
-                primaryTerm.get(),
-                randomNonNegativeLong(),
-                null,
-                origin,
-                System.nanoTime(),
-                -1,
-                false,
-                UNASSIGNED_SEQ_NO,
-                UNASSIGNED_PRIMARY_TERM
-            );
-            addDocException.set(new IOException("simulated"));
-            expectThrows(IOException.class, () -> engine.index(index));
-            assertTrue(engine.isClosed.get());
-            assertNotNull(engine.failedEngine.get());
-        } finally {
-            store.close();
-            engine.close();
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory);
+            try {
+                final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+                Engine.Operation.Origin origin = randomFrom(REPLICA, LOCAL_RESET, PEER_RECOVERY);
+                Engine.Index index = new Engine.Index(
+                    newUid(doc),
+                    doc,
+                    randomNonNegativeLong(),
+                    primaryTerm.get(),
+                    randomNonNegativeLong(),
+                    null,
+                    origin,
+                    System.nanoTime(),
+                    -1,
+                    false,
+                    UNASSIGNED_SEQ_NO,
+                    UNASSIGNED_PRIMARY_TERM
+                );
+                addDocException.set(new IOException("simulated"));
+                expectThrows(IOException.class, () -> engine.index(index));
+                assertTrue(engine.isClosed.get());
+                assertNotNull(engine.failedEngine.get());
+            } finally {
+                engine.close();
+            }
         }
     }
 
@@ -7226,26 +7254,27 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testNoOpFailure() throws IOException {
         engine.close();
-        Store store = createStore();
-        Engine engine = createEngine((dir, iwc) -> new IndexWriter(dir, iwc) {
+        try (Store store = createStore()) {
+            Engine engine = createEngine((dir, iwc) -> new IndexWriter(dir, iwc) {
 
-            @Override
-            public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-                throw new IllegalArgumentException("fatal");
+                @Override
+                public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                    throw new IllegalArgumentException("fatal");
+                }
+
+            }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
+            try {
+                final Engine.NoOp op = new Engine.NoOp(0, 0, PRIMARY, System.currentTimeMillis(), "test");
+                final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.noOp(op));
+                assertThat(e.getMessage(), equalTo("fatal"));
+                assertTrue(engine.isClosed.get());
+                assertThat(engine.failedEngine.get(), not(nullValue()));
+                assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
+                assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
+            } finally {
+                engine.close();
+
             }
-
-        }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-        try {
-            final Engine.NoOp op = new Engine.NoOp(0, 0, PRIMARY, System.currentTimeMillis(), "test");
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.noOp(op));
-            assertThat(e.getMessage(), equalTo("fatal"));
-            assertTrue(engine.isClosed.get());
-            assertThat(engine.failedEngine.get(), not(nullValue()));
-            assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
-            assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
@@ -7260,25 +7289,25 @@ public class InternalEngineTests extends EngineTestCase {
     private void runTestDeleteFailure(final CheckedBiConsumer<InternalEngine, Engine.Delete, IOException> consumer) throws IOException {
         engine.close();
         final AtomicReference<ThrowingIndexWriter> iw = new AtomicReference<>();
-        Store store = createStore();
-        InternalEngine engine = createEngine((dir, iwc) -> {
-            iw.set(new ThrowingIndexWriter(dir, iwc));
-            return iw.get();
-        }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
-        try {
-            engine.index(new Engine.Index(Uid.encodeId("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
-            final Engine.Delete op = new Engine.Delete("0", Uid.encodeId("0"), primaryTerm.get());
-            consumer.accept(engine, op);
-            iw.get().setThrowFailure(() -> new IllegalArgumentException("fatal"));
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.delete(op));
-            assertThat(e.getMessage(), equalTo("fatal"));
-            assertTrue(engine.isClosed.get());
-            assertThat(engine.failedEngine.get(), not(nullValue()));
-            assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
-            assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
-        } finally {
-            store.close();
-            engine.close();
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine((dir, iwc) -> {
+                iw.set(new ThrowingIndexWriter(dir, iwc));
+                return iw.get();
+            }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null));
+            try {
+                engine.index(new Engine.Index(Uid.encodeId("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
+                final Engine.Delete op = new Engine.Delete("0", Uid.encodeId("0"), primaryTerm.get());
+                consumer.accept(engine, op);
+                iw.get().setThrowFailure(() -> new IllegalArgumentException("fatal"));
+                final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.delete(op));
+                assertThat(e.getMessage(), equalTo("fatal"));
+                assertTrue(engine.isClosed.get());
+                assertThat(engine.failedEngine.get(), not(nullValue()));
+                assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
+                assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
+            } finally {
+                engine.close();
+            }
         }
     }
 
@@ -7750,165 +7779,168 @@ public class InternalEngineTests extends EngineTestCase {
         };
 
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        Store store = createStore();
-        InternalEngine engine = createEngine(
-            config(
-                defaultSettings,
-                store,
-                createTempDir(),
-                NoMergePolicy.INSTANCE,
-                null,
-                null,
-                null,
-                globalCheckpoint::get,
-                () -> RetentionLeases.EMPTY,
-                new NoneCircuitBreakerService(),
-                indexCommitListener
-            )
-        );
-        try {
-            assertCommitGenerations(acquiredCommits, List.of(2L));
-            assertCommitGenerations(deletedCommits, List.of());
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(
+                config(
+                    defaultSettings,
+                    store,
+                    createTempDir(),
+                    NoMergePolicy.INSTANCE,
+                    null,
+                    null,
+                    null,
+                    globalCheckpoint::get,
+                    () -> RetentionLeases.EMPTY,
+                    new NoneCircuitBreakerService(),
+                    indexCommitListener
+                )
+            );
+            try {
+                assertCommitGenerations(acquiredCommits, List.of(2L));
+                assertCommitGenerations(deletedCommits, List.of());
 
-            engine.index(indexForDoc(createParsedDoc("a", null)));
-            engine.flush();
+                engine.index(indexForDoc(createParsedDoc("a", null)));
+                engine.flush();
 
-            assertCommitGenerations(acquiredCommits, List.of(2L, 3L));
-            assertCommitGenerations(deletedCommits, List.of());
+                assertCommitGenerations(acquiredCommits, List.of(2L, 3L));
+                assertCommitGenerations(deletedCommits, List.of());
 
-            globalCheckpoint.set(0L);
-            engine.index(indexForDoc(createParsedDoc("b", null)));
-            engine.flush();
+                globalCheckpoint.set(0L);
+                engine.index(indexForDoc(createParsedDoc("b", null)));
+                engine.flush();
 
-            assertCommitGenerations(acquiredCommits, List.of(2L, 3L, 4L));
-            assertCommitGenerations(deletedCommits, List.of());
+                assertCommitGenerations(acquiredCommits, List.of(2L, 3L, 4L));
+                assertCommitGenerations(deletedCommits, List.of());
 
-            releaseCommitRef(acquiredCommits, 2L);
+                releaseCommitRef(acquiredCommits, 2L);
 
-            globalCheckpoint.set(1L);
-            engine.index(indexForDoc(createParsedDoc("c", null)));
-            engine.flush();
+                globalCheckpoint.set(1L);
+                engine.index(indexForDoc(createParsedDoc("c", null)));
+                engine.flush();
 
-            assertCommitGenerations(acquiredCommits, List.of(3L, 4L, 5L));
-            assertCommitGenerations(deletedCommits, List.of(2L));
+                assertCommitGenerations(acquiredCommits, List.of(3L, 4L, 5L));
+                assertCommitGenerations(deletedCommits, List.of(2L));
 
-            releaseCommitRef(acquiredCommits, 4L);
+                releaseCommitRef(acquiredCommits, 4L);
 
-            globalCheckpoint.set(2L);
-            engine.index(indexForDoc(createParsedDoc("d", null)));
-            engine.flush();
+                globalCheckpoint.set(2L);
+                engine.index(indexForDoc(createParsedDoc("d", null)));
+                engine.flush();
 
-            assertCommitGenerations(acquiredCommits, List.of(3L, 5L, 6L));
-            assertCommitGenerations(deletedCommits, List.of(2L, 4L));
+                assertCommitGenerations(acquiredCommits, List.of(3L, 5L, 6L));
+                assertCommitGenerations(deletedCommits, List.of(2L, 4L));
 
-            releaseCommitRef(acquiredCommits, 5L);
-            releaseCommitRef(acquiredCommits, 6L);
-            releaseCommitRef(acquiredCommits, 3L);
+                releaseCommitRef(acquiredCommits, 5L);
+                releaseCommitRef(acquiredCommits, 6L);
+                releaseCommitRef(acquiredCommits, 3L);
 
-            final boolean globalCheckpointCatchUp = randomBoolean();
-            globalCheckpoint.set(globalCheckpointCatchUp ? 4L : 3L);
+                final boolean globalCheckpointCatchUp = randomBoolean();
+                globalCheckpoint.set(globalCheckpointCatchUp ? 4L : 3L);
 
-            engine.index(indexForDoc(createParsedDoc("e", null)));
-            engine.flush();
+                engine.index(indexForDoc(createParsedDoc("e", null)));
+                engine.flush();
 
-            if (globalCheckpointCatchUp) {
-                assertCommitGenerations(acquiredCommits, List.of(7L));
-                assertCommitGenerations(deletedCommits, List.of(2L, 3L, 4L, 5L, 6L));
-            } else {
-                assertCommitGenerations(acquiredCommits, List.of(6L, 7L));
-                assertCommitGenerations(deletedCommits, List.of(2L, 3L, 4L, 5L));
+                if (globalCheckpointCatchUp) {
+                    assertCommitGenerations(acquiredCommits, List.of(7L));
+                    assertCommitGenerations(deletedCommits, List.of(2L, 3L, 4L, 5L, 6L));
+                } else {
+                    assertCommitGenerations(acquiredCommits, List.of(6L, 7L));
+                    assertCommitGenerations(deletedCommits, List.of(2L, 3L, 4L, 5L));
+                }
+
+                releaseCommitRef(acquiredCommits, 7L);
+
+                final long primaryTerm = engine.config().getPrimaryTermSupplier().getAsLong();
+                assertThat(acquiredPrimaryTerms.stream().allMatch(value -> value == primaryTerm), is(true));
+            } finally {
+                engine.close();
             }
-
-            releaseCommitRef(acquiredCommits, 7L);
-
-            final long primaryTerm = engine.config().getPrimaryTermSupplier().getAsLong();
-            assertThat(acquiredPrimaryTerms.stream().allMatch(value -> value == primaryTerm), is(true));
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
     public void testRefreshResult() throws IOException {
-        Store store = createStore();
-        InternalEngine engine =
-            // disable merges to make sure that the reader doesn't change unexpectedly during the test
-            createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try {
-            var refresh1Result = engine.refresh("warm_up");
-            assertTrue(refresh1Result.refreshed());
-            assertNotEquals("when refreshed, generation must be set", refresh1Result.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
-            for (int i = 0; i < 10; i++) {
-                engine.index(indexForDoc(createParsedDoc(String.valueOf(i), null)));
+        try (Store store = createStore()) {
+            InternalEngine engine =
+                // disable merges to make sure that the reader doesn't change unexpectedly during the test
+                createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
+            try {
+                var refresh1Result = engine.refresh("warm_up");
+                assertTrue(refresh1Result.refreshed());
+                assertNotEquals(
+                    "when refreshed, generation must be set",
+                    refresh1Result.generation(),
+                    Engine.RefreshResult.UNKNOWN_GENERATION
+                );
+                for (int i = 0; i < 10; i++) {
+                    engine.index(indexForDoc(createParsedDoc(String.valueOf(i), null)));
+                }
+                assertTrue(engine.refreshNeeded());
+                var refresh2Result = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+                assertTrue(refresh2Result.refreshed());
+                assertThat(refresh2Result.generation(), greaterThanOrEqualTo(refresh1Result.generation()));
+                engine.flush(true, true);
+                var refresh3Result = engine.refresh("test");
+                assertTrue(refresh3Result.refreshed());
+                assertThat(refresh3Result.generation(), greaterThan(refresh2Result.generation()));
+            } finally {
+                engine.close();
             }
-            assertTrue(engine.refreshNeeded());
-            var refresh2Result = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
-            assertTrue(refresh2Result.refreshed());
-            assertThat(refresh2Result.generation(), greaterThanOrEqualTo(refresh1Result.generation()));
-            engine.flush(true, true);
-            var refresh3Result = engine.refresh("test");
-            assertTrue(refresh3Result.refreshed());
-            assertThat(refresh3Result.generation(), greaterThan(refresh2Result.generation()));
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
     public void testConcurrentRefreshResult() throws Exception {
-        Store store = createStore();
-        InternalEngine engine = createEngine(store, createTempDir());
-        try {
-            AtomicBoolean stopped = new AtomicBoolean();
-            CountDownLatch latch = new CountDownLatch(1);
-            Thread refreshThread = new Thread(() -> {
-                latch.countDown();
-                while (stopped.get() == false) {
-                    long beforeGen = engine.commitStats().getGeneration();
-                    var refreshResult = engine.refresh("warm_up");
-                    assertTrue(refreshResult.refreshed());
-                    assertThat(refreshResult.generation(), greaterThanOrEqualTo(beforeGen));
-                }
-            });
-            refreshThread.start();
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(store, createTempDir());
             try {
-                latch.await();
-                int numFlushes = randomIntBetween(1, 100);
-                for (int i = 0; i < numFlushes; i++) {
-                    engine.index(indexForDoc(createParsedDoc(String.valueOf(i), null)));
-                    engine.flush(true, true);
+                AtomicBoolean stopped = new AtomicBoolean();
+                CountDownLatch latch = new CountDownLatch(1);
+                Thread refreshThread = new Thread(() -> {
+                    latch.countDown();
+                    while (stopped.get() == false) {
+                        long beforeGen = engine.commitStats().getGeneration();
+                        var refreshResult = engine.refresh("warm_up");
+                        assertTrue(refreshResult.refreshed());
+                        assertThat(refreshResult.generation(), greaterThanOrEqualTo(beforeGen));
+                    }
+                });
+                refreshThread.start();
+                try {
+                    latch.await();
+                    int numFlushes = randomIntBetween(1, 100);
+                    for (int i = 0; i < numFlushes; i++) {
+                        engine.index(indexForDoc(createParsedDoc(String.valueOf(i), null)));
+                        engine.flush(true, true);
+                    }
+                } finally {
+                    stopped.set(true);
+                    refreshThread.join();
                 }
             } finally {
-                stopped.set(true);
-                refreshThread.join();
+                engine.close();
             }
-        } finally {
-            store.close();
-            engine.close();
         }
     }
 
     public void testFlushListener() throws Exception {
-        Store store = createStore();
-        InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
-        try {
-            Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc("a", null)));
-            PlainActionFuture<Long> future1 = new PlainActionFuture<>();
-            engine.addFlushListener(result1.getTranslogLocation(), future1);
-            assertFalse(future1.isDone());
-            engine.flush();
-            assertThat(future1.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
+            try {
+                Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc("a", null)));
+                PlainActionFuture<Long> future1 = new PlainActionFuture<>();
+                engine.addFlushListener(result1.getTranslogLocation(), future1);
+                assertFalse(future1.isDone());
+                engine.flush();
+                assertThat(future1.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
 
-            Engine.IndexResult result2 = engine.index(indexForDoc(createParsedDoc("a", null)));
-            engine.flush();
-            PlainActionFuture<Long> future2 = new PlainActionFuture<>();
-            engine.addFlushListener(result2.getTranslogLocation(), future2);
-            assertTrue(future2.isDone());
-            assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
-
-        } finally {
-            store.close();
-            engine.close();
+                Engine.IndexResult result2 = engine.index(indexForDoc(createParsedDoc("a", null)));
+                engine.flush();
+                PlainActionFuture<Long> future2 = new PlainActionFuture<>();
+                engine.addFlushListener(result2.getTranslogLocation(), future2);
+                assertTrue(future2.isDone());
+                assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
+            } finally {
+                engine.close();
+            }
         }
     }
 

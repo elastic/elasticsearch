@@ -1,7 +1,7 @@
 default
 // tag::example[]
 ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
-| EVAL score = MV_P_SERIES_WEIGHTED_SUM(data, 1.5)
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 1.5)
 | KEEP score
 // end::example[]
 ;
@@ -14,7 +14,7 @@ score:double
 
 one-element
 ROW data = [3.0]
-| EVAL score = MV_P_SERIES_WEIGHTED_SUM(data, 9999.9)
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 9999.9)
 | KEEP score;
 
 score:double
@@ -23,7 +23,7 @@ score:double
 
 zero-p
 ROW data = [3.0, 10.0, 15.0]
-| EVAL score = MV_P_SERIES_WEIGHTED_SUM(data, 0.0)
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 0.0)
 | KEEP score;
 
 score:double
@@ -32,7 +32,7 @@ score:double
 
 negative-p
 ROW data = [10.0, 5.0, 3.0]
-| EVAL score = MV_P_SERIES_WEIGHTED_SUM(data, -2.0)
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, -2.0)
 | KEEP score;
 
 score:double
@@ -42,7 +42,7 @@ score:double
 composed
 ROW data = [21.0, 45.0, 21.0, 70.0, 21.0]
 | EVAL sorted = MV_SORT(data, "desc")
-| EVAL score = MV_P_SERIES_WEIGHTED_SUM(sorted, 1.5)
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(sorted, 1.5)
 | EVAL normalized_score = ROUND(100 * score / 261.2, 2)
 | KEEP normalized_score, score;
 
@@ -54,7 +54,7 @@ multivalue-aggregation
 FROM alerts
 | WHERE host.name is not null
 | SORT host.name, kibana.alert.risk_score
-| STATS score=MV_P_SERIES_WEIGHTED_SUM(
+| STATS score=MV_PSERIES_WEIGHTED_SUM(
     TOP(kibana.alert.risk_score, 10000, "desc"), 1.5
 ) BY host.name
 | EVAL normalized_score = ROUND(100 * score / 261.2, 2)
@@ -67,7 +67,7 @@ test-host-2      |13.03                  |34.036822671263614
 
 asArgument
 ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
-| EVAL score = ROUND(MV_P_SERIES_WEIGHTED_SUM(data, 1.5), 1)
+| EVAL score = ROUND(MV_PSERIES_WEIGHTED_SUM(data, 1.5), 1)
 | KEEP score;
 
 score:double

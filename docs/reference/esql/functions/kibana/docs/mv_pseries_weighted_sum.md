@@ -7,6 +7,6 @@ Converts a multivalued expression into a single valued column containing the wei
 
 ```
 ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]
-| EVAL score = MV_P_SERIES_WEIGHTED_SUM(data, 1.5)
+| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 1.5)
 | KEEP score
 ```

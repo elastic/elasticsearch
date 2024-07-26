@@ -24,6 +24,6 @@
     }
   ],
   "examples" : [
-    "ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]\n| EVAL score = MV_P_SERIES_WEIGHTED_SUM(data, 1.5)\n| KEEP score"
+    "ROW data = [70.0, 45.0, 21.0, 21.0, 21.0]\n| EVAL score = MV_PSERIES_WEIGHTED_SUM(data, 1.5)\n| KEEP score"
   ]
 }

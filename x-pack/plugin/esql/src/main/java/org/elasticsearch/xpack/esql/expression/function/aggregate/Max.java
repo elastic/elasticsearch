@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -36,7 +37,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip" },
         description = "The maximum value of a field.",
         isAggregation = true,
         examples = {
@@ -49,7 +50,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 tag = "docsStatsMaxNestedExpression"
             ) }
     )
-    public Max(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date" }) Expression field) {
+    public Max(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date", "ip" }) Expression field) {
         super(source, field);
     }
 
@@ -76,11 +77,12 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             this,
-            e -> e == DataType.BOOLEAN || e == DataType.DATETIME || (e.isNumeric() && e != DataType.UNSIGNED_LONG),
+            e -> e == DataType.BOOLEAN || e == DataType.DATETIME || e == DataType.IP || (e.isNumeric() && e != DataType.UNSIGNED_LONG),
             sourceText(),
             DEFAULT,
             "boolean",
             "datetime",
+            "ip",
             "numeric except unsigned_long or counter types"
         );
     }
@@ -104,6 +106,9 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         }
         if (type == DataType.DOUBLE) {
             return new MaxDoubleAggregatorFunctionSupplier(inputChannels);
+        }
+        if (type == DataType.IP) {
+            return new MaxIpAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

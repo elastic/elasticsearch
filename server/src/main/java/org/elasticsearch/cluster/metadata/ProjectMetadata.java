@@ -75,26 +75,26 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
 
-    final ProjectId projectId;
-    final ImmutableOpenMap<String, IndexMetadata> indices;
-    final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
-    final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
-    final ImmutableOpenMap<String, Metadata.ProjectCustom> customs;
+    private final ProjectId projectId;
+    private final ImmutableOpenMap<String, IndexMetadata> indices;
+    private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
+    private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
+    private final ImmutableOpenMap<String, Metadata.ProjectCustom> customs;
 
-    final int totalNumberOfShards;
-    final int totalOpenIndexShards;
+    private final int totalNumberOfShards;
+    private final int totalOpenIndexShards;
 
-    final String[] allIndices;
-    final String[] visibleIndices;
-    final String[] allOpenIndices;
-    final String[] visibleOpenIndices;
-    final String[] allClosedIndices;
-    final String[] visibleClosedIndices;
+    private final String[] allIndices;
+    private final String[] visibleIndices;
+    private final String[] allOpenIndices;
+    private final String[] visibleOpenIndices;
+    private final String[] allClosedIndices;
+    private final String[] visibleClosedIndices;
 
-    volatile SortedMap<String, IndexAbstraction> indicesLookup;
-    final Map<String, MappingMetadata> mappingsByHash;
+    private volatile SortedMap<String, IndexAbstraction> indicesLookup;
+    private final Map<String, MappingMetadata> mappingsByHash;
 
-    final IndexVersion oldestIndexVersion;
+    private final IndexVersion oldestIndexVersion;
 
     public ProjectMetadata(
         ProjectId projectId,
@@ -1087,7 +1087,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
         private final ImmutableOpenMap.Builder<String, Metadata.ProjectCustom> customs;
 
-        SortedMap<String, IndexAbstraction> previousIndicesLookup;
+        private SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
         private final Map<String, MappingMetadata> mappingsByHash;
         // If this is set to false we can skip checking #mappingsByHash for unused entries in #build(). Used as an optimization to save
@@ -2015,6 +2015,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
     }
 
+    // this needs to be package accessible for bwc serialization in Metadata.java
     static class ProjectMetadataDiff implements Diff<ProjectMetadata> {
 
         private static final DiffableUtils.DiffableValueReader<String, IndexMetadata> INDEX_METADATA_DIFF_VALUE_READER =

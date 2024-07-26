@@ -475,7 +475,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
             return false;
         }
-        if (metadata1.projectMetadata.templates.equals(metadata2.projectMetadata.templates()) == false) {
+        if (metadata1.projectMetadata.templates().equals(metadata2.projectMetadata.templates()) == false) {
             return false;
         }
         if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
@@ -487,7 +487,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         if (customsEqual(metadata1.customs, metadata2.customs) == false) {
             return false;
         }
-        if (customsEqual(metadata1.projectMetadata.customs, metadata2.projectMetadata.customs) == false) {
+        if (customsEqual(metadata1.projectMetadata.customs(), metadata2.projectMetadata.customs()) == false) {
             return false;
         }
         if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
@@ -852,19 +852,19 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
             // we avoid writing duplicate mappings twice
             if (out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-                out.writeMapValues(projectMetadata.mappingsByHash);
+                out.writeMapValues(projectMetadata.getMappingsByHash());
             }
-            out.writeVInt(projectMetadata.indices.size());
+            out.writeVInt(projectMetadata.size());
             final boolean writeMappingsHash = out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
             for (IndexMetadata indexMetadata : projectMetadata) {
                 indexMetadata.writeTo(out, writeMappingsHash);
             }
-            out.writeCollection(projectMetadata.templates.values());
+            out.writeCollection(projectMetadata.templates().values());
             // It would be nice to do this as flattening iterable (rather than allocation a whole new list), but flattening
             // Iterable<? extends VersionNamedWriteable> into Iterable<VersionNamedWriteable> is messy, so we can fix that later
-            List<VersionedNamedWriteable> merge = new ArrayList<>(customs.size() + projectMetadata.customs.size());
+            List<VersionedNamedWriteable> merge = new ArrayList<>(customs.size() + projectMetadata.customs().size());
             merge.addAll(customs.values());
-            merge.addAll(projectMetadata.customs.values());
+            merge.addAll(projectMetadata.customs().values());
             VersionedNamedWriteable.writeVersionedWriteables(out, merge);
         } else {
             VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());

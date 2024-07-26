@@ -17,7 +17,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -112,7 +111,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(
                 source(),
                 toEvaluator.apply(field),
-                new CompensatedSum(),
+                ctx -> new CompensatedSum(),
                 (Double) p.fold()
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
@@ -141,7 +140,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         DoubleBlock.Builder builder,
         int position,
         DoubleBlock block,
-        @Fixed(includeInToString = false) CompensatedSum sum,
+        @Fixed(includeInToString = false, build = true) CompensatedSum sum,
         @Fixed double p
     ) {
         sum.reset(0, 0);

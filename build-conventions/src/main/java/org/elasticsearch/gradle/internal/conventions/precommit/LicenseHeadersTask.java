@@ -167,8 +167,6 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         matchers.add(subStringMatcher("BSD4 ", "Original BSD License (with advertising clause)", "All advertising materials"));
         // Apache
         matchers.add(subStringMatcher("AL   ", "Apache", "Licensed to Elasticsearch B.V. under one or more contributor"));
-        // Apache lz4-java
-        matchers.add(subStringMatcher("ALLZ4", "Apache LZ4-Java", "Copyright 2020 Adrien Grand and the lz4-java contributors"));
         // Generated resources
         matchers.add(subStringMatcher("GEN  ", "Generated", "ANTLR GENERATED CODE"));
         // Vendored Code

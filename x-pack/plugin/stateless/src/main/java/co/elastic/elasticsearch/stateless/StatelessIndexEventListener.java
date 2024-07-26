@@ -165,7 +165,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             if (indexingShardState.latestCommit() != null) {
                 StatelessCompoundCommit lastCommit = indexingShardState.latestCommit().last();
                 indexDirectory.updateRecoveryCommit(lastCommit);
-                warmingService.warmCacheForShardRecovery("indexing", indexShard, lastCommit);
+                warmingService.warmCacheForShardRecovery("indexing", indexShard, lastCommit, indexDirectory.getBlobStoreCacheDirectory());
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -267,7 +267,7 @@ class StatelessIndexEventListener implements IndexEventListener {
 
                     searchDirectory.updateLatestUploadInfo(lastUploaded, compoundCommit.primaryTermAndGeneration(), nodeId);
                     searchDirectory.updateCommit(compoundCommit);
-                    warmingService.warmCacheForShardRecovery("search", indexShard, compoundCommit);
+                    warmingService.warmCacheForShardRecovery("search", indexShard, compoundCommit, searchDirectory);
                     return null;
                 })), storeDecRef)
             );

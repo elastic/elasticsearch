@@ -336,18 +336,16 @@ emp_no:integer | languages:integer | max_salary:integer
          10003 |                 4 | 74572
 ;
 
-beforeKeep
+beforeKeepWhere
 required_capability: inlinestats
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary) by languages
 | KEEP emp_no, languages, max_salary
-| LIMIT 3;
+| WHERE emp_no == 10003;
 
 ignoreOrder:true
 emp_no:integer | languages:integer | max_salary:integer
-         10001 |                 2 | 73578
-         10002 |                 5 | 66817
          10003 |                 4 | 74572
 ;
 

@@ -38,7 +38,7 @@ public class ReferenceAttribute extends TypedAttribute {
     /**
      * Old constructor from when this had a qualifier string. Still needed to not break serialization.
      */
-    public ReferenceAttribute(
+    private ReferenceAttribute(
         Source source,
         String name,
         DataType dataType,
@@ -47,7 +47,7 @@ public class ReferenceAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        super(source, name, dataType, nullability, id, synthetic);
+        this(source, name, dataType, nullability, id, synthetic);
     }
 
     @SuppressWarnings("unchecked")

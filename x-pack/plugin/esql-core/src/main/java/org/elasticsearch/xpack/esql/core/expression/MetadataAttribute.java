@@ -74,7 +74,7 @@ public class MetadataAttribute extends TypedAttribute {
     /**
      * Old constructor from when this had a qualifier string. Still needed to not break serialization.
      */
-    public MetadataAttribute(
+    private MetadataAttribute(
         Source source,
         String name,
         DataType dataType,
@@ -84,8 +84,7 @@ public class MetadataAttribute extends TypedAttribute {
         boolean synthetic,
         boolean searchable
     ) {
-        super(source, name, dataType, nullability, id, synthetic);
-        this.searchable = searchable;
+        this(source, name, dataType, nullability, id, synthetic, searchable);
     }
 
     @SuppressWarnings("unchecked")

@@ -83,7 +83,7 @@ public class FieldAttribute extends TypedAttribute {
     /**
      * Old constructor from when this had a qualifier string. Still needed to not break serialization.
      */
-    public FieldAttribute(
+    private FieldAttribute(
         Source source,
         FieldAttribute parent,
         String name,
@@ -94,10 +94,7 @@ public class FieldAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        super(source, name, type, nullability, id, synthetic);
-        this.path = parent != null ? parent.fieldName() : StringUtils.EMPTY;
-        this.parent = parent;
-        this.field = field;
+        this(source, parent, name, type, field, nullability, id, synthetic);
     }
 
     public FieldAttribute(StreamInput in) throws IOException {

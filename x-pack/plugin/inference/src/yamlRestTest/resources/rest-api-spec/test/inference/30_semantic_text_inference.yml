@@ -51,7 +51,7 @@ setup:
                 type: text
 
 ---
-"Calculates text expansion and embedding results for new documents":
+"Calculates sparse embedding and text embedding results for new documents":
   - do:
       index:
         index: test-index

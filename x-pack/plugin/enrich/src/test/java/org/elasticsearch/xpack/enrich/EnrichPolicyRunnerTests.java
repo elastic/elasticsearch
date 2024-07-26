@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
@@ -1883,6 +1884,232 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Index is read only
         ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
+    public void testRunnerWithEmptySegmentsResponse() throws Exception {
+        final String sourceIndex = "source-index";
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "field1": "value1",
+              "field2": 2,
+              "field3": "ignored",
+              "field4": "ignored",
+              "field5": "value5"
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        assertResponse(
+            client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
+            sourceSearchResponse -> {
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+                assertNotNull(sourceDocMap);
+                assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
+                assertThat(sourceDocMap.get("field2"), is(equalTo(2)));
+                assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
+                assertThat(sourceDocMap.get("field4"), is(equalTo("ignored")));
+                assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
+            }
+        );
+        List<String> enrichFields = List.of("field2", "field5");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
+        Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, headers);
+            }
+
+            @Override
+            public String getDescription() {
+                return policyName;
+            }
+        });
+        ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
+
+        // Wrap the client so that when we receive the indices segments action, we intercept the request and complete it on another thread
+        // with an empty segments response.
+        Client client = new FilterClient(client()) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (action.equals(IndicesSegmentsAction.INSTANCE)) {
+                    testThreadPool.generic().execute(() -> {
+                        @SuppressWarnings("unchecked")
+                        ActionListener<IndicesSegmentResponse> castListener = ((ActionListener<IndicesSegmentResponse>) listener);
+                        castListener.onResponse(new IndicesSegmentResponse(new ShardSegments[0], 0, 0, 0, List.of()));
+                    });
+                } else {
+                    super.doExecute(action, request, listener);
+                }
+            }
+        };
+
+        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            policyName,
+            policy,
+            task,
+            clusterService,
+            getInstanceFromNode(IndicesService.class),
+            client,
+            resolver,
+            createdEnrichIndex,
+            randomIntBetween(1, 10000),
+            randomIntBetween(3, 10)
+        ) {
+            @Override
+            public void run(ActionListener<ExecuteEnrichPolicyStatus> listener) {
+                // The executor would wrap the listener in order to clean up the task in the
+                // task manager, but we're just testing the runner, so we make sure to clean
+                // up after ourselves.
+                super.run(ActionListener.runBefore(listener, () -> testTaskManager.unregister(task)));
+            }
+        };
+
+        logger.info("Starting policy run");
+        assertThat(
+            asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner)).getMessage(),
+            containsString("Could not locate segment information for newly created index")
+        );
+    }
+
+    public void testRunnerWithShardFailuresInSegmentResponse() throws Exception {
+        final String sourceIndex = "source-index";
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "field1": "value1",
+              "field2": 2,
+              "field3": "ignored",
+              "field4": "ignored",
+              "field5": "value5"
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        assertResponse(
+            client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
+            sourceSearchResponse -> {
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+                assertNotNull(sourceDocMap);
+                assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
+                assertThat(sourceDocMap.get("field2"), is(equalTo(2)));
+                assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
+                assertThat(sourceDocMap.get("field4"), is(equalTo("ignored")));
+                assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
+            }
+        );
+        List<String> enrichFields = List.of("field2", "field5");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
+        Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, headers);
+            }
+
+            @Override
+            public String getDescription() {
+                return policyName;
+            }
+        });
+        ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
+        // The executor would wrap the listener in order to clean up the task in the
+        // task manager, but we're just testing the runner, so we make sure to clean
+        // up after ourselves.
+
+        // Wrap the client so that when we receive the indices segments action, we intercept the request and complete it on another thread
+        // with an failed segments response.
+        Client client = new FilterClient(client()) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (action.equals(IndicesSegmentsAction.INSTANCE)) {
+                    testThreadPool.generic().execute(() -> {
+                        @SuppressWarnings("unchecked")
+                        ActionListener<IndicesSegmentResponse> castListener = ((ActionListener<IndicesSegmentResponse>) listener);
+                        castListener.onResponse(
+                            new IndicesSegmentResponse(
+                                new ShardSegments[0],
+                                0,
+                                0,
+                                3,
+                                List.of(
+                                    new DefaultShardOperationFailedException(createdEnrichIndex, 1, new ElasticsearchException("failure1")),
+                                    new DefaultShardOperationFailedException(createdEnrichIndex, 2, new ElasticsearchException("failure2")),
+                                    new DefaultShardOperationFailedException(createdEnrichIndex, 3, new ElasticsearchException("failure3"))
+                                )
+                            )
+                        );
+                    });
+                } else {
+                    super.doExecute(action, request, listener);
+                }
+            }
+        };
+
+        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            policyName,
+            policy,
+            task,
+            clusterService,
+            getInstanceFromNode(IndicesService.class),
+            client,
+            resolver,
+            createdEnrichIndex,
+            randomIntBetween(1, 10000),
+            randomIntBetween(3, 10)
+        ) {
+            @Override
+            public void run(ActionListener<ExecuteEnrichPolicyStatus> listener) {
+                // The executor would wrap the listener in order to clean up the task in the
+                // task manager, but we're just testing the runner, so we make sure to clean
+                // up after ourselves.
+                super.run(ActionListener.runBefore(listener, () -> testTaskManager.unregister(task)));
+            }
+        };
+
+        logger.info("Starting policy run");
+        final var exceptionThrown = asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner));
+        assertThat(exceptionThrown.getMessage(), containsString("Could not obtain segment information for newly created index"));
+        assertThat(asInstanceOf(ElasticsearchException.class, exceptionThrown.getCause()).getMessage(), containsString("failure1"));
     }
 
     public void testRunnerCancel() {

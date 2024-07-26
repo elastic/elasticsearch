@@ -159,7 +159,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             .andThenAccept(tuple -> responseBuilder.setExpandedModelIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1()))
 
             .<NodesStatsResponse>andThen(
-                (l, ignored) -> executeAsyncWithOrigin(
+                l -> executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
                     TransportNodesStatsAction.TYPE,

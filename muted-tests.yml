@@ -102,9 +102,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithImplicitFlow
   issue: https://github.com/elastic/elasticsearch/issues/111191
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDisableFieldNameField {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111222
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testReadNonexistentBlobThrowsNoSuchFileException
   issue: https://github.com/elastic/elasticsearch/issues/111233

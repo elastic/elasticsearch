@@ -37,8 +37,8 @@ public class Values extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
         preview = true,
-        description = "Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed." +
-            " If you need the values returned in order use <<esql-mv_sort>>.",
+        description = "Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. "
+            + "If you need the values returned in order use <<esql-mv_sort>>.",
         appendix = """
             [WARNING]
             ====

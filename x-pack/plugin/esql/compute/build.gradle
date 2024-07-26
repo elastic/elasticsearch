@@ -17,7 +17,7 @@ dependencies {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-s", "src/main/generated"])
+  options.compilerArgs.addAll(["-s", "$projectDir/src/main/generated"])
 }
 
 tasks.named('checkstyleMain').configure {

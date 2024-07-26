@@ -16,7 +16,13 @@ import org.elasticsearch.xcontent.XContentType;
 
 public class DataGeneratorSnapshotTests extends ESTestCase {
     public void testSnapshot() throws Exception {
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(5, 2, new TestArbitrary()));
+        var dataGenerator = new DataGenerator(
+            DataGeneratorSpecification.builder()
+                .withArbitrary(new TestArbitrary())
+                .withMaxFieldCountPerLevel(5)
+                .withMaxObjectDepth(2)
+                .build()
+        );
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent()).prettyPrint();
         dataGenerator.writeMapping(mapping);
@@ -31,22 +37,45 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
                   "f1" : {
                     "properties" : {
                       "f2" : {
-                        "type" : "keyword"
-                      },
-                      "f3" : {
                         "properties" : {
+                          "f3" : {
+                            "type" : "keyword"
+                          },
                           "f4" : {
                             "type" : "long"
-                          },
-                          "f5" : {
+                          }
+                        }
+                      },
+                      "f5" : {
+                        "properties" : {
+                          "f6" : {
                             "type" : "keyword"
+                          },
+                          "f7" : {
+                            "type" : "long"
                           }
                         }
                       }
                     }
                   },
-                  "f6" : {
-                    "type" : "long"
+                  "f8" : {
+                    "type" : "nested",
+                    "properties" : {
+                      "f9" : {
+                        "type" : "nested",
+                        "properties" : {
+                          "f10" : {
+                            "type" : "keyword"
+                          },
+                          "f11" : {
+                            "type" : "long"
+                          }
+                        }
+                      },
+                      "f12" : {
+                        "type" : "keyword"
+                      }
+                    }
                   }
                 }
               }
@@ -54,14 +83,44 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         var expectedDocument = """
             {
-              "f1" : {
-                "f2" : "string1",
-                "f3" : {
-                  "f4" : 0,
-                  "f5" : "string2"
+              "f1" : [
+                {
+                  "f2" : {
+                    "f3" : [
+                      null,
+                      "string1"
+                    ],
+                    "f4" : 0
+                  },
+                  "f5" : {
+                    "f6" : "string2",
+                    "f7" : null
+                  }
+                },
+                {
+                  "f2" : {
+                    "f3" : [
+                      "string3",
+                      "string4"
+                    ],
+                    "f4" : 1
+                  },
+                  "f5" : {
+                    "f6" : null,
+                    "f7" : 2
+                  }
                 }
-              },
-              "f6" : 1
+              ],
+              "f8" : {
+                "f9" : {
+                  "f10" : [
+                    "string5",
+                    "string6"
+                  ],
+                  "f11" : null
+                },
+                "f12" : "string7"
+              }
             }""";
 
         assertEquals(expectedMapping, Strings.toString(mapping));
@@ -69,21 +128,22 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
     }
 
     private class TestArbitrary implements Arbitrary {
-        private boolean generateSubObject = true;
         private int generatedFields = 0;
         private FieldType fieldType = FieldType.KEYWORD;
         private long longValue = 0;
         private long generatedStringValues = 0;
+        private int generateNullChecks = 0;
+        private int generateArrayChecks = 0;
+        private boolean producedObjectArray = false;
 
         @Override
         public boolean generateSubObject() {
-            if (generateSubObject) {
-                generateSubObject = false;
-                return true;
-            }
+            return generatedFields < 6;
+        }
 
-            generateSubObject = true;
-            return false;
+        @Override
+        public boolean generateNestedObject() {
+            return generatedFields > 6 && generatedFields < 12;
         }
 
         @Override
@@ -116,6 +176,36 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         @Override
         public String stringValue(int lengthLowerBound, int lengthUpperBound) {
             return "string" + (generatedStringValues++ + 1);
+        }
+
+        @Override
+        public boolean generateNullValue() {
+            return generateNullChecks++ % 4 == 0;
+        }
+
+        @Override
+        public boolean generateArrayOfValues() {
+            return generateArrayChecks++ % 4 == 0;
+        }
+
+        @Override
+        public int valueArraySize() {
+            return 2;
+        }
+
+        @Override
+        public boolean generateArrayOfObjects() {
+            if (producedObjectArray == false) {
+                producedObjectArray = true;
+                return true;
+            }
+
+            return false;
+        }
+
+        @Override
+        public int objectArraySize() {
+            return 2;
         }
     };
 }

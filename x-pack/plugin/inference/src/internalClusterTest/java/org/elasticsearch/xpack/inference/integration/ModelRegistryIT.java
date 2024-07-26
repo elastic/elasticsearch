@@ -405,7 +405,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("unknown_field", "foo");
-            builder.field(MODEL_ID, getInferenceEntityId());
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, getInferenceEntityId());
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());
@@ -431,7 +431,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("unknown_field", "foo");
-            builder.field(MODEL_ID, getInferenceEntityId());
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, getInferenceEntityId());
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());

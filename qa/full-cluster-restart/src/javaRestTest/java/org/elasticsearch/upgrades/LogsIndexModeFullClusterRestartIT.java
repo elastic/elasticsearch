@@ -125,7 +125,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
 
     public void testLogsIndexing() throws IOException {
         assumeTrue("Test uses data streams", oldClusterHasFeature(RestTestLegacyFeatures.DATA_STREAMS_SUPPORTED));
-        
+
         if (isRunningAgainstOldCluster()) {
             assertOK(client().performRequest(putTemplate(client(), "logs-template", STANDARD_TEMPLATE)));
             assertOK(client().performRequest(createDataStream("logs-apache-production")));

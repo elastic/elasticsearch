@@ -34,6 +34,8 @@ import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
@@ -232,6 +234,19 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
+        return doOpenInput(name, context, blobLocation, null);
+    }
+
+    /**
+     * Opens an {@link IndexInput} for reading an existing file.
+     *
+     * @param name the name of an existing file
+     * @param context the IO context
+     * @param blobLocation the {@link BlobLocation} of the file
+     * @param releasable a {@link Releasable} to be released when the {@link IndexInput} is closed
+     * @return an {@link IndexInput}
+     */
+    protected final IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation, @Nullable Releasable releasable) {
         return new SearchIndexInput(
             name,
             cacheService.getCacheFile(
@@ -245,6 +260,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             ),
             context,
             getCacheBlobReader(blobLocation),
+            releasable,
             blobLocation.fileLength(),
             blobLocation.offset()
         );

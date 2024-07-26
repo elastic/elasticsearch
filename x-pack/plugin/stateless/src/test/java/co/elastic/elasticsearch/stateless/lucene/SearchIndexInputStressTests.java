@@ -169,6 +169,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
                         fileName,
                         sharedBlobCacheService.getRangeSize()
                     ),
+                    null,
                     checksumAndLength.length,
                     offset
                 ),

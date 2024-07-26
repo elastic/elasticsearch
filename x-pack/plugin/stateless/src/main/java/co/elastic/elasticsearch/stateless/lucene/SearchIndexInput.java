@@ -45,6 +45,8 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,6 +61,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
@@ -70,11 +73,11 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private static final Logger logger = LogManager.getLogger(SearchIndexInput.class);
 
-    private final IOContext context;
-
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
-
     private final CacheBlobReader cacheBlobReader;
+    private final AtomicBoolean closed;
+    private final Releasable releasable;
+    private final IOContext context;
     private final long offset;
 
     public SearchIndexInput(
@@ -82,14 +85,17 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         IOContext context,
         CacheBlobReader cacheBlobReader,
+        Releasable releasable,
         long length,
         long offset
     ) {
         super(name, context, length);
-        this.cacheBlobReader = cacheBlobReader;
-        this.offset = offset;
-        this.context = context;
         this.cacheFile = cacheFile.copy();
+        this.cacheBlobReader = cacheBlobReader;
+        this.closed = new AtomicBoolean(false);
+        this.releasable = releasable;
+        this.context = context;
+        this.offset = offset;
     }
 
     @Override
@@ -99,7 +105,9 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     @Override
     public void close() throws IOException {
-
+        if (closed.compareAndSet(false, true)) {
+            Releasables.close(releasable);
+        }
     }
 
     @Override
@@ -118,6 +126,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             cacheFile,
             context,
             cacheBlobReader,
+            null,
             length,
             this.offset + offset
         );
@@ -129,14 +138,14 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         if (bufferClone != null) {
             return bufferClone;
         }
-        SearchIndexInput searchIndexInput = new SearchIndexInput(super.toString(), cacheFile, context, cacheBlobReader, length(), offset);
+        var clone = new SearchIndexInput(super.toString(), cacheFile, context, cacheBlobReader, null, length(), offset);
         try {
-            searchIndexInput.seek(getFilePointer());
+            clone.seek(getFilePointer());
         } catch (IOException e) {
             assert false : e;
             throw new UncheckedIOException(e);
         }
-        return searchIndexInput;
+        return clone;
     }
 
     private long getAbsolutePosition() {

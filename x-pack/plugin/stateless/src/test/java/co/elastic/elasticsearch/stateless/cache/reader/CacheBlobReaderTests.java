@@ -312,6 +312,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         bytesReadFromObjectStore -> {},
                         bytesReadFromIndexing -> {}
                     ),
+                    null,
                     1,
                     offset
                 )
@@ -643,9 +644,9 @@ public class CacheBlobReaderTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(fileCacheKey, regionSize);
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(internalLocation.getValue());
             final long availableDataLength = BlobCacheUtils.toPageAlignedSize(vbccSize);
-            try (var searchIndexInput = new SearchIndexInput("region", cacheFile, IOContext.DEFAULT, cacheBlobReader, regionSize, 0)) {
+            try (var searchInput = new SearchIndexInput("region", cacheFile, IOContext.DEFAULT, cacheBlobReader, null, regionSize, 0)) {
                 // Read a byte beyond the available data length will trigger the last gap to be filled
-                searchIndexInput.readByte(randomLongBetween(availableDataLength, regionSize - 1L));
+                searchInput.readByte(randomLongBetween(availableDataLength, regionSize - 1L));
                 assertBusy(() -> {
                     assertThat(node.getRangeInputStreamCalls.size(), equalTo(1));
                     final GetRangeInputStreamCall getRangeInputStreamCall = node.getRangeInputStreamCalls.poll();

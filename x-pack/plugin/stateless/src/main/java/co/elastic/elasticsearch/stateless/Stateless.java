@@ -978,6 +978,7 @@ public class Stateless extends Plugin
                         sharedBlobCacheService.get(),
                         cacheBlobReaderService.get(),
                         new AtomicMutableObjectStoreUploadTracker(),
+                        statelessCommitService.isGenerationalFilesTrackingEnabled(),
                         shardRouting.shardId()
                     );
                 } else {
@@ -1133,9 +1134,10 @@ public class Stateless extends Plugin
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
+        boolean trackGenerationalFiles,
         ShardId shardId
     ) {
-        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, trackGenerationalFiles, shardId);
     }
 
     protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(

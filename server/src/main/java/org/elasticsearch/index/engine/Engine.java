@@ -2299,6 +2299,15 @@ public abstract class Engine {
     }
 
     /**
+     * Safely close the provided engine
+     */
+    public static void close(@Nullable Engine engine) throws IOException {
+        if (engine != null) {
+            engine.close();
+        }
+    }
+
+    /**
      * Captures the result of a refresh operation on the index shard.
      * <p>
      * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>

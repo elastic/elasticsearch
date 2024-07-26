@@ -124,10 +124,6 @@ final class AzureStorageSettings {
     );
 
     private final String account;
-
-    @Nullable
-    private final String sasToken;
-
     private final String connectString;
     private final String endpointSuffix;
     private final TimeValue timeout;
@@ -148,7 +144,6 @@ final class AzureStorageSettings {
         String secondaryEndpoint
     ) {
         this.account = account;
-        this.sasToken = sasToken;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, endpoint, secondaryEndpoint);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
@@ -204,10 +199,10 @@ final class AzureStorageSettings {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
         if (hasSasToken == false && hasKey == false) {
-            throw new SettingsException("Neither a secret key nor a shared access token was set.");
+            throw new SettingsException("Neither a secret key nor a shared access token was set for account [" + account + "]");
         }
         if (hasSasToken && hasKey) {
-            throw new SettingsException("Both a secret as well as a shared access token were set.");
+            throw new SettingsException("Both a secret as well as a shared access token were set for account [" + account + "]");
         }
         final StringBuilder connectionStringBuilder = new StringBuilder();
         connectionStringBuilder.append("DefaultEndpointsProtocol=https").append(";AccountName=").append(account);
@@ -221,15 +216,15 @@ final class AzureStorageSettings {
         final boolean hasSecondaryEndpoint = Strings.hasText(secondaryEndpoint);
 
         if (hasEndpointSuffix && hasEndpoint) {
-            throw new SettingsException("Both an endpoint suffix as well as a primary endpoint were set");
+            throw new SettingsException("Both an endpoint suffix as well as a primary endpoint were set for account [" + account + "]");
         }
 
         if (hasEndpointSuffix && hasSecondaryEndpoint) {
-            throw new SettingsException("Both an endpoint suffix as well as a secondary endpoint were set");
+            throw new SettingsException("Both an endpoint suffix as well as a secondary endpoint were set for account [" + account + "]");
         }
 
         if (hasEndpoint == false && hasSecondaryEndpoint) {
-            throw new SettingsException("A primary endpoint is required when setting a secondary endpoint");
+            throw new SettingsException("A primary endpoint is required when setting a secondary endpoint for account [" + account + "]");
         }
 
         if (hasEndpointSuffix) {

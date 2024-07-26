@@ -17,9 +17,9 @@ Expression from which to return the median value.
 *Description*
 
 Returns the value that is greater than half of all values and less than half of
-all values, also known as the 50% <<esql-agg-percentile>>.
+all values, also known as the 50% <<esql-percentile>>.
 
-NOTE: Like <<esql-agg-percentile>>, `MEDIAN` is <<esql-agg-percentile-approximate,usually approximate>>.
+NOTE: Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.
 
 [WARNING]
 ====

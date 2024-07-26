@@ -50,7 +50,7 @@ public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
     public void testLogsSettingsIndexModeDisabled() throws IOException {
         assertOK(createDataStream(client, "logs-custom-dev"));
         final String indexMode = (String) getSetting(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0), "index.mode");
-        assertThat(indexMode, Matchers.not(equalTo(IndexMode.LOGS.getName())));
+        assertThat(indexMode, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
     }
 
 }

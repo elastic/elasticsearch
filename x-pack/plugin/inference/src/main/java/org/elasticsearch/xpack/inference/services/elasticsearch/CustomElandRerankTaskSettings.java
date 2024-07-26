@@ -107,7 +107,7 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_RERANK;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override

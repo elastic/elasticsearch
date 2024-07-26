@@ -153,14 +153,14 @@ public final class IndexSortConfig {
         }
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-        if (this.indexMode == IndexMode.LOGS && fields.isEmpty()) {
+        if (this.indexMode == IndexMode.LOGSDB && fields.isEmpty()) {
             fields = List.of("host.name", DataStream.TIMESTAMP_FIELD_NAME);
         }
         this.sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
 
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
             List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGS && orders.isEmpty()) {
+            if (this.indexMode == IndexMode.LOGSDB && orders.isEmpty()) {
                 orders = List.of(SortOrder.DESC, SortOrder.DESC);
             }
             if (orders.size() != sortSpecs.length) {
@@ -175,7 +175,7 @@ public final class IndexSortConfig {
 
         if (INDEX_SORT_MODE_SETTING.exists(settings)) {
             List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGS && modes.isEmpty()) {
+            if (this.indexMode == IndexMode.LOGSDB && modes.isEmpty()) {
                 modes = List.of(MultiValueMode.MIN, MultiValueMode.MIN);
             }
             if (modes.size() != sortSpecs.length) {
@@ -188,7 +188,7 @@ public final class IndexSortConfig {
 
         if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
             List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGS && missingValues.isEmpty()) {
+            if (this.indexMode == IndexMode.LOGSDB && missingValues.isEmpty()) {
                 missingValues = List.of("_first", "_first");
             }
             if (missingValues.size() != sortSpecs.length) {

@@ -40,6 +40,11 @@ public @interface FunctionInfo {
     String note() default "";
 
     /**
+     * Extra information rendered at the bottom of the function docs.
+     */
+    String appendix() default "";
+
+    /**
      * Is this an aggregation (true) or a scalar function (false).
      */
     boolean isAggregation() default false;

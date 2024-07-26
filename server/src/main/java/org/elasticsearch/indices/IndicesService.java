@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -71,6 +72,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -1712,7 +1714,19 @@ public class IndicesService extends AbstractLifecycleComponent
                 return parseTopLevelQuery(parser);
             }
         };
-        String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
+        // Flip me for fix
+        final boolean includeAllAliases = false;
+        final String[] aliases = includeAllAliases
+            ? indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                Predicates.always(), // include all aliases, not just ones with filters
+                DataStreamAlias::filteringRequired,
+                false,
+                resolvedExpressions
+            )
+            : indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
+
         if (aliases == null) {
             return AliasFilter.EMPTY;
         }

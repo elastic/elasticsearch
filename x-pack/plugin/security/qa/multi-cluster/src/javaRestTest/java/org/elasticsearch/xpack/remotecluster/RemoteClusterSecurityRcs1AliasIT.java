@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
@@ -29,6 +30,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -143,7 +145,9 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
 
         searchAndAssertFooValues("index-alias", true, "1", "2");
         // we throw a 403, inconsistent with minimize roundtrips
-        expectThrows(Exception.class, () -> search("index-alias", false));
+        expectThrows403(() -> search("index-alias", false));
+        // With includeAllAliases = true in IndicesServices, we get success instead:
+        // searchAndAssertFooValues("index-alias", false, "1", "2");
     }
 
     public void testAliasUnderRcs1WithAliasOnlyPrivilegesWithDummyFilter() throws Exception {
@@ -283,11 +287,66 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
 
         searchAndAssertFooValues("index-*", true, "1", "2");
         // inconsistent with minimize roundtrips because we throw a 403
-        expectThrows(Exception.class, () -> search("index-*", false));
+        // (though this is generally true with read_cross_cluster)
+        expectThrows403(() -> search("index-*", false));
 
         // 403 on both because we don't have read privilege on index-alias
-        expectThrows(Exception.class, () -> search("index-alias", true));
-        expectThrows(Exception.class, () -> search("index-alias", false));
+        expectThrows403(() -> search("index-alias", true));
+        expectThrows403(() -> search("index-alias", false));
+    }
+
+    public void testAliasUnderRcs1WithMixedPrivilegesWithRealFilterV2() throws Exception {
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [
+                {
+                  "names": ["index-alias"],
+                  "privileges": ["read"]
+                },
+                {
+                  "names": ["index-000001"],
+                  "privileges": ["read_cross_cluster", "view_index_metadata"]
+                }
+              ]
+            }""");
+        performRequestAgainstFulfillingCluster(putRoleRequest);
+
+        Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "index-000001" } }
+            { "foo": "1" }
+            { "index": { "_index": "index-000001" } }
+            { "foo": "2" }
+            """));
+        assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+
+        Request aliasRequest = new Request("POST", "/_aliases");
+        aliasRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "index-000001",
+                    "alias": "index-alias",
+                    "filter": {
+                      "term": {
+                        "foo": "1"
+                      }
+                    }
+                  }
+                }
+              ]
+            }""");
+        assertOK(performRequestAgainstFulfillingCluster(aliasRequest));
+
+        searchAndAssertFooValues("index-*", true, "1");
+        // inconsistent with minimize roundtrips because we throw a 403
+        // (though this is generally true with read_cross_cluster)
+        expectThrows(Exception.class, () -> search("index-*", false));
+
+        searchAndAssertFooValues("index-alias", true, "1");
+        expectThrows403(() -> search("index-alias", false));
     }
 
     private void searchAndAssertFooValues(String indexPattern, boolean ccsMinimizeRoundtrips, String... expectedFooValues)
@@ -328,6 +387,10 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
         final Response response = performRequestWithRemoteSearchUser(searchRequest);
         assertOK(response);
         return SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+    }
+
+    private static void expectThrows403(ThrowingRunnable runnable) {
+        assertThat(expectThrows(ResponseException.class, runnable).getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

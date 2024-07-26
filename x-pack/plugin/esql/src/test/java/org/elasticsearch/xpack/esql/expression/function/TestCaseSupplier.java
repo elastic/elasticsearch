@@ -1130,6 +1130,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for String DataTypes.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#stringCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> stringCases(DataType type) {
         List<TypedDataSupplier> result = new ArrayList<>();
         result.add(new TypedDataSupplier("<empty " + type + ">", () -> new BytesRef(""), type));

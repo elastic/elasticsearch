@@ -334,16 +334,58 @@ public final class MultiRowTestCaseSupplier {
             ),
             new TypedDataSupplier(
                 "<major.minor versions>",
-                () -> randomList(minRows, maxRows, () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100)).toBytesRef()),
+                () -> randomList(
+                    minRows,
+                    maxRows,
+                    () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100)).toBytesRef()
+                ),
                 DataType.VERSION,
                 false,
                 true
             ),
             new TypedDataSupplier(
                 "<major.minor.patch versions>",
-                () -> randomList(minRows, maxRows, () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100))
-                    .toBytesRef()),
+                () -> randomList(
+                    minRows,
+                    maxRows,
+                    () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100))
+                        .toBytesRef()
+                ),
                 DataType.VERSION,
+                false,
+                true
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> stringCases(int minRows, int maxRows, DataType type) {
+        return List.of(
+            new TypedDataSupplier("<empty " + type + "s>", () -> randomList(minRows, maxRows, () -> new BytesRef("")), type, false, true),
+            new TypedDataSupplier(
+                "<short alpha " + type + "s>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(1, 30))),
+                type,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<long alpha " + type + "s>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(300, 3000))),
+                type,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<short unicode " + type + "s>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 30))),
+                type,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<long unicode " + type + "s>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(300, 3000))),
+                type,
                 false,
                 true
             )

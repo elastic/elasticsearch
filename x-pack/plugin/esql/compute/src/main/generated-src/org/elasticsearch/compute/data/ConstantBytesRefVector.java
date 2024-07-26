@@ -24,7 +24,7 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
 
     ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
-        this.value = value;
+        this.value = BytesRef.deepCopyOf(value);
     }
 
     @Override

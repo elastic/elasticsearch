@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -40,13 +41,16 @@ public class ValuesTests extends AbstractAggregationTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
         Stream.of(
-            MultiRowTestCaseSupplier.intCases(1, 2, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.longCases(1, 2, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
-            MultiRowTestCaseSupplier.versionCases(1, 1000)
+            MultiRowTestCaseSupplier.versionCases(1, 1000),
+            // Lower values for strings, as they take more space and may trigger the circuit breaker
+            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.TEXT)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // TODO: Keyword, text

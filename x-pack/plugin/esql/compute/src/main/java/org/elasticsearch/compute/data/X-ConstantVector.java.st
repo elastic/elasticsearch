@@ -31,7 +31,11 @@ $endif$
 
     Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
+$if(BytesRef)$
+        this.value = BytesRef.deepCopyOf(value);
+$else$
         this.value = value;
+$endif$
     }
 
     @Override

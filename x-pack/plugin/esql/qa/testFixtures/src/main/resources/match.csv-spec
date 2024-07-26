@@ -1,4 +1,4 @@
-matchField
+matchKeywordField
 required_capability: match_command
 
 from employees | match "first_name: Ma*"  | keep emp_no, first_name | sort emp_no;  
@@ -11,11 +11,22 @@ emp_no:integer | first_name:keyword
 10069          |Margareta
 ;
 
-matchMultipleFields
+matchMultipleKeywordFields
 required_capability: match_command
 
 from employees | match "+first_name: Ma* +last_name:*man"  | keep emp_no, first_name, last_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword | last_name:keyword      
 10069          |Margareta           | Bierman
+;
+
+matchTextField
+required_capability: match_command
+
+from airports | match "lon*" | keep abbrev, name | sort abbrev;
+
+abbrev:keyword | name:text
+LGW            | London Gatwick
+LHR            | London Heathrow
+LTN            | London Luton
 ;

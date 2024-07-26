@@ -1027,7 +1027,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 {
                   "settings": {
                     "index": {
-                      "number_of_replicas": 0
+                      "number_of_replicas": 1
                     }
                   },
                   "mappings": {

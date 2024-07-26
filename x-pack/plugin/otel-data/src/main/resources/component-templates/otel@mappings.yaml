@@ -6,7 +6,7 @@ _meta:
 template:
   mappings:
     date_detection: false
-    dynamic: strict
+    dynamic: false
     properties:
       "@timestamp":
         type: date

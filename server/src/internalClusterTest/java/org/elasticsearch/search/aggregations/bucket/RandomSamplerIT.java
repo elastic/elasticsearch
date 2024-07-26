@@ -25,7 +25,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -127,9 +126,9 @@ public class RandomSamplerIT extends ESIntegTestCase {
                     double monotonicValue = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
                     double numericValue = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
                     long docCount = sampler.getDocCount();
-                    assertThat(Math.abs(monotonicValue - sampleMonotonicValue[0]) < tolerance, equalTo(true));
-                    assertThat(Math.abs(numericValue - sampleNumericValue[0]) < tolerance, equalTo(true));
-                    assertThat(docCount, equalTo(sampledDocCount[0]));
+                    assertEquals(monotonicValue, sampleMonotonicValue[0], tolerance);
+                    assertEquals(numericValue, sampleNumericValue[0], tolerance);
+                    assertEquals(docCount, sampledDocCount[0]);
                 }
             );
         }

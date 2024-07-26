@@ -1,4 +1,3 @@
-
 ---
 setup:
   - do:
@@ -7,8 +6,30 @@ setup:
 
 ---
 "Test push service overview metric":
-  - skip:
-     awaits_fix: "TODO: metrics-otel@template uses TSDB, so @timestamp needs to be up-to-date. Q: How to do that in this syntax?"
+  - do:
+      indices.put_index_template:
+        name: test@template
+        body:
+          priority: 500
+          index_patterns: [ "metrics-*.otel-*" ]
+          composed_of:
+            - metrics@tsdb-settings
+            - otel@mappings
+            - metrics@mappings
+            - metrics-otel@mappings
+            - semconv-resource-to-ecs@mappings
+            - ecs-tsdb@mappings
+          template:
+            settings:
+              index:
+                routing_path: [unit, attributes.*, resource.attributes.*]
+                mode: time_series
+                time_series:
+                  start_time: 2024-07-01T13:03:08.138Z
+  - do:
+      indices.get_index_template:
+        name: metrics-otel@template
+  - length: {index_templates: 1}
   - do:
       bulk:
         index: metrics-generic.otel-default
@@ -21,4 +42,7 @@ setup:
   - do:
       search:
         index: metrics-generic.otel-default
+        body:
+          fields: ["service.name", "telemetry.sdk.language", "telemetry.sdk.name" ]
   - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields: {"service.name": ["OtelSample"], "telemetry.sdk.language": ["dotnet"], "telemetry.sdk.name": ["opentelemetry"] }}

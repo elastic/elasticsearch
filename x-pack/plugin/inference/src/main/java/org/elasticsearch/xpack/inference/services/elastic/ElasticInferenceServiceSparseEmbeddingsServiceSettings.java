@@ -18,7 +18,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elser.ElserModels;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -60,7 +59,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
-            OpenAiService.NAME,
+            ElasticInferenceService.NAME,
             context
         );
 

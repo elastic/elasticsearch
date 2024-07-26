@@ -22,6 +22,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -43,6 +45,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class ElasticInferenceService extends SenderService {
 
     public static final String NAME = "elastic";
+
+    static final int EMBEDDING_MAX_BATCH_SIZE = 20;
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
@@ -100,7 +104,29 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        // TODO:
+        if (model instanceof ElasticInferenceServiceModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        ElasticInferenceServiceModel elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
+        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents());
+
+        // TODO: should we get maxInputTokens from the model's config and fall back to a default if it's not specified?
+        Integer maxInputTokens = Optional.of(model)
+            .map(m -> model instanceof ElasticInferenceServiceSparseEmbeddingsModel sparseEmbeddingsModel ? sparseEmbeddingsModel : null)
+            .map(m -> m.getServiceSettings().maxInputTokens())
+            .orElse(EMBEDDING_MAX_BATCH_SIZE);
+
+        var batchedRequests = new EmbeddingRequestChunker(
+            input,
+            maxInputTokens,
+            EmbeddingRequestChunker.EmbeddingType.FLOAT
+        ).batchRequestsWithListeners(listener);
+        for (var request : batchedRequests) {
+            var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
+            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+        }
     }
 
     @Override

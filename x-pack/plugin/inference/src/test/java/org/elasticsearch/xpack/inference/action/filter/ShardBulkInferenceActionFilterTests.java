@@ -57,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.DEFAULT_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSparseEmbeddings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.toChunkedResult;
@@ -364,22 +365,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         return new BulkItemRequest[] {
             new BulkItemRequest(requestId, new IndexRequest("index").source(docMap, requestContentType)),
             new BulkItemRequest(requestId, new IndexRequest("index").source(expectedDocMap, requestContentType)) };
-    }
-
-    /**
-     * Returns a randomly generated object for Semantic Text tests purpose.
-     */
-    private static Object randomSemanticTextInput() {
-        int randomInt = randomIntBetween(0, 5);
-        return switch (randomInt) {
-            case 0 -> randomAlphaOfLengthBetween(10, 20);
-            case 1 -> randomInt();
-            case 2 -> randomLong();
-            case 3 -> randomFloat();
-            case 4 -> randomBoolean();
-            case 5 -> randomDouble();
-            default -> throw new IllegalStateException("Illegal state while generating random semantic text input");
-        };
     }
 
     private static class StaticModel extends TestModel {

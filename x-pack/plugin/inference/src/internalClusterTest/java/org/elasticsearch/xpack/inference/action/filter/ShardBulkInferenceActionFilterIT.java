@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
@@ -138,22 +139,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         } finally {
             searchResponse.decRef();
         }
-    }
-
-    /**
-     * Returns a randomly generated object for Semantic Text tests purpose.
-     */
-    private static Object randomSemanticTextInput() {
-        int randomInt = randomIntBetween(0, 5);
-        return switch (randomInt) {
-            case 0 -> randomAlphaOfLengthBetween(10, 20);
-            case 1 -> randomInt();
-            case 2 -> randomLong();
-            case 3 -> randomFloat();
-            case 4 -> randomBoolean();
-            case 5 -> randomDouble();
-            default -> throw new IllegalStateException("Illegal state while generating random semantic text input");
-        };
     }
 
 }

@@ -86,7 +86,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected SemanticTextField createTestInstance() {
-        List<String> rawValues = randomList(1, 5, () -> randomAlphaOfLengthBetween(10, 20));
+        List<String> rawValues = randomList(1, 5, () -> randomSemanticTextInput().toString());
         try { // try catch required for override
             return randomSemanticText(NAME, TestModel.createRandomInstance(), rawValues, randomFrom(XContentType.values()));
         } catch (IOException e) {
@@ -212,6 +212,22 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             ),
             contentType
         );
+    }
+
+    /**
+     * Returns a randomly generated object for Semantic Text tests purpose.
+     */
+    public static Object randomSemanticTextInput() {
+        int randomInt = randomIntBetween(0, 5);
+        return switch (randomInt) {
+            case 0 -> randomAlphaOfLengthBetween(10, 20);
+            case 1 -> randomInt();
+            case 2 -> randomLong();
+            case 3 -> randomFloat();
+            case 4 -> randomBoolean();
+            case 5 -> randomDouble();
+            default -> throw new IllegalStateException("Illegal state while generating random semantic text input");
+        };
     }
 
     public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {

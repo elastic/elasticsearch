@@ -4538,7 +4538,6 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush();
             } finally {
                 engine.close();
-
             }
         }
         try (Store store = createStore(newFSDirectory(storeDir))) {

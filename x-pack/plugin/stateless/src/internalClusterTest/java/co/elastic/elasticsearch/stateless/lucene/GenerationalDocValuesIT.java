@@ -96,6 +96,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Map.entry;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -145,9 +146,16 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
+            boolean trackGenerationalFiles,
             ShardId shardId
         ) {
-            return new GenerationalFilesTrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            return new GenerationalFilesTrackingSearchDirectory(
+                cacheService,
+                cacheBlobReaderService,
+                objectStoreUploadTracker,
+                trackGenerationalFiles,
+                shardId
+            );
         }
 
         @Override
@@ -248,26 +256,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         );
     }
 
-    protected StatelessCommitService createStatelessCommitService(
-        Settings settings,
-        ObjectStoreService objectStoreService,
-        ClusterService clusterService,
-        Client client,
-        StatelessCommitCleaner commitCleaner,
-        SharedBlobCacheWarmingService cacheWarmingService,
-        TelemetryProvider telemetryProvider
-    ) {
-        return new GenerationalFilesTrackingStatelessCommitService(
-            settings,
-            objectStoreService,
-            clusterService,
-            client,
-            commitCleaner,
-            cacheWarmingService,
-            telemetryProvider
-        );
-    }
-
     public static class GenerationalFilesTrackingStatelessCommitService extends StatelessCommitService {
 
         public final Set<String> deletedGenerationalFiles = ConcurrentCollections.newConcurrentSet();
@@ -300,8 +288,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
         @Override
         protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
-            var input = super.doOpenInput(name, context, blobLocation);
-            return generationalFilesTracker.trackIfIsGenerationalFile(input, name, blobLocation);
+            return generationalFilesTracker.trackIfIsGenerationalFile(super.doOpenInput(name, context, blobLocation), name, blobLocation);
         }
 
         public GenerationalFilesTracker getGenerationalFilesTracker() {
@@ -316,15 +303,15 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
+            boolean trackGenerationalFiles,
             ShardId shardId
         ) {
-            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, trackGenerationalFiles, shardId);
         }
 
         @Override
         protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
-            var input = super.doOpenInput(name, context, blobLocation);
-            return generationalFilesTracker.trackIfIsGenerationalFile(input, name, blobLocation);
+            return generationalFilesTracker.trackIfIsGenerationalFile(super.doOpenInput(name, context, blobLocation), name, blobLocation);
         }
 
         public GenerationalFilesTracker getGenerationalFilesTracker() {
@@ -972,7 +959,36 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
         assertBusyRefreshedGeneration(searchEngine, equalTo(7L));
-        assertBusyFilesLocations(searchDirectory, filesLocations);
+        if (STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED == false) {
+            assertBusyFilesLocations(searchDirectory, filesLocations);
+        } else {
+            assertBusyFilesLocations(
+                searchDirectory,
+                Map.ofEntries(
+                    entry("segments_7", 7L),
+                    // referenced segment core _0
+                    entry("_0.cfe", 4L),
+                    entry("_0.cfs", 4L),
+                    entry("_0.si", 4L),
+                    // referenced segment core _1
+                    entry("_1.cfe", 5L),
+                    entry("_1.cfs", 5L),
+                    entry("_1.si", 5L),
+                    // referenced segment core _2
+                    entry("_2.cfe", 6L),
+                    entry("_2.cfs", 6L),
+                    entry("_2.si", 6L),
+                    // new segment core _3
+                    entry("_3.cfe", 7L),
+                    entry("_3.cfs", 7L),
+                    entry("_3.si", 7L),
+                    // blob locations for generational files of _0 are not updated
+                    entry("_0_1.fnm", 6L),
+                    entry("_0_1_Lucene90_0.dvd", 6L),
+                    entry("_0_1_Lucene90_0.dvm", 6L)
+                )
+            );
+        }
         assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L));
 
         assertThat(
@@ -1019,16 +1035,48 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         // already opened segments (see SegmentReader and SegmentCoreReaders). It means that the generational docs values file
         // _0_1_Lucene90_0.dvd was opened on commit generation 6 on the search shard (and therefore use the stateless_commit_6 blob), and
         // its IndexInput is still opened and carried over when refreshing the Lucene index on commit generation 8.
-        //
-        // Since the search shard computes the BCC dependencies on the StatelessCompoundCommit alone, it only reports commit generations
-        // 4 and 8 as used, not 6. This is OK for now because the indexing shard retains the corresponding blob for its own usage, but if
-        // that changes then the search shard is left with a SearchIndexInput that uses a blob that can be pruned at any time.
-        assertBusy(
-            () -> assertThat(
-                searchEngine.getAcquiredPrimaryTermAndGenerations(),
-                contains(new PrimaryTermAndGeneration(1L, 4L), new PrimaryTermAndGeneration(1L, 8L))
-            )
-        );
+        if (STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED == false) {
+            // Since the search shard computes the BCC dependencies on the StatelessCompoundCommit alone, it only reports commit generations
+            // 4 and 8 as used, not 6. This is OK for now because the indexing shard retains the corresponding blob for its own usage, but
+            // if
+            // that changes then the search shard is left with a SearchIndexInput that uses a blob that can be pruned at any time.
+            assertBusy(
+                () -> assertThat(
+                    searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                    contains(new PrimaryTermAndGeneration(1L, 4L), new PrimaryTermAndGeneration(1L, 8L))
+                )
+            );
+            assertBusyFilesLocations(searchDirectory, filesLocations);
+        } else {
+            assertBusy(
+                () -> assertThat(
+                    searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                    contains(
+                        new PrimaryTermAndGeneration(1L, 4L),
+                        new PrimaryTermAndGeneration(1L, 6L),
+                        new PrimaryTermAndGeneration(1L, 8L)
+                    )
+                )
+            );
+            assertBusyFilesLocations(
+                searchDirectory,
+                Map.ofEntries(
+                    entry("segments_8", 8L),
+                    // referenced segment core _0
+                    entry("_0.cfe", 4L),
+                    entry("_0.cfs", 4L),
+                    entry("_0.si", 4L),
+                    // new segment core _4
+                    entry("_4.cfe", 8L),
+                    entry("_4.cfs", 8L),
+                    entry("_4.si", 8L),
+                    // blob locations for generational files of _0 are not updated
+                    entry("_0_1.fnm", 6L),
+                    entry("_0_1_Lucene90_0.dvd", 6L),
+                    entry("_0_1_Lucene90_0.dvm", 6L)
+                )
+            );
+        }
 
         // check that blob 'stateless_commit_6' exists in the object store
         var blobContainerBefore = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
@@ -1068,37 +1116,107 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 8L));
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
-        // after some time the new indexing shard can delete unused commits, including generation 6
         var blobContainerAfter = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
-        assertBusy(() -> assertThat(blobContainerAfter.listBlobs(OperationPurpose.INDICES).keySet(), not(hasItem(bccBlobName))));
+        if (STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED == false) {
+            // after some time the new indexing shard can delete unused commits, including generation 6
+            assertBusy(() -> assertThat(blobContainerAfter.listBlobs(OperationPurpose.INDICES).keySet(), not(hasItem(bccBlobName))));
+        } else {
+            // commit generation 6 is still used by the search shard, it should exist in the object store
+            assertThat(blobContainerAfter.listBlobs(OperationPurpose.INDICES).keySet(), hasItem(bccBlobName));
+        }
 
         assertBusyRefreshedGeneration(searchEngine, equalTo(9L));
-        assertBusyFilesLocations(searchDirectory, filesLocations);
 
-        // search shard still uses generation 6 which has been deleted from object store
+        // search shard still uses generation 6
         assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L));
-        assertThat(
-            searchEngine.getAcquiredPrimaryTermAndGenerations(),
-            contains(new PrimaryTermAndGeneration(1L, 4L), new PrimaryTermAndGeneration(1L, 8L), new PrimaryTermAndGeneration(1L, 9L))
-        );
+        if (STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED == false) {
+            assertThat(
+                searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                contains(new PrimaryTermAndGeneration(1L, 4L), new PrimaryTermAndGeneration(1L, 8L), new PrimaryTermAndGeneration(1L, 9L))
+            );
+            assertBusyFilesLocations(searchDirectory, filesLocations);
+        } else {
+            assertThat(
+                searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                contains(
+                    new PrimaryTermAndGeneration(1L, 4L),
+                    new PrimaryTermAndGeneration(1L, 6L),
+                    new PrimaryTermAndGeneration(1L, 8L),
+                    new PrimaryTermAndGeneration(1L, 9L)
+                )
+            );
+            assertBusyFilesLocations(
+                searchDirectory,
+                Map.ofEntries(
+                    entry("segments_9", 9L),
+                    // referenced segment core _0
+                    entry("_0.cfe", 4L),
+                    entry("_0.cfs", 4L),
+                    entry("_0.si", 4L),
+                    // referenced segment core _4
+                    entry("_4.cfe", 8L),
+                    entry("_4.cfs", 8L),
+                    entry("_4.si", 8L),
+                    // blob locations for generational files of _0 are not updated
+                    entry("_0_1.fnm", 6L),
+                    entry("_0_1_Lucene90_0.dvd", 6L),
+                    entry("_0_1_Lucene90_0.dvm", 6L)
+                )
+            );
+        }
 
         // clear the cache on the search shard to force reading data from object store again
         var searchCacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory);
         searchCacheService.forceEvict(fileCacheKey -> bccBlobName.equals(fileCacheKey.fileName()));
 
-        // Issue ES-7496:
-        // Generational file term/generation used on search shards are not retained on indexing shards, any read on a gen. file will
-        // trigger a NoSuchFileException.
-        Exception e = expectThrows(Exception.class, () -> {
-            try (var searcher = searchShard.acquireSearcher("test")) {
-                assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(9L));
-                // make sure to read the generation files to trigger a cache miss
-                readGenerationalDocValues(searcher);
-            }
-        });
-        var cause = ExceptionsHelper.unwrap(e, NoSuchFileException.class);
-        assertThat(cause, notNullValue());
-        assertThat(cause.getMessage(), containsString(bccBlobName));
+        if (STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED == false) {
+            // Issue ES-7496:
+            // Generational file term/generation used on search shards are not retained on indexing shards, any read on a gen. file will
+            // trigger a NoSuchFileException.
+            Exception e = expectThrows(Exception.class, () -> {
+                try (var searcher = searchShard.acquireSearcher("test")) {
+                    assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(9L));
+                    // make sure to read the generation files to trigger a cache miss
+                    readGenerationalDocValues(searcher);
+                }
+            });
+            var cause = ExceptionsHelper.unwrap(e, NoSuchFileException.class);
+            assertThat(cause, notNullValue());
+            assertThat(cause.getMessage(), containsString(bccBlobName));
+            // end test
+            return;
+        }
+
+        // With ES-7496 resolved we can fully read the generational file without triggering a NoSuchFileException
+        try (var searcher = searchShard.acquireSearcher("test")) {
+            assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(9L));
+            readGenerationalDocValues(searcher);
+        }
+
+        // force-merge to one segment to get rid of all generational files
+        forceMerge = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
+        assertThat(forceMerge.getSuccessfulShards(), equalTo(2));
+
+        filesLocations = Map.ofEntries(
+            entry("segments_a", 10L),
+            // referenced segment core _5
+            entry("_5.cfe", 10L),
+            entry("_5.cfs", 10L),
+            entry("_5.si", 10L)
+        );
+
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(10L));
+        assertBusyFilesLocations(indexDirectory, filesLocations);
+
+        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of());
+        assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
+
+        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of());
+        assertBusyRefreshedGeneration(searchEngine, equalTo(10L));
+        assertBusy(() -> assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(new PrimaryTermAndGeneration(1L, 10L))));
+        assertBusyFilesLocations(searchDirectory, filesLocations);
+
+        assertHitCount(client().prepareSearch(indexName).setSize(0), docsAfterSegment_3);
     }
 
     public void testOnGenerationalFileDeletion() throws Exception {

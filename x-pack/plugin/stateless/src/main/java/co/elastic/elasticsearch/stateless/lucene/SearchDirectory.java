@@ -31,6 +31,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -38,9 +40,15 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -51,6 +59,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.isGenerationalFile;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 
 public class SearchDirectory extends BlobStoreCacheDirectory {
@@ -64,15 +73,34 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final AtomicReference<StatelessCompoundCommit> currentCommit = new AtomicReference<>(null);
     private final MutableObjectStoreUploadTracker objectStoreUploadTracker;
 
+    /**
+     * Flag to indicate if opened Lucene generational files must be tracked or not.
+     */
+    private final boolean trackGenerationalFiles;
+
+    /**
+     * Map of terms/generations that are currently in use by opened Lucene generational files.
+     * (only populated when {@link #trackGenerationalFiles} is enabled)
+     */
+    private final Map<PrimaryTermAndGeneration, RefCounted> generationalFilesTermAndGens;
+
+    /**
+     * Term/generation of the latest updated commit if it contained at least one generational file.
+     */
+    private volatile Releasable lastAcquiredGenerationalFilesTermAndGen = null;
+
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
+        boolean trackGenerationalFiles,
         ShardId shardId
     ) {
         super(cacheService, shardId);
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
+        this.trackGenerationalFiles = trackGenerationalFiles;
+        this.generationalFilesTermAndGens = trackGenerationalFiles ? new HashMap<>() : Map.of();
     }
 
     public void updateLatestUploadInfo(
@@ -81,6 +109,65 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         String nodeId
     ) {
         objectStoreUploadTracker.updateLatestUploadInfo(latestUploadedBccTermAndGen, ccTermAndGen, nodeId);
+    }
+
+    private Releasable acquireGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen, String name) {
+        assert trackGenerationalFiles;
+        synchronized (generationalFilesTermAndGens) {
+            var refCounted = generationalFilesTermAndGens.get(termAndGen);
+            if (refCounted == null || refCounted.tryIncRef() == false) {
+                throw new IllegalStateException("Cannot acquire " + termAndGen + " for generational file [" + name + ']');
+            }
+            assert generationalFilesTermAndGens.isEmpty() == false;
+            return refCounted::decRef;
+        }
+    }
+
+    private Releasable addGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen) {
+        assert trackGenerationalFiles;
+        RefCounted refCounted;
+        synchronized (generationalFilesTermAndGens) {
+            refCounted = generationalFilesTermAndGens.get(termAndGen);
+            if (refCounted == null) {
+                refCounted = AbstractRefCounted.of(() -> removeGenerationalFileTermAndGeneration(termAndGen));
+                generationalFilesTermAndGens.put(termAndGen, refCounted);
+            } else {
+                // when updating the commit we always acquire the BCC term/gen the commit is part of; if two commits are in the same BCC
+                // the second update need to incRef the same BCC term/gen instead of creating a new AbstractRefCounted
+                refCounted.incRef();
+            }
+        }
+        return refCounted::decRef;
+    }
+
+    private void removeGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen) {
+        assert trackGenerationalFiles;
+        synchronized (generationalFilesTermAndGens) {
+            var removed = generationalFilesTermAndGens.remove(termAndGen);
+            assert removed != null : termAndGen;
+            assert removed.hasReferences() == false : termAndGen;
+        }
+    }
+
+    /**
+     * @return the set of {@link PrimaryTermAndGeneration} used by opened Lucene generational files
+     */
+    public Set<PrimaryTermAndGeneration> getAcquiredGenerationalFileTermAndGenerations() {
+        if (trackGenerationalFiles) {
+            synchronized (generationalFilesTermAndGens) {
+                return Set.copyOf(generationalFilesTermAndGens.keySet());
+            }
+        }
+        return Set.of();
+    }
+
+    @Override
+    protected IndexInput doOpenInput(String name, IOContext context, BlobLocation blobLocation) {
+        if (trackGenerationalFiles == false || isGenerationalFile(name) == false) {
+            return super.doOpenInput(name, context, blobLocation);
+        }
+        var releasable = acquireGenerationalFileTermAndGeneration(blobLocation.getBatchedCompoundCommitTermAndGeneration(), name);
+        return doOpenInput(name, context, blobLocation, releasable);
     }
 
     /**
@@ -92,14 +179,50 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     public boolean updateCommit(StatelessCompoundCommit newCommit) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+
+        var previousGenerationalFilesTermAndGen = trackGenerationalFiles ? this.lastAcquiredGenerationalFilesTermAndGen : null;
         try {
-            final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
+            final var updatedMetadata = new HashMap<>(currentMetadata);
+            PrimaryTermAndGeneration generationalFilesTermAndGen = null;
             long commitSize = 0L;
             for (var entry : newCommit.commitFiles().entrySet()) {
-                updated.put(entry.getKey(), entry.getValue());
-                commitSize += entry.getValue().fileLength();
+                var fileName = entry.getKey();
+                var blobLocation = entry.getValue();
+                if (trackGenerationalFiles && isGenerationalFile(fileName)) {
+                    // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
+                    // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
+                    // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
+                    // instances).
+                    updatedMetadata.putIfAbsent(fileName, blobLocation);
+                    if (generationalFilesTermAndGen == null) {
+                        generationalFilesTermAndGen = blobLocation.getBatchedCompoundCommitTermAndGeneration();
+                    }
+                    assert blobLocation.getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
+                        : "Because they are either new or copied, generational files should all belong to the same BCC, but "
+                            + fileName
+                            + " has location "
+                            + blobLocation
+                            + " which is different from "
+                            + generationalFilesTermAndGen;
+                } else {
+                    updatedMetadata.put(fileName, blobLocation);
+                }
+                commitSize += blobLocation.fileLength();
             }
-            currentMetadata = Map.copyOf(updated);
+            // If we have generational file(s) in the new commit, we create a ref counted instance that holds the term/generation of the
+            // batched compound commit so that it can be reported as used to the indexing shard in new commit responses. The ref counted
+            // instance will be decRef on the next commit update or when the directory is closed. Any generational file opened between two
+            // commits update should incRef the instance to indicate that the BCC term/generation is in use and decRef it once the file is
+            // closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
+            if (generationalFilesTermAndGen != null) {
+                var releasable = addGenerationalFileTermAndGeneration(generationalFilesTermAndGen);
+                // use releaseOnce to decRef only once, either on commit update or directory close
+                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(releasable);
+            } else if (trackGenerationalFiles) {
+                // commit has no generational files
+                this.lastAcquiredGenerationalFilesTermAndGen = null;
+            }
+            currentMetadata = Map.copyOf(updatedMetadata);
             currentDataSetSizeInBytes = commitSize;
             // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
             // TODO: files always accumulate
@@ -113,7 +236,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 }
             }).generation() == newCommit.generation();
         } finally {
-            assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+            try {
+                Releasables.close(previousGenerationalFilesTermAndGen);
+            } finally {
+                assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+            }
         }
     }
 
@@ -265,6 +392,17 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 );
             });
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        Releasables.close(lastAcquiredGenerationalFilesTermAndGen);
+        if (Assertions.ENABLED) {
+            synchronized (generationalFilesTermAndGens) {
+                assert generationalFilesTermAndGens.isEmpty() : "expect all inputs to be closed at the time the directory is closed";
+            }
+        }
+        super.close();
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(

@@ -364,6 +364,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             cache,
             new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class)),
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+            randomBoolean(),
             shardId
         );
         directory.setBlobContainer(primaryTerm -> blobContainer);
@@ -436,6 +437,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             sharedBlobCacheService,
             new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class)),
             objectStoreUploadTracker,
+            randomBoolean(),
             shardId
         );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));

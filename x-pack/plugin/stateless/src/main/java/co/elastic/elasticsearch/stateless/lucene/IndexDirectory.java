@@ -622,7 +622,8 @@ public class IndexDirectory extends ByteSizeDirectory {
          * <p>
          * For example, during merges Lucene might delete a local file using {@link #deleteFile(String)} and continue to read from it. By
          * holding a ref on the {@link LocalFileRef}, the file remains in the directory folder on disk until the {@link LocalDelegate} is
-         * fully released.
+         * fully released. This specific bug has been fixed in Lucene 9.11.0 (https://github.com/apache/lucene/pull/13017) so we might want
+         * to revisit this.
          * </p>
          * <p>
          * When the local file is uploaded to the object store, the {@link LocalFileRef} calls back the {@link ReopeningIndexInput}
@@ -643,7 +644,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 super("local(" + name + ')', false, input);
                 this.name = Objects.requireNonNull(name);
                 this.localFile = Objects.requireNonNull(localFile);
-                this.localFile.incRef();
+                this.localFile.incRef(); // Do we need to revisit this? It is fixed in Lucene (https://github.com/apache/lucene/pull/13017)
                 this.refCounted = AbstractRefCounted.of(() -> {
                     try {
                         try {

@@ -7,21 +7,17 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 
 import java.util.Arrays;
@@ -58,22 +54,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
-        // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
-        // assigning scores to the wrong inputs
-        Integer inferenceEndpointTopN = getTopNFromInferenceEndpointTaskSettings();
-        if (inferenceEndpointTopN != null && inferenceEndpointTopN < featureDocs.length) {
-            scoreListener.onFailure(
-                new IllegalArgumentException(
-                    "Inference endpoint ["
-                        + inferenceId
-                        + "] is configured to return the top ["
-                        + inferenceEndpointTopN
-                        + "] results. Reduce rank_window_size to be less than or equal to this value."
-                )
-            );
-            return;
-        }
-
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
         final ActionListener<InferenceAction.Response> actionListener = scoreListener.delegateFailureAndWrap((l, r) -> {
@@ -98,13 +78,43 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             }
         });
 
-        List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
-        InferenceAction.Request request = generateRequest(featureData);
-        try {
-            client.execute(InferenceAction.INSTANCE, request, actionListener);
-        } finally {
-            request.decRef();
-        }
+        // top N listener
+        ActionListener<GetInferenceModelAction.Response> topNListener = ActionListener.wrap(response -> {
+            // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
+            // assigning scores to the wrong input
+            Integer configuredTopN = null;
+            if (response.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
+                configuredTopN = cohereTaskSettings.getTopNDocumentsOnly();
+            } else if (response.getEndpoints()
+                .get(0)
+                .getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
+                    configuredTopN = googleVertexAiTaskSettings.topN();
+                }
+            if (configuredTopN != null && configuredTopN < featureDocs.length) {
+                scoreListener.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] is configured to return the top ["
+                            + configuredTopN
+                            + "] results, but rank_window_size is ["
+                            + rankWindowSize
+                            + "]. Reduce rank_window_size to be less than or equal to the configured top N value."
+                    )
+                );
+                return;
+            }
+            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
+            InferenceAction.Request inferenceRequest = generateRequest(featureData);
+            try {
+                client.execute(InferenceAction.INSTANCE, inferenceRequest, actionListener);
+            } finally {
+                inferenceRequest.decRef();
+            }
+        }, scoreListener::onFailure);
+
+        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
+        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, topNListener);
     }
 
     /**
@@ -139,23 +149,4 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
         return scores;
     }
-
-    private Integer getTopNFromInferenceEndpointTaskSettings() {
-        GetInferenceModelAction.Request request = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
-        ActionFuture<GetInferenceModelAction.Response> response = client.execute(GetInferenceModelAction.INSTANCE, request);
-        ModelConfigurations modelConfigurations = response.actionGet().getEndpoints().get(0);
-
-        if (modelConfigurations.getService().equals(CohereService.NAME)
-            && modelConfigurations.getTaskType().equals(TaskType.RERANK)
-            && modelConfigurations.getTaskSettings() instanceof CohereRerankTaskSettings) {
-            return ((CohereRerankTaskSettings) modelConfigurations.getTaskSettings()).getTopNDocumentsOnly();
-        } else if (modelConfigurations.getService().equals(GoogleVertexAiService.NAME)
-            && modelConfigurations.getTaskType().equals(TaskType.RERANK)
-            && modelConfigurations.getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings) {
-                return ((GoogleVertexAiRerankTaskSettings) modelConfigurations.getTaskSettings()).topN();
-            }
-
-        return null;
-    }
-
 }

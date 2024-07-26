@@ -188,6 +188,104 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
         searchAndAssertFooValues("index-alias", false, "1", "2");
     }
 
+    public void testAliasUnderRcs1WithAliasOnlyPrivilegesWithRealFilter() throws Exception {
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [
+                {
+                  "names": ["index-alias"],
+                  "privileges": ["read", "read_cross_cluster", "view_index_metadata"]
+                }
+              ]
+            }""");
+        performRequestAgainstFulfillingCluster(putRoleRequest);
+
+        Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "index-000001" } }
+            { "foo": "1" }
+            { "index": { "_index": "index-000001" } }
+            { "foo": "2" }
+            """));
+        assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+
+        Request aliasRequest = new Request("POST", "/_aliases");
+        aliasRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "index-000001",
+                    "alias": "index-alias",
+                    "filter": {
+                      "term": {
+                        "foo": "1"
+                      }
+                    }
+                  }
+                }
+              ]
+            }""");
+        assertOK(performRequestAgainstFulfillingCluster(aliasRequest));
+
+        searchAndAssertFooValues("index-alias", true, "1");
+        searchAndAssertFooValues("index-alias", false, "1");
+
+        searchAndAssertFooValues("index-*", true, "1");
+        searchAndAssertFooValues("index-*", false, "1");
+    }
+
+    public void testAliasUnderRcs1WithMixedPrivilegesWithRealFilter() throws Exception {
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [
+                {
+                  "names": ["index-alias"],
+                  "privileges": ["read_cross_cluster", "view_index_metadata"]
+                },
+                {
+                  "names": ["index-000001"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""");
+        performRequestAgainstFulfillingCluster(putRoleRequest);
+
+        Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "index-000001" } }
+            { "foo": "1" }
+            { "index": { "_index": "index-000001" } }
+            { "foo": "2" }
+            """));
+        assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+
+        Request aliasRequest = new Request("POST", "/_aliases");
+        aliasRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "index-000001",
+                    "alias": "index-alias",
+                    "filter": {
+                      "term": {
+                        "foo": "1"
+                      }
+                    }
+                  }
+                }
+              ]
+            }""");
+        assertOK(performRequestAgainstFulfillingCluster(aliasRequest));
+
+        searchAndAssertFooValues("index-*", true, "1", "2");
+        // inconsistent with minimize roundtrips because we throw a 403
+        expectThrows(Exception.class, () -> search("index-*", false));
+    }
+
     private void searchAndAssertFooValues(String indexPattern, boolean ccsMinimizeRoundtrips, String... expectedFooValues)
         throws IOException {
         final SearchResponse searchResponse = search(indexPattern, ccsMinimizeRoundtrips);

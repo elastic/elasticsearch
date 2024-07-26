@@ -195,18 +195,18 @@ final class BootstrapChecks {
         if (Constants.LINUX) {
             checks.add(new MaxNumberOfThreadsCheck());
         }
-        if (Constants.LINUX || Constants.MAC_OS_X) {
-            checks.add(new MaxSizeVirtualMemoryCheck());
-        }
-        if (Constants.LINUX || Constants.MAC_OS_X) {
-            checks.add(new MaxFileSizeCheck());
-        }
+//        if (Constants.LINUX || Constants.MAC_OS_X) {
+//            checks.add(new MaxSizeVirtualMemoryCheck());
+//        }
+//        if (Constants.LINUX || Constants.MAC_OS_X) {
+//            checks.add(new MaxFileSizeCheck());
+//        }
         if (Constants.LINUX) {
             checks.add(new MaxMapCountCheck());
         }
         checks.add(new ClientJvmCheck());
         checks.add(new UseSerialGCCheck());
-        checks.add(new SystemCallFilterCheck());
+//        checks.add(new SystemCallFilterCheck());
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());

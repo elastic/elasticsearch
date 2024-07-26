@@ -13,10 +13,10 @@ import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 
 public class ESCompletionPostingsFormat extends CompletionPostingsFormat {
 
-    //TODO make this configurable via node setting: can it be static?
+    // TODO make this configurable via node setting: can it be static?
     private static final FSTLoadMode FST_LOAD_MODE = FSTLoadMode.OFF_HEAP;
 
-    //this is called by SPI
+    // this is called by SPI
     public ESCompletionPostingsFormat() {
         super("ESCompletion99", FST_LOAD_MODE);
     }

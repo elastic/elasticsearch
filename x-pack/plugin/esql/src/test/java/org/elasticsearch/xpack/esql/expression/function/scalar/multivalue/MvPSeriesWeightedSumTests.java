@@ -47,11 +47,12 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
             new TestCaseSupplier(
                 List.of(DataType.DOUBLE, DataType.DOUBLE),
                 () -> new TestCaseSupplier.TestCase(
+                    // TODO random inputs and outputs
                     List.of(
                         new TestCaseSupplier.TypedData(Arrays.asList(70.0, 60.0, 50.0), DataType.DOUBLE, "number"),
-                        new TestCaseSupplier.TypedData(1.5, DataType.DOUBLE, "p")
+                        new TestCaseSupplier.TypedData(1.5, DataType.DOUBLE, "p").forceLiteral()
                     ),
-                    "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=Attribute[channel=1]]",
+                    "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=1.5]",
                     DataType.DOUBLE,
                     closeTo(100.8357079220902, 0.00000001)
                 )

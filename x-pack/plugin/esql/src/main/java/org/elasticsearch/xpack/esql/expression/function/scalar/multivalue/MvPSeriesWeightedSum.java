@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -91,7 +92,8 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             return resolution;
         }
 
-        resolution = TypeResolutions.isType(p, dt -> dt == DOUBLE, sourceText(), SECOND, "double");
+        resolution = TypeResolutions.isType(p, dt -> dt == DOUBLE, sourceText(), SECOND, "double")
+            .and(TypeResolutions.isFoldable(p, sourceText(), SECOND));
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -107,7 +109,12 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(source(), toEvaluator.apply(field), toEvaluator.apply(p));
+            case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field),
+                new CompensatedSum(),
+                (Double) p.fold()
+            );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
 
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
@@ -129,9 +136,15 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         return field.dataType();
     }
 
-    @Evaluator(extraName = "Double", warnExceptions = { InvalidArgumentException.class })
-    static void process(DoubleBlock.Builder builder, int position, DoubleBlock block, double p) {
-        CompensatedSum sum = new CompensatedSum();
+    @Evaluator(extraName = "Double")
+    static void process(
+        DoubleBlock.Builder builder,
+        int position,
+        DoubleBlock block,
+        @Fixed(includeInToString = false) CompensatedSum sum,
+        @Fixed double p
+    ) {
+        sum.reset(0, 0);
         int start = block.getFirstValueIndex(position);
         int end = block.getValueCount(position) + start;
 

@@ -190,8 +190,8 @@ public class EsqlCapabilities {
          * don't name it that because we don't support complex numbers and don't want to make folks think
          * of mystical number theory things. This is just a weighted sum that is adjacent to magic.
          */
-        MV_PSERIES_WEIGHTED_SUM;
-        
+        MV_PSERIES_WEIGHTED_SUM,
+
         /**
          * Support for match operator
          */

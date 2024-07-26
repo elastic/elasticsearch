@@ -145,7 +145,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -309,13 +308,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
             // Block the security crypto threadpool
             CyclicBarrier barrier = new CyclicBarrier(2);
-            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(() -> {
-                try {
-                    barrier.await();
-                } catch (InterruptedException | BrokenBarrierException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(() -> safeAwait(barrier));
             // Now fill it up while the one thread is blocked
             for (int i = 0; i < TEST_THREADPOOL_QUEUE_SIZE; i++) {
                 threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(() -> {});
@@ -344,17 +337,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat("since the request was rejected, there should be no cache entry for this key", cachedValue, nullValue());
 
             // unblock the threadpool
-            barrier.await();
+            safeAwait(barrier);
 
-            // wait for the threadpool queue to drain
-            assertBusy(() -> {
-                for (var stat : threadPool.stats().stats()) {
-                    if (stat.name().equals(SECURITY_CRYPTO_THREAD_POOL_NAME)) {
-                        assertThat(stat.rejected(), equalTo(1L));
-                        assertThat(stat.queue(), equalTo(0));
-                    }
+            // wait for the threadpool queue to drain & check that the stats as as expected
+            flushThreadPoolExecutor(threadPool, SECURITY_CRYPTO_THREAD_POOL_NAME);
+            for (var stat : threadPool.stats().stats()) {
+                if (stat.name().equals(SECURITY_CRYPTO_THREAD_POOL_NAME)) {
+                    assertThat(stat.rejected(), equalTo(1L));
+                    assertThat(stat.queue(), equalTo(0));
                 }
-            });
+            }
 
             // try to authenticate again with the same key - if this hangs, check the future caching
             final AuthenticationResult<User> shouldSucceed = tryAuthenticate(service, id, key, type);

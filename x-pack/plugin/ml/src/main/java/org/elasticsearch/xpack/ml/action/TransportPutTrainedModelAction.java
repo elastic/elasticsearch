@@ -145,7 +145,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         // NOTE: hasModelDefinition is false if we don't parse it. But, if the fully parsed model was already provided, continue
         boolean hasModelDefinition = config.getModelDefinition() != null;
         if (hasModelDefinition) {
-            if (validateModelDefinition(config, state, finalResponseListener) == false) {
+            if (validateModelDefinition(config, state, licenseState, finalResponseListener) == false) {
                 return;
             }
         }
@@ -455,7 +455,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         );
     }
 
-    private boolean validateModelDefinition(TrainedModelConfig config, ClusterState state, ActionListener<Response> finalResponseListener) {
+    public static boolean validateModelDefinition(
+        TrainedModelConfig config,
+        ClusterState state,
+        XPackLicenseState licenseState,
+        ActionListener<Response> finalResponseListener
+    ) {
         try {
             config.getModelDefinition().getTrainedModel().validate();
         } catch (ElasticsearchException ex) {

@@ -44,9 +44,6 @@ tests:
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109687"
   method: "test {p0=sql/translate/Translate SQL}"
-- class: "org.elasticsearch.action.admin.indices.rollover.RolloverIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/110034"
-  method: "testRolloverWithClosedWriteIndex"
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testStoreDirectory
   issue: https://github.com/elastic/elasticsearch/issues/110210

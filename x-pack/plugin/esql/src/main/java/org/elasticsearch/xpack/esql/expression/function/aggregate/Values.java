@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -35,8 +36,20 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
-        description = "Collect values for a field.",
-        isAggregation = true
+        preview = true,
+        description = """
+            Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed.
+            If you need the values returned in order use <<esql-mv_sort>>.
+
+            WARNING: This can use a significant amount of memory and ES|QL doesn't yet
+                     grow aggregations beyond memory. So this aggregation will work until
+                     it is used to collect more values than can fit into memory. Once it
+                     collects too many values it will fail the query with
+                     a <<circuit-breaker-errors, Circuit Breaker Error>>.""",
+        appendix = """
+            """,
+        isAggregation = true,
+        examples = @Example(file = "string", tag = "values-grouped")
     )
     public Values(
         Source source,

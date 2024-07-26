@@ -1309,7 +1309,7 @@ public class MetadataIndexTemplateService {
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
-            if (isHidden == false || (template.getDataStreamTemplate() != null && template.getDataStreamTemplate().isHidden() == false)) {
+            if (isHidden == false || template.getDataStreamTemplate() != null) {
                 final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
                     candidates.add(Tuple.tuple(name, template));

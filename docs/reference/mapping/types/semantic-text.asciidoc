@@ -52,8 +52,8 @@ Use the <<put-inference-api>> to create the endpoint.
 The `inference_id` will not be validated when the mapping is created, but when documents are ingested into the index.
 When the first document is indexed, the `inference_id` will be used to generate underlying indexing structures for the field.
 
-WARNING: Removing an inference endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that inference endpoint as their `inference_id`.
-Please check that inference endpoints are not used in `semantic_text` fields before removal.
+WARNING: Removing an {infer} endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that {infer} endpoint as their `inference_id`.
+Trying to <<delete-inference-api,delete an {infer} endpoint>> that is used on a `semantic_text` field will result in an error.
 
 [discrete]
 [[auto-text-chunking]]
@@ -64,6 +64,9 @@ To allow for large amounts of text to be used in semantic search, `semantic_text
 
 Each chunk will include the text subpassage and the corresponding embedding generated from it.
 When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be used to compute a score.
+
+Documents are split into 250-word sections with a 100-word overlap so that each section shares 100 words with the previous section.
+This overlap ensures continuity and prevents vital contextual information in the input text from being lost by a hard break.
 
 
 [discrete]
@@ -118,13 +121,19 @@ In case you want to customize data indexing, use the
 <<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field
 types and create an ingest pipeline with an
 <<inference-processor, {infer} processor>> to generate the embeddings.
-<<semantic-search-inference,This tutorial>> walks you through the process.
+<<semantic-search-inference,This tutorial>> walks you through the process. In
+these cases - when you use `sparse_vector` or `dense_vector` field types instead
+of the `semantic_text` field type to customize indexing - using the 
+<<query-dsl-semantic-query,`semantic_query`>> is not supported for querying the 
+field data.
+
 
 [discrete]
 [[update-script]]
 ==== Updates to `semantic_text` fields
 
-Updates that use scripts are not supported when the index contains a `semantic_text` field.
+Updates that use scripts are not supported for an index contains a `semantic_text` field.
+Even if the script targets non-`semantic_text` fields, the update will fail when the index contains a `semantic_text` field.
 
 
 [discrete]

@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
@@ -1735,13 +1736,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 closeExecutor.execute(new AbstractRunnable() {
 
                     protected void doRun() throws Exception {
-                        var cleanUpAndClose = ActionListener.runBefore(closeListener, () -> {
+                        var cleanUpAndClose = ActionListener.<Void>runBefore(closeListener.delegateFailureAndWrap((l, unused) -> {
                             // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                            Engine.close(engine, l);
+                        }), () -> {
                             // Also closing refreshListeners to prevent us from accumulating any more listeners
-                            // TODO Consider closing the engine asynchronously, but since it should be already be closed,
-                            // a sync call should complete immediately
                             IOUtils.close(
-                                () -> Engine.close(engine, ActionListener.noop()),
                                 globalCheckpointListeners,
                                 refreshListeners,
                                 pendingReplicationActions,
@@ -1891,13 +1891,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         SubscribableListener
             // First, start a temporary engine, recover the local translog up to the given checkpoint, and then close the engine again.
-            .<Void>newForked(l -> ActionListener.runWithResource(ActionListener.assertOnce(l), () -> () -> {
+            .<Void>newForked(l -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
+                Engine old;
                 synchronized (engineMutex) {
-                    // TODO Remove no-op listener
-                    Engine.close(currentEngineReference.getAndSet(null), ActionListener.noop());
+                    old = currentEngineReference.getAndSet(null);
                 }
-            }, (recoveryCompleteListener, ignoredRef) -> {
+                old.close(l);
+            })
+            .<Void>andThen((recoveryCompleteListener, unusedRef) -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
                     recoveryState.getTranslog().totalLocal(snapshot.totalOperations());
@@ -1915,7 +1917,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
                     return v;
                 }));
-            }))
+            })
             // If the recovery replayed any operations then it will have created a new safe commit for the specified global checkpoint,
             // which we can use for the rest of the recovery, so now we load the safe commit and use its local checkpoint as the recovery
             // starting point.
@@ -2203,8 +2205,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert Thread.holdsLock(mutex) == false : "restart recovery under mutex";
         synchronized (engineMutex) {
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
-            // TODO Remove no-op listener
-            Engine.close(currentEngineReference.getAndSet(null), ActionListener.noop());
+            // TODO Make it async
+            var future = new PlainActionFuture<Void>();
+            Engine.close(currentEngineReference.getAndSet(null), future);
+            FutureUtils.get(future);
             resetRecoveryStage();
         }
     }
@@ -4272,8 +4276,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             };
-            // TODO Remove no-op listener
-            Engine.close(currentEngineReference.getAndSet(readOnlyEngine), ActionListener.noop());
+            // TODO Make it async
+            var future = new PlainActionFuture<Void>();
+            Engine.close(currentEngineReference.getAndSet(readOnlyEngine), future);
+            FutureUtils.get(future);
+            var listener = new SubscribableListener<Void>();
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
@@ -4289,8 +4296,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         newEngineReference.get().refresh("reset_engine");
         synchronized (engineMutex) {
             verifyNotClosed();
-            // TODO Remove no-op listener
-            Engine.close(currentEngineReference.getAndSet(newEngineReference.get()), ActionListener.noop());
+            // TODO Make it async
+            var future = new PlainActionFuture<Void>();
+            Engine.close(currentEngineReference.getAndSet(newEngineReference.get()), future);
+            FutureUtils.get(future);
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);

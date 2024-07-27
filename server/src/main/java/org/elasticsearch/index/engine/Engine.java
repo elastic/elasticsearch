@@ -2318,6 +2318,8 @@ public abstract class Engine {
     public static void close(@Nullable Engine engine, ActionListener<Void> listener) throws IOException {
         if (engine != null) {
             engine.close(listener);
+        } else {
+            listener.onResponse(null);
         }
     }
 

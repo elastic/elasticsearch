@@ -122,6 +122,9 @@ tests:
 - class: org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.AzureSnapshotBasedRecoveryIT
   method: testRecoveryUsingSnapshots
   issue: https://github.com/elastic/elasticsearch/issues/111377
+- class: org.elasticsearch.repositories.blobstore.testkit.AzureSnapshotRepoTestKitIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/111280
 
 # Examples:
 #

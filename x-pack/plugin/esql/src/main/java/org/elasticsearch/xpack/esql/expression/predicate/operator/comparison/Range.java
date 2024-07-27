@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -70,13 +72,31 @@ public class Range extends EsqlScalarFunction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(value);
-        out.writeNamedWriteable(lower);
-        out.writeBoolean(includeLower);
-        out.writeNamedWriteable(upper);
-        out.writeBoolean(includeUpper);
-        out.writeZoneId(zoneId);
+        if (out.getTransportVersion().before(TransportVersions.ESQL_ADD_RANGE)) {
+            if (includeUpper) {
+                if (includeLower) {
+                    new And(source(), new GreaterThanOrEqual(source(), value, lower), new LessThanOrEqual(source(), value, upper)).writeTo(
+                        out
+                    );
+                } else {
+                    new And(source(), new GreaterThan(source(), value, lower), new LessThanOrEqual(source(), value, upper)).writeTo(out);
+                }
+            } else {
+                if (includeLower) {
+                    new And(source(), new GreaterThanOrEqual(source(), value, lower), new LessThan(source(), value, upper)).writeTo(out);
+                } else {
+                    new And(source(), new GreaterThan(source(), value, lower), new LessThan(source(), value, upper)).writeTo(out);
+                }
+            }
+        } else {
+            source().writeTo(out);
+            out.writeNamedWriteable(value);
+            out.writeNamedWriteable(lower);
+            out.writeBoolean(includeLower);
+            out.writeNamedWriteable(upper);
+            out.writeBoolean(includeUpper);
+            out.writeZoneId(zoneId);
+        }
     }
 
     @Override

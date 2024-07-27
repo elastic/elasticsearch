@@ -17,13 +17,19 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
+import co.elastic.elasticsearch.serverless.autoscaling.action.GetIndexTierMetrics;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
@@ -35,6 +41,9 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.shutdown.DeleteShutdownNodeAction;
+import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.util.Collection;
 import java.util.List;
@@ -47,18 +56,24 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(TestTelemetryPlugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(
+            List.of(TestTelemetryPlugin.class, ShutdownPlugin.class, ServerlessAutoscalingPlugin.class),
+            super.nodePlugins()
+        );
     }
 
     public void testIndexingMetricsArePublishedEventually() throws Exception {
@@ -82,7 +97,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         }
 
         assertBusy(() -> assertThat(ingestLoadPublishSent.get(), equalTo(1)));
-        var metrics = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
+        var metrics = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class)
+            .getIndexTierMetrics(ClusterState.EMPTY_STATE);
         assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
@@ -98,7 +114,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         assertBusy(() -> assertThat(ingestLoadPublishSent.get(), greaterThan(1)));
         // We'd need an assertBusy since the second publish might still miss the recent load.
         assertBusy(() -> {
-            var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
+            var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class)
+                .getIndexTierMetrics(ClusterState.EMPTY_STATE);
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), greaterThan(0.0));
@@ -141,7 +158,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         }
 
         assertBusy(() -> assertThat(ingestLoadPublishSent.get(), equalTo(1)));
-        var metrics = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
+        var metrics = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class)
+            .getIndexTierMetrics(ClusterState.EMPTY_STATE);
         assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
@@ -153,7 +171,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // some write so that the WRITE EWMA is not zero
         indexDocs(indexName, randomIntBetween(5000, 10000));
         assertBusy(() -> {
-            var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
+            var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class)
+                .getIndexTierMetrics(ClusterState.EMPTY_STATE);
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), allOf(greaterThan(0.0), lessThanOrEqualTo(1.0)));
@@ -181,7 +200,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // We'd need an assertBusy since the second publish might still miss the recent load.
         // Eventually just because of queueing, the load will go above the current available threads
         assertBusy(() -> {
-            var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class).getIndexTierMetrics();
+            var metricsAfter = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class)
+                .getIndexTierMetrics(ClusterState.EMPTY_STATE);
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).load(), greaterThan((double) executorThreads));
@@ -214,7 +234,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         }
         // Wait for a publication of the metrics
         longAwait(metricPublicationBarrier);
-        var metrics = ingestMetricsService.getIndexTierMetrics();
+        var metrics = ingestMetricsService.getIndexTierMetrics(ClusterState.EMPTY_STATE);
         assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
@@ -230,7 +250,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         longAwait(metricPublicationBarrier);
         // Eventually just because of the "long-running" tasks, the load will go up
         assertBusy(() -> {
-            var metricsAfter = ingestMetricsService.getIndexTierMetrics();
+            var metricsAfter = ingestMetricsService.getIndexTierMetrics(ClusterState.EMPTY_STATE);
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().size(), equalTo(1));
             assertThat(metricsAfter.toString(), metricsAfter.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(
@@ -272,7 +292,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         publicationsProcessed.drainPermits();
         safeAcquire(publicationsProcessed);
         assertThat(
-            ingestMetricsService.getIndexTierMetrics().getNodesLoad(),
+            ingestMetricsService.getIndexTierMetrics(ClusterState.EMPTY_STATE).getNodesLoad(),
             equalTo(List.of(new NodeIngestLoadSnapshot(0.0, MetricQuality.EXACT)))
         );
 
@@ -287,7 +307,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         safeAcquire(publicationsProcessed);
 
         assertThat(
-            ingestMetricsService.getIndexTierMetrics().getNodesLoad(),
+            ingestMetricsService.getIndexTierMetrics(ClusterState.EMPTY_STATE).getNodesLoad(),
             equalTo(List.of(new NodeIngestLoadSnapshot(0.0, MetricQuality.EXACT)))
         );
 
@@ -308,7 +328,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Eventually, we'd see the indexing load reflected in the new metrics. This might not immediately happen upon the first
         // publication after the indexing activity, therefore, we'd use assertBusy.
         assertBusy(() -> {
-            var loadsAfterIndexing2 = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
+            var loadsAfterIndexing2 = ingestMetricsService.getIndexTierMetrics(ClusterState.EMPTY_STATE).getNodesLoad();
             assertThat(loadsAfterIndexing2.size(), equalTo(1));
             assertThat(loadsAfterIndexing2.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(loadsAfterIndexing2.get(0).load(), greaterThan(0.0));
@@ -493,13 +513,98 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         });
     }
 
+    public void testIngestLoadsMetricsWithShutdownMetadata() throws Exception {
+        final int numNodes = between(1, 6);
+        final Settings nodeSettings = Settings.builder()
+            .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        IntStream.range(0, numNodes).forEach(i -> startMasterAndIndexNode(nodeSettings));
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, numNodes, 0);
+        ensureGreen(indexName);
+
+        for (int i = 0; i < numNodes; i++) {
+            indexDocsAndRefresh(indexName, between(10, 50));
+        }
+        // Ensure meaningful metrics have been published for each node
+        assertBusy(() -> {
+            final List<NodeIngestLoadSnapshot> ingestNodesLoad = getIngestNodesLoad();
+            assertThat(ingestNodesLoad, hasSize(numNodes));
+            assertThat(
+                ingestNodesLoad.stream()
+                    .allMatch(ingestNodeLoad -> ingestNodeLoad.load() > 0.0 && ingestNodeLoad.metricQuality() == MetricQuality.EXACT),
+                is(true)
+            );
+        });
+
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(
+            Math.min(between(1, 3), numNodes),
+            clusterService.state().nodes().getDataNodes().values()
+        );
+        putShutdownMetadataForNodes(shuttingDownNodes);
+
+        // Ingest load metrics are not impacted by shutdown metadata because the setting is not enabled
+        assertThat(getIngestNodesLoad(), hasSize(numNodes));
+
+        // Enable the setting to see ingest load metrics attenuated for the shutdown metadata
+        updateClusterSettings(Settings.builder().put(IngestMetricsService.SHUTDOWN_ATTENUATION_ENABLED.getKey(), true));
+        final var nodesLoadAttenuated = getIngestNodesLoad();
+        final int expectedNumLoadMetrics = numNodes - shuttingDownNodes.size();
+        assertThat(nodesLoadAttenuated, hasSize(expectedNumLoadMetrics));
+        // Not comparing the exact metric values since new values may have been published.
+        // In addition, the more granular comparison is exercised in IngestMetricsServiceTests.
+
+        // Remove shutdown metadata and ingest load metrics will be back to normal
+        deleteShutdownMetadataForNodes(shuttingDownNodes);
+        assertThat(getIngestNodesLoad(), hasSize(numNodes));
+    }
+
+    private static void putShutdownMetadataForNodes(List<DiscoveryNode> shuttingDownNodes) {
+        shuttingDownNodes.forEach(
+            node -> assertAcked(
+                client().execute(
+                    PutShutdownNodeAction.INSTANCE,
+                    new PutShutdownNodeAction.Request(
+                        TEST_REQUEST_TIMEOUT,
+                        TEST_REQUEST_TIMEOUT,
+                        node.getId(),
+                        SingleNodeShutdownMetadata.Type.SIGTERM,
+                        "Shutdown for test",
+                        null,
+                        null,
+                        TimeValue.timeValueMinutes(randomIntBetween(1, 5))
+                    )
+                )
+            )
+        );
+    }
+
+    private static void deleteShutdownMetadataForNodes(List<DiscoveryNode> shuttingDownNodes) {
+        shuttingDownNodes.forEach(
+            node -> assertAcked(
+                client().execute(
+                    DeleteShutdownNodeAction.INSTANCE,
+                    new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, node.getId())
+                )
+            )
+        );
+    }
+
+    private static List<NodeIngestLoadSnapshot> getIngestNodesLoad() {
+        return safeGet(
+            client().execute(GetIndexTierMetrics.INSTANCE, new GetIndexTierMetrics.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+        ).getMetrics().getNodesLoad();
+    }
+
     private String startMasterNode(Settings extraSettings) {
         return internalCluster().startMasterOnlyNode(nodeSettings().put(extraSettings).build());
     }
 
     private static List<NodeIngestLoadSnapshot> getNodeIngestLoad() {
         var ingestMetricsService = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class);
-        var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
+        var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics(ClusterState.EMPTY_STATE).getNodesLoad();
         return loadsAfterIndexing;
     }
 

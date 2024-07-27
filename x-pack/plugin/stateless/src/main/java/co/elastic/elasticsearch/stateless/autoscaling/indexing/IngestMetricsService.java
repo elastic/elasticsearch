@@ -20,20 +20,26 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongSupplier;
 
 public class IngestMetricsService implements ClusterStateListener {
@@ -53,9 +59,19 @@ public class IngestMetricsService implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> SHUTDOWN_ATTENUATION_ENABLED = Setting.boolSetting(
+        "serverless.autoscaling.ingest_metrics.shutdown_attenuation.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static final Logger logger = LogManager.getLogger(IngestMetricsService.class);
+
     private volatile TimeValue accurateLoadWindow;
     private volatile TimeValue staleLoadWindow;
     private volatile boolean initialized;
+    private volatile boolean shutdownAttenuationEnabled;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
@@ -69,6 +85,7 @@ public class IngestMetricsService implements ClusterStateListener {
         this.memoryMetricsService = memoryMetricsService;
         clusterSettings.initializeAndWatch(ACCURATE_LOAD_WINDOW, value -> this.accurateLoadWindow = value);
         clusterSettings.initializeAndWatch(STALE_LOAD_WINDOW, value -> this.staleLoadWindow = value);
+        clusterSettings.initializeAndWatch(SHUTDOWN_ATTENUATION_ENABLED, value -> this.shutdownAttenuationEnabled = value);
     }
 
     @Override
@@ -115,10 +132,9 @@ public class IngestMetricsService implements ClusterStateListener {
         nodeIngestStats.setLatestReadingTo(newIngestLoad, metricSeqNo);
     }
 
-    @Nullable
-    public IndexTierMetrics getIndexTierMetrics() {
+    public IndexTierMetrics getIndexTierMetrics(ClusterState clusterState) {
         var nodeLoadIterator = nodesIngestLoad.entrySet().iterator();
-        var ingestLoads = new ArrayList<NodeIngestLoadSnapshot>();
+        List<NodeIngestLoadSnapshot> ingestLoads = new ArrayList<>();
         while (nodeLoadIterator.hasNext()) {
             var nodeIngestStatsEntry = nodeLoadIterator.next();
             var value = nodeIngestStatsEntry.getValue();
@@ -126,6 +142,50 @@ public class IngestMetricsService implements ClusterStateListener {
                 nodeLoadIterator.remove();
             } else {
                 ingestLoads.add(value.getIngestLoadSnapshot());
+            }
+        }
+
+        if (shutdownAttenuationEnabled) {
+            // If there are shutting-down nodes, we attenuate the overall reporting by removing entries with higher values
+            // so that the final number of entries equals to the number of "not-shutting-down" nodes. The idea is that if
+            // relocation causes temporary queuing on either source or target node, we don't want them to impact autoscaling
+            // decision and potentially lead to over upsizing. In case of a genuine high load during scaling, it is likely
+            // that most nodes are affected by the load and the extra load might show itself in the lower ingestion values
+            // as well to trigger a scale up. That said, we'd still be missing the genuine extra load that might on the
+            // shutting-down nodes (waiting for relocation).
+            final var shuttingDownNodes = Set.copyOf(clusterState.metadata().nodeShutdowns().getAllNodeIds());
+            if (shuttingDownNodes.isEmpty() == false) {
+                final int numberNotShuttingDownIndexingNodes = (int) clusterState.nodes()
+                    .stream()
+                    .filter(IngestMetricsService::isIndexNode)
+                    .filter(node -> shuttingDownNodes.contains(node.getId()) == false)
+                    .count();
+                // When a node leaves the cluster, we set its metric quality to minimum but do not remove it from
+                // nodesIngestLoad immediately. Before its metric becomes stale, we will still report it even when
+                // it is no longer in the cluster and does not count towards numberNotShuttingDownIndexingNodes.
+                // This might skew the following sorting and limiting a bit. We consider this a corner case which
+                // will be addressed separately by ES-6956
+                final int numberIngestLoads = ingestLoads.size();
+                if (numberIngestLoads > numberNotShuttingDownIndexingNodes) {
+                    final var existingIngestLoads = ingestLoads;
+                    final List<NodeIngestLoadSnapshot> adjustedIngestLoads = ingestLoads.stream()
+                        .sorted(Comparator.comparingDouble(NodeIngestLoadSnapshot::load))
+                        .limit(numberNotShuttingDownIndexingNodes)
+                        .map(e -> new NodeIngestLoadSnapshot(e.load(), MetricQuality.MINIMUM))
+                        .toList();
+                    logger.debug(
+                        () -> Strings.format(
+                            "adjusting ingest loads from %s to %s for shutting down nodes",
+                            existingIngestLoads,
+                            adjustedIngestLoads
+                        )
+                    );
+                    ingestLoads = adjustedIngestLoads;
+                }
+                // In most cases, ingestLoads.size() >= numberNotShuttingDownIndexingNodes should hold.
+                // However, since ingestLoads filters out stale reports and removes the nodesIngestLoad map,
+                // in extreme case, a node may fail to report metrics continuously so that it becomes stale
+                // for metric while still being part of the cluster. Very unlikely, but technically not impossible.
             }
         }
         return new IndexTierMetrics(Collections.unmodifiableList(ingestLoads), memoryMetricsService.getMemoryMetrics());

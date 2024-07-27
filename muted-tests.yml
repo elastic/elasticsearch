@@ -128,6 +128,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testMatchFilter
   issue: https://github.com/elastic/elasticsearch/issues/111380
+- class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
+  method: testIngestWithInputFields
+  issue: https://github.com/elastic/elasticsearch/issues/111383
 
 # Examples:
 #

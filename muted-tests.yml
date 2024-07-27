@@ -125,6 +125,9 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.AzureSnapshotRepoTestKitIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/111280
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testMatchFilter
+  issue: https://github.com/elastic/elasticsearch/issues/111380
 
 # Examples:
 #

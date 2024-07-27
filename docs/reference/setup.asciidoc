@@ -33,7 +33,6 @@ include::setup/configuration.asciidoc[]
 
 include::setup/important-settings.asciidoc[]
 
-
 include::setup/secure-settings.asciidoc[]
 
 include::settings/audit-settings.asciidoc[]
@@ -82,6 +81,8 @@ include::modules/indices/search-settings.asciidoc[]
 
 include::settings/security-settings.asciidoc[]
 
+include::modules/shard-ops.asciidoc[]
+
 include::modules/indices/request_cache.asciidoc[]
 
 include::settings/snapshot-settings.asciidoc[]
@@ -93,7 +94,9 @@ include::modules/threadpool.asciidoc[]
 include::settings/notification-settings.asciidoc[]
 
 include::setup/advanced-configuration.asciidoc[]
+
 include::setup/sysconfig.asciidoc[]
+
 include::setup/bootstrap-checks.asciidoc[]
 
 include::setup/bootstrap-checks-xes.asciidoc[]

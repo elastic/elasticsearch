@@ -30,7 +30,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
-        AzureHttpFixture.startsWithPredicate("SharedKey " + AZURE_TEST_ACCOUNT + ":")
+        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
     );
 
     private static TestTrustStore trustStore = new TestTrustStore(
@@ -65,7 +65,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
 
-    @ClassRule
+    @ClassRule(order = 1)
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);
 
     @Override

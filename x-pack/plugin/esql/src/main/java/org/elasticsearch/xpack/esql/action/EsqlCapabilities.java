@@ -184,6 +184,11 @@ public class EsqlCapabilities {
         FIXED_PUSHDOWN_PAST_PROJECT,
 
         /**
+         * Support for match operator
+         */
+        MATCH_OPERATOR(true),
+
+        /**
          * Add CombineBinaryComparisons rule.
          */
         COMBINE_BINARY_COMPARISONS;

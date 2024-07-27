@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
@@ -4767,27 +4766,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(unresolvedUpdated.semanticEquals(fieldAttributeExp));
     }
 
-    private static EsqlBinaryComparison getComparisonFromLogicalPlan(LogicalPlan plan) {
-        assertTrue("Expected unary plan, found [" + plan + "]", plan instanceof UnaryPlan);
-        UnaryPlan unaryPlan = (UnaryPlan) plan;
-        assertTrue("Epxected top level Filter, foung [" + unaryPlan.child().toString() + "]", unaryPlan.child() instanceof Filter);
-        Filter filter = (Filter) unaryPlan.child();
-        Expression condition = filter.condition();
-        // != does not have an EsqlBinaryComparison under filter directly, it has NOT under filter and an EsqlBinaryComparison under Not
-        if (condition instanceof EsqlBinaryComparison bc) {
-            return bc;
-        } else if (condition instanceof Not not) {
-            return (EsqlBinaryComparison) not.field();
-        }
-        return null;
+    private Expression getComparisonFromLogicalPlan(LogicalPlan plan) {
+        List<Expression> expressions = new ArrayList<>();
+        plan.forEachExpression(Expression.class, expressions::add);
+        return expressions.get(0);
     }
 
     private void assertNotSimplified(String comparison) {
         String query = "FROM types | WHERE " + comparison;
         Expression optimized = getComparisonFromLogicalPlan(planTypes(query));
         Expression raw = getComparisonFromLogicalPlan(analyzerTypes.analyze(parser.createStatement(query)));
-        assertNotNull(optimized);
-        assertNotNull(raw);
+
         assertTrue(raw.semanticEquals(optimized));
     }
 

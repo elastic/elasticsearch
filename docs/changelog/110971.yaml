@@ -1,0 +1,5 @@
+pr: 110971
+summary: "Search in ES|QL: Add MATCH operator"
+area: ES|QL
+type: feature
+issues: []

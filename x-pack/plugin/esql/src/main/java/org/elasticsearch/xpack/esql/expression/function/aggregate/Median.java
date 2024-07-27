@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -32,9 +33,26 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
     // TODO: Add the compression parameter
     @FunctionInfo(
-        returnType = { "double", "integer", "long" },
-        description = "The value that is greater than half of all values and less than half of all values.",
-        isAggregation = true
+        returnType = "double",
+        description = "The value that is greater than half of all values and less than half of all values, "
+            + "also known as the 50% <<esql-percentile>>.",
+        note = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.",
+        appendix = """
+            [WARNING]
+            ====
+            `MEDIAN` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
+            This means you can get slightly different results using the same data.
+            ====""",
+        isAggregation = true,
+        examples = {
+            @Example(file = "stats_percentile", tag = "median"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate the median of "
+                    + "the maximum values of a multivalued column, first use `MV_MAX` to get the "
+                    + "maximum value per row, and use the result with the `MEDIAN` function",
+                file = "stats_percentile",
+                tag = "docsStatsMedianNestedExpression"
+            ), }
     )
     public Median(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);

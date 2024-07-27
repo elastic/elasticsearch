@@ -836,6 +836,7 @@ public class Stateless extends Plugin
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,
             IngestMetricsService.STALE_LOAD_WINDOW,
+            IngestMetricsService.SHUTDOWN_ATTENUATION_ENABLED,
             IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,

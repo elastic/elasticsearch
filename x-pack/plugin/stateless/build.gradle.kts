@@ -36,6 +36,7 @@ dependencies {
     implementation(project(":libs:serverless-stateless-api"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
     internalClusterTestImplementation(xpackModule("shutdown"))
+    internalClusterTestImplementation(project(":modules:serverless-autoscaling"))
     internalClusterTestImplementation("org.elasticsearch.plugin:data-streams")
     testImplementation(project(":libs:serverless-shared-constants"))
     testImplementation(testArtifact(xpackModule("searchable-snapshots")))

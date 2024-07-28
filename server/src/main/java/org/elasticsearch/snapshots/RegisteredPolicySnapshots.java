@@ -32,7 +32,10 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FIELD;
 
 
 public class RegisteredPolicySnapshots implements Metadata.Custom {
@@ -166,6 +169,13 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
         return new Builder(this);
     }
 
+    private static String getPolicyFromMetadata(Map<String, Object> userMetadata) {
+        if (userMetadata != null && userMetadata.get(POLICY_ID_METADATA_FIELD) instanceof String p) {
+            return p;
+        }
+        return null;
+    }
+
     public static class Builder {
         final List<PolicySnapshot> snapshots;
 
@@ -173,8 +183,11 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
             this.snapshots = new ArrayList<>(registeredPolicySnapshots.snapshots);
         }
 
-        void add(String policy, SnapshotId snapshotId) {
-            snapshots.add(new PolicySnapshot(policy, snapshotId));
+        void maybeAdd(Map<String, Object> userMetadata, SnapshotId snapshotId) {
+            final String policy = getPolicyFromMetadata(userMetadata);
+            if (policy != null) {
+                snapshots.add(new PolicySnapshot(policy, snapshotId));
+            }
         }
 
         RegisteredPolicySnapshots build() {

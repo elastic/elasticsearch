@@ -3954,17 +3954,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             );
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
-
             final RegisteredPolicySnapshots.Builder registeredPolicySnapshots =
                 state.metadata().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY).builder();
-
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
-                        final String policy = getPolicyFromMetadata(task.createSnapshotRequest.userMetadata());
-                        if (policy != null) {
-                            registeredPolicySnapshots.add(policy, task.snapshot.getSnapshotId());
-                        }
+                        registeredPolicySnapshots.maybeAdd(task.createSnapshotRequest.userMetadata(), task.snapshot.getSnapshotId());
                         final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
@@ -3994,13 +3989,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
                 .metadata(Metadata.builder(state.metadata()).putCustom(RegisteredPolicySnapshots.TYPE, registeredPolicySnapshots.build()))
                 .build();
-        }
-
-        private static String getPolicyFromMetadata(Map<String, Object> userMetadata) {
-            if (userMetadata != null && userMetadata.get(POLICY_ID_METADATA_FIELD) instanceof String p) {
-                return p;
-            }
-            return null;
         }
 
         private SnapshotsInProgress createSnapshot(

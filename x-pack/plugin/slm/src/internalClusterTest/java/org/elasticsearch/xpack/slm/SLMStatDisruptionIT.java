@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -200,17 +199,17 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         String snapshotA = executePolicy(masterNode, policyName);
         logger.info("Created snapshot A: " + snapshotA);
 
-        // wait until snapshotA is registered and in progress before starting snapshotB
-        assertBusy(() -> assertSnapshotRunning(snapshotA));
-        assertBusy(() -> assertRegistered(List.of(snapshotA), policyName), 1, TimeUnit.MINUTES);
+        // wait until snapshotA is registered before starting snapshotB
+        assertBusy(() -> assertRegistered(policyName, List.of(snapshotA)), 1, TimeUnit.MINUTES);
 
+        // create another snapshot while A is still running
         String snapshotB = executePolicy(masterNode, policyName);
         logger.info("Created snapshot B: " + snapshotB);
 
         // wait until both snapshots are registered before allowing snapshotA to continue
-        assertBusy(() -> assertRegistered(List.of(snapshotA, snapshotB), policyName), 1, TimeUnit.MINUTES);
+        assertBusy(() -> assertRegistered(policyName, List.of(snapshotA, snapshotB)), 1, TimeUnit.MINUTES);
 
-        // remove delay from snapshotA
+        // remove delay from snapshotA allowing it to finish
         TestDelayedRepoPlugin.removeDelay();
 
         waitForSnapshot(repoName, snapshotA);
@@ -219,13 +218,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotA);
             assertSnapshotSuccess(repoName, snapshotB);
-            assertMetadata(policyName, 2, 0, 0, List.of());
+            assertMetadata(policyName, 2, 0, 0);
+            assertRegistered(policyName, List.of());
 
         }, 1, TimeUnit.MINUTES);
     }
 
     /**
-     * Test that after successful snapshot registeredRuns status is 0.
+     * Test that after successful snapshot registered is empty
      */
     public void testSuccessSnapshot() throws Exception {
         final String idxName = "test-idx";
@@ -250,12 +250,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotName);
-            assertMetadata(policyName, 1, 0, 0, List.of());
+            assertMetadata(policyName, 1, 0, 0);
+            assertRegistered(policyName, List.of());
         }, 1, TimeUnit.MINUTES);
     }
 
     /**
-     * Test that after a failure then a success, registeredRuns from failure is added to invocationsSinceLastSuccess.
+     * Test that after a failure which fails stats uploads, then a success,
+     * registered snapshot from failure is added to invocationsSinceLastSuccess.
      */
     public void testFailSnapshotFailStatsThenSuccessRecoverStats() throws Exception {
         final String idxName = "test-idx";
@@ -267,6 +269,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
+        // Add network disruption so snapshot fails with PARTIAL status
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
@@ -287,13 +290,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         // wait for snapshot to complete and network disruption to stop
         assertTrue(latch.await(1, TimeUnit.MINUTES));
 
-        // Restart master so failure stat is lost. this relies on a race condition as node shutdown must happen before stats are stored in
+        // Restart master so failure stat is lost. This relies on a race condition as node shutdown must happen before stats are stored in
         // cluster state, but this is not guaranteed. If the following assert fails consider this race condition as a possible culprit.
         internalCluster().restartNode(masterNode);
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            assertMetadata(policyName, 0, 0, 0, List.of(snapshotName));
+            assertMetadata(policyName, 0, 0, 0);
+            assertRegistered(policyName, List.of(snapshotName));
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -309,7 +313,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             assertSnapshotSuccess(repoName, snapshotName2);
             // Check stats, this time past failure should be accounted for
-            assertMetadata(policyName, 1, 1, 0, List.of());
+            assertMetadata(policyName, 1, 1, 0);
+            assertRegistered(policyName, List.of());
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -327,6 +332,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
+        // Add network disruption so snapshot fails with PARTIAL status
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
@@ -348,13 +354,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         // wait for snapshot to complete and network disruption to stop
         assertTrue(latch.await(1, TimeUnit.MINUTES));
 
-        // Restart master so failure stat is lost. this relies on a race condition as node shutdown must happen before stats are stored in
+        // Restart master so failure stat is lost. This relies on a race condition as node shutdown must happen before stats are stored in
         // cluster state, but this is not guaranteed. If the following assert fails consider this race condition as a possible culprit.
         internalCluster().restartNode(masterNode);
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            assertMetadata(policyName, 0, 0, 0, List.of(snapshotName));
+            assertMetadata(policyName, 0, 0, 0);
+            assertRegistered(policyName, List.of(snapshotName));
         }, 1, TimeUnit.MINUTES);
 
         awaitNoMoreRunningOperations();
@@ -375,7 +382,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName2);
             // Check metadata, this time past failure should be accounted for
-            assertMetadata(policyName, 0, 2, 2, List.of());
+            assertMetadata(policyName, 0, 2, 2);
+            assertRegistered(policyName, List.of());
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -392,6 +400,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
+        // Add network disruption so snapshot fails with PARTIAL status
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
@@ -415,7 +424,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            assertMetadata(policyName, 0, 0, 0, null);
+            assertMetadata(policyName, 0, 0, 0);
         }, 1, TimeUnit.MINUTES);
     }
 
@@ -432,6 +441,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
+        // Add network disruption so snapshot fails with PARTIAL status
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
@@ -452,13 +462,11 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
-            logger.info("--> Verified that snapshot was not successful");
+            assertMetadata(policyName, 0, 1, 1);
         }, 1, TimeUnit.MINUTES);
-
-        assertBusy(() -> assertMetadata(policyName, 0, 1, 1, List.of()), 1, TimeUnit.MINUTES);
     }
 
-    private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess, List<String> registered) {
+    private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess) {
         var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
         var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
         assertStats(snapshotLifecycleMetadata, policyName, taken, failure);
@@ -473,10 +481,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNull(snapshotLifecyclePolicyMetadata.getLastFailure());
         }
         assertEquals(invocationsSinceLastSuccess, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
-
-        if (registered != null) {
-            assertRegistered(registered, policyName);
-        }
     }
 
     private SnapshotLifecycleMetadata getSnapshotLifecycleMetadata() {
@@ -536,7 +540,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertTrue(snapshotNames.contains(snapshot));
     }
 
-    private void assertRegistered(List<String> expected, String policyName) {
+    private void assertRegistered(String policyName, List<String> expected) {
         var registered = getRegisteredSnapshots();
         var policySnaps = registered.getSnapshotsByPolicy(policyName)
             .stream()
@@ -640,6 +644,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
                 if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
                     final RepositoryMetadata metadata = RepositoriesMetadata.get(event.state()).repository(repoName);
                     if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
+                        // remove network disruption immediately after snapshot completes
                         networkDisruption.stopDisrupting();
                         latch.countDown();
                     }

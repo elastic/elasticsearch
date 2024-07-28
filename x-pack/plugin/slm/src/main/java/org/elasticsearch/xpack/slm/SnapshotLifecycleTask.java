@@ -304,11 +304,15 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             final List<PolicySnapshot> newRegistered = new ArrayList<>();
             for (PolicySnapshot snapshot : registeredSnapshots.getSnapshots()) {
                 if (snapshot.getSnapshotId().equals(snapshotId) == false) {
-                    if (snapshot.getPolicy().equals(policyName) && runningSnapshots.contains(snapshot.getSnapshotId()) == false) {
-                        newStats = newStats.withFailedIncremented(policyName);
-                        newPolicyMetadata
-                            .incrementInvocationsSinceLastSuccess()
-                            .setLastFailure(buildFailedSnapshotRecord(snapshot.getSnapshotId()));
+                    if (snapshot.getPolicy().equals(policyName)) {
+                        if (runningSnapshots.contains(snapshot.getSnapshotId())) {
+                            newRegistered.add(snapshot);
+                        } else {
+                            newStats = newStats.withFailedIncremented(policyName);
+                            newPolicyMetadata
+                                .incrementInvocationsSinceLastSuccess()
+                                .setLastFailure(buildFailedSnapshotRecord(snapshot.getSnapshotId()));
+                        }
                     } else if (snapLifecycles.containsKey(snapshot.getPolicy())) {
                         newRegistered.add(snapshot);
                     }

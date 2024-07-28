@@ -6,12 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.http.netty4;
+package org.elasticsearch.http;
 
-/**
- * A part of HTTP request that has HTTP pipelining sequence number
- */
-public sealed interface PipelinedHttpRequestPart extends PipelinedHttpObject permits PipelinedHttpRequest, PipelinedHttpContent,
-    PipelinedLastHttpContent {
+import org.elasticsearch.common.bytes.BytesReference;
+
+public interface HttpContent {
+
+    BytesReference content();
+
+    void release();
 
 }

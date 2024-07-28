@@ -22,13 +22,13 @@ import java.util.function.Predicate;
  */
 public class Netty4HttpAggregator extends HttpObjectAggregator {
 
-    private static final Predicate<PipelinedHttpRequest> ALWAYS_AGGREGATE = (req) -> true;
+    private static final Predicate<PipelinedHttpRequest> IGNORE_TEST = (req) -> req.uri().startsWith("/_test/request-stream") == false;
 
     private final Predicate<PipelinedHttpRequest> decider;
     private boolean shouldAggregate;
 
     public Netty4HttpAggregator(int maxContentLength) {
-        this(maxContentLength, ALWAYS_AGGREGATE);
+        this(maxContentLength, IGNORE_TEST);
     }
 
     public Netty4HttpAggregator(int maxContentLength, Predicate<PipelinedHttpRequest> decider) {

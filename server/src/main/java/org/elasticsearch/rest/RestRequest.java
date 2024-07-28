@@ -23,6 +23,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpContent;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
@@ -288,6 +290,10 @@ public class RestRequest implements ToXContent.Params, Traceable {
     public BytesReference content() {
         this.contentConsumed = true;
         return httpRequest.content();
+    }
+
+    public Flow.Publisher<HttpContent> contentPublisher() {
+        return httpRequest.contentPublisher();
     }
 
     /**

@@ -9,7 +9,7 @@
 package org.elasticsearch.http.netty4;
 
 public sealed interface PipelinedHttpObject permits PipelinedFullHttpRequest, PipelinedHttpContent, PipelinedHttpRequest,
-    PipelinedHttpRequestPart, PipelinedLastHttpContent {
+    PipelinedLastHttpContent {
 
     /**
      * HTTP request sequence number, indicates order of arrival within same channel (connection).

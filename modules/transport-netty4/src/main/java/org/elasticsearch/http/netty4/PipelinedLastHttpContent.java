@@ -17,11 +17,7 @@ import io.netty.handler.codec.http.LastHttpContent;
 /**
  * A {@link LastHttpContent} with pipeline sequence number
  */
-public record PipelinedLastHttpContent(LastHttpContent httpContent, int sequence)
-    implements
-        PipelinedHttpObject,
-        LastHttpContent,
-        PipelinedHttpRequestPart {
+public record PipelinedLastHttpContent(LastHttpContent httpContent, int sequence) implements PipelinedHttpObject, LastHttpContent {
 
     public PipelinedLastHttpContent(ByteBuf buf, int sequence) {
         this(new DefaultLastHttpContent(buf), sequence);

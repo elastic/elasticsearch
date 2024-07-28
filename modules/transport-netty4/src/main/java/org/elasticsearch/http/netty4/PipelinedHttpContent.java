@@ -16,11 +16,7 @@ import io.netty.handler.codec.http.HttpContent;
 /**
  * A {@link HttpContent} with pipeline sequence number
  */
-public record PipelinedHttpContent(HttpContent httpContent, int sequence)
-    implements
-        PipelinedHttpObject,
-        HttpContent,
-        PipelinedHttpRequestPart {
+public record PipelinedHttpContent(HttpContent httpContent, int sequence) implements PipelinedHttpObject, HttpContent {
 
     public PipelinedHttpContent(ByteBuf buf, int sequence) {
         this(new DefaultHttpContent(buf), sequence);

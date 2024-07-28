@@ -18,7 +18,10 @@ import io.netty.handler.codec.compression.JdkZlibEncoder;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.ssl.SslCloseCompletionEvent;
 import io.netty.util.ReferenceCountUtil;
@@ -69,6 +72,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Nullable
     private ChunkedWrite currentChunkedWrite;
 
+    private Netty4HttpRequest currentRequest;
+
     /**
      * Read sequence numbers are attached to requests by {@link Netty4InboundHttpPipeliningHandler} and then transferred to responses.
      * A response is not written to the channel context until its sequence number matches the current write sequence, implying that all
@@ -107,38 +112,37 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         activityTracker.startActivity();
         try {
-            assert msg instanceof PipelinedFullHttpRequest || msg instanceof PipelinedHttpRequestPart
-                : "Should have pipelined message already but saw [" + msg + "]";
-            if (msg instanceof PipelinedFullHttpRequest request) {
-                handlePipelinedFullRequest(ctx, request);
+            assert msg instanceof PipelinedHttpObject : "Should have pipelined message already but saw [" + msg + "]";
+            final var sequence = ((PipelinedHttpObject) msg).sequence();
+            if (msg instanceof HttpRequest request) {
+                final Netty4HttpRequest netty4HttpRequest;
+                if (request.decoderResult().isFailure()) {
+                    final Throwable cause = request.decoderResult().cause();
+                    final Exception nonError;
+                    if (cause instanceof Error) {
+                        ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                        nonError = new Exception(cause);
+                    } else {
+                        nonError = (Exception) cause;
+                    }
+                    netty4HttpRequest = new Netty4HttpRequest(sequence, (FullHttpRequest) request, nonError);
+                } else {
+                    if (request instanceof FullHttpRequest fullRequest) {
+                        netty4HttpRequest = new Netty4HttpRequest(sequence, fullRequest);
+                    } else {
+                        var contentPublisher = new Netty4RequestContentPublisher(ctx.channel());
+                        netty4HttpRequest = new Netty4HttpRequest(sequence, request, contentPublisher);
+                        currentRequest = netty4HttpRequest;
+                    }
+                }
+                handlePipelinedRequest(ctx, netty4HttpRequest);
             } else {
-                handlePipelinedPartialRequest(ctx, (PipelinedHttpRequestPart) msg);
+                assert currentRequest != null;
+                currentRequest.contentPublisher().sendChunk((HttpContent) msg);
             }
         } finally {
             activityTracker.stopActivity();
         }
-    }
-
-    private void handlePipelinedFullRequest(ChannelHandlerContext ctx, PipelinedFullHttpRequest request) {
-        final Netty4HttpRequest netty4HttpRequest;
-        if (request.decoderResult().isFailure()) {
-            final Throwable cause = request.decoderResult().cause();
-            final Exception nonError;
-            if (cause instanceof Error) {
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                nonError = new Exception(cause);
-            } else {
-                nonError = (Exception) cause;
-            }
-            netty4HttpRequest = new Netty4HttpRequest(request.sequence(), request, nonError);
-        } else {
-            netty4HttpRequest = new Netty4HttpRequest(request.sequence(), request);
-        }
-        handlePipelinedRequest(ctx, netty4HttpRequest);
-    }
-
-    private void handlePipelinedPartialRequest(ChannelHandlerContext ctx, PipelinedHttpRequestPart part) {
-        assert false : "not implemented yet";
     }
 
     // protected so tests can override it

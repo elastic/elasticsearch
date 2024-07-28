@@ -14,6 +14,7 @@ import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
+import java.util.concurrent.Flow;
 
 /**
  * A basic http request abstraction. Http modules needs to implement this interface to integrate with the
@@ -28,6 +29,10 @@ public interface HttpRequest extends HttpPreRequest {
     }
 
     BytesReference content();
+
+    default Flow.Publisher<HttpContent> contentPublisher() {
+        throw new IllegalArgumentException();
+    }
 
     List<String> strictCookies();
 

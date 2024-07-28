@@ -18,11 +18,7 @@ import io.netty.handler.codec.http.HttpVersion;
 /**
  * A {@link HttpRequest} with pipeline sequence number.
  */
-public record PipelinedHttpRequest(HttpRequest request, int sequence)
-    implements
-        PipelinedHttpObject,
-        PipelinedHttpRequestPart,
-        HttpRequest {
+public record PipelinedHttpRequest(HttpRequest request, int sequence) implements PipelinedHttpObject, HttpRequest {
 
     public PipelinedHttpRequest(HttpMethod method, String uri, int sequence) {
         this(new DefaultHttpRequest(HttpVersion.HTTP_1_1, method, uri), sequence);

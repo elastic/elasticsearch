@@ -412,7 +412,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(initiatingSnapshot.getName(), newSlmPolicyMetadata.getLastSuccess().getSnapshotName());
         assertEquals(0, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
 
-        // failed snapshot no longer in preRegisteredSnapshot set
+        // failed snapshot no longer in registeredSnapshot set
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata().custom(RegisteredPolicySnapshots.TYPE);
         List<SnapshotId> newRegisteredSnapIds = newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId);
         assertEquals(List.of(stillRunning), newRegisteredSnapIds);
@@ -445,7 +445,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertNull(newSlmPolicyMetadata.getLastSuccess());
         assertEquals(2, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
 
-        // failed snapshot no longer in preRegisteredSnapshot set
+        // failed snapshot no longer in registeredSnapshot set
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata().custom(RegisteredPolicySnapshots.TYPE);
         List<SnapshotId> newRegisteredSnapIds = newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId);
         assertEquals(List.of(stillRunning), newRegisteredSnapIds);

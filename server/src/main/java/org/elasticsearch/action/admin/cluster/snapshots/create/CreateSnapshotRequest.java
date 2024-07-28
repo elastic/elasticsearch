@@ -117,7 +117,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
-        uuid = in.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS) ? in.readOptionalString() : null;
+        uuid = in.getTransportVersion().onOrAfter(TransportVersions.REGISTER_SLM_STATS) ? in.readOptionalString() : null;
     }
 
     @Override
@@ -135,7 +135,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PRE_REGISTER_SLM_STATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REGISTER_SLM_STATS)) {
             out.writeOptionalString(uuid);
         }
     }
@@ -383,7 +383,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     public String uuid() {
-        // If request was constructed on node with transport version < PRE_REGISTER_SLM_STATS it will not have a uuid yet
+        // If request was constructed on node with transport version < REGISTER_SLM_STATS it will not have a uuid yet
         if (this.uuid == null) {
             this.uuid = UUIDs.randomBase64UUID();
         }

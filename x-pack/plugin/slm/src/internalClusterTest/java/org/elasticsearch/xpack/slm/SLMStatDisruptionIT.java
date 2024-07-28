@@ -200,15 +200,15 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         String snapshotA = executePolicy(masterNode, policyName);
         logger.info("Created snapshot A: " + snapshotA);
 
-        // wait until snapshotA is preregistered and in progress before starting snapshotB
+        // wait until snapshotA is registered and in progress before starting snapshotB
         assertBusy(() -> assertSnapshotRunning(snapshotA));
-        assertBusy(() -> assertPreRegistered(List.of(snapshotA), policyName), 1, TimeUnit.MINUTES);
+        assertBusy(() -> assertRegistered(List.of(snapshotA), policyName), 1, TimeUnit.MINUTES);
 
         String snapshotB = executePolicy(masterNode, policyName);
         logger.info("Created snapshot B: " + snapshotB);
 
-        // wait until both snapshots are preregistered before allowing snapshotA to continue
-        assertBusy(() -> assertPreRegistered(List.of(snapshotA, snapshotB), policyName), 1, TimeUnit.MINUTES);
+        // wait until both snapshots are registered before allowing snapshotA to continue
+        assertBusy(() -> assertRegistered(List.of(snapshotA, snapshotB), policyName), 1, TimeUnit.MINUTES);
 
         // remove delay from snapshotA
         TestDelayedRepoPlugin.removeDelay();
@@ -225,7 +225,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Test that after successful snapshot preRegisteredRuns status is 0.
+     * Test that after successful snapshot registeredRuns status is 0.
      */
     public void testSuccessSnapshot() throws Exception {
         final String idxName = "test-idx";
@@ -255,7 +255,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Test that after a failure then a success, preRegisteredRuns from failure is added to invocationsSinceLastSuccess.
+     * Test that after a failure then a success, registeredRuns from failure is added to invocationsSinceLastSuccess.
      */
     public void testFailSnapshotFailStatsThenSuccessRecoverStats() throws Exception {
         final String idxName = "test-idx";
@@ -315,7 +315,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     /**
      * Test that after a failure then a failure that successfully sets stats
-     * preRegisteredRuns from failure is added to invocationsSinceLastSuccess.
+     * registeredRuns from failure is added to invocationsSinceLastSuccess.
      */
     public void testFailSnapshotFailStatsRecoverStats() throws Exception {
         final String idxName = "test-idx";
@@ -458,7 +458,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> assertMetadata(policyName, 0, 1, 1, List.of()), 1, TimeUnit.MINUTES);
     }
 
-    private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess, List<String> preRegistered) {
+    private void assertMetadata(String policyName, long taken, long failure, long invocationsSinceLastSuccess, List<String> registered) {
         var snapshotLifecycleMetadata = getSnapshotLifecycleMetadata();
         var snapshotLifecyclePolicyMetadata = snapshotLifecycleMetadata.getSnapshotConfigurations().get(policyName);
         assertStats(snapshotLifecycleMetadata, policyName, taken, failure);
@@ -474,8 +474,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }
         assertEquals(invocationsSinceLastSuccess, snapshotLifecyclePolicyMetadata.getInvocationsSinceLastSuccess());
 
-        if (preRegistered != null) {
-            assertPreRegistered(preRegistered, policyName);
+        if (registered != null) {
+            assertRegistered(registered, policyName);
         }
     }
 
@@ -536,7 +536,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertTrue(snapshotNames.contains(snapshot));
     }
 
-    private void assertPreRegistered(List<String> expected, String policyName) {
+    private void assertRegistered(List<String> expected, String policyName) {
         var registered = getRegisteredSnapshots();
         var policySnaps = registered.getSnapshotsByPolicy(policyName)
             .stream()

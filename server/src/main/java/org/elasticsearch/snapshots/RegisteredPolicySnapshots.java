@@ -69,10 +69,6 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
         return snapshots.stream().map(PolicySnapshot::getSnapshotId).anyMatch(snapshotId::equals);
     }
 
-    public List<PolicySnapshot> getByPolicy(String policy) {
-        return snapshots.stream().filter(s -> s.getPolicy().equals(policy)).toList();
-    }
-
     public List<SnapshotId> getSnapshotsByPolicy(String policy) {
         return snapshots.stream().filter(s -> s.getPolicy().equals(policy)).map(PolicySnapshot::getSnapshotId).toList();
     }
@@ -94,7 +90,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.PRE_REGISTER_SLM_STATS;
+        return TransportVersions.REGISTER_SLM_STATS;
     }
 
     @Override
@@ -162,7 +158,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.PRE_REGISTER_SLM_STATS;
+            return TransportVersions.REGISTER_SLM_STATS;
         }
     }
 

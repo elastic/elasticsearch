@@ -21,11 +21,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
+import org.elasticsearch.snapshots.RegisteredPolicySnapshots.PolicySnapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -48,7 +48,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
@@ -296,32 +295,25 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             final SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
             SnapshotLifecycleStats newStats = snapMeta.getStats();
 
-            final List<SnapshotId> policyRegisteredSnaps = registeredSnapshots.getSnapshots().getOrDefault(policyName, List.of());
-            if (policyRegisteredSnaps.contains(snapshotId) == false) {
+            if (registeredSnapshots.contains(snapshotId) == false) {
                 logger.warn("Snapshot [{}] not found in registered set after snapshot completion. This means snapshot was" +
                     " recorded as a failure by another snapshot's cleanup run.", snapshotId.getName());
             }
 
-            // Split registered snapshots by whether still running
             final Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(currentState);
-            final Map<Boolean, List<SnapshotId>> byIsStillRunning = policyRegisteredSnaps.stream()
-                    .filter(s -> s.equals(snapshotId) == false)
-                    .collect(Collectors.partitioningBy(runningSnapshots::contains));
-            final List<SnapshotId> inferFailed = byIsStillRunning.getOrDefault(false, List.of());
-            final List<SnapshotId> stillRunning = byIsStillRunning.getOrDefault(true, List.of());
-
-            // Add failure stats for snapshots that are no longer running
-            for (SnapshotId snapshot : inferFailed) {
-                newStats = newStats.withFailedIncremented(policyName);
-                newPolicyMetadata
-                    .incrementInvocationsSinceLastSuccess()
-                    .setLastFailure(buildFailedSnapshotRecord(snapshot));
+            final List<PolicySnapshot> newRegistered = new ArrayList<>();
+            for (PolicySnapshot snapshot : registeredSnapshots.getSnapshots()) {
+                if (snapshot.getSnapshotId().equals(snapshotId) == false) {
+                    if (snapshot.getPolicy().equals(policyName) && runningSnapshots.contains(snapshot.getSnapshotId()) == false) {
+                        newStats = newStats.withFailedIncremented(policyName);
+                        newPolicyMetadata
+                            .incrementInvocationsSinceLastSuccess()
+                            .setLastFailure(buildFailedSnapshotRecord(snapshot.getSnapshotId()));
+                    } else if (snapLifecycles.containsKey(snapshot.getPolicy())) {
+                        newRegistered.add(snapshot);
+                    }
+                }
             }
-
-            // Update registered set with still running snaps for this policy. Remove registered set if empty or policy is deleted.
-            final Map<String, List<SnapshotId>> newRegistered = new HashMap<>(registeredSnapshots.getSnapshots());
-            newRegistered.put(policyName, stillRunning);
-            newRegistered.entrySet().removeIf(e -> snapLifecycles.containsKey(e.getKey()) == false || e.getValue().isEmpty());
 
             // Add stats from the just completed snapshot execution
             if (exception.isPresent()) {

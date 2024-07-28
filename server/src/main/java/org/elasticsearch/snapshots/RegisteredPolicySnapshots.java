@@ -10,25 +10,28 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 
@@ -36,30 +39,42 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     public static final String TYPE = "registered_snapshots";
     private static final ParseField SNAPSHOTS = new ParseField("snapshots");
-    public static final RegisteredPolicySnapshots EMPTY = new RegisteredPolicySnapshots(Map.of());
+    public static final RegisteredPolicySnapshots EMPTY = new RegisteredPolicySnapshots(List.of());
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RegisteredPolicySnapshots, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
-        a -> new RegisteredPolicySnapshots((Map<String, List<SnapshotId>>) a[0])
+        a -> new RegisteredPolicySnapshots((List<PolicySnapshot>) a[0])
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.list(), SNAPSHOTS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> PolicySnapshot.parse(p), SNAPSHOTS);
     }
 
-    private final Map<String, List<SnapshotId>> snapshots;
+    private final List<PolicySnapshot> snapshots;
 
-    public RegisteredPolicySnapshots(Map<String, List<SnapshotId>> snapshots) {
-        this.snapshots = Collections.unmodifiableMap(snapshots);
+    public RegisteredPolicySnapshots(List<PolicySnapshot> snapshots) {
+        this.snapshots = Collections.unmodifiableList(snapshots);
     }
 
     public RegisteredPolicySnapshots(StreamInput in) throws IOException {
-        this.snapshots = in.readMapOfLists(SnapshotId::new);
+        this.snapshots = in.readCollectionAsImmutableList(PolicySnapshot::new);
     }
 
-    public Map<String, List<SnapshotId>> getSnapshots() {
+    public List<PolicySnapshot> getSnapshots() {
         return snapshots;
+    }
+
+    public boolean contains(SnapshotId snapshotId)  {
+        return snapshots.stream().map(PolicySnapshot::getSnapshotId).anyMatch(snapshotId::equals);
+    }
+
+    public List<PolicySnapshot> getByPolicy(String policy) {
+        return snapshots.stream().filter(s -> s.getPolicy().equals(policy)).toList();
+    }
+
+    public List<SnapshotId> getSnapshotsByPolicy(String policy) {
+        return snapshots.stream().filter(s -> s.getPolicy().equals(policy)).map(PolicySnapshot::getSnapshotId).toList();
     }
 
     @Override
@@ -84,7 +99,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(snapshots, StreamOutput::writeCollection);
+        out.writeCollection(snapshots);
     }
 
     @Override
@@ -122,7 +137,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
     }
 
     public static class RegisteredSnapshotsDiff implements NamedDiff<Metadata.Custom> {
-        final Map<String, List<SnapshotId>> snapshots;
+        final List<PolicySnapshot> snapshots;
         RegisteredSnapshotsDiff(RegisteredPolicySnapshots before, RegisteredPolicySnapshots after) {
             this.snapshots = after.snapshots;
         }
@@ -142,7 +157,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(snapshots, StreamOutput::writeCollection);
+            out.writeCollection(snapshots);
         }
 
         @Override
@@ -156,18 +171,93 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
     }
 
     public static class Builder {
-        final Map<String, List<SnapshotId>> snapshots;
+        final List<PolicySnapshot> snapshots;
 
         Builder(RegisteredPolicySnapshots registeredPolicySnapshots) {
-            this.snapshots = new HashMap<>(registeredPolicySnapshots.snapshots);
+            this.snapshots = new ArrayList<>(registeredPolicySnapshots.snapshots);
         }
 
         void add(String policy, SnapshotId snapshotId) {
-            snapshots.computeIfAbsent(policy, (p) -> new ArrayList<>()).add(snapshotId);
+            snapshots.add(new PolicySnapshot(policy, snapshotId));
         }
 
         RegisteredPolicySnapshots build() {
             return new RegisteredPolicySnapshots(snapshots);
+        }
+    }
+
+    public static class PolicySnapshot implements SimpleDiffable<PolicySnapshot>, Writeable, ToXContentObject {
+        private final String policy;
+        private final SnapshotId snapshotId;
+
+        private static final ParseField POLICY = new ParseField("policy");
+        private static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<PolicySnapshot, String> PARSER = new ConstructingObjectParser<>(
+            "snapshot",
+            true,
+            (a, id) -> new PolicySnapshot((String) a[0], (SnapshotId) a[1])
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), SnapshotId::parse, SNAPSHOT_ID);
+        }
+
+        public PolicySnapshot(String policy, SnapshotId snapshotId) {
+            this.policy = policy;
+            this.snapshotId = snapshotId;
+        }
+        public PolicySnapshot(StreamInput in) throws IOException {
+            this.policy = in.readString();
+            this.snapshotId = new SnapshotId(in);
+        }
+
+        public String getPolicy() {
+            return policy;
+        }
+
+        public SnapshotId getSnapshotId() {
+            return snapshotId;
+        }
+
+        public static PolicySnapshot parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(this.policy);
+            snapshotId.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(POLICY.getPreferredName(), this.policy);
+            builder.field(SNAPSHOT_ID.getPreferredName(), this.snapshotId);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(policy, snapshotId);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            PolicySnapshot other = (PolicySnapshot) obj;
+            return Objects.equals(policy, other.policy) && Objects.equals(snapshotId, other.snapshotId);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 }

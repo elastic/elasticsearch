@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -537,7 +538,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     private void assertPreRegistered(List<String> expected, String policyName) {
         var registered = getRegisteredSnapshots();
-        var policySnaps = registered.getSnapshots().getOrDefault(policyName, List.of())
+        var policySnaps = registered.getSnapshotsByPolicy(policyName)
             .stream()
             .map(SnapshotId::getName)
             .toList();

@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -224,6 +225,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 SnapshotLifecycleMetadata.TYPE,
                 SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new
             ),
+//            new NamedWriteableRegistry.Entry(
+//                NamedDiff.class,
+//                RegisteredPolicySnapshots.TYPE,
+//                RegisteredPolicySnapshots.RegisteredSnapshotsDiff::new
+//            ),
             // ILM - LifecycleTypes
             new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE, (in) -> TimeseriesLifecycleType.INSTANCE),
             // ILM - Lifecycle Actions

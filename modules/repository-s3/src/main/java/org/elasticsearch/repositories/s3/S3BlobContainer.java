@@ -644,7 +644,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 // Step 4: Read the current register value.
 
-                .<OptionalBytesReference>andThen((l, ignored) -> getRegister(purpose, rawKey, l))
+                .<OptionalBytesReference>andThen(l -> getRegister(purpose, rawKey, l))
 
                 // Step 5: Perform the compare-and-swap by completing our upload iff the witnessed value matches the expected value.
 

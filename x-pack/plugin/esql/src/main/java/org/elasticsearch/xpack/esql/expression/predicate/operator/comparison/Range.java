@@ -72,7 +72,15 @@ public class Range extends EsqlScalarFunction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.ESQL_ADD_RANGE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_RANGE)) {
+            source().writeTo(out);
+            out.writeNamedWriteable(value);
+            out.writeNamedWriteable(lower);
+            out.writeBoolean(includeLower);
+            out.writeNamedWriteable(upper);
+            out.writeBoolean(includeUpper);
+            out.writeZoneId(zoneId);
+        } else {
             if (includeUpper) {
                 if (includeLower) {
                     new And(source(), new GreaterThanOrEqual(source(), value, lower), new LessThanOrEqual(source(), value, upper)).writeTo(
@@ -88,14 +96,6 @@ public class Range extends EsqlScalarFunction {
                     new And(source(), new GreaterThan(source(), value, lower), new LessThan(source(), value, upper)).writeTo(out);
                 }
             }
-        } else {
-            source().writeTo(out);
-            out.writeNamedWriteable(value);
-            out.writeNamedWriteable(lower);
-            out.writeBoolean(includeLower);
-            out.writeNamedWriteable(upper);
-            out.writeBoolean(includeUpper);
-            out.writeZoneId(zoneId);
         }
     }
 

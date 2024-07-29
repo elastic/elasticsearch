@@ -135,6 +135,8 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.AzureSnapshotRepoTestKitIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/111280
+- class: org.elasticsearch.xpack.repositories.metering.azure.AzureRepositoriesMeteringIT
+  issue: https://github.com/elastic/elasticsearch/issues/111307
 
 # Examples:
 #

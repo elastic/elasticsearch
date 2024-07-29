@@ -82,6 +82,7 @@ public class SLMStatsImmutableIT extends AbstractSnapshotIntegTestCase {
             policyName,
             snapshotNamePattern,
             schedule,
+            null,
             repoId,
             snapConfig,
             SnapshotRetentionConfiguration.EMPTY

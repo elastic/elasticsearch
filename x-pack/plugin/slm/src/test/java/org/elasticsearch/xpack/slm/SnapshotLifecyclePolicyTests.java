@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSchedule;
+import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomScheduleOrInterval;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -40,12 +41,12 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
     private String id;
 
     public void testToRequest() {
-        boolean useSchedule = randomBoolean();
+        var scheduleInterval = randomScheduleOrInterval("0 1 2 3 4 ? 2099", "30m");
         SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
             "id",
             "name",
-            useSchedule ? "0 1 2 3 4 ? 2099" : null,
-            useSchedule ? null : "30m",
+            scheduleInterval.v1(),
+            scheduleInterval.v2(),
             "repo",
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
@@ -55,9 +56,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             Collections.singletonMap("policy", "id")
         );
 
-        p = useSchedule
-            ? new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", null, "repo", null, null)
-            : new SnapshotLifecyclePolicy("id", "name", null, "30m", "repo", null, null);
+        p = new SnapshotLifecyclePolicy("id", "name", scheduleInterval.v1(), scheduleInterval.v2(), "repo", null, null);
         request = p.toRequest(TEST_REQUEST_TIMEOUT);
         expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo");
         assertEquals(expected, request);

@@ -133,7 +133,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             sls.init();
 
             SnapshotLifecyclePolicyMetadata newPolicy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(randomBoolean() ? createPolicy("initial", "*/1 * * * * ?") : createPolicy("initial", null, "1s"))
+                .setPolicy(randomBoolean() ? createPolicy("foo", "*/1 * * * * ?") : createPolicy("foo", null, "1s"))
                 .setHeaders(Collections.emptyMap())
                 .setVersion(2)
                 .setModifiedDate(2)
@@ -211,7 +211,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             Map<String, SnapshotLifecyclePolicyMetadata> policies = new HashMap<>();
 
             SnapshotLifecyclePolicyMetadata policy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(randomBoolean() ? createPolicy("initial", "*/1 * * * * ?") : createPolicy("initial", null, "1s"))
+                .setPolicy(randomBoolean() ? createPolicy("foo", "*/1 * * * * ?") : createPolicy("foo", null, "1s"))
                 .setHeaders(Collections.emptyMap())
                 .setModifiedDate(1)
                 .build();
@@ -240,7 +240,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             int currentCount = triggerCount.get();
             previousState = state;
             SnapshotLifecyclePolicyMetadata newPolicy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(randomBoolean() ? createPolicy("initial", "*/1 * * * * ?") : createPolicy("initial", null, "1s"))
+                .setPolicy(randomBoolean() ? createPolicy("foo", "*/1 * * * * ?") : createPolicy("foo", null, "1s"))
                 .setHeaders(Collections.emptyMap())
                 .setVersion(2)
                 .setModifiedDate(2)
@@ -283,7 +283,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
             // When the service is no longer master, all jobs should be automatically cancelled
             policy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(randomBoolean() ? createPolicy("initial", "*/1 * * * * ?") : createPolicy("initial", null, "1s"))
+                .setPolicy(randomBoolean() ? createPolicy("foo", "*/1 * * * * ?") : createPolicy("foo", null, "1s"))
                 .setHeaders(Collections.emptyMap())
                 .setVersion(3)
                 .setModifiedDate(1)

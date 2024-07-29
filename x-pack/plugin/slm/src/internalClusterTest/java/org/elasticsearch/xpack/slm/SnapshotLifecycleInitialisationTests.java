@@ -76,6 +76,7 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
                     "test-policy",
                     "snap",
                     "0 0/15 * * * ?",
+                    null,
                     "repo",
                     Collections.emptyMap(),
                     SnapshotRetentionConfiguration.EMPTY

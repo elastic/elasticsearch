@@ -612,6 +612,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             policyName,
             snapshotNamePattern,
             schedule,
+            null,
             repoId,
             snapConfig,
             retention

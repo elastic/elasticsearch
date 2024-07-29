@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomScheduleOrInterval;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -195,12 +196,12 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             }
         }
 
-        boolean useSchedule = randomBoolean();
+        var scheduleInterval = randomScheduleOrInterval();
         return new SnapshotLifecyclePolicy(
             id,
             randomAlphaOfLength(4),
-            useSchedule ? randomSchedule() : null,
-            useSchedule ? null : randomTimeValue().toString(),
+            scheduleInterval.v1(),
+            scheduleInterval.v2(),
             randomAlphaOfLength(4),
             config,
             null

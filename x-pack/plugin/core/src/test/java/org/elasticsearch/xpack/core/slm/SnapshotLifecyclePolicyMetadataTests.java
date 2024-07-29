@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotInvocationRecordTests.randomSnapshotInvocationRecord;
@@ -103,12 +105,12 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
         }
 
-        boolean useSchedule = randomBoolean();
+        var scheduleInterval = randomScheduleOrInterval();
         return new SnapshotLifecyclePolicy(
             policyId,
             randomAlphaOfLength(4),
-            useSchedule ? randomSchedule() : null,
-            useSchedule ? null : randomTimeValue().toString(),
+            scheduleInterval.v1(),
+            scheduleInterval.v2(),
             randomAlphaOfLength(4),
             config,
             randomRetention()
@@ -127,5 +129,18 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
 
     public static String randomSchedule() {
         return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
+    }
+
+    public static String randomInterval() {
+        List<String> units = List.of("nanos", "micros", "ms", "s", "m", "h", "d");
+        return randomIntBetween(0, 1000) + randomFrom(units);
+    }
+    public static Tuple<String, String> randomScheduleOrInterval(String schedule, String interval) {
+        boolean useSchedule = randomBoolean();
+        return new Tuple<>(useSchedule ? schedule : null, useSchedule ? null : interval);
+    }
+
+    public static Tuple<String, String> randomScheduleOrInterval() {
+        return randomScheduleOrInterval(randomSchedule(), randomInterval());
     }
 }

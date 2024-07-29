@@ -43,6 +43,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -337,6 +338,9 @@ public class SharedBlobCacheWarmingService {
                     tasksCount.get(),
                     totalBytesCopied.get()
                 );
+            }).delegateResponse((l, e) -> {
+                logger.warn(() -> Strings.format("%s %s warming failed", indexShard.shardId(), description), e);
+                l.onFailure(e);
             });
         }
 

@@ -262,13 +262,13 @@ GET /index/_search
         "text_similarity_reranker": {
             "retriever": {
                 "standard": { ... }
-            }
-        },
-        "field": "text",
-        "inference_id": "my-cohere-rerank-model",
-        "inference_text": "Most famous landmark in Paris",
-        "rank_window_size": 100,
-        "min_score": 0.5
+            },
+            "field": "text",
+            "inference_id": "my-cohere-rerank-model",
+            "inference_text": "Most famous landmark in Paris",
+            "rank_window_size": 100,
+            "min_score": 0.5
+        }
     }
 }
 ----

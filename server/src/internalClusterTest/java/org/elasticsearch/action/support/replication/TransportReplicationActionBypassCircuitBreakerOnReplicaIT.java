@@ -8,53 +8,43 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCase {
+public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestPlugin.class, MockTransportService.TestPlugin.class);
+        return List.of(TestPlugin.class);
     }
 
     public static class Request extends ReplicationRequest<Request> {
@@ -108,7 +98,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                 threadPool.executor(ThreadPool.Names.GENERIC),
                 SyncGlobalCheckpointAfterOperation.DoNotSync,
                 PrimaryActionExecution.RejectOnOverload,
-                ReplicaActionExecution.SubjectToCircuitBreaker
+                ReplicaActionExecution.BypassCircuitBreaker
             );
         }
 
@@ -132,10 +122,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         }
     }
 
-    public static class TestPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
-        private CountDownLatch actionRunningLatch = new CountDownLatch(1);
-        private CountDownLatch actionWaitLatch = new CountDownLatch(1);
-        private volatile String testActionName;
+    public static class TestPlugin extends Plugin implements ActionPlugin {
 
         public TestPlugin() {}
 
@@ -143,38 +130,39 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return List.of(new ActionHandler<>(TestAction.TYPE, TestAction.class));
         }
+    }
 
-        @Override
-        public List<TransportInterceptor> getTransportInterceptors(
-            NamedWriteableRegistry namedWriteableRegistry,
-            ThreadContext threadContext
-        ) {
-            return List.of(new TransportInterceptor() {
-                @Override
-                public AsyncSender interceptSender(AsyncSender sender) {
-                    return new AsyncSender() {
-                        @Override
-                        public <T extends TransportResponse> void sendRequest(
-                            Transport.Connection connection,
-                            String action,
-                            TransportRequest request,
-                            TransportRequestOptions options,
-                            TransportResponseHandler<T> handler
-                        ) {
-                            // only activated on primary
-                            if (action.equals(testActionName)) {
-                                actionRunningLatch.countDown();
-                                safeAwait(actionWaitLatch);
-                            }
-                            sender.sendRequest(connection, action, request, options, handler);
-                        }
-                    };
-                }
-            });
+    private enum PrimaryOrReplica implements BiFunction<String, String, String> {
+        PRIMARY {
+            @Override
+            public String apply(String primaryName, String replicaName) {
+                return primaryName;
+            }
+        },
+        REPLICA {
+            @Override
+            public String apply(String primaryName, String replicaName) {
+                return replicaName;
+            }
         }
     }
 
-    public void testRetryOnStoppedTransportService() throws Exception {
+    public void testActionCompletesWhenReplicaCircuitBreakersAreAtCapacity() {
+        maxOutCircuitBreakersAndExecuteAction(PrimaryOrReplica.REPLICA);
+    }
+
+    public void testActionFailsWhenPrimaryCircuitBreakersAreAtCapacity() {
+        AssertionError assertionError = assertThrows(
+            AssertionError.class,
+            () -> maxOutCircuitBreakersAndExecuteAction(PrimaryOrReplica.PRIMARY)
+        );
+        assertNotNull(
+            "Not caused by CircuitBreakingException " + ExceptionsHelper.stackTrace(assertionError),
+            ExceptionsHelper.unwrap(assertionError, CircuitBreakingException.class)
+        );
+    }
+
+    private void maxOutCircuitBreakersAndExecuteAction(PrimaryOrReplica nodeToMaxOutCircuitBreakers) {
         internalCluster().startMasterOnlyNodes(2);
         String primary = internalCluster().startDataOnlyNode();
         assertAcked(
@@ -190,42 +178,15 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         ensureGreen("test");
 
-        TestPlugin primaryTestPlugin = getTestPlugin(primary);
-        // this test only provoked an issue for the primary action, but for completeness, we pick the action randomly
-        primaryTestPlugin.testActionName = TestAction.ACTION_NAME + (randomBoolean() ? "[p]" : "[r]");
-        logger.info("--> Test action {}, primary {}, replica {}", primaryTestPlugin.testActionName, primary, replica);
-
-        AtomicReference<Object> response = new AtomicReference<>();
-        CountDownLatch doneLatch = new CountDownLatch(1);
-        client(coordinator).execute(
-            TestAction.TYPE,
-            new Request(new ShardId(resolveIndex("test"), 0)),
-            ActionListener.runAfter(
-                ActionListener.wrap(r -> assertTrue(response.compareAndSet(null, r)), e -> assertTrue(response.compareAndSet(null, e))),
-                doneLatch::countDown
+        try (
+            var ignored = fullyAllocateCircuitBreakerOnNode(
+                nodeToMaxOutCircuitBreakers.apply(primary, replica),
+                CircuitBreaker.IN_FLIGHT_REQUESTS
             )
-        );
-
-        assertTrue(primaryTestPlugin.actionRunningLatch.await(10, TimeUnit.SECONDS));
-
-        // we pause node after TransportService has moved to stopped, but before closing connections, since if connections are closed
-        // we would not hit the transport service closed case.
-        MockTransportService.getInstance(primary).addOnStopListener(() -> {
-            primaryTestPlugin.actionWaitLatch.countDown();
-            safeAwait(doneLatch);
-        });
-        internalCluster().stopNode(primary);
-
-        assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
-        if (response.get() instanceof Exception) {
-            throw new AssertionError(response.get());
+        ) {
+            PlainActionFuture<Response> testActionResult = new PlainActionFuture<>();
+            client(coordinator).execute(TestAction.TYPE, new Request(new ShardId(resolveIndex("test"), 0)), testActionResult);
+            safeGet(testActionResult);
         }
-    }
-
-    private TestPlugin getTestPlugin(String node) {
-        PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, node);
-        List<TestPlugin> testPlugins = pluginsService.filterPlugins(TestPlugin.class).toList();
-        assertThat(testPlugins, Matchers.hasSize(1));
-        return testPlugins.get(0);
     }
 }

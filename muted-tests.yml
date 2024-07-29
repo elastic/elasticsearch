@@ -92,6 +92,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test600Interrupt
   issue: https://github.com/elastic/elasticsearch/issues/111324
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  method: testStopWaitForCheckpoint
+  issue: https://github.com/elastic/elasticsearch/issues/106113
 
 # Examples:
 #

@@ -278,6 +278,9 @@ public class TopNOperator implements Operator, Accountable {
 
     private Iterator<Page> output;
 
+    // profiling
+    private long rowsProcessed = 0;
+
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -366,6 +369,7 @@ public class TopNOperator implements Operator, Accountable {
                 spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
 
                 spare = inputQueue.insertWithOverflow(spare);
+                rowsProcessed++;
             }
         } finally {
             Releasables.close(() -> page.releaseBlocks());
@@ -531,7 +535,7 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Status status() {
-        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed());
+        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed(), rowsProcessed);
     }
 
     @Override

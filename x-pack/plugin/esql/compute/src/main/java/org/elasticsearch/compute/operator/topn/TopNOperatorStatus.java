@@ -27,21 +27,25 @@ public class TopNOperatorStatus implements Operator.Status {
     );
     private final int occupiedRows;
     private final long ramBytesUsed;
+    private final long processedRows;
 
-    public TopNOperatorStatus(int occupiedRows, long ramBytesUsed) {
+    public TopNOperatorStatus(int occupiedRows, long ramBytesUsed, long processedRows) {
         this.occupiedRows = occupiedRows;
         this.ramBytesUsed = ramBytesUsed;
+        this.processedRows = processedRows;
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
         this.occupiedRows = in.readVInt();
         this.ramBytesUsed = in.readVLong();
+        this.processedRows = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(occupiedRows);
         out.writeVLong(ramBytesUsed);
+        out.writeVLong(processedRows);
     }
 
     @Override
@@ -53,6 +57,10 @@ public class TopNOperatorStatus implements Operator.Status {
         return occupiedRows;
     }
 
+    public long processedRows() {
+        return processedRows;
+    }
+
     public long ramBytesUsed() {
         return ramBytesUsed;
     }
@@ -61,6 +69,7 @@ public class TopNOperatorStatus implements Operator.Status {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("occupied_rows", occupiedRows);
+        builder.field("processed_rows", processedRows);
         builder.field("ram_bytes_used", ramBytesUsed);
         builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));
         return builder.endObject();
@@ -72,12 +81,12 @@ public class TopNOperatorStatus implements Operator.Status {
             return false;
         }
         TopNOperatorStatus that = (TopNOperatorStatus) o;
-        return occupiedRows == that.occupiedRows && ramBytesUsed == that.ramBytesUsed;
+        return occupiedRows == that.occupiedRows && ramBytesUsed == that.ramBytesUsed && processedRows == that.processedRows;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(occupiedRows, ramBytesUsed);
+        return Objects.hash(occupiedRows, ramBytesUsed, processedRows);
     }
 
     @Override

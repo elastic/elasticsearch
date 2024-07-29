@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -60,7 +61,11 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -587,13 +592,17 @@ public class ComputeService {
         private final ComputeListener computeListener;
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
+        private final IndicesService indicesService;
+
+        List<ShardId> sortedShards;
 
         DataNodeRequestExecutor(
             DataNodeRequest request,
             CancellableTask parentTask,
             ExchangeSinkHandler exchangeSink,
             int maxConcurrentShards,
-            ComputeListener computeListener
+            ComputeListener computeListener,
+            IndicesService indicesService
         ) {
             this.request = request;
             this.parentTask = parentTask;
@@ -601,6 +610,7 @@ public class ComputeService {
             this.computeListener = computeListener;
             this.maxConcurrentShards = maxConcurrentShards;
             this.blockingSink = exchangeSink.createExchangeSink();
+            this.indicesService = indicesService;
         }
 
         void start() {
@@ -615,7 +625,8 @@ public class ComputeService {
             final String clusterAlias = request.clusterAlias();
             final var sessionId = request.sessionId();
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
-            List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
+            // List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
+            List<ShardId> shardIds = getShardIds(startBatchIndex, endBatchIndex);
             ActionListener<ComputeResponse> batchListener = new ActionListener<>() {
                 final ActionListener<ComputeResponse> ref = computeListener.acquireCompute();
 
@@ -642,6 +653,41 @@ public class ComputeService {
                 var computeContext = new ComputeContext(sessionId, clusterAlias, searchContexts, configuration, null, exchangeSink);
                 runCompute(parentTask, computeContext, request.plan(), batchListener);
             }, batchListener::onFailure));
+        }
+
+        private List<ShardId> getShardIds(int startBatchIndex, int endBatchIndex) {
+            if (sortedShards == null) {
+                final Holder<Boolean> newestFirst = new Holder<>(true);
+                if (request.plan() instanceof ExchangeSinkExec sink && sink.child() instanceof FragmentExec fragment) {
+                    fragment.fragment().forEachDown(TopN.class, topN -> {
+                        // do it only if the first sort criterion is by @timestamp
+                        // otherwise newest first
+                        Order order = topN.order().get(0);
+                        if (order.child() instanceof FieldAttribute fa && fa.name().equals("@timestamp")) {
+                            newestFirst.set(order.direction() == Order.OrderDirection.DESC);
+                        }
+                    });
+                }
+
+                sortedShards = new ArrayList<>(request.shardIds());
+                Map<Index, Long> indexCreationDates = new HashMap<>();
+                for (ShardId shardId : sortedShards) {
+                    Index idx = shardId.getIndex();
+                    indexCreationDates.computeIfAbsent(
+                        idx,
+                        i -> indicesService.indexService(i).getIndexSettings().getIndexMetadata().getCreationDate()
+                    );
+                }
+                sortedShards.sort((x, y) -> {
+                    long idxCreationDiff = indexCreationDates.get(y.getIndex()) - indexCreationDates.get(x.getIndex());
+                    if (idxCreationDiff != 0) {
+                        return (int) (newestFirst.get() ? idxCreationDiff : -idxCreationDiff);
+                    }
+                    return x.id() - y.id();
+                });
+            }
+
+            return sortedShards.subList(startBatchIndex, endBatchIndex);
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
@@ -674,7 +720,8 @@ public class ComputeService {
                 task,
                 internalSink,
                 request.configuration().pragmas().maxConcurrentShardsPerNode(),
-                computeListener
+                computeListener,
+                searchService.getIndicesService()
             );
             dataNodeRequestExecutor.start();
             // run the node-level reduction

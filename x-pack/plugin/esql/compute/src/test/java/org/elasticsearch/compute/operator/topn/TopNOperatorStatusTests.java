@@ -15,8 +15,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<TopNOperatorStatus> {
     public void testToXContent() {
-        assertThat(Strings.toString(new TopNOperatorStatus(10, 2000)), equalTo("""
-            {"occupied_rows":10,"ram_bytes_used":2000,"ram_used":"1.9kb"}"""));
+        assertThat(Strings.toString(new TopNOperatorStatus(10, 2000, 20)), equalTo("""
+            {"occupied_rows":10,"processed_rows":20,"ram_bytes_used":2000,"ram_used":"1.9kb"}"""));
     }
 
     @Override
@@ -26,23 +26,27 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
 
     @Override
     protected TopNOperatorStatus createTestInstance() {
-        return new TopNOperatorStatus(randomNonNegativeInt(), randomNonNegativeLong());
+        return new TopNOperatorStatus(randomNonNegativeInt(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
     protected TopNOperatorStatus mutateInstance(TopNOperatorStatus instance) {
         int occupiedRows = instance.occupiedRows();
         long ramBytesUsed = instance.ramBytesUsed();
-        switch (between(0, 1)) {
+        long processedRows = instance.processedRows();
+        switch (between(0, 2)) {
             case 0:
                 occupiedRows = randomValueOtherThan(occupiedRows, () -> randomNonNegativeInt());
                 break;
             case 1:
                 ramBytesUsed = randomValueOtherThan(ramBytesUsed, () -> randomNonNegativeLong());
                 break;
+            case 2:
+                processedRows = randomValueOtherThan(ramBytesUsed, () -> randomNonNegativeLong());
+                break;
             default:
                 throw new IllegalArgumentException();
         }
-        return new TopNOperatorStatus(occupiedRows, ramBytesUsed);
+        return new TopNOperatorStatus(occupiedRows, ramBytesUsed, processedRows);
     }
 }

@@ -80,22 +80,11 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             DataType.KEYWORD,
             DataType.TEXT
         )) {
-            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier(
-                "No rows (" + dataType + ")",
-                List::of,
-                dataType,
-                false,
-                true
-            );
+            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier("No rows (" + dataType + ")", List::of, dataType, false, true);
 
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {
-                suppliers.add(
-                    makeSupplier(
-                        emptyFieldSupplier,
-                        precisionCaseSupplier
-                    )
-                );
+                suppliers.add(makeSupplier(emptyFieldSupplier, precisionCaseSupplier));
             }
 
             // Without precision

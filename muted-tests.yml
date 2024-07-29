@@ -143,6 +143,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testRollupAfterRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111393
+- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
+  method: testAuthenticateWithCodeFlowAndClientPost
+  issue: https://github.com/elastic/elasticsearch/issues/111396
 
 # Examples:
 #

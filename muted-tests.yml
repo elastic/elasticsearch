@@ -137,6 +137,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testTransformLegacyTemplateCleanup {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111385
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testRollupAfterRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111392
 
 # Examples:
 #

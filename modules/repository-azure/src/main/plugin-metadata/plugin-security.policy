@@ -9,11 +9,13 @@
 grant {
   // azure client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
-  // TODO
-  permission java.io.FilePermission "<<ALL FILES>>", "read";
   // io.netty.util.concurrent.GlobalEventExecutor.startThread
   permission java.lang.RuntimePermission "setContextClassLoader";
   // Used by jackson bean deserialization
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // TODO test-only -- can we move this into a separate policy file?
+  // azure client reads the federated token file for integration tests
+  permission java.io.FilePermission "${test.azure.federated_token_file}", "read";
 };

@@ -28,8 +28,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
     private static final String AZURE_TEST_TENANT_ID = System.getProperty("test.azure.tenant_id");
     private static final String AZURE_TEST_CLIENT_ID = System.getProperty("test.azure.client_id");
-
-    private static AzureHttpFixture fixture = new AzureHttpFixture(
+    private static final AzureHttpFixture fixture = new AzureHttpFixture(
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
@@ -39,11 +38,11 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
     );
 
-    private static TestTrustStore trustStore = new TestTrustStore(
+    private static final TestTrustStore trustStore = new TestTrustStore(
         () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")
     );
 
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-azure")
         .module("snapshot-repo-test-kit")
         .keystore("azure.client.repository_test_kit.account", AZURE_TEST_ACCOUNT)
@@ -61,12 +60,18 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
                 c.systemProperty("test.repository_test_kit.skip_cas", "true");
             }
         })
-        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
-        .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getOAuthTokenServiceAddress(), s -> USE_FIXTURE)
+        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", fixture::getMetadataAddress, s -> USE_FIXTURE)
+        .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_FIXTURE)
         .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> notNullOrEmpty(AZURE_TEST_CLIENT_ID))
         .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> notNullOrEmpty(AZURE_TEST_TENANT_ID))
         .systemProperty(
             "AZURE_FEDERATED_TOKEN_FILE",
+            () -> fixture.getFederatedTokenPath().toString(),
+            s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
+        )
+        // Needed to allowlist in SM security policy for test
+        .systemProperty(
+            "test.azure.federated_token_file",
             () -> fixture.getFederatedTokenPath().toString(),
             s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
         )

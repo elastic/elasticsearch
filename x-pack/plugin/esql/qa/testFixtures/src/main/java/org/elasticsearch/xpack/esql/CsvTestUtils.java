@@ -24,6 +24,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
@@ -62,6 +63,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 public final class CsvTestUtils {
+    private static final Logger LOGGER = LogManager.getLogger(CsvTestUtils.class);
     private static final int MAX_WIDTH = 20;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
@@ -388,6 +390,7 @@ public final class CsvTestUtils {
                         // The value considered here is the one where any potential escaped comma is kept as is (with the escape char)
                         // TODO if we'd want escaped commas outside multi-values fields, we'd have to adjust this value here as well
                         rowValues.add(columnTypes.get(i).convert(value));
+                        LOGGER.debug("Read value [" + value + "] and converted it to [" + columnTypes.get(i).convert(value) + "]");
                     }
                 }
                 values.add(rowValues);
@@ -450,8 +453,12 @@ public final class CsvTestUtils {
             if (x == null) {
                 return null;
             }
+            LOGGER.debug("Converting DateNanos value [" + x + "]");
             Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
-            return parsed.toEpochMilli() * 1_000_000L + parsed.getNano();
+            LOGGER.debug(
+                "Instant DateNanos value [" + parsed + "] with millis [" + parsed.toEpochMilli() + "] and nanos [" + parsed.getNano() + "]"
+            );
+            return parsed.getEpochSecond() * 1_000_000_000 + parsed.getNano();
         }, (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()), Long.class),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),

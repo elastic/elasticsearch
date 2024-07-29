@@ -217,6 +217,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(), testCase.expectedWarningsRegex());
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
+        LOGGER.debug("got expected values [" + expectedColumnsWithValues + "]");
 
         var metadata = answer.get("columns");
         assertNotNull(metadata);

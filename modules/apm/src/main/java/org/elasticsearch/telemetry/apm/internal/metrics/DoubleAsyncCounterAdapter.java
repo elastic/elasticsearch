@@ -15,12 +15,19 @@ import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 public class DoubleAsyncCounterAdapter extends AbstractInstrument<ObservableDoubleCounter> implements DoubleAsyncCounter {
 
-    public DoubleAsyncCounterAdapter(Meter meter, String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
+    public DoubleAsyncCounterAdapter(
+        Meter meter,
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    ) {
         super(meter, new Builder(name, description, unit, observer));
     }
 
@@ -30,9 +37,9 @@ public class DoubleAsyncCounterAdapter extends AbstractInstrument<ObservableDoub
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableDoubleCounter> {
-        private final Supplier<DoubleWithAttributes> observer;
+        private final Supplier<Collection<DoubleWithAttributes>> observer;
 
-        private Builder(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
+        private Builder(String name, String description, String unit, Supplier<Collection<DoubleWithAttributes>> observer) {
             super(name, description, unit);
             this.observer = Objects.requireNonNull(observer);
         }

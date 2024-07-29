@@ -1,7 +1,12 @@
 [[infer-service-elasticsearch]]
 === Elasticsearch {infer} service
 
-Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch` service.
+Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch`
+service.
+
+NOTE: If you use the E5 model through the `elasticsearch` service, the API
+request will automatically download and deploy the model if it isn't downloaded
+yet.
 
 
 [discrete]
@@ -35,7 +40,7 @@ Available task types:
 
 `service`::
 (Required, string)
-The type of service supported for the specified task type. In this case, 
+The type of service supported for the specified task type. In this case,
 `elasticsearch`.
 
 `service_settings`::
@@ -58,7 +63,7 @@ The total number of allocations this model is assigned across machine learning n
 
 `num_threads`:::
 (Required, integer)
-Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node.
 Must be a power of 2. Max allowed value is 32.
 
 `task_settings`::
@@ -81,6 +86,9 @@ Returns the document instead of only the index. Defaults to `true`.
 The following example shows how to create an {infer} endpoint called
 `my-e5-model` to perform a `text_embedding` task type.
 
+The API request below will automatically download the E5 model if it isn't
+already downloaded and then deploy the model.
+
 [source,console]
 ------------------------------------------------------------
 PUT _inference/text_embedding/my-e5-model
@@ -98,6 +106,14 @@ PUT _inference/text_embedding/my-e5-model
 Valid values are `.multilingual-e5-small` and `.multilingual-e5-small_linux-x86_64`.
 For further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentation].
 
+[NOTE]
+====
+You might see a 502 bad gateway error in the response when using the {kib} Console.
+This error usually just reflects a timeout, while the model downloads in the background.
+You can check the download progress in the {ml-app} UI.
+If using the Python client, you can set the `timeout` parameter to a higher value.
+====
+
 [discrete]
 [[inference-example-eland]]
 ==== Models uploaded by Eland via the elasticsearch service
@@ -107,16 +123,17 @@ The following example shows how to create an {infer} endpoint called
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/text_embedding/my-msmarco-minilm-model
+PUT _inference/text_embedding/my-msmarco-minilm-model <1>
 {
   "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1,
-    "model_id": "msmarco-MiniLM-L12-cos-v5" <1>
+    "model_id": "msmarco-MiniLM-L12-cos-v5" <2>
   }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The `model_id` must be the ID of a text embedding model which has already been
+<1> Provide an unique identifier for the inference endpoint. The `inference_id` must be unique and must not match the `model_id`.
+<2> The `model_id` must be the ID of a text embedding model which has already been
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].

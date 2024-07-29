@@ -133,9 +133,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         ensureNoInitializingShards();
         ensureAllFreeContextActionsAreConsumed();
 
-        SearchService searchService = getInstanceFromNode(SearchService.class);
-        assertThat(searchService.getActiveContexts(), equalTo(0));
-        assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+        ensureAllContextsReleased(getInstanceFromNode(SearchService.class));
         super.tearDown();
         var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);

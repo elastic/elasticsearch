@@ -1,0 +1,5 @@
+pr: 111184
+summary: Fix Dissect with leading non-ascii characters
+area: Ingest Node
+type: bug
+issues: []

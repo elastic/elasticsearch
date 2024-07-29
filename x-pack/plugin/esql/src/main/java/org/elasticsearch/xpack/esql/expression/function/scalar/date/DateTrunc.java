@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -110,7 +109,7 @@ public class DateTrunc extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(interval, EsqlDataTypes::isTemporalAmount, sourceText(), FIRST, "dateperiod", "timeduration").and(
+        return isType(interval, DataType::isTemporalAmount, sourceText(), FIRST, "dateperiod", "timeduration").and(
             isDate(timestampField, sourceText(), SECOND)
         );
     }

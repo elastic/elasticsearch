@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -42,7 +43,7 @@ public final class TransportCreateApiKeyAction extends TransportAction<CreateApi
         CompositeRolesStore rolesStore,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(CreateApiKeyAction.NAME, actionFilters, transportService.getTaskManager());
+        super(CreateApiKeyAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.apiKeyService = apiKeyService;
         this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
         this.securityContext = context;

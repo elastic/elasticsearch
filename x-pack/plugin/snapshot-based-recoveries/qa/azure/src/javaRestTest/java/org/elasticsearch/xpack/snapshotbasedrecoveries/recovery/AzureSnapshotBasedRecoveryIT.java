@@ -11,6 +11,7 @@ import fixture.azure.AzureHttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
@@ -28,7 +29,9 @@ public class AzureSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryR
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
+        USE_FIXTURE
+            ? ESTestCase.inFipsJvm() ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.HTTPS
+            : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
@@ -59,7 +62,11 @@ public class AzureSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryR
             s -> USE_FIXTURE
         )
         .setting("xpack.license.self_generated.type", "trial")
-        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
+        .systemProperty(
+            "javax.net.ssl.trustStore",
+            () -> trustStore.getTrustStorePath().toString(),
+            s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
+        )
         .build();
 
     @ClassRule(order = 1)

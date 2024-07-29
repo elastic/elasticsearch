@@ -68,12 +68,55 @@ Some important points:
 `field_1` to `field_2` and `copy_to` on `field_2` to `field_3` expecting 
 indexing into `field_1` will eventuate in `field_3`, instead use copy_to 
 directly to multiple fields from the originating field.
+
+NOTE: `copy_to` is _not_ supported for field types where values take the form of objects, e.g. `date_range`
+
+==== Dynamic mapping
+
+Here are some important points to consider when using `copy_to` with dynamic mappings:
+
 * If the target field does not exist in the index mappings, the usual
 <<dynamic-mapping,dynamic mapping>> behavior applies. By default, with
 <<dynamic,`dynamic`>> set to `true`, a non-existent target field will be
-dynamically added to the index mappings. If `dynamic` is set to `false`, the
+dynamically added to the index mappings.
+* If `dynamic` is set to `false`, the
 target field will not be added to the index mappings, and the value will not be
-copied. If `dynamic` is set to `strict`, copying to a non-existent field will
+copied.
+* If `dynamic` is set to `strict`, copying to a non-existent field will
 result in an error.
++
+** `copy_to` fields must specify the full path if the target field is _nested_.
+Omitting the full path will lead to a `strict_dynamic_mapping_exception`.
+Use `"copy_to": ["parent_field.child_field"]` to correctly target a nested field.
++
+For example:
++
+[source,console]
+--------------------------------------------------
+PUT /test_index
+{
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "description": {
+        "properties": {
+          "notes": {
+            "type": "text",
+            "copy_to": [ "description.notes_raw"], <1>
+            "analyzer": "standard",
+            "search_analyzer": "standard"
+          },
+          "notes_raw": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
 
-NOTE: `copy_to` is _not_ supported for field types where values take the form of objects, e.g. `date_range`
+<1> The `notes` field is copied to the `notes_raw` field. Targeting only `notes_raw`, instead of `description.notes_raw`, without specifying the fully qualified path,
+would lead to a `strict_dynamic_mapping_exception`. 
+
+

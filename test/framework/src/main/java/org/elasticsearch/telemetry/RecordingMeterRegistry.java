@@ -23,6 +23,7 @@ import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Collection;
 import java.util.function.Supplier;
 
 /**
@@ -77,6 +78,16 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
+    public DoubleGauge registerDoublesGauge(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    ) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
     public DoubleGauge getDoubleGauge(String name) {
         return (DoubleGauge) recorder.getInstrument(InstrumentType.DOUBLE_GAUGE, name);
     }
@@ -116,6 +127,16 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
+    public LongAsyncCounter registerLongsAsyncCounter(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
     public LongAsyncCounter getLongAsyncCounter(String name) {
         return (LongAsyncCounter) recorder.getInstrument(InstrumentType.LONG_ASYNC_COUNTER, name);
     }
@@ -130,6 +151,16 @@ public class RecordingMeterRegistry implements MeterRegistry {
         DoubleAsyncCounter instrument = new RecordingInstruments.RecordingAsyncDoubleCounter(name, observer, recorder);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
+    }
+
+    @Override
+    public DoubleAsyncCounter registerDoublesAsyncCounter(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    ) {
+        throw new UnsupportedOperationException("not implemented");
     }
 
     @Override
@@ -168,6 +199,11 @@ public class RecordingMeterRegistry implements MeterRegistry {
         LongGauge instrument = buildLongGauge(name, description, unit, observer);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
+    }
+
+    @Override
+    public LongGauge registerLongsGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
+        throw new UnsupportedOperationException("not implemented");
     }
 
     @Override

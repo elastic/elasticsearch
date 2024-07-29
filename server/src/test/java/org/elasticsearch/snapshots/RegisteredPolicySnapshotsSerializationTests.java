@@ -39,7 +39,7 @@ public class RegisteredPolicySnapshotsSerializationTests extends AbstractChunked
             return new RegisteredPolicySnapshots(List.of(randomPolicySnapshot()));
         }
 
-        final int randIndex = between(0, instance.getSnapshots().size()-1);
+        final int randIndex = between(0, instance.getSnapshots().size() - 1);
         final RegisteredPolicySnapshots.PolicySnapshot policySnapshot = instance.getSnapshots().get(randIndex);
 
         String policy = policySnapshot.getPolicy();
@@ -75,6 +75,7 @@ public class RegisteredPolicySnapshotsSerializationTests extends AbstractChunked
     private String randomPolicy() {
         return "policy-" + randomIntBetween(0, 20);
     }
+
     private RegisteredPolicySnapshots.PolicySnapshot randomPolicySnapshot() {
         SnapshotId snapshotId = new SnapshotId(randomIdentifier(), randomUUID());
         return new RegisteredPolicySnapshots.PolicySnapshot(randomPolicy(), snapshotId);

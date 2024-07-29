@@ -104,9 +104,6 @@ setup:
         refresh: true
 
   - do:
-      headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
-        Content-Type: application/json
       search:
         index: test-sparse-index
         body:
@@ -133,9 +130,6 @@ setup:
         refresh: true
 
   - do:
-      headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
-        Content-Type: application/json
       search:
         index: test-sparse-index
         body:
@@ -193,9 +187,6 @@ setup:
         refresh: true
 
   - do:
-      headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
-        Content-Type: application/json
       search:
         index: test-dense-index
         body:
@@ -222,9 +213,6 @@ setup:
         refresh: true
 
   - do:
-      headers:
-        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
-        Content-Type: application/json
       search:
         index: test-dense-index
         body:

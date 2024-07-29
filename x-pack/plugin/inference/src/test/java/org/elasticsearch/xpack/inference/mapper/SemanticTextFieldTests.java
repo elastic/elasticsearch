@@ -218,16 +218,18 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
      * Returns a randomly generated object for Semantic Text tests purpose.
      */
     public static Object randomSemanticTextInput() {
-        int randomInt = randomIntBetween(0, 5);
-        return switch (randomInt) {
-            case 0 -> randomAlphaOfLengthBetween(10, 20);
-            case 1 -> randomInt();
-            case 2 -> randomLong();
-            case 3 -> randomFloat();
-            case 4 -> randomBoolean();
-            case 5 -> randomDouble();
-            default -> throw new IllegalStateException("Illegal state while generating random semantic text input");
-        };
+        if (rarely()) {
+            return switch (randomIntBetween(0, 4)) {
+                case 0 -> randomInt();
+                case 1 -> randomLong();
+                case 2 -> randomFloat();
+                case 3 -> randomBoolean();
+                case 4 -> randomDouble();
+                default -> throw new IllegalStateException("Illegal state while generating random semantic text input");
+            };
+        } else {
+            return randomAlphaOfLengthBetween(10, 20);
+        }
     }
 
     public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {

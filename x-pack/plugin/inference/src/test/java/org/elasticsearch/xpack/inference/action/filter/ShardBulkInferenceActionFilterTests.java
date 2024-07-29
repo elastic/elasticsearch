@@ -344,6 +344,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
 
             SemanticTextField semanticTextField;
+            // The model is not field aware and that is why we are skipping the embedding generation process for existing values.
+            // This prevents a situation where embeddings in the expected docMap do not match those in the model, which could happen if
+            // embeddings were overwritten.
             if (model.hasResult(inputText)) {
                 ChunkedInferenceServiceResults results = model.getResults(inputText);
                 semanticTextField = semanticTextFieldFromChunkedInferenceResults(

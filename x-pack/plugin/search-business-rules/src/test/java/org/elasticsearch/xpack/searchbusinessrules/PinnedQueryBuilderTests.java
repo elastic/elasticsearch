@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,7 +91,12 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     private static SpecifiedDocument[] generateRandomItems() {
-        return randomArray(1, 100, SpecifiedDocument[]::new, () -> new SpecifiedDocument(randomBoolean() ? null : randomAlphaOfLength(64), randomAlphaOfLength(256)));
+        return randomArray(
+            1,
+            100,
+            SpecifiedDocument[]::new,
+            () -> new SpecifiedDocument(randomBoolean() ? null : randomAlphaOfLength(64), randomAlphaOfLength(256))
+        );
     }
 
     @Override
@@ -121,16 +125,21 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (String) null));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(null, "1"));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), "1", null, "2"));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (PinnedQueryBuilder.Item) null)
-        );
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (SpecifiedDocument) null));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(null, new SpecifiedDocument("test", "1")));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new SpecifiedDocument("test", "1"), null, new SpecifiedDocument("test", "2"))
+            () -> new PinnedQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new SpecifiedDocument("test", "1"),
+                null,
+                new SpecifiedDocument("test", "2")
+            )
         );
-        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new SpecifiedDocument("test*", "1")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new SpecifiedDocument("test*", "1"))
+        );
         String[] bigIdList = new String[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         SpecifiedDocument[] bigSpecifiedDocumentList = new SpecifiedDocument[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         for (int i = 0; i < bigIdList.length; i++) {
@@ -239,7 +248,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testDocInsertionOrderRetained() {
-        SpecifiedDocument[] specifiedDocuments = randomArray(10, SpecifiedDocument[]::new, () -> new SpecifiedDocument(randomAlphaOfLength(64), randomAlphaOfLength(256)));
+        SpecifiedDocument[] specifiedDocuments = randomArray(
+            10,
+            SpecifiedDocument[]::new,
+            () -> new SpecifiedDocument(randomAlphaOfLength(64), randomAlphaOfLength(256))
+        );
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(new MatchAllQueryBuilder(), specifiedDocuments);
         List<SpecifiedDocument> addedDocs = pqb.docs();
         int pos = 0;

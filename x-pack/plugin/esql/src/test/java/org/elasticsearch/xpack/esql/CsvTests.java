@@ -286,7 +286,8 @@ public class CsvTests extends ESTestCase {
             assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
-            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
+            assertBusy(() -> assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L)));
         }
     }
 

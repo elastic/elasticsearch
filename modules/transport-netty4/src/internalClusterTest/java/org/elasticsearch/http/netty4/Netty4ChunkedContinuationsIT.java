@@ -435,7 +435,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
             @Inject
             public TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService) {
-                this(actionFilters, transportService, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                this(actionFilters, transportService, transportService.getThreadPool().executor(ThreadPool.Names.GENERIC));
             }
 
             TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService, ExecutorService executor) {

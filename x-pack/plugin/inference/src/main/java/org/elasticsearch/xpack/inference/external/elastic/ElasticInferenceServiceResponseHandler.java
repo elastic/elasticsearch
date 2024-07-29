@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInfere
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForFailureStatusCode;
 
 //TODO: test
 public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler {
@@ -39,12 +38,15 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
             return;
         }
 
-        // TODO: handle 400
-
-        // TODO: handle 405
-
-        // TODO: handle 500
+        if (statusCode == 500) {
+            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+        } else if (statusCode == 400) {
+            throw new RetryException(false, buildError(BAD_REQUEST, request, result));
+        } else if (statusCode == 405) {
+            throw new RetryException(false, buildError(METHOD_NOT_ALLOWED, request, result));
+        }
 
         throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
     }
+
 }

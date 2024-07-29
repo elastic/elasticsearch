@@ -35,7 +35,6 @@ import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTe
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTestCase<SnapshotLifecyclePolicy> {

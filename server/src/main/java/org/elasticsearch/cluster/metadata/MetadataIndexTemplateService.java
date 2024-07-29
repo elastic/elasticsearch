@@ -1309,7 +1309,12 @@ public class MetadataIndexTemplateService {
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
-            if (isHidden == false) {
+            /*
+             * We do not ordinarily return match-all templates for hidden indices. But all backing indices for data streams are hidden,
+             * and we do want to return even match-all templates for those. Not doing so can result in a situation where a data stream is
+             * built with a template that none of its indices match.
+             */
+            if (isHidden == false || template.getDataStreamTemplate() != null) {
                 final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
                     candidates.add(Tuple.tuple(name, template));

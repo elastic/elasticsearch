@@ -302,30 +302,12 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new PutRepositoryRequestBuilder(this, masterNodeTimeout, ackTimeout, name);
     }
 
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public PutRepositoryRequestBuilder preparePutRepository(String name) {
-        return preparePutRepository(
-            MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
-            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
-            name
-        );
-    }
-
     public void deleteRepository(DeleteRepositoryRequest request, ActionListener<AcknowledgedResponse> listener) {
         execute(TransportDeleteRepositoryAction.TYPE, request, listener);
     }
 
     public DeleteRepositoryRequestBuilder prepareDeleteRepository(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
         return new DeleteRepositoryRequestBuilder(this, masterNodeTimeout, ackTimeout, name);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public DeleteRepositoryRequestBuilder prepareDeleteRepository(String name) {
-        return prepareDeleteRepository(
-            MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
-            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
-            name
-        );
     }
 
     public void getRepositories(GetRepositoriesRequest request, ActionListener<GetRepositoriesResponse> listener) {
@@ -360,11 +342,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(TransportCreateSnapshotAction.TYPE, request, listener);
     }
 
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public CreateSnapshotRequestBuilder prepareCreateSnapshot(String repository, String name) {
-        return prepareCreateSnapshot(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, repository, name);
-    }
-
     public CreateSnapshotRequestBuilder prepareCreateSnapshot(TimeValue masterNodeTimeout, String repository, String name) {
         return new CreateSnapshotRequestBuilder(this, masterNodeTimeout, repository, name);
     }
@@ -385,18 +362,8 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new GetSnapshotsRequestBuilder(this, masterNodeTimeout, repositories);
     }
 
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public GetSnapshotsRequestBuilder prepareGetSnapshots(String... repositories) {
-        return prepareGetSnapshots(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, repositories);
-    }
-
     public void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
         execute(TransportDeleteSnapshotAction.TYPE, request, listener);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String... names) {
-        return prepareDeleteSnapshot(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, repository, names);
     }
 
     public DeleteSnapshotRequestBuilder prepareDeleteSnapshot(TimeValue masterNodeTimeout, String repository, String... names) {
@@ -409,11 +376,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public void restoreSnapshot(RestoreSnapshotRequest request, ActionListener<RestoreSnapshotResponse> listener) {
         execute(TransportRestoreSnapshotAction.TYPE, request, listener);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot) {
-        return prepareRestoreSnapshot(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, repository, snapshot);
     }
 
     public RestoreSnapshotRequestBuilder prepareRestoreSnapshot(TimeValue masterNodeTimeout, String repository, String snapshot) {

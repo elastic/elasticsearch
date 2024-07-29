@@ -141,7 +141,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         postTags(in.readOptionalStringArray());
         fragmentSize(in.readOptionalVInt());
         numOfFragments(in.readOptionalVInt());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             encoder(in.readOptionalString());
         }
         highlighterType(in.readOptionalString());
@@ -180,7 +180,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalStringArray(postTags);
         out.writeOptionalVInt(fragmentSize);
         out.writeOptionalVInt(numOfFragments);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalString(encoder);
         }
         out.writeOptionalString(highlighterType);

@@ -69,7 +69,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
-    public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.DATA_STREAM_AUTO_SHARDING_EVENT;
+    public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
 
     public static boolean isFailureStoreFeatureFlagEnabled() {
         return FAILURE_STORE_FEATURE_FLAG.isEnabled();

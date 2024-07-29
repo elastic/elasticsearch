@@ -16,6 +16,8 @@ import org.elasticsearch.logsdb.datageneration.FieldType;
 public interface Arbitrary {
     boolean generateSubObject();
 
+    boolean generateNestedObject();
+
     int childFieldCount(int lowerBound, int upperBound);
 
     String fieldName(int lengthLowerBound, int lengthUpperBound);
@@ -25,4 +27,14 @@ public interface Arbitrary {
     long longValue();
 
     String stringValue(int lengthLowerBound, int lengthUpperBound);
+
+    boolean generateNullValue();
+
+    boolean generateArrayOfValues();
+
+    int valueArraySize();
+
+    boolean generateArrayOfObjects();
+
+    int objectArraySize();
 }

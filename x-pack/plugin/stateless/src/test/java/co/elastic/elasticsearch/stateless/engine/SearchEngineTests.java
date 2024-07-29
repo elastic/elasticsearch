@@ -536,11 +536,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 new NewCommitNotification(compoundCommit, bccGen, latestUploadedTermAndGen, 1L, "_node_id"),
                 new PlainActionFuture<>()
             );
-            verify(objectStoreUploadTracker, times(1)).updateLatestUploadInfo(
-                latestUploadedTermAndGen,
-                compoundCommit.primaryTermAndGeneration(),
-                "_node_id"
-            );
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploadedBcc(latestUploadedTermAndGen);
+            verify(objectStoreUploadTracker, times(1)).updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), "_node_id");
             var uploadInfoGen = objectStoreUploadTracker.getLatestUploadInfo(latestUploadedTermAndGen);
             assertThat(uploadInfoGen.isUploaded(), is(true));
             var uploadInfoGenPlus1 = objectStoreUploadTracker.getLatestUploadInfo(latestUploadedTermAndGenPlus1);
@@ -552,11 +549,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 new NewCommitNotification(compoundCommit, bccGen, latestUploadedTermAndGenPlus1, 1L, "_node_id"),
                 new PlainActionFuture<>()
             );
-            verify(objectStoreUploadTracker, times(1)).updateLatestUploadInfo(
-                latestUploadedTermAndGenPlus1,
-                compoundCommit.primaryTermAndGeneration(),
-                "_node_id"
-            );
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploadedBcc(latestUploadedTermAndGenPlus1);
+            verify(objectStoreUploadTracker, times(1)).updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), "_node_id");
             assertThat(uploadInfoGen.isUploaded(), is(true));
             assertThat(uploadInfoGenPlus1.isUploaded(), is(true));
 
@@ -577,8 +571,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 ),
                 new PlainActionFuture<>()
             );
-            verify(objectStoreUploadTracker, times(1)).updateLatestUploadInfo(
-                latestUploadedTermAndGenMinusN,
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploadedBcc(latestUploadedTermAndGenMinusN);
+            verify(objectStoreUploadTracker, times(1)).updateLatestCommitInfo(
                 compoundCommitGenMinusN.primaryTermAndGeneration(),
                 "_node_id"
             );

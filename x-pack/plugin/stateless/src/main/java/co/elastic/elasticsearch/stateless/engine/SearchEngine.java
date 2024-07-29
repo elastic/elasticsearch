@@ -255,7 +255,8 @@ public class SearchEngine extends Engine {
             notification.clusterStateVersion()
         );
         var ccTermAndGen = notification.compoundCommit().primaryTermAndGeneration();
-        directory.updateLatestUploadInfo(notification.latestUploadedBatchedCompoundCommitTermAndGen(), ccTermAndGen, notification.nodeId());
+        directory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
+        directory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
         if (addOrExecuteSegmentGenerationListener(ccTermAndGen, listener.map(g -> null))) {
             commitNotifications.add(notification);
             if (pendingCommitNotifications.incrementAndGet() == 1) {

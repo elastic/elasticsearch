@@ -48,14 +48,26 @@ public interface MutableObjectStoreUploadTracker extends ObjectStoreUploadTracke
         }
 
         @Override
-        public void updateLatestUploadInfo(
-            PrimaryTermAndGeneration latestUploadedBccTermAndGen,
-            PrimaryTermAndGeneration ccTermAndGen,
-            String nodeId
-        ) {
+        public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
+            // no op
+        }
+
+        @Override
+        public void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
             // no op
         }
     };
 
-    void updateLatestUploadInfo(PrimaryTermAndGeneration latestUploadedBccTermAndGen, PrimaryTermAndGeneration ccTermAndGen, String nodeId);
+    /**
+     * Updates the latest uploaded {@link co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit} information.
+     * The implementation should ignore the argument if the latest information is already more recent.
+     */
+    void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen);
+
+    /**
+     * Updates the latest {@link co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit} information, and the preferred indexing
+     * node that can be reached out to read it in case it is not uploaded yet to the object store.
+     * The implementation should ignore the arguments if the latest information is already more recent.
+     */
+    void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId);
 }

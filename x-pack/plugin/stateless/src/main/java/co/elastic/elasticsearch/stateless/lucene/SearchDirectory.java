@@ -103,12 +103,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         this.generationalFilesTermAndGens = trackGenerationalFiles ? new HashMap<>() : Map.of();
     }
 
-    public void updateLatestUploadInfo(
-        PrimaryTermAndGeneration latestUploadedBccTermAndGen,
-        PrimaryTermAndGeneration ccTermAndGen,
-        String nodeId
-    ) {
-        objectStoreUploadTracker.updateLatestUploadInfo(latestUploadedBccTermAndGen, ccTermAndGen, nodeId);
+    public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
+        objectStoreUploadTracker.updateLatestUploadedBcc(latestUploadedBccTermAndGen);
+    }
+
+    public void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
+        objectStoreUploadTracker.updateLatestCommitInfo(ccTermAndGen, nodeId);
     }
 
     private Releasable acquireGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen, String name) {

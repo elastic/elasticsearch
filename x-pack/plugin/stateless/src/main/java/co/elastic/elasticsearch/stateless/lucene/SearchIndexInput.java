@@ -30,6 +30,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
@@ -152,6 +153,9 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         try {
             doReadInternal(b);
         } catch (IOException | RuntimeException e) {
+            if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
+                logger.warn(() -> this + " did not find file", e); // includes the file name of the SearchIndexInput
+            }
             throw e;
         } catch (Exception e) {
             throw new IOException(e);
@@ -169,11 +173,17 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         } catch (Exception e) {
             logger.debug("fast-path read failed to acquire cache page", e);
         }
+        int positionBeforeRetry = b.position();
+        int limitBeforeRetry = b.limit();
         try {
             readInternalSlow(b, position, length);
         } catch (Exception ex) {
-            if (ExceptionsHelper.unwrap(ex, FileNotFoundException.class, NoSuchFileException.class) != null) {
-                logger.warn(() -> this + " did not find file", ex); // includes the file name of the SearchIndexInput
+            if (ExceptionsHelper.unwrap(ex, ResourceAlreadyUploadedException.class) != null) {
+                logger.debug(() -> this + " retrying from object store", ex);
+                assert b.position() == positionBeforeRetry : b.position() + " != " + positionBeforeRetry;
+                assert b.limit() == limitBeforeRetry : b.limit() + " != " + limitBeforeRetry;
+                readInternalSlow(b, position, length);
+                return;
             }
             throw ex;
         }

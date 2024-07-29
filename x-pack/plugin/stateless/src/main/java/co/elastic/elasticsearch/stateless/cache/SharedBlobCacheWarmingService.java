@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -34,6 +35,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -535,44 +538,63 @@ public class SharedBlobCacheWarmingService {
 
                             var blobLocation = item.blobLocation();
                             var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobLocation);
-                            // compute the range to warm in cache
-                            var range = cacheBlobReader.getRange(
-                                item.position(),
-                                Math.toIntExact(item.length()),
-                                queue.maxBlobLength.get() - item.position()
-                            );
-                            cacheService.maybeFetchRange(
-                                cacheKey,
-                                blobRegion.region,
-                                range,
-                                // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService
-                                // to fully utilize each region. So we just pass it with a value that cover the current region.
-                                (long) (blobRegion.region + 1) * cacheService.getRegionSize(),
-                                (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
-                                    // TODO: ES-8987 We should leverage streamFactory to fill multiple gaps with a single request
-                                    assert streamFactory == null : streamFactory;
-                                    long position = range.start() + relativePos;
-                                    try (var in = cacheBlobReader.getRangeInputStream(position, length)) {
-                                        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
-                                        var bytesCopied = SharedBytes.copyToCacheFileAligned(
-                                            channel,
-                                            in,
-                                            channelPos,
-                                            progressUpdater,
-                                            writeBuffer.get().clear()
-                                        );
-                                        totalBytesCopied.addAndGet(bytesCopied);
-                                    }
-                                },
-                                fetchExecutor,
-                                ActionListener.releaseAfter(item.listener().map(ignored -> null), refs.acquire())
-                            );
+                            var itemListener = ActionListener.releaseAfter(item.listener(), Releasables.assertOnce(refs.acquire()));
+                            maybeFetchBlobRange(item, cacheBlobReader, cacheKey, itemListener.delegateResponse((l, e) -> {
+                                if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
+                                    logger.debug(() -> "retrying " + blobLocation + " from object store", e);
+                                    maybeFetchBlobRange(item, cacheBlobReader, cacheKey, l);
+                                } else {
+                                    l.onFailure(e);
+                                }
+                            }));
                         }
 
                         remaining = queue.counter.addAndGet(-remaining);
                         assert 0 <= remaining : remaining;
                     }
                 }
+            }
+
+            private void maybeFetchBlobRange(
+                BlobRange item,
+                CacheBlobReader cacheBlobReader,
+                FileCacheKey cacheKey,
+                ActionListener<Void> listener
+            ) {
+                ActionListener.run(listener, (l) -> {
+                    // compute the range to warm in cache
+                    var range = cacheBlobReader.getRange(
+                        item.position(),
+                        Math.toIntExact(item.length()),
+                        queue.maxBlobLength.get() - item.position()
+                    );
+                    cacheService.maybeFetchRange(
+                        cacheKey,
+                        blobRegion.region,
+                        range,
+                        // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService
+                        // to fully utilize each region. So we just pass it with a value that cover the current region.
+                        (long) (blobRegion.region + 1) * cacheService.getRegionSize(),
+                        (channel, channelPos, streamFactory, relativePos, length, progressUpdater) -> {
+                            // TODO: ES-8987 We should leverage streamFactory to fill multiple gaps with a single request
+                            assert streamFactory == null : streamFactory;
+                            long position = range.start() + relativePos;
+                            try (var in = cacheBlobReader.getRangeInputStream(position, length)) {
+                                assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL);
+                                var bytesCopied = SharedBytes.copyToCacheFileAligned(
+                                    channel,
+                                    in,
+                                    channelPos,
+                                    progressUpdater,
+                                    writeBuffer.get().clear()
+                                );
+                                totalBytesCopied.addAndGet(bytesCopied);
+                            }
+                        },
+                        fetchExecutor,
+                        l.map(ignored -> null)
+                    );
+                });
             }
 
             @Override

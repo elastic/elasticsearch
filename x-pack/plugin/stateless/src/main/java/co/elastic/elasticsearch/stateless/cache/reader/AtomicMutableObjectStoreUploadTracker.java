@@ -42,17 +42,21 @@ public class AtomicMutableObjectStoreUploadTracker implements MutableObjectStore
      * Updates the last uploaded term and generation if the provided term and generation is greater than the current one.
      */
     @Override
-    public void updateLatestUploadInfo(
-        PrimaryTermAndGeneration latestUploadedBccTermAndGen,
-        PrimaryTermAndGeneration ccTermAndGen,
-        String nodeId
-    ) {
+    public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
         latestUploaded.updateAndGet((current) -> {
             if (current == null || (latestUploadedBccTermAndGen != null && latestUploadedBccTermAndGen.compareTo(current) > 0)) {
                 return latestUploadedBccTermAndGen;
             }
             return current;
         });
+    }
+
+    /**
+     * Updates the latest commit term and generation information if the provided term and generation is greater than the current one, and
+     * also updates the preferred indexing node ID to reach out to read it in case it has not been uploaded yet.
+     */
+    @Override
+    public void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
         latestCommitInfo.updateAndGet((current) -> {
             if (current == null || (ccTermAndGen != null && ccTermAndGen.compareTo(current.ccTermAndGen) > 0)) {
                 return new LatestCommitInfo(ccTermAndGen, nodeId);

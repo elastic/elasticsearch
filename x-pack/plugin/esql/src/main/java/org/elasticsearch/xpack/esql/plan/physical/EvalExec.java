@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 
 import java.util.List;
 import java.util.Objects;
@@ -37,7 +38,7 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public AttributeSet requiredInputSet() {
-        return references();
+        return Eval.requiredAttributesFromChild(fields);
     }
 
     @Override

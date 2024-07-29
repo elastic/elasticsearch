@@ -69,7 +69,7 @@ public class Join extends BinaryPlan {
 
     @Override
     public AttributeSet requiredInputSet() {
-        return references();
+        return Expressions.references(config.leftFields()).combine(Expressions.references(config.rightFields()));
     }
 
     @Override

@@ -45,7 +45,7 @@ public class AzureHttpFixture extends ExternalResource {
     private HttpServer server;
     private HttpServer metadataServer;
 
-    private String federatedTokenPath;
+    private Path federatedTokenPath;
 
     public enum Protocol {
         NONE,
@@ -127,7 +127,7 @@ public class AzureHttpFixture extends ExternalResource {
         return scheme() + "://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
     }
 
-    public String getFederatedTokenPath() {
+    public Path getFederatedTokenPath() {
         return federatedTokenPath;
     }
 
@@ -207,7 +207,7 @@ public class AzureHttpFixture extends ExternalResource {
 
     private void setupFederatedTokenFile() throws IOException {
         final var tmpdir = ESTestCase.createTempDir();
-        federatedTokenPath = copyResource(tmpdir, "azure-federated-token").toString();
+        federatedTokenPath = copyResource(tmpdir, "azure-federated-token");
     }
 
     private Path copyResource(Path tmpdir, String name) throws IOException {

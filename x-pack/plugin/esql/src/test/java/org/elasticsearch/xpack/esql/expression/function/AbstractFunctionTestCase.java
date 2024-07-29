@@ -77,6 +77,7 @@ import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -298,7 +299,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 ) {
                     var multiRowData = field.multiRowData();
                     for (int row = initialRow; row < initialRow + pageSize; row++) {
-                        wrapper.accept(multiRowData.get(row));
+                        var data = multiRowData.get(row);
+                        if (data instanceof BigInteger bigIntegerData) {
+                            wrapper.accept(NumericUtils.asLongUnsigned(bigIntegerData));
+                        } else {
+                            wrapper.accept(data);
+                        }
                     }
 
                     blocks[i] = wrapper.builder().build();

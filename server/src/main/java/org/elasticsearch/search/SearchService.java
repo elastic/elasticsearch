@@ -227,7 +227,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.worker_threads_enabled",
         true,
         Property.NodeScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.DeprecatedWarning
     );
 
     public static final Setting<Boolean> QUERY_PHASE_PARALLEL_COLLECTION_ENABLED = Setting.boolSetting(

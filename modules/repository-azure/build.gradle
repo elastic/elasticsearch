@@ -290,6 +290,7 @@ tasks.named("processYamlRestTestResources") {
 tasks.named("internalClusterTest") {
   // this is tested explicitly in a separate test task
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
+  systemProperty "AZURE_POD_IDENTITY_AUTHORITY_HOST", "127.0.0.1:1" // ensure a fast failure
 }
 
 tasks.named("yamlRestTest") {

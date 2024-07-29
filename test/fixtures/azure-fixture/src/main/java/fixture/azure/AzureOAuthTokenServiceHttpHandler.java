@@ -26,9 +26,6 @@ import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Emulates the instance metadata service that runs on Azure
- */
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
 public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(AzureOAuthTokenServiceHttpHandler.class);

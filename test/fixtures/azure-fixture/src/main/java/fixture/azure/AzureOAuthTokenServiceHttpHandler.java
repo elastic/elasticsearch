@@ -19,14 +19,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -63,19 +62,24 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
 
         if ("POST".equals(exchange.getRequestMethod())
             && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
-            final Map<String, String> formData = parseRequestBodyAsFormData(exchange.getRequestBody());
-            if (clientId.equals(formData.get("client_id"))
-                && federatedToken.equals(formData.get("client_assertion"))
-                && EXPECTED_SCOPE.equals(formData.get("scope"))) {
+            final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
+
+            final Map<String, String> params = new HashMap<>();
+            RestUtils.decodeQueryString(requestBody, 0, params);
+
+            if (clientId.equals(params.get("client_id"))
+                && federatedToken.equals(params.get("client_assertion"))
+                && EXPECTED_SCOPE.equals(params.get("scope"))) {
                 respondWithValidAccessToken(exchange, bearerToken);
                 return;
-            } else {
-                logger.error(
-                    "Request body did not contain expected [client_id], [client_assertion], or [scope]. Request form data: [{}]",
-                    formData
-                );
-                // fall through to further logging and dummy response
             }
+
+            logger.error(
+                "Request body did not contain expected [client_id], [client_assertion], or [scope]. Request data: [{}]",
+                requestBody
+            );
+            // fall through to further logging and dummy response
+
         }
 
         final var msgBuilder = new StringWriter();
@@ -96,11 +100,6 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
         exchange.close();
     }
 
-    private Map<String, String> parseRequestBodyAsFormData(InputStream requestBody) throws IOException {
-        final String formBody = Streams.copyToString(new InputStreamReader(requestBody, StandardCharsets.UTF_8));
-        return parseFormData(URLDecoder.decode(formBody, StandardCharsets.UTF_8));
-    }
-
     static void respondWithValidAccessToken(HttpExchange exchange, String bearerToken) throws IOException {
         try (exchange; var accessTokenXContent = accessTokenXContent(bearerToken)) {
             final var responseBytes = BytesReference.bytes(accessTokenXContent);
@@ -108,18 +107,6 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
             exchange.sendResponseHeaders(200, responseBytes.length());
             responseBytes.writeTo(exchange.getResponseBody());
         }
-    }
-
-    private static Map<String, String> parseFormData(String formData) {
-        final Map<String, String> result = new HashMap<>();
-        final String[] pairs = formData.split("&");
-        for (String pair : pairs) {
-            String[] keyValue = pair.split("=");
-            if (keyValue.length == 2) {
-                result.put(keyValue[0], keyValue[1]);
-            }
-        }
-        return result;
     }
 
     private static XContentBuilder accessTokenXContent(String bearerToken) throws IOException {

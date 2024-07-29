@@ -3,4 +3,4 @@ summary: Ensure vector similarity correctly limits `inner_hits` returned for nes
   kNN
 area: Vector Search
 type: bug
-issues: []
+issues: [111093]

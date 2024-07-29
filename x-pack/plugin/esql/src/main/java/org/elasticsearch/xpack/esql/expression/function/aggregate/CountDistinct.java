@@ -72,7 +72,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             algorithm, which counts based on the hashes of the values with some interesting
             properties:
 
-            include::../../aggregations/metrics/cardinality-aggregation.asciidoc[tag=explanation]
+            include::../../../aggregations/metrics/cardinality-aggregation.asciidoc[tag=explanation]
 
             The `COUNT_DISTINCT` function takes an optional second parameter to configure
             the precision threshold. The precision_threshold options allows to trade memory

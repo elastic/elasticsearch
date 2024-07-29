@@ -275,10 +275,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            SnapshotLifecycleMetadata snapMeta =
-                currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
-            RegisteredPolicySnapshots registeredSnapshots =
-                currentState.metadata().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata()
+                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+            RegisteredPolicySnapshots registeredSnapshots = currentState.metadata()
+                .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
 
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
@@ -296,8 +296,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             SnapshotLifecycleStats newStats = snapMeta.getStats();
 
             if (registeredSnapshots.contains(snapshotId) == false) {
-                logger.warn("Snapshot [{}] not found in registered set after snapshot completion. This means snapshot was" +
-                    " recorded as a failure by another snapshot's cleanup run.", snapshotId.getName());
+                logger.warn(
+                    "Snapshot [{}] not found in registered set after snapshot completion. This means snapshot was"
+                        + " recorded as a failure by another snapshot's cleanup run.",
+                    snapshotId.getName()
+                );
             }
 
             final Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(currentState);
@@ -309,8 +312,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                             newRegistered.add(snapshot);
                         } else {
                             newStats = newStats.withFailedIncremented(policyName);
-                            newPolicyMetadata
-                                .incrementInvocationsSinceLastSuccess()
+                            newPolicyMetadata.incrementInvocationsSinceLastSuccess()
                                 .setLastFailure(buildFailedSnapshotRecord(snapshot.getSnapshotId()));
                         }
                     } else if (snapLifecycles.containsKey(snapshot.getPolicy())) {

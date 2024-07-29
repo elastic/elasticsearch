@@ -542,10 +542,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     private void assertRegistered(String policyName, List<String> expected) {
         var registered = getRegisteredSnapshots();
-        var policySnaps = registered.getSnapshotsByPolicy(policyName)
-            .stream()
-            .map(SnapshotId::getName)
-            .toList();
+        var policySnaps = registered.getSnapshotsByPolicy(policyName).stream().map(SnapshotId::getName).toList();
         assertEquals(expected, policySnaps);
     }
 

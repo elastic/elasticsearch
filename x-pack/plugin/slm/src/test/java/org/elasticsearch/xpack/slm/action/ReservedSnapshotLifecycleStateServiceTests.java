@@ -30,7 +30,6 @@ import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;

@@ -504,6 +504,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     private static SnapshotId randSnapshotId() {
         return new SnapshotId(randomAlphaOfLength(10), randomUUID());
     }
+
     private static ClusterState buildClusterState(
         List<String> slmPolicies,
         Map<String, List<SnapshotId>> registeredSnaps,

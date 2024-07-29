@@ -51,23 +51,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     ) {
         Layout.Builder layout = new Layout.Builder();
         Operator.OperatorFactory operatorFactory = null;
-        AggregateExec.Mode mode = aggregateExec.getMode();
+        AggregatorMode aggregatorMode = aggregateExec.getMode();
         var aggregates = aggregateExec.aggregates();
 
         var sourceLayout = source.layout;
-        AggregatorMode aggregatorMode;
 
-        if (mode == AggregateExec.Mode.FINAL) {
-            aggregatorMode = AggregatorMode.FINAL;
-        } else if (mode == AggregateExec.Mode.PARTIAL) {
-            if (aggregateExec.child() instanceof ExchangeSourceExec) {// the reducer step at data node (local) level
-                aggregatorMode = AggregatorMode.INTERMEDIATE;
-            } else {
-                aggregatorMode = AggregatorMode.INITIAL;
-            }
-        } else {
-            assert false : "Invalid aggregator mode [" + mode + "]";
-            aggregatorMode = AggregatorMode.SINGLE;
+        if (aggregatorMode != AggregatorMode.INITIAL && aggregatorMode != AggregatorMode.FINAL) {
+            assert false : "Invalid aggregator mode [" + aggregatorMode + "]";
+        }
+        if (aggregatorMode == AggregatorMode.INITIAL && aggregateExec.child() instanceof ExchangeSourceExec) {
+            // the reducer step at data node (local) level
+            aggregatorMode = AggregatorMode.INTERMEDIATE;
         }
 
         if (aggregateExec.groupings().isEmpty()) {
@@ -75,7 +69,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             List<Aggregator.Factory> aggregatorFactories = new ArrayList<>();
 
             // append channels to the layout
-            if (mode == AggregateExec.Mode.FINAL) {
+            if (aggregatorMode == AggregatorMode.FINAL) {
                 layout.append(aggregates);
             } else {
                 layout.append(aggregateMapper.mapNonGrouping(aggregates));
@@ -122,7 +116,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             // check if there's any alias used in grouping - no need for the final reduction since the intermediate data
                             // is in the output form
                             // if the group points to an alias declared in the aggregate, use the alias child as source
-                            else if (mode == AggregateExec.Mode.PARTIAL) {
+                            else if (aggregatorMode == AggregatorMode.INITIAL || aggregatorMode == AggregatorMode.INTERMEDIATE) {
                                 if (groupAttribute.semanticEquals(a.toAttribute())) {
                                     groupAttribute = attr;
                                     break;
@@ -136,7 +130,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
             }
 
-            if (mode == AggregateExec.Mode.FINAL) {
+            if (aggregatorMode == AggregatorMode.FINAL) {
                 for (var agg : aggregates) {
                     if (Alias.unwrap(agg) instanceof AggregateFunction) {
                         layout.append(agg);

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -168,7 +169,7 @@ public final class PlanNamedTypes {
             in.readPhysicalPlanNode(),
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
-            in.readEnum(AggregateExec.Mode.class),
+            in.readEnum(AggregatorMode.class),
             in.readOptionalVInt()
         );
     }

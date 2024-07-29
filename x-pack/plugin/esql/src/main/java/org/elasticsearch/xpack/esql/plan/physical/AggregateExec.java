@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -21,7 +22,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
-    private final Mode mode;
+    private final AggregatorMode mode;
 
     /**
      * Estimate of the number of bytes that'll be loaded per position before
@@ -29,18 +30,12 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
-    public enum Mode {
-        SINGLE,
-        PARTIAL, // maps raw inputs to intermediate outputs
-        FINAL, // maps intermediate inputs to final outputs
-    }
-
     public AggregateExec(
         Source source,
         PhysicalPlan child,
         List<? extends Expression> groupings,
         List<? extends NamedExpression> aggregates,
-        Mode mode,
+        AggregatorMode mode,
         Integer estimatedRowSize
     ) {
         super(source, child);
@@ -68,7 +63,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return aggregates;
     }
 
-    public AggregateExec withMode(Mode newMode) {
+    public AggregateExec withMode(AggregatorMode newMode) {
         return new AggregateExec(source(), child(), groupings, aggregates, newMode, estimatedRowSize);
     }
 
@@ -87,7 +82,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return Objects.equals(this.estimatedRowSize, size) ? this : new AggregateExec(source(), child(), groupings, aggregates, mode, size);
     }
 
-    public Mode getMode() {
+    public AggregatorMode getMode() {
         return mode;
     }
 

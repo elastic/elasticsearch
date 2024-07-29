@@ -14,6 +14,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
@@ -145,8 +146,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
-import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
-import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -2130,9 +2129,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(limit.limit().fold(), equalTo(10000));
         var aggFinal = as(limit.child(), AggregateExec.class);
-        assertThat(aggFinal.getMode(), equalTo(FINAL));
+        assertThat(aggFinal.getMode(), equalTo(AggregatorMode.FINAL));
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
-        assertThat(aggPartial.getMode(), equalTo(PARTIAL));
+        assertThat(aggPartial.getMode(), equalTo(AggregatorMode.INITIAL));
         limit = as(aggPartial.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(limit.limit().fold(), equalTo(10));
@@ -2372,11 +2371,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(AggregatorMode.FINAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         var eval = as(agg.child(), EvalExec.class);
@@ -2386,11 +2385,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         limit = as(optimized, LimitExec.class);
         agg = as(limit.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(AggregatorMode.FINAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         eval = as(agg.child(), EvalExec.class);
@@ -2445,7 +2444,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
@@ -2513,7 +2512,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "airports", SpatialCentroid.class, GEO_POINT, true);
@@ -2579,7 +2578,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
@@ -2648,7 +2647,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         att = as(agg.groupings().get(0), Attribute.class);
         assertThat(att.name(), equalTo("scalerank"));
         // below the exchange (in data node) the aggregation is using doc-values
@@ -2696,17 +2695,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(AggregatorMode.FINAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(AggregatorMode.FINAL));
         assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
         var att = as(agg.groupings().get(0), Attribute.class);
         assertThat(att.name(), equalTo("scalerank"));
@@ -2722,17 +2721,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         limit = as(optimized, LimitExec.class);
         agg = as(limit.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(AggregatorMode.FINAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(AggregatorMode.FINAL));
         assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
         att = as(agg.groupings().get(0), Attribute.class);
         assertThat(att.name(), equalTo("scalerank"));
@@ -2744,7 +2743,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         att = as(agg.groupings().get(0), Attribute.class);
         assertThat(att.name(), equalTo("scalerank"));
         // below the exchange (in data node) the aggregation is using doc-values
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var extract = as(agg.child(), FieldExtractExec.class);
@@ -3038,7 +3037,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "centroid", SpatialCentroid.class, test.locationType(), false);
             exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, "centroid", SpatialCentroid.class, test.locationType(), true);
@@ -3145,7 +3144,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
             exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
@@ -3250,7 +3249,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
             exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
@@ -3331,7 +3330,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, true);
@@ -3377,7 +3376,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, aggFieldName, SpatialCentroid.class, GEO_POINT, false);
             exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
-            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
             assertAggregation(agg, aggFieldName, SpatialCentroid.class, GEO_POINT, true);
@@ -3423,7 +3422,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "city_location", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(AggregatorMode.INITIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "location", SpatialCentroid.class, GEO_POINT, true);
@@ -3806,7 +3805,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | STATS size=count(*) BY department""");
             var limit = as(plan, LimitExec.class);
             var finalAggs = as(limit.child(), AggregateExec.class);
-            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            assertThat(finalAggs.getMode(), equalTo(AggregatorMode.FINAL));
             var exchange = as(finalAggs.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialAggs = as(fragment.fragment(), Aggregate.class);
@@ -3824,9 +3823,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | STATS size=count(*) BY department""");
             var limit = as(plan, LimitExec.class);
             var finalAggs = as(limit.child(), AggregateExec.class);
-            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            assertThat(finalAggs.getMode(), equalTo(AggregatorMode.FINAL));
             var partialAggs = as(finalAggs.child(), AggregateExec.class);
-            assertThat(partialAggs.getMode(), equalTo(PARTIAL));
+            assertThat(partialAggs.getMode(), equalTo(AggregatorMode.INITIAL));
             var enrich = as(partialAggs.child(), EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
@@ -3843,7 +3842,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | STATS size=count(*) BY department""");
             var limit = as(plan, LimitExec.class);
             var finalAggs = as(limit.child(), AggregateExec.class);
-            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            assertThat(finalAggs.getMode(), equalTo(AggregatorMode.FINAL));
             var exchange = as(finalAggs.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialAggs = as(fragment.fragment(), Aggregate.class);
@@ -3869,7 +3868,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var eval = as(enrich.child(), EvalExec.class);
             var limit = as(eval.child(), LimitExec.class);
             var finalAggs = as(limit.child(), AggregateExec.class);
-            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            assertThat(finalAggs.getMode(), equalTo(AggregatorMode.FINAL));
             var exchange = as(finalAggs.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialAggs = as(fragment.fragment(), Aggregate.class);
@@ -3888,7 +3887,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var eval = as(enrich.child(), EvalExec.class);
             var limit = as(eval.child(), LimitExec.class);
             var finalAggs = as(limit.child(), AggregateExec.class);
-            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            assertThat(finalAggs.getMode(), equalTo(AggregatorMode.FINAL));
             var exchange = as(finalAggs.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialAggs = as(fragment.fragment(), Aggregate.class);

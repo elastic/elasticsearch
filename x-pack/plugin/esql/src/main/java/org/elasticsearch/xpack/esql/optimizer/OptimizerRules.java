@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -151,7 +152,7 @@ class OptimizerRules {
         @Override
         protected AttributeSet references(PhysicalPlan plan) {
             if (plan instanceof AggregateExec aggregate) {
-                if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
+                if (aggregate.getMode() == AggregatorMode.FINAL) {
                     // lousy hack - need to generate the intermediate aggs yet the intermediateAggs method keep creating new IDs on each
                     // call
                     // in practice, the final aggregate should clearly declare the expected properties not hold on the original ones

@@ -21,6 +21,11 @@ import java.util.Objects;
 public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+    /**
+     * The output attributes of {@link AggregatorMode#INITIAL} aggregations, resp.
+     * the input attributes of {@link AggregatorMode#FINAL} aggregations.
+     */
+    private final List<? extends Attribute> intermediateAttributes;
 
     private final AggregatorMode mode;
 
@@ -36,23 +41,25 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         List<? extends Expression> groupings,
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
+        List<? extends Attribute> intermediateAttributes,
         Integer estimatedRowSize
     ) {
         super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
         this.mode = mode;
+        this.intermediateAttributes = intermediateAttributes;
         this.estimatedRowSize = estimatedRowSize;
     }
 
     @Override
     protected NodeInfo<AggregateExec> info() {
-        return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, estimatedRowSize);
+        return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     @Override
     public AggregateExec replaceChild(PhysicalPlan newChild) {
-        return new AggregateExec(source(), newChild, groupings, aggregates, mode, estimatedRowSize);
+        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     public List<? extends Expression> groupings() {
@@ -64,7 +71,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     public AggregateExec withMode(AggregatorMode newMode) {
-        return new AggregateExec(source(), child(), groupings, aggregates, newMode, estimatedRowSize);
+        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
     }
 
     /**
@@ -79,11 +86,17 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     public PhysicalPlan estimateRowSize(State state) {
         state.add(false, aggregates);  // The groupings are contained within the aggregates
         int size = state.consumeAllFields(true);
-        return Objects.equals(this.estimatedRowSize, size) ? this : new AggregateExec(source(), child(), groupings, aggregates, mode, size);
+        return Objects.equals(this.estimatedRowSize, size)
+            ? this
+            : new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, size);
     }
 
     public AggregatorMode getMode() {
         return mode;
+    }
+
+    public List<? extends Attribute> intermediateAttributes() {
+        return intermediateAttributes;
     }
 
     @Override

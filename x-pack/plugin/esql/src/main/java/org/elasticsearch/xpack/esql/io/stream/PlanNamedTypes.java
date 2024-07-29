@@ -170,6 +170,7 @@ public final class PlanNamedTypes {
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readEnum(AggregatorMode.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalVInt()
         );
     }
@@ -180,6 +181,7 @@ public final class PlanNamedTypes {
         out.writeNamedWriteableCollection(aggregateExec.groupings());
         out.writeNamedWriteableCollection(aggregateExec.aggregates());
         out.writeEnum(aggregateExec.getMode());
+        out.writeNamedWriteableCollection(aggregateExec.intermediateAttributes());
         out.writeOptionalVInt(aggregateExec.estimatedRowSize());
     }
 

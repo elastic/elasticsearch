@@ -187,7 +187,8 @@ public abstract class TransportReplicationAction<
         PrimaryActionExecution primaryActionExecution,
         ReplicaActionExecution replicaActionExecution
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // TODO: consider passing the executor, investigate doExecute and let InboundHandler/TransportAction handle concurrency.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         assert syncGlobalCheckpointAfterOperation != null : "Must specify global checkpoint sync behaviour";
         assert primaryActionExecution != null : "Must specify primary action execution behaviour";
         assert replicaActionExecution != null : "Must specify replica action execution behaviour";

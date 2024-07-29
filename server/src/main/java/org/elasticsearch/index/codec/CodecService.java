@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * data-structures per field. Elasticsearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
  */
-public class CodecService {
+public class CodecService implements CodecProvider {
 
     public static final FeatureFlag ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields");
 
@@ -86,8 +86,9 @@ public class CodecService {
     }
 
     /**
-     * Returns all registered available codec names
+     * Returns all registered available codec names.
      */
+    @Override
     public String[] availableCodecs() {
         return codecs.keySet().toArray(new String[0]);
     }
@@ -104,6 +105,10 @@ public class CodecService {
         @Override
         public final FieldInfosFormat fieldInfosFormat() {
             return deduplicatingFieldInfosFormat;
+        }
+
+        public final Codec delegate() {
+            return delegate;
         }
 
     }

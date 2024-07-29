@@ -2208,7 +2208,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (retriever() != null) {
             if (allowPartialSearchResults && retriever().isCompound()) {
                 validationException = addValidationError(
-                    "cannot specify a compound retriever and [allow_search_partial_results]",
+                    "cannot specify a compound retriever and [allow_partial_search_results]",
                     validationException
                 );
             }

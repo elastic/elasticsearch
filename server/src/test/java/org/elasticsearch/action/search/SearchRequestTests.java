@@ -296,7 +296,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "cannot specify a compound retriever and [allow_search_partial_results]",
+                "cannot specify a compound retriever and [allow_partial_search_results]",
                 validationErrors.validationErrors().get(0)
             );
         }

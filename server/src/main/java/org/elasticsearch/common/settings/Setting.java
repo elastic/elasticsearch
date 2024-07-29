@@ -1498,7 +1498,11 @@ public class Setting<T> implements ToXContentObject {
         return value;
     }
 
-    static long parseLong(String s, long minValue, String key, boolean isFiltered) {
+    public static long parseLong(String s, long minValue, String key) {
+        return parseLong(s, minValue, key);
+    }
+
+    public static long parseLong(String s, long minValue, String key, boolean isFiltered) {
         long value = Long.parseLong(s);
         if (value < minValue) {
             String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;

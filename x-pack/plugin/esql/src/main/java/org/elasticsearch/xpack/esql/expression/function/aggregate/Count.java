@@ -41,7 +41,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
         description = "Returns the total number (count) of input values.",
         isAggregation = true,
         examples = {
-            @Example(file = "stats", tag = "stats"),
+            @Example(file = "stats", tag = "count"),
             @Example(description = "To count the number of rows, use `COUNT()` or `COUNT(*)`", file = "docs", tag = "countAll"),
             @Example(
                 description = "The expression can use inline functions. This example splits a string into "

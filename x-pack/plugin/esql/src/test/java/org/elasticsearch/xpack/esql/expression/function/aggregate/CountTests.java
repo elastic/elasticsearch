@@ -44,12 +44,12 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
+            MultiRowTestCaseSupplier.geoPointCases(1, 1000, true),
+            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, true),
             // Lower values for strings, as they take more space and may trigger the circuit breaker
             MultiRowTestCaseSupplier.stringCases(1, 100, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 100, DataType.TEXT)
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
-
-        // TODO: Add no channels tests? COUNT(*)
 
         // No rows
         for (var dataType : List.of(
@@ -79,20 +79,6 @@ public class CountTests extends AbstractAggregationTestCase {
                 )
             );
         }
-
-        /*suppliers.addAll(
-            List.of(
-                new TestCaseSupplier(
-                    List.of(DataType.INTEGER),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(200), DataType.INTEGER, "field")),
-                        "Avg[field=Attribute[channel=0]]",
-                        DataType.DOUBLE,
-                        equalTo(200.)
-                    )
-                )
-            )
-        );*/
 
         // "No rows" expects 0 here instead of null
         // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);

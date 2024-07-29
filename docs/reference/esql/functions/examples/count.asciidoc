@@ -4,11 +4,11 @@
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/stats.csv-spec[tag=stats]
+include::{esql-specs}/stats.csv-spec[tag=count]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/stats.csv-spec[tag=stats-result]
+include::{esql-specs}/stats.csv-spec[tag=count-result]
 |===
 To count the number of rows, use `COUNT()` or `COUNT(*)`
 [source.merge.styled,esql]

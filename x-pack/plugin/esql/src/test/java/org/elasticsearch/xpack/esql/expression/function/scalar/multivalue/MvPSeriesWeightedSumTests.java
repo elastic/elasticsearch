@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -35,6 +37,8 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
         doubles(cases);
 
         return parameterSuppliersFromTypedData(cases);
+        // TODO verify why parameterSuppliersFromTypedDataWithDefaultChecks doesn't work
+        // return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "double");
     }
 
     @Override
@@ -45,6 +49,7 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     private static void doubles(List<TestCaseSupplier> cases) {
         cases.add(
             new TestCaseSupplier(
+
                 List.of(DataType.DOUBLE, DataType.DOUBLE),
                 () -> new TestCaseSupplier.TestCase(
                     // TODO random inputs and outputs

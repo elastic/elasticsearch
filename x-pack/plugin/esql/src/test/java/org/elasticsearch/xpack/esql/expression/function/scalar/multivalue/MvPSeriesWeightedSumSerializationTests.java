@@ -36,10 +36,4 @@ public class MvPSeriesWeightedSumSerializationTests extends AbstractExpressionSe
         }
         return new MvPSeriesWeightedSum(source, field, p);
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
-
 }

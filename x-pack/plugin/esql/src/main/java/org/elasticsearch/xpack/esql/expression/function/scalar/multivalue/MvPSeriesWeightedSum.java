@@ -37,9 +37,8 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 /**
  * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the P series function.
@@ -85,14 +84,14 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field, t -> t.isNumeric() && isRepresentable(t), sourceText(), FIRST, "numeric");
-
+        TypeResolution resolution = TypeResolutions.isType(field, dt -> dt == DOUBLE, sourceText(), FIRST, "double");
         if (resolution.unresolved()) {
             return resolution;
         }
 
         resolution = TypeResolutions.isType(p, dt -> dt == DOUBLE, sourceText(), SECOND, "double")
-            .and(TypeResolutions.isFoldable(p, sourceText(), SECOND));
+            .and(isNotNullAndFoldable(p, sourceText(), SECOND));
+
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -115,7 +114,6 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
                 (Double) p.fold()
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
-
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
@@ -161,7 +159,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(p);
     }

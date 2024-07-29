@@ -42,12 +42,14 @@ public class FutureUtils {
      */
     public static <T> T get(Future<T> future) {
         try {
-            return future.get();
+            return future.get(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
+        } catch (TimeoutException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -74,7 +76,7 @@ public class FutureUtils {
     }
 
     public static RuntimeException rethrowExecutionException(ExecutionException e) {
-        if (e.getCause()instanceof RuntimeException runtimeException) {
+        if (e.getCause() instanceof RuntimeException runtimeException) {
             return runtimeException;
         } else {
             return new UncategorizedExecutionException("Failed execution", e);

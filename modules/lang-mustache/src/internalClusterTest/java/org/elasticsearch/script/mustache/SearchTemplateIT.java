@@ -8,10 +8,13 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
@@ -32,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -155,8 +159,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         );
     }
 
-    public void testIndexedTemplateClient() throws Exception {
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("testTemplate").setContent(new BytesArray("""
+    public void testIndexedTemplateClient() {
+        putJsonStoredScript("script1", """
             {
               "script": {
                 "lang": "mustache",
@@ -168,9 +172,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                   }
                 }
               }
-            }"""), XContentType.JSON));
+            }""");
 
-        GetStoredScriptResponse getResponse = clusterAdmin().prepareGetStoredScript("testTemplate").get();
+        GetStoredScriptResponse getResponse = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("testTemplate"));
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -193,9 +197,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             4
         );
 
-        assertAcked(clusterAdmin().prepareDeleteStoredScript("testTemplate"));
+        assertAcked(safeExecute(TransportDeleteStoredScriptAction.TYPE, new DeleteStoredScriptRequest("testTemplate")));
 
-        getResponse = clusterAdmin().prepareGetStoredScript("testTemplate").get();
+        getResponse = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("testTemplate"));
         assertNull(getResponse.getSource());
     }
 
@@ -250,7 +254,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIndexedTemplate() throws Exception {
+    public void testIndexedTemplate() {
 
         String script = """
             {
@@ -267,9 +271,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }
             """;
 
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("1a").setContent(new BytesArray(script), XContentType.JSON));
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("2").setContent(new BytesArray(script), XContentType.JSON));
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON));
+        putJsonStoredScript("1a", script);
+        putJsonStoredScript("2", script);
+        putJsonStoredScript("3", script);
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
@@ -335,13 +339,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
               }
             }""";
         for (int i = 1; i < iterations; i++) {
-            assertAcked(
-                clusterAdmin().preparePutStoredScript()
-                    .setId("git01")
-                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(-1))), XContentType.JSON)
-            );
+            putJsonStoredScript("git01", query.replace("{{slop}}", Integer.toString(-1)));
 
-            GetStoredScriptResponse getResponse = clusterAdmin().prepareGetStoredScript("git01").get();
+            GetStoredScriptResponse getResponse = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("git01"));
             assertNotNull(getResponse.getSource());
 
             Map<String, Object> templateParams = new HashMap<>();
@@ -357,11 +357,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             );
             assertThat(e.getMessage(), containsString("No negative slop allowed"));
 
-            assertAcked(
-                clusterAdmin().preparePutStoredScript()
-                    .setId("git01")
-                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
-            );
+            putJsonStoredScript("git01", query.replace("{{slop}}", Integer.toString(0)));
+
             assertHitCount(
                 new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
                     .setScript("git01")
@@ -373,8 +370,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIndexedTemplateWithArray() throws Exception {
-        String multiQuery = """
+    public void testIndexedTemplateWithArray() {
+        putJsonStoredScript("4", """
             {
               "script": {
                 "lang": "mustache",
@@ -390,8 +387,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                   }
                 }
               }
-            }""";
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON));
+            }""");
+
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
         bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));

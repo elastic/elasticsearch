@@ -8,7 +8,9 @@
 package org.elasticsearch.cluster.shards;
 
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -38,10 +40,10 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         };
     }
 
-    public void testSingleShardAllocation() throws Exception {
+    public void testSingleShardAllocation() {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0).put("index.routing.allocation.include.tag", "A")).get();
         ensureGreen();
-        ClusterSearchShardsResponse response = clusterAdmin().prepareSearchShards("test").get();
+        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest("test"));
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(0));
@@ -49,7 +51,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
-        response = clusterAdmin().prepareSearchShards("test").setRouting("A").get();
+        response = safeExecute(new ClusterSearchShardsRequest("test").routing("A"));
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(0));
@@ -59,25 +61,25 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
 
     }
 
-    public void testMultipleShardsSingleNodeAllocation() throws Exception {
+    public void testMultipleShardsSingleNodeAllocation() {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(4, 0).put("index.routing.allocation.include.tag", "A")).get();
         ensureGreen();
 
-        ClusterSearchShardsResponse response = clusterAdmin().prepareSearchShards("test").get();
+        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest("test"));
         assertThat(response.getGroups().length, equalTo(4));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
-        response = clusterAdmin().prepareSearchShards("test").setRouting("ABC").get();
+        response = safeExecute(new ClusterSearchShardsRequest("test").routing("ABC"));
         assertThat(response.getGroups().length, equalTo(1));
 
-        response = clusterAdmin().prepareSearchShards("test").setPreference("_shards:2").get();
+        response = safeExecute(new ClusterSearchShardsRequest("test").preference("_shards:2"));
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(2));
     }
 
-    public void testMultipleIndicesAllocation() throws Exception {
+    public void testMultipleIndicesAllocation() {
         createIndex("test1", 4, 1);
         createIndex("test2", 4, 1);
         indicesAdmin().prepareAliases()
@@ -86,7 +88,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             .get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        ClusterSearchShardsResponse response = clusterAdmin().prepareSearchShards("routing_alias").get();
+        ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest("routing_alias"));
         assertThat(response.getGroups().length, equalTo(2));
         assertThat(response.getGroups()[0].getShards().length, equalTo(2));
         assertThat(response.getGroups()[1].getShards().length, equalTo(2));
@@ -128,7 +130,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
-                ClusterSearchShardsResponse response = clusterAdmin().prepareSearchShards("test-blocks").get();
+                ClusterSearchShardsResponse response = safeExecute(new ClusterSearchShardsRequest("test-blocks"));
                 assertThat(response.getGroups().length, equalTo(numShards.numPrimaries));
             } finally {
                 disableIndexBlock("test-blocks", blockSetting);
@@ -138,9 +140,19 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         // Request is blocked
         try {
             enableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
-            assertBlocked(clusterAdmin().prepareSearchShards("test-blocks"));
+            assertBlocked(
+                null,
+                safeAwaitFailure(
+                    ClusterSearchShardsResponse.class,
+                    l -> client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest("test-blocks"))
+                )
+            );
         } finally {
             disableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
         }
+    }
+
+    private static ClusterSearchShardsResponse safeExecute(ClusterSearchShardsRequest request) {
+        return safeExecute(TransportClusterSearchShardsAction.TYPE, request);
     }
 }

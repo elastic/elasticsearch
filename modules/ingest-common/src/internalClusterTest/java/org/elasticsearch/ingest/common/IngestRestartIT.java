@@ -49,6 +49,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.INGEST;
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -193,9 +194,9 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {
         internalCluster().startNode();
 
-        clusterAdmin().preparePutStoredScript().setId("1").setContent(new BytesArray(Strings.format("""
+        putJsonStoredScript("1", Strings.format("""
             {"script": {"lang": "%s", "source": "my_script"} }
-            """, MockScriptEngine.NAME)), XContentType.JSON).get();
+            """, MockScriptEngine.NAME));
         BytesReference pipeline = new BytesArray("""
             {
               "processors" : [

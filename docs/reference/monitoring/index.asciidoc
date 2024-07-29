@@ -1,6 +1,6 @@
 [role="xpack"]
 [[monitor-elasticsearch-cluster]]
-= Monitor a cluster
+= Monitoring a cluster
 
 [partintro]
 --

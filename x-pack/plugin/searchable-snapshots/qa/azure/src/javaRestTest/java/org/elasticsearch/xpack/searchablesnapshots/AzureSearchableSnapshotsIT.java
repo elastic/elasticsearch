@@ -33,6 +33,7 @@ public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestT
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         System.getProperty("test.azure.tenant_id"),
+        System.getProperty("test.azure.client_id"),
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
     );
 

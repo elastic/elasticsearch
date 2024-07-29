@@ -27,7 +27,6 @@ import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
-
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 
@@ -40,7 +39,7 @@ public class AzureHttpFixture extends ExternalResource {
     private final Protocol protocol;
     private final String account;
     private final String container;
-    @Nullable
+    private final String clientId;
     private final String tenantId;
     private final Predicate<String> authHeaderPredicate;
 
@@ -55,6 +54,8 @@ public class AzureHttpFixture extends ExternalResource {
         HTTP,
         HTTPS
     }
+
+    public record IdPair(String tenantId, String clientId) {}
 
     /**
      * @param  account The name of the Azure Blob Storage account against which the request should be authorized..
@@ -106,12 +107,22 @@ public class AzureHttpFixture extends ExternalResource {
         String account,
         String container,
         @Nullable String tenantId,
+        @Nullable String clientId,
         Predicate<String> authHeaderPredicate
     ) {
+        if (tenantId != null) {
+            if (protocol != Protocol.HTTPS) {
+                fail(null, "when [tenantId] is set, protocol must be HTTPS");
+            }
+            if (clientId == null) {
+                fail(null, "when [tenantId] is set, [clientId] must also be set");
+            }
+        }
         this.protocol = protocol;
         this.account = account;
         this.container = container;
         this.tenantId = tenantId;
+        this.clientId = clientId;
         this.authHeaderPredicate = authHeaderPredicate;
     }
 
@@ -147,12 +158,10 @@ public class AzureHttpFixture extends ExternalResource {
     @Override
     protected void before() {
         try {
-            if (tenantId != null && protocol != Protocol.HTTPS) {
-                fail(null, "when [tenantId] is set, protocol must be HTTPS");
-            }
             final Path federatedTokenTmpdir = ESTestCase.createTempDir();
             federatedTokenPath = copyResource(federatedTokenTmpdir, "azure-federated-token");
             final String federatedToken = Files.readString(federatedTokenPath);
+
             final var bearerToken = ESTestCase.randomIdentifier();
 
             if (protocol != Protocol.NONE) {
@@ -166,8 +175,7 @@ public class AzureHttpFixture extends ExternalResource {
                 : authHeaderPredicate;
 
             switch (protocol) {
-                case NONE -> {
-                }
+                case NONE -> {}
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                     server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
@@ -199,7 +207,10 @@ public class AzureHttpFixture extends ExternalResource {
                         final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                         this.oauthTokenServiceServer = httpsServer;
                         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                        httpsServer.createContext("/", new AzureOAuthTokenServiceHttpHandler(tenantId, bearerToken, federatedToken));
+                        httpsServer.createContext(
+                            "/",
+                            new AzureOAuthTokenServiceHttpHandler(bearerToken, federatedToken, tenantId, clientId)
+                        );
                         httpsServer.start();
                     }
                 }
@@ -227,7 +238,9 @@ public class AzureHttpFixture extends ExternalResource {
         if (protocol != Protocol.NONE) {
             server.stop(0);
             metadataServer.stop(0);
-            oauthTokenServiceServer.stop(0);
+            if (oauthTokenServiceServer != null) {
+                oauthTokenServiceServer.stop(0);
+            }
         }
     }
 }

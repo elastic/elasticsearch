@@ -33,6 +33,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
+        AZURE_TEST_CLIENT_ID,
         Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
             ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
             : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE

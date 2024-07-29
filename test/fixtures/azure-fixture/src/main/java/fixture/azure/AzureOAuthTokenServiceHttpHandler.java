@@ -28,20 +28,22 @@ import java.nio.charset.StandardCharsets;
  * Emulates the instance metadata service that runs on Azure
  */
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
-public class AzureMetadataServiceHttpHandler implements HttpHandler {
-    private static final Logger logger = LogManager.getLogger(AzureMetadataServiceHttpHandler.class);
+public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
+    private static final Logger logger = LogManager.getLogger(AzureOAuthTokenServiceHttpHandler.class);
 
+    private final String tenantId;
     private final String bearerToken;
 
-    public AzureMetadataServiceHttpHandler(String bearerToken) {
+    public AzureOAuthTokenServiceHttpHandler(String tenantId, String bearerToken) {
+        this.tenantId = tenantId;
         this.bearerToken = bearerToken;
     }
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        if ("GET".equals(exchange.getRequestMethod())
-            && "/metadata/identity/oauth2/token".equals(exchange.getRequestURI().getPath())
-            && "api-version=2018-02-01&resource=https://storage.azure.com".equals(exchange.getRequestURI().getQuery())) {
+        // TODO assert on query params
+        if ("POST".equals(exchange.getRequestMethod())
+            && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
             try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 final BytesReference responseBytes = getAccessTokenBytes(xcb);
                 writeResponse(exchange, responseBytes);

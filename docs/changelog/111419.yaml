@@ -1,0 +1,6 @@
+pr: 111419
+summary: Search coordinator rewrites to `MatchNone` on searchable snapshots when @timestamp
+  data on shards is empty
+area: Search
+type: bug
+issues: []

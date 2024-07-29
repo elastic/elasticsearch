@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -226,6 +227,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         public MockFieldAttributeCommand(Source source, LogicalPlan child, FieldAttribute field) {
             super(source, child);
             this.field = field;
+        }
+
+        @Override
+        public AttributeSet requiredInputSet() {
+            return AttributeSet.EMPTY;
         }
 
         @Override

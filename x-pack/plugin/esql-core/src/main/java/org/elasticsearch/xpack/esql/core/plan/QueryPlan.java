@@ -35,6 +35,11 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     public abstract List<Attribute> output();
 
+    /**
+     * The attributes required to be in the {@link QueryPlan#inputSet()} for this plan to be valid.
+     */
+    public abstract AttributeSet requiredInputSet();
+
     public AttributeSet outputSet() {
         if (lazyOutputSet == null) {
             lazyOutputSet = new AttributeSet(output());

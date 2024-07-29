@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -96,6 +97,11 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         return output;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return Expressions.references(matchFields).combine(Expressions.references(leftFields)).combine(Expressions.references(rightFields));
     }
 
     @Override

@@ -68,6 +68,11 @@ public class Join extends BinaryPlan {
     }
 
     @Override
+    public AttributeSet requiredInputSet() {
+        return references();
+    }
+
+    @Override
     protected NodeInfo<Join> info() {
         // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
         // expressions and references.

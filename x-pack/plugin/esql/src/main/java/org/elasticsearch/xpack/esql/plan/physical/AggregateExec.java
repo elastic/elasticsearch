@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 
 import java.util.List;
 import java.util.Objects;
@@ -25,7 +26,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
      * The output attributes of {@link AggregatorMode#INITIAL} aggregations, resp.
      * the input attributes of {@link AggregatorMode#FINAL} aggregations.
      */
-    private final List<? extends Attribute> intermediateAttributes;
+    private final List<Attribute> intermediateAttributes;
 
     private final AggregatorMode mode;
 
@@ -41,7 +42,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         List<? extends Expression> groupings,
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
-        List<? extends Attribute> intermediateAttributes,
+        List<Attribute> intermediateAttributes,
         Integer estimatedRowSize
     ) {
         super(source, child);
@@ -95,13 +96,24 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return mode;
     }
 
-    public List<? extends Attribute> intermediateAttributes() {
+    public List<Attribute> intermediateAttributes() {
         return intermediateAttributes;
     }
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        return switch (mode) {
+            case FINAL, SINGLE -> Aggregate.outputAttributes(aggregates);
+            case INITIAL, INTERMEDIATE -> intermediateAttributes;
+        };
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return switch (mode) {
+            case INITIAL, SINGLE -> Aggregate.requiredInputAttributes(aggregates, groupings);
+            case FINAL, INTERMEDIATE -> new AttributeSet(intermediateAttributes);
+        };
     }
 
     @Override

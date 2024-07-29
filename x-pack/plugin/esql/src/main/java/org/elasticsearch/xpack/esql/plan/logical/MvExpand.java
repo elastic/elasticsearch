@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -46,6 +47,11 @@ public class MvExpand extends UnaryPlan {
 
     public Attribute expanded() {
         return expanded;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return target.references();
     }
 
     @Override

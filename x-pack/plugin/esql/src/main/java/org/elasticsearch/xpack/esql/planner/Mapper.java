@@ -248,7 +248,7 @@ public class Mapper {
         Aggregate aggregate,
         PhysicalPlan child,
         AggregatorMode aggMode,
-        List<? extends Attribute> intermediateAttributes
+        List<Attribute> intermediateAttributes
     ) {
         return new AggregateExec(
             aggregate.source(),

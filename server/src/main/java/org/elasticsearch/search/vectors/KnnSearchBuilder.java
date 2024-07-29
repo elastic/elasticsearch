@@ -403,6 +403,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             .addFilterQueries(filterQueries);
     }
 
+    public Float getSimilarity() {
+        return similarity;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

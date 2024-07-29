@@ -37,6 +37,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     private final ScoreDoc[] scoreDocs;
     private final String fieldName;
     private final VectorData queryVector;
+    private final Float vectorSimilarity;
 
     /**
      * Creates a query builder.
@@ -44,20 +45,11 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
      * @param scoreDocs the docs and scores this query should match. The array must be
      *                  sorted in order of ascending doc IDs.
      */
-    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, float[] queryVector) {
-        this(scoreDocs, fieldName, VectorData.fromFloats(queryVector));
-    }
-
-    /**
-     * Creates a query builder.
-     *
-     * @param scoreDocs the docs and scores this query should match. The array must be
-     *                  sorted in order of ascending doc IDs.
-     */
-    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, VectorData queryVector) {
+    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, VectorData queryVector, Float vectorSimilarity) {
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;
         this.queryVector = queryVector;
+        this.vectorSimilarity = vectorSimilarity;
     }
 
     public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
@@ -78,6 +70,11 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             this.fieldName = null;
             this.queryVector = null;
         }
+        if (in.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
+            this.vectorSimilarity = in.readOptionalFloat();
+        } else {
+            this.vectorSimilarity = null;
+        }
     }
 
     @Override
@@ -97,6 +94,10 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return queryVector;
     }
 
+    Float vectorSimilarity() {
+        return vectorSimilarity;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
@@ -113,6 +114,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 out.writeBoolean(false);
             }
         }
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
+            out.writeOptionalFloat(vectorSimilarity);
+        }
     }
 
     @Override
@@ -128,6 +132,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         }
         if (queryVector != null) {
             builder.field("query", queryVector);
+        }
+        if (vectorSimilarity != null) {
+            builder.field("similarity", vectorSimilarity);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
@@ -154,7 +161,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
         if (queryRewriteContext.convertToInnerHitsRewriteContext() != null && queryVector != null && fieldName != null) {
-            return new ExactKnnQueryBuilder(queryVector, fieldName);
+            return new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
         }
         return super.doRewrite(queryRewriteContext);
     }
@@ -193,7 +200,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 return false;
             }
         }
-        return Objects.equals(fieldName, other.fieldName) && Objects.equals(queryVector, other.queryVector);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(queryVector, other.queryVector)
+            && Objects.equals(vectorSimilarity, other.vectorSimilarity);
     }
 
     @Override
@@ -203,7 +212,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             int hashCode = Objects.hash(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
             result = 31 * result + hashCode;
         }
-        return Objects.hash(result, fieldName, Objects.hashCode(queryVector));
+        return Objects.hash(result, fieldName, vectorSimilarity, Objects.hashCode(queryVector));
     }
 
     @Override

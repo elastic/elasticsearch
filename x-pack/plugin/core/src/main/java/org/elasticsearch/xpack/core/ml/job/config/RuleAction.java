@@ -15,7 +15,8 @@ import java.util.Locale;
 
 public enum RuleAction implements Writeable {
     SKIP_RESULT,
-    SKIP_MODEL_UPDATE;
+    SKIP_MODEL_UPDATE,
+    FORCE_TIME_SHIFT;
 
     /**
      * Case-insensitive from string method.

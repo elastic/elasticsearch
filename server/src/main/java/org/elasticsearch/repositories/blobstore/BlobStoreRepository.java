@@ -1066,7 +1066,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // First write the new shard state metadata (without the removed snapshots) and compute deletion targets
                 .newForked(this::writeUpdatedShardMetadataAndComputeDeletes)
 
-                .<RepositoryData>andThen((l, ignored) -> {
+                .<RepositoryData>andThen(l -> {
                     // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
                     // 1. Remove the snapshots from the list of existing snapshots
                     // 2. Update the index shard generations of all updated shard folders

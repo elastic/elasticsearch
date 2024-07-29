@@ -46,4 +46,8 @@ class Context {
             && objectDepth < specification.maxObjectDepth()
             && nestedFieldsCount < specification.nestedFieldsLimit();
     }
+
+    public boolean shouldGenerateObjectArray() {
+        return objectDepth > 0 && specification.arbitrary().generateArrayOfObjects();
+    }
 }

@@ -224,11 +224,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 SnapshotLifecycleMetadata.TYPE,
                 SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new
             ),
-            // new NamedWriteableRegistry.Entry(
-            // NamedDiff.class,
-            // RegisteredPolicySnapshots.TYPE,
-            // RegisteredPolicySnapshots.RegisteredSnapshotsDiff::new
-            // ),
             // ILM - LifecycleTypes
             new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE, (in) -> TimeseriesLifecycleType.INSTANCE),
             // ILM - Lifecycle Actions

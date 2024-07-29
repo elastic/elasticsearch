@@ -234,7 +234,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             Instant.now().toEpochMilli(),
             String.format(
                 Locale.ROOT,
-                "found pre-registered snapshot [%s] which is no longer running, assuming failed.",
+                "found registered snapshot [%s] which is no longer running, assuming failed.",
                 snapshot.getName()
             )
         );

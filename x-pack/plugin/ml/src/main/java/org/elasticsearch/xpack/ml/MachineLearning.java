@@ -1282,6 +1282,8 @@ public class MachineLearning extends Plugin
             threadPool,
             clusterService,
             client,
+            inferenceAuditor,
+            telemetryProvider.getMeterRegistry(),
             mlAssignmentNotifier,
             machineLearningExtension.get().isAnomalyDetectionEnabled(),
             machineLearningExtension.get().isDataFrameAnalyticsEnabled(),

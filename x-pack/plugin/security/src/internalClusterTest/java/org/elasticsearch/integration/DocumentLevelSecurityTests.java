@@ -1013,6 +1013,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         prepareIndex("test").setId("2").setSource("color", "yellow", "fruit", "banana", "count", -2).setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("test").setId("3").setSource("color", "green", "fruit", "grape", "count", -3).setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("test").setId("4").setSource("color", "red", "fruit", "grape", "count", -4).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("5")
+            .setSource("color", new String[] { "green", "black" }, "fruit", "grape", "count", -5)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
         indicesAdmin().prepareForceMerge("test").get();
 
         assertResponse(

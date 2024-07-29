@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,20 +40,36 @@ public class TopTests extends AbstractAggregationTestCase {
 
         for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 1000, false)) {
             for (String order : List.of("asc", "desc")) {
-                for (var fieldCaseSupplier : Stream.of(
+                Stream.of(
                     MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-                    MultiRowTestCaseSupplier.dateCases(1, 1000)
-                ).flatMap(List::stream).toList()) {
-                    suppliers.add(TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order));
-                }
+                    MultiRowTestCaseSupplier.dateCases(1, 1000),
+                    MultiRowTestCaseSupplier.booleanCases(1, 1000),
+                    MultiRowTestCaseSupplier.ipCases(1, 1000)
+                )
+                    .flatMap(List::stream)
+                    .map(fieldCaseSupplier -> TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order))
+                    .collect(Collectors.toCollection(() -> suppliers));
             }
         }
 
         suppliers.addAll(
             List.of(
                 // Surrogates
+                new TestCaseSupplier(
+                    List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(true, true, false), DataType.BOOLEAN, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                        ),
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                        DataType.BOOLEAN,
+                        equalTo(true)
+                    )
+                ),
                 new TestCaseSupplier(
                     List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
@@ -103,8 +122,43 @@ public class TopTests extends AbstractAggregationTestCase {
                         equalTo(200L)
                     )
                 ),
+                new TestCaseSupplier(
+                    List.of(DataType.IP),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(
+                                List.of(
+                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))),
+                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))),
+                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::"))),
+                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::")))
+                                ),
+                                DataType.IP,
+                                "field"
+                            ),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                        ),
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                        DataType.IP,
+                        equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::"))))
+                    )
+                ),
 
                 // Folding
+                new TestCaseSupplier(
+                    List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(true), DataType.BOOLEAN, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                        ),
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                        DataType.BOOLEAN,
+                        equalTo(true)
+                    )
+                ),
                 new TestCaseSupplier(
                     List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
@@ -155,6 +209,23 @@ public class TopTests extends AbstractAggregationTestCase {
                         "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.DATETIME,
                         equalTo(200L)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.IP),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(
+                                List.of(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")))),
+                                DataType.IP,
+                                "field"
+                            ),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
+                        ),
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
+                        DataType.IP,
+                        equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
                 ),
 
@@ -220,7 +291,7 @@ public class TopTests extends AbstractAggregationTestCase {
         TestCaseSupplier.TypedDataSupplier limitCaseSupplier,
         String order
     ) {
-        return new TestCaseSupplier(List.of(fieldSupplier.type(), DataType.INTEGER, DataType.KEYWORD), () -> {
+        return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type(), DataType.INTEGER, DataType.KEYWORD), () -> {
             var fieldTypedData = fieldSupplier.get();
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();
@@ -239,7 +310,7 @@ public class TopTests extends AbstractAggregationTestCase {
                 ),
                 "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                 fieldSupplier.type(),
-                equalTo(expected)
+                equalTo(expected.size() == 1 ? expected.get(0) : expected)
             );
         });
     }

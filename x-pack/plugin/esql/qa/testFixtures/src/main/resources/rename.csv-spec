@@ -174,3 +174,42 @@ avg_worked_seconds:l | birth_date:date          | emp_no:i             | first_n
 341158890            | 1961-10-15T00:00:00.000Z | 10060                | Breannda             | M                    | 1.42                 | 1.4199999570846558   | 1.419921875          | 1.42                 | 1987-11-02T00:00:00.000Z | [false, false, false, true]| [Business Analyst, Data Scientist, Senior Team Lead]                                    | 2                    | 2                    | 2                    | 2                    | Billingsley          | 29175                | [-1.76, -0.85]              | [-1, 0]              | [-0.85, -1.76]             | [-1, 0]              | true                 | 29175               
 246355863            | null                     | 10042                | Magy                 | F                    | 1.44                 | 1.440000057220459    | 1.4404296875         | 1.44                 | 1993-03-21T00:00:00.000Z | null                       | [Architect, Business Analyst, Internship, Junior Developer]                             | 3                    | 3                    | 3                    | 3                    | Stamatiou            | 30404                | [-9.28, 9.42]               | [-9, 9]              | [-9.28, 9.42]              | [-9, 9]              | true                 | 30404               
 ;
+
+shadowing
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, first_name, last_name
+| RENAME emp_no AS last_name
+| LIMIT 2
+;
+
+last_name:integer  | first_name:keyword
+             10001 | Georgi
+             10002 | Bezalel
+;
+
+shadowingSubfields
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.continent.name, city.country.name, city.name
+| RENAME city.name AS city.country.continent.planet.name, city.country.name AS city.country.continent.name
+| SORT city.country.continent.planet.name
+;
+
+city.country.continent.name:keyword | city.country.continent.planet.name:keyword
+Netherlands                         | Amsterdam
+United States of America            | San Francisco
+Japan                               | Tokyo
+;
+
+shadowingInternal
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, last_name
+| RENAME emp_no AS x, last_name AS x
+| LIMIT 2
+;
+
+x:keyword
+Facello
+Simmel
+;

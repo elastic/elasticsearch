@@ -41,10 +41,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -83,6 +84,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -113,6 +115,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -152,6 +155,7 @@ import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -1474,10 +1478,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         // we override LTC behavior here: wrap even resources with mockfilesystems,
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
+        return getResourceDataPath(getClass(), relativePath);
+    }
+
+    public static Path getResourceDataPath(Class<?> clazz, String relativePath) {
+        final var resource = Objects.requireNonNullElseGet(
+            clazz.getResource(relativePath),
+            () -> fail(null, "resource not found: [%s][%s]", clazz.getCanonicalName(), relativePath)
+        );
+        final URI uri;
         try {
-            return PathUtils.get(getClass().getResource(relativePath).toURI()).toAbsolutePath().normalize();
+            uri = resource.toURI();
         } catch (Exception e) {
-            throw new RuntimeException("resource not found: " + relativePath, e);
+            return fail(null, "resource URI not found: [%s][%s]", clazz.getCanonicalName(), relativePath);
+        }
+        try {
+            return PathUtils.get(uri).toAbsolutePath().normalize();
+        } catch (Exception e) {
+            return fail(e, "resource path not found: %s", uri);
         }
     }
 
@@ -2285,9 +2303,20 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code listener} was completed.
      */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        final var future = new PlainActionFuture<T>();
+        final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
         return safeGet(future);
+    }
+
+    /**
+     * Call an async action (a {@link Consumer} of an {@link ActionListener}), wait for it to complete the listener, and then return the
+     * result. Preserves the thread's interrupt status flag and converts all exceptions into an {@link AssertionError} to trigger a test
+     * failure.
+     *
+     * @return The value with which the consumed listener was completed.
+     */
+    public static <T> T safeAwait(CheckedConsumer<ActionListener<T>, ?> consumer) {
+        return safeAwait(SubscribableListener.newForked(consumer));
     }
 
     /**
@@ -2331,11 +2360,31 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The exception with which the {@code listener} was completed exceptionally.
      */
     public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
-        return safeAwait(
-            SubscribableListener.newForked(
-                exceptionListener -> listener.addListener(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse))
-            )
-        );
+        return safeAwait(exceptionListener -> listener.addListener(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse)));
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <T> Exception safeAwaitFailure(Consumer<ActionListener<T>> consumer) {
+        return safeAwait(exceptionListener -> consumer.accept(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse)));
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @param responseType Class of listener response type, to aid type inference but otherwise ignored.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <T> Exception safeAwaitFailure(@SuppressWarnings("unused") Class<T> responseType, Consumer<ActionListener<T>> consumer) {
+        return safeAwaitFailure(consumer);
     }
 
     /**
@@ -2435,6 +2484,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(int numberOfTasks, IntConsumer taskFactory) throws InterruptedException {
+        final CyclicBarrier barrier = new CyclicBarrier(numberOfTasks);
+        runInParallel(numberOfTasks, i -> {
+            safeAwait(barrier);
+            taskFactory.accept(i);
+        });
+    }
+
+    /**
      * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
      * calling thread, the rest will be run on a new thread.
      * @param numberOfTasks number of tasks to run in parallel
@@ -2468,6 +2529,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         if (e != null) {
             throw new AssertionError(e);
+        }
+    }
+
+    public static void ensureAllContextsReleased(SearchService searchService) {
+        try {
+            assertBusy(() -> {
+                assertThat(searchService.getActiveContexts(), equalTo(0));
+                assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+            });
+        } catch (Exception e) {
+            throw new AssertionError("Failed to verify search contexts", e);
         }
     }
 }

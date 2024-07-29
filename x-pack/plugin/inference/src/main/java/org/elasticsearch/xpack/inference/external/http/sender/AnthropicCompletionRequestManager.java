@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.anthropic.AnthropicResponseHandler;
@@ -43,13 +42,13 @@ public class AnthropicCompletionRequestManager extends AnthropicRequestManager {
 
     @Override
     public void execute(
-        @Nullable String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        AnthropicChatCompletionRequest request = new AnthropicChatCompletionRequest(input, model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        AnthropicChatCompletionRequest request = new AnthropicChatCompletionRequest(docsInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

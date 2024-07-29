@@ -40,14 +40,14 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         Writeable.Reader<Request> requestReader,
         Executor executor
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getTaskManager(), executor);
         transportService.registerRequestHandler(
             actionName,
             executor,
             false,
             canTripCircuitBreaker,
             requestReader,
-            (request, channel, task) -> execute(task, request, new ChannelActionListener<>(channel))
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
         );
     }
 }

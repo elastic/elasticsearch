@@ -132,18 +132,18 @@ public class MlMetricsTests extends ESTestCase {
         TrainedModelAssignmentMetadata.Builder metadataBuilder = TrainedModelAssignmentMetadata.Builder.empty();
         metadataBuilder.addNewAssignment(
             "model1",
-            TrainedModelAssignment.Builder.empty(mock(StartTrainedModelDeploymentAction.TaskParams.class))
+            TrainedModelAssignment.Builder.empty(mock(StartTrainedModelDeploymentAction.TaskParams.class), null)
                 .addRoutingEntry("node1", new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                 .addRoutingEntry("node2", new RoutingInfo(0, 1, RoutingState.FAILED, ""))
         );
         metadataBuilder.addNewAssignment(
             "model2",
-            TrainedModelAssignment.Builder.empty(mock(StartTrainedModelDeploymentAction.TaskParams.class))
+            TrainedModelAssignment.Builder.empty(mock(StartTrainedModelDeploymentAction.TaskParams.class), null)
                 .addRoutingEntry("node1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
         );
         metadataBuilder.addNewAssignment(
             "model3",
-            TrainedModelAssignment.Builder.empty(mock(StartTrainedModelDeploymentAction.TaskParams.class))
+            TrainedModelAssignment.Builder.empty(mock(StartTrainedModelDeploymentAction.TaskParams.class), null)
                 .addRoutingEntry("node2", new RoutingInfo(0, 1, RoutingState.STARTING, ""))
         );
 

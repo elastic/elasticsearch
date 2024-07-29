@@ -11,8 +11,10 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -105,10 +107,16 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
 
         private final String PIPELINE_IDS = "pipelines";
         Set<String> pipelineIds;
+        private final String REFERENCED_INDEXES = "indexes";
+        Set<String> indexes;
+        private final String DRY_RUN_MESSAGE = "error_message"; // error message only returned in response for dry_run
+        String dryRunMessage;
 
-        public Response(boolean acknowledged, Set<String> pipelineIds) {
+        public Response(boolean acknowledged, Set<String> pipelineIds, Set<String> semanticTextIndexes, @Nullable String dryRunMessage) {
             super(acknowledged);
             this.pipelineIds = pipelineIds;
+            this.indexes = semanticTextIndexes;
+            this.dryRunMessage = dryRunMessage;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -118,6 +126,15 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
             } else {
                 pipelineIds = Set.of();
             }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
+                indexes = in.readCollectionAsSet(StreamInput::readString);
+                dryRunMessage = in.readOptionalString();
+            } else {
+                indexes = Set.of();
+                dryRunMessage = null;
+            }
+
         }
 
         @Override
@@ -126,23 +143,25 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
                 out.writeCollection(pipelineIds, StreamOutput::writeString);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
+                out.writeCollection(indexes, StreamOutput::writeString);
+                out.writeOptionalString(dryRunMessage);
+            }
         }
 
         @Override
         protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
             super.addCustomFields(builder, params);
             builder.field(PIPELINE_IDS, pipelineIds);
+            builder.field(REFERENCED_INDEXES, indexes);
+            if (dryRunMessage != null) {
+                builder.field(DRY_RUN_MESSAGE, dryRunMessage);
+            }
         }
 
         @Override
         public String toString() {
-            StringBuilder returnable = new StringBuilder();
-            returnable.append("acknowledged: ").append(this.acknowledged);
-            returnable.append(", pipelineIdsByEndpoint: ");
-            for (String entry : pipelineIds) {
-                returnable.append(entry).append(", ");
-            }
-            return returnable.toString();
+            return Strings.toString(this);
         }
     }
 }

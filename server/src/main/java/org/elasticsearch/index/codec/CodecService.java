@@ -9,6 +9,8 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -18,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -25,7 +28,7 @@ import java.util.Map;
  * data-structures per field. Elasticsearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
  */
-public class CodecService {
+public class CodecService implements CodecProvider {
 
     public static final FeatureFlag ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields");
 
@@ -65,7 +68,13 @@ public class CodecService {
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
-        this.codecs = Map.copyOf(codecs);
+        this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
+            var codec = e.getValue();
+            if (codec instanceof DeduplicateFieldInfosCodec) {
+                return codec;
+            }
+            return new DeduplicateFieldInfosCodec(codec.getName(), codec);
+        }));
     }
 
     public Codec codec(String name) {
@@ -77,9 +86,30 @@ public class CodecService {
     }
 
     /**
-     * Returns all registered available codec names
+     * Returns all registered available codec names.
      */
+    @Override
     public String[] availableCodecs() {
         return codecs.keySet().toArray(new String[0]);
+    }
+
+    public static class DeduplicateFieldInfosCodec extends FilterCodec {
+
+        private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
+
+        protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
+            super(name, delegate);
+            this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
+        }
+
+        @Override
+        public final FieldInfosFormat fieldInfosFormat() {
+            return deduplicatingFieldInfosFormat;
+        }
+
+        public final Codec delegate() {
+            return delegate;
+        }
+
     }
 }

@@ -1,8 +1,6 @@
 [[query-rules-apis]]
 == Query rules APIs
 
-preview::[]
-
 ++++
 <titleabbrev>Query rules APIs</titleabbrev>
 ++++

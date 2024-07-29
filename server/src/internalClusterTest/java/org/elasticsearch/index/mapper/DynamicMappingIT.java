@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -162,12 +161,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
     private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings) throws Throwable {
         indicesAdmin().prepareCreate("index").setSettings(settings).get();
         ensureGreen("index");
-        final CyclicBarrier barrier = new CyclicBarrier(numberOfFieldsToCreate);
         final AtomicReference<Throwable> error = new AtomicReference<>();
-        runInParallel(numberOfFieldsToCreate, i -> {
+        startInParallel(numberOfFieldsToCreate, i -> {
             final String id = Integer.toString(i);
             try {
-                barrier.await();
                 assertEquals(
                     DocWriteResponse.Result.CREATED,
                     prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()

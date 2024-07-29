@@ -7,7 +7,7 @@ steps:
       image: family/elasticsearch-ubuntu-2204
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
+      diskSizeGb: 350
   - wait
   # The hadoop build depends on the ES artifact
   # So let's trigger the hadoop build any time we build a new staging artifact

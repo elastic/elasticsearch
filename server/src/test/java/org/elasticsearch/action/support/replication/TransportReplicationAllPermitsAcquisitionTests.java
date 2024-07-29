@@ -456,7 +456,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 new ActionFilters(new HashSet<>()),
                 Request::new,
                 Request::new,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                SyncGlobalCheckpointAfterOperation.DoNotSync,
+                PrimaryActionExecution.RejectOnOverload,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);

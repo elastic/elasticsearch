@@ -66,6 +66,11 @@ public class MultiBucketConsumerService {
         }
 
         @Override
+        public Throwable fillInStackTrace() {
+            return this; // this exception doesn't imply a bug, no need for a stack trace
+        }
+
+        @Override
         protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
             out.writeInt(maxBuckets);

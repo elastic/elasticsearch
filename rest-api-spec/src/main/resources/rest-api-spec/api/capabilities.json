@@ -1,7 +1,7 @@
 {
   "capabilities": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/capabilities.html",
+      "url": "https://github.com/elastic/elasticsearch/blob/main/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc#require-or-skip-api-capabilities",
       "description": "Checks if the specified combination of method, API, parameters, and arbitrary capabilities are supported"
     },
     "stability": "experimental",

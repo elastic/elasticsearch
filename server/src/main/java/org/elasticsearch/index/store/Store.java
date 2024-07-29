@@ -1529,7 +1529,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
         final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
         // all operations of the safe commit must be at most the global checkpoint.
-        if (commitInfo.maxSeqNo <= globalCheckpoint) {
+        if (commitInfo.maxSeqNo() <= globalCheckpoint) {
             return Optional.of(commitInfo);
         } else {
             return Optional.empty();

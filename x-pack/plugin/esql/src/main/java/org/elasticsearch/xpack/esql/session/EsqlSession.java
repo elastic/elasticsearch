@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -46,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Phased;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -64,7 +68,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.esql.core.util.ActionListeners.map;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
@@ -111,33 +114,66 @@ public class EsqlSession {
         return sessionId;
     }
 
+    /**
+     * Execute an ESQL request.
+     */
     public void execute(
         EsqlQueryRequest request,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
         LOGGER.debug("ESQL query:\n{}", request.query());
-        LogicalPlan logicalPlan = parse(request.query(), request.params());
-        logicalPlanToPhysicalPlan(logicalPlan, request, listener.delegateFailureAndWrap((l, r) -> runPhase.accept(r, l)));
+        analyzedPlan(
+            parse(request.query(), request.params()),
+            listener.delegateFailureAndWrap((next, analyzedPlan) -> executeAnalyzedPlan(request, runPhase, analyzedPlan, next))
+        );
     }
 
-    private void logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
-        optimizedPhysicalPlan(
-            logicalPlan,
-            listener.map(plan -> EstimatesRowSize.estimateRowSize(0, plan.transformUp(FragmentExec.class, f -> {
-                QueryBuilder filter = request.filter();
-                if (filter != null) {
-                    var fragmentFilter = f.esFilter();
-                    // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                    // This is an ugly hack to push the filter parameter to Lucene
-                    // TODO: filter integration testing
-                    filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                    LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                    f = f.withFilter(filter);
+    /**
+     * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
+     * this is public for testing. See {@link Phased} for the sequence of operations.
+     */
+    public void executeAnalyzedPlan(
+        EsqlQueryRequest request,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        LogicalPlan analyzedPlan,
+        ActionListener<Result> listener
+    ) {
+        LogicalPlan firstPhase = Phased.extractFirstPhase(analyzedPlan);
+        if (firstPhase == null) {
+            runPhase.accept(logicalPlanToPhysicalPlan(analyzedPlan, request), listener);
+        } else {
+            executePhased(new ArrayList<>(), analyzedPlan, request, firstPhase, runPhase, listener);
+        }
+    }
+
+    private void executePhased(
+        List<DriverProfile> profileAccumulator,
+        LogicalPlan mainPlan,
+        EsqlQueryRequest request,
+        LogicalPlan firstPhase,
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        ActionListener<Result> listener
+    ) {
+        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(firstPhase, request);
+        runPhase.accept(physicalPlan, listener.delegateFailureAndWrap((next, result) -> {
+            try {
+                profileAccumulator.addAll(result.profiles());
+                LogicalPlan newMainPlan = Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages());
+                LogicalPlan newFirstPhase = Phased.extractFirstPhase(newMainPlan);
+                if (newFirstPhase == null) {
+                    PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request);
+                    runPhase.accept(finalPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                        profileAccumulator.addAll(finalResult.profiles());
+                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator));
+                    }));
+                } else {
+                    executePhased(profileAccumulator, newMainPlan, request, newFirstPhase, runPhase, next);
                 }
-                return f;
-            })))
-        );
+            } finally {
+                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
+            }
+        }));
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
@@ -155,6 +191,7 @@ public class EsqlSession {
         preAnalyze(parsed, (indices, policies) -> {
             Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
+            plan.setAnalyzed();
             LOGGER.debug("Analyzed plan:\n{}", plan);
             return plan;
         }, listener);
@@ -315,28 +352,41 @@ public class EsqlSession {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
-    public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
-        analyzedPlan(logicalPlan, map(listener, p -> {
-            var plan = logicalPlanOptimizer.optimize(p);
-            LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
-            return plan;
-        }));
+    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request) {
+        PhysicalPlan physicalPlan = optimizedPhysicalPlan(logicalPlan);
+        physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
+            QueryBuilder filter = request.filter();
+            if (filter != null) {
+                var fragmentFilter = f.esFilter();
+                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
+                // This is an ugly hack to push the filter parameter to Lucene
+                // TODO: filter integration testing
+                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
+                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+                f = f.withFilter(filter);
+            }
+            return f;
+        });
+        return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    public void physicalPlan(LogicalPlan optimized, ActionListener<PhysicalPlan> listener) {
-        optimizedPlan(optimized, map(listener, p -> {
-            var plan = mapper.map(p);
-            LOGGER.debug("Physical plan:\n{}", plan);
-            return plan;
-        }));
+    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+        assert logicalPlan.analyzed();
+        var plan = logicalPlanOptimizer.optimize(logicalPlan);
+        LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
+        return plan;
     }
 
-    public void optimizedPhysicalPlan(LogicalPlan logicalPlan, ActionListener<PhysicalPlan> listener) {
-        physicalPlan(logicalPlan, map(listener, p -> {
-            var plan = physicalPlanOptimizer.optimize(p);
-            LOGGER.debug("Optimized physical plan:\n{}", plan);
-            return plan;
-        }));
+    public PhysicalPlan physicalPlan(LogicalPlan logicalPlan) {
+        var plan = mapper.map(optimizedPlan(logicalPlan));
+        LOGGER.debug("Physical plan:\n{}", plan);
+        return plan;
+    }
+
+    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan logicalPlan) {
+        var plan = physicalPlanOptimizer.optimize(physicalPlan(logicalPlan));
+        LOGGER.debug("Optimized physical plan:\n{}", plan);
+        return plan;
     }
 
     public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {

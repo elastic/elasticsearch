@@ -99,8 +99,13 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         return obsoleteGenerations.get();
     }
 
+    /**
+     * Returns a new {@link ClusterState}, based on the given {@code state} with the create-snapshot entry removed.
+     */
     public ClusterState updatedClusterState(ClusterState state) {
         final ClusterState updatedState = SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot(), updatedShardGenerations);
+        // Now that the updated cluster state may have changed in-progress shard snapshots' shard generations to the latest shard
+        // generation, let's mark any now unreferenced shard generations as obsolete and ready to be deleted.
         obsoleteGenerations.set(
             SnapshotsInProgress.get(updatedState).obsoleteGenerations(snapshotInfo.repository(), SnapshotsInProgress.get(state))
         );

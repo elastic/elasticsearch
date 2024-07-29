@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
@@ -80,6 +81,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
         entries.add(Ceil.ENTRY);
         entries.add(Cos.ENTRY);
         entries.add(Cosh.ENTRY);
+        entries.add(Exp.ENTRY);
         entries.add(Floor.ENTRY);
         entries.add(FromBase64.ENTRY);
         entries.add(IsNotNull.ENTRY);

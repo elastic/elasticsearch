@@ -30,7 +30,7 @@ public class Grok extends RegexExtract {
 
     public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
 
-        private List<Attribute> extractedFields() {
+        public List<Attribute> extractedFields() {
             return grok.captureConfig()
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
@@ -101,6 +101,11 @@ public class Grok extends RegexExtract {
     @Override
     public List<Attribute> output() {
         return NamedExpressions.mergeOutputAttributes(extractedFields, child().output());
+    }
+
+    @Override
+    public Grok withGeneratedNames(List<String> newNames) {
+        return new Grok(source(), child(), input, parser, renameExtractedFields(newNames));
     }
 
     @Override

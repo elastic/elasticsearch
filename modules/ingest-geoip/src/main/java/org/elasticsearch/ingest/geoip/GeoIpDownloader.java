@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -170,23 +171,28 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     // visible for testing
-    void processDatabase(Map<String, Object> databaseInfo) {
+    void processDatabase(final Map<String, Object> databaseInfo) {
         String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
-        if (state.contains(name) && Objects.equals(md5, state.get(name).md5())) {
-            updateTimestamp(name, state.get(name));
-            return;
-        }
-        logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
             // relative url, add it after last slash (i.e. resolve sibling) or at the end if there's no slash after http[s]://
             int lastSlash = endpoint.substring(8).lastIndexOf('/');
             url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
         }
+        processDatabase(name, md5, url);
+    }
+
+    private void processDatabase(final String name, final String md5, final String url) {
+        Metadata metadata = state.getDatabases().getOrDefault(name, Metadata.EMPTY);
+        if (Objects.equals(metadata.md5(), md5)) {
+            updateTimestamp(name, metadata);
+            return;
+        }
+        logger.debug("downloading geoip database [{}]", name);
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
-            int firstChunk = state.contains(name) ? state.get(name).lastChunk() + 1 : 0;
+            int firstChunk = metadata.lastChunk() + 1; // if there is no metadata, then Metadata.EMPTY.lastChunk() + 1 = 0
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
@@ -313,22 +319,20 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void cleanDatabases() {
-        long expiredDatabases = state.getDatabases()
+        List<Tuple<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
-            .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
-            .peek(e -> {
-                String name = e.getKey();
-                Metadata meta = e.getValue();
-                deleteOldChunks(name, meta.lastChunk() + 1);
-                state = state.put(
-                    name,
-                    new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1)
-                );
-                updateTaskState();
-            })
-            .count();
-        stats = stats.expiredDatabases((int) expiredDatabases);
+            .filter(e -> e.getValue().isNewEnough(clusterService.state().metadata().settings()) == false)
+            .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
+            .toList();
+        expiredDatabases.forEach(e -> {
+            String name = e.v1();
+            Metadata meta = e.v2();
+            deleteOldChunks(name, meta.lastChunk() + 1);
+            state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
+            updateTaskState();
+        });
+        stats = stats.expiredDatabases(expiredDatabases.size());
     }
 
     @Override

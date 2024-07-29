@@ -36,7 +36,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
 
     private volatile Map<String, IndexSegments> indicesSegments;
 
-    IndicesSegmentResponse(
+    public IndicesSegmentResponse(
         ShardSegments[] shards,
         int totalShards,
         int successfulShards,

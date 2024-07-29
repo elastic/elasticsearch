@@ -106,8 +106,8 @@ FROM employees
     long = TOP(salary_change.long, 1, "asc")
 ;
 
-date:date | double:double | integer:integer | long:long
-1985-02-18T00:00:00.000Z | -9.81 | 25324 | -9
+date:date                | double:double | integer:integer | long:long
+1985-02-18T00:00:00.000Z | -9.81         | 25324           | -9
 ;
 
 topAllTypesMax
@@ -120,8 +120,8 @@ FROM employees
     long = TOP(salary_change.long, 1, "desc")
 ;
 
-date:date | double:double | integer:integer | long:long
-1999-04-30T00:00:00.000Z | 14.74 | 74999 | 14
+date:date                | double:double | integer:integer | long:long
+1999-04-30T00:00:00.000Z | 14.74         | 74999           | 14
 ;
 
 topAscDesc
@@ -153,4 +153,74 @@ FROM employees
 
 integer:integer
 [5, 5]
+;
+
+topBooleans
+required_capability: agg_top
+required_capability: agg_top_boolean_support
+FROM employees
+| eval x = salary is not null
+| where emp_no > 10050
+| STATS
+    top_asc = TOP(still_hired, 2, "asc"),
+    min = TOP(still_hired, 1, "asc"),
+    top_desc = TOP(still_hired, 2, "desc"),
+    max = TOP(still_hired, 1, "desc"),
+    a = TOP(salary is not null, 2, "asc"),
+    b = TOP(x, 2, "asc"),
+    c = TOP(case(salary is null, true, false), 2, "asc"),
+    d = TOP(is_rehired, 2, "asc")
+;
+
+top_asc:boolean    | min:boolean | top_desc:boolean | max:boolean | a:boolean    | b:boolean    | c:boolean      | d:boolean
+[false, false]     | false       | [true, true]     | true        | [true, true] | [true, true] | [false, false] | [false, false]
+;
+
+topBooleansRow
+required_capability: agg_top
+required_capability: agg_top_boolean_support
+ROW constant = true, mv = [true, false]
+| STATS
+    constant_asc = TOP(constant, 2, "asc"),
+    constant_desc = TOP(constant, 2, "desc"),
+    mv_asc = TOP(mv, 2, "asc"),
+    mv_desc = TOP(mv, 2, "desc")
+;
+
+constant_asc:boolean | constant_desc:boolean | mv_asc:boolean | mv_desc:boolean
+true                 | true                  | [false, true]  | [true, false]
+;
+
+topIps
+required_capability: agg_top
+required_capability: agg_top_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats
+    a = TOP(ip0, 2, "desc"),
+    b = TOP(x, 2, "desc"),
+    c = TOP(case(host == "beta", ip0, ip1), 2, "desc");
+
+a:ip | b:ip | c:ip
+[fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9]
+;
+
+topIpsGrouping
+required_capability: agg_top
+required_capability: agg_top_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats
+    a = TOP(ip0, 2, "desc"),
+    b = TOP(x, 2, "desc"),
+    c = TOP(case(host == "beta", ip0, ip1), 2, "desc")
+    by host
+| sort host asc;
+
+a:ip | b:ip | c:ip | host:keyword
+[127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | beta
+[fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | epsilon
+[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe81::cae2:65ff:fece:feb9, 127.0.0.3] | gamma
 ;

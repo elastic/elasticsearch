@@ -199,10 +199,14 @@ public class AzureStorageServiceTests extends ESTestCase {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
             AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
-            final SettingsException e1 = expectThrows(SettingsException.class, () -> plugin.reload(settings2));
-            assertThat(e1.getMessage(), is("Neither a secret key nor a shared access token was set."));
-            final SettingsException e2 = expectThrows(SettingsException.class, () -> plugin.reload(settings3));
-            assertThat(e2.getMessage(), is("Both a secret as well as a shared access token were set."));
+            assertThat(
+                expectThrows(SettingsException.class, () -> plugin.reload(settings2)).getMessage(),
+                is("Neither a secret key nor a shared access token was set for account [myaccount1]")
+            );
+            assertThat(
+                expectThrows(SettingsException.class, () -> plugin.reload(settings3)).getMessage(),
+                is("Both a secret as well as a shared access token were set for account [myaccount3]")
+            );
             // existing client untouched
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
         }
@@ -499,7 +503,7 @@ public class AzureStorageServiceTests extends ESTestCase {
                         .build()
                 )
             );
-            assertEquals("A primary endpoint is required when setting a secondary endpoint", e.getMessage());
+            assertEquals("A primary endpoint is required when setting a secondary endpoint for account [myaccount1]", e.getMessage());
         }
 
         {
@@ -513,7 +517,7 @@ public class AzureStorageServiceTests extends ESTestCase {
                         .build()
                 )
             );
-            assertEquals("Both an endpoint suffix as well as a secondary endpoint were set", e.getMessage());
+            assertEquals("Both an endpoint suffix as well as a secondary endpoint were set for account [myaccount1]", e.getMessage());
         }
     }
 

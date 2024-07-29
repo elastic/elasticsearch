@@ -27,10 +27,10 @@ import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction.compatibleTypeNames;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatialGeo;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFunctionTestCase {

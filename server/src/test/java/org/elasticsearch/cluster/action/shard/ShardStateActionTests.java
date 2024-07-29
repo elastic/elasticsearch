@@ -430,9 +430,9 @@ public class ShardStateActionTests extends ESTestCase {
         for (int i = 0; i < failedShards.length; i++) {
             failedShards[i] = getRandomShardRouting(index);
         }
-        Thread[] clientThreads = new Thread[between(1, 6)];
+        final int clientThreads = between(1, 6);
         int iterationsPerThread = scaledRandomIntBetween(50, 500);
-        Phaser barrier = new Phaser(clientThreads.length + 2); // one for master thread, one for the main thread
+        Phaser barrier = new Phaser(clientThreads + 1); // +1 for the master thread
         Thread masterThread = new Thread(() -> {
             barrier.arriveAndAwaitAdvance();
             while (shutdown.get() == false) {
@@ -448,39 +448,32 @@ public class ShardStateActionTests extends ESTestCase {
         masterThread.start();
 
         AtomicInteger notifiedResponses = new AtomicInteger();
-        for (int t = 0; t < clientThreads.length; t++) {
-            clientThreads[t] = new Thread(() -> {
-                barrier.arriveAndAwaitAdvance();
-                for (int i = 0; i < iterationsPerThread; i++) {
-                    ShardRouting failedShard = randomFrom(failedShards);
-                    shardStateAction.remoteShardFailed(
-                        failedShard.shardId(),
-                        failedShard.allocationId().getId(),
-                        randomLongBetween(1, Long.MAX_VALUE),
-                        randomBoolean(),
-                        "test",
-                        getSimulatedFailure(),
-                        new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                notifiedResponses.incrementAndGet();
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                notifiedResponses.incrementAndGet();
-                            }
+        runInParallel(clientThreads, t -> {
+            barrier.arriveAndAwaitAdvance();
+            for (int i = 0; i < iterationsPerThread; i++) {
+                ShardRouting failedShard = randomFrom(failedShards);
+                shardStateAction.remoteShardFailed(
+                    failedShard.shardId(),
+                    failedShard.allocationId().getId(),
+                    randomLongBetween(1, Long.MAX_VALUE),
+                    randomBoolean(),
+                    "test",
+                    getSimulatedFailure(),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void aVoid) {
+                            notifiedResponses.incrementAndGet();
                         }
-                    );
-                }
-            });
-            clientThreads[t].start();
-        }
-        barrier.arriveAndAwaitAdvance();
-        for (Thread t : clientThreads) {
-            t.join();
-        }
-        assertBusy(() -> assertThat(notifiedResponses.get(), equalTo(clientThreads.length * iterationsPerThread)));
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            notifiedResponses.incrementAndGet();
+                        }
+                    }
+                );
+            }
+        });
+        assertBusy(() -> assertThat(notifiedResponses.get(), equalTo(clientThreads * iterationsPerThread)));
         shutdown.set(true);
         masterThread.join();
     }

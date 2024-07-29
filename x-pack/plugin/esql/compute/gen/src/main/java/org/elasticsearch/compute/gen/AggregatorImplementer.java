@@ -445,6 +445,8 @@ public class AggregatorImplementer {
 
     private String primitiveStateMethod() {
         switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.BooleanState":
+                return "booleanValue";
             case "org.elasticsearch.compute.aggregation.IntState":
                 return "intValue";
             case "org.elasticsearch.compute.aggregation.LongState":
@@ -494,6 +496,9 @@ public class AggregatorImplementer {
 
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.BooleanState":
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.booleanValue(), 1)");
+                return;
             case "org.elasticsearch.compute.aggregation.IntState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1)");
                 return;
@@ -531,8 +536,9 @@ public class AggregatorImplementer {
 
     private boolean hasPrimitiveState() {
         return switch (stateType.toString()) {
-            case "org.elasticsearch.compute.aggregation.IntState", "org.elasticsearch.compute.aggregation.LongState",
-                "org.elasticsearch.compute.aggregation.DoubleState", "org.elasticsearch.compute.aggregation.FloatState" -> true;
+            case "org.elasticsearch.compute.aggregation.BooleanState", "org.elasticsearch.compute.aggregation.IntState",
+                "org.elasticsearch.compute.aggregation.LongState", "org.elasticsearch.compute.aggregation.DoubleState",
+                "org.elasticsearch.compute.aggregation.FloatState" -> true;
             default -> false;
         };
     }

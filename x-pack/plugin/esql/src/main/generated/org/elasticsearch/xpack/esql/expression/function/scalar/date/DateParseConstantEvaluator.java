@@ -68,7 +68,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
           continue position;
         }
         try {
-          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatter));
+          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.formatter));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -83,7 +83,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatter));
+          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), this.formatter));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

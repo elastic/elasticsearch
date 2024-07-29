@@ -16,7 +16,7 @@ import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
@@ -41,8 +40,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -56,8 +53,10 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -74,9 +73,15 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
+/**
+ * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
+ * which change the grammar will need to make changes here as well.
+ *
+ */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
@@ -146,10 +151,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
+            Source source = source(ctx);
             String pattern = visitString(ctx.string()).fold().toString();
-            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), Grok.pattern(source(ctx), pattern));
+            Grok.Parser grokParser = Grok.pattern(source, pattern);
+            validateGrokPattern(source, grokParser, pattern);
+            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
         };
+    }
+
+    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern) {
+        Map<String, DataType> definedAttributes = new HashMap<>();
+        for (Attribute field : grokParser.extractedFields()) {
+            String name = field.name();
+            DataType type = field.dataType();
+            DataType prev = definedAttributes.put(name, type);
+            if (prev != null) {
+                throw new ParsingException(
+                    source,
+                    "Invalid GROK pattern [" + pattern + "]: the attribute [" + name + "] is defined multiple times with different types"
+                );
+            }
+        }
     }
 
     @Override
@@ -175,21 +198,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             try {
                 DissectParser parser = new DissectParser(pattern, appendSeparator);
+
                 Set<String> referenceKeys = parser.referenceKeys();
-                if (referenceKeys.size() > 0) {
+                if (referenceKeys.isEmpty() == false) {
                     throw new ParsingException(
                         src,
                         "Reference keys not supported in dissect patterns: [%{*{}}]",
                         referenceKeys.iterator().next()
                     );
                 }
-                List<Attribute> keys = new ArrayList<>();
-                for (var x : parser.outputKeys()) {
-                    if (x.isEmpty() == false) {
-                        keys.add(new ReferenceAttribute(src, x, DataType.KEYWORD));
-                    }
-                }
-                return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
+
+                Dissect.Parser esqlDissectParser = new Dissect.Parser(pattern, appendSeparator, parser);
+                List<Attribute> keys = esqlDissectParser.keyAttributes(src);
+
+                return new Dissect(src, p, expression(ctx.primaryExpression()), esqlDissectParser, keys);
             } catch (DissectException e) {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }
@@ -217,8 +239,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), visitFields(ctx.fields()));
+        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
     @Override
@@ -253,13 +276,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), IndexMode.STANDARD);
+        return new UnresolvedRelation(
+            source,
+            table,
+            false,
+            List.of(metadataMap.values().toArray(Attribute[]::new)),
+            IndexMode.STANDARD,
+            null
+        );
     }
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
-        return input -> new EsqlAggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
+        return input -> new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
     }
 
     private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
@@ -302,6 +332,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
+        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG.isEnabled()) {
+            throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
+        }
         List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
@@ -441,16 +474,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
-            return new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.STANDARD);
+            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null);
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
-        var relation = new EsqlUnresolvedRelation(
+        var relation = new UnresolvedRelation(
             source,
             table,
+            false,
             List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            null
         );
-        return new EsqlAggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
+        return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }
 
     @Override

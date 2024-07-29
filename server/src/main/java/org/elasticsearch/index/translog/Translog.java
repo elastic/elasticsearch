@@ -964,19 +964,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return deletionPolicy;
     }
 
-    public static class Location implements Comparable<Location> {
+    public record Location(long generation, long translogLocation, int size) implements Comparable<Location> {
 
         public static Location EMPTY = new Location(0, 0, 0);
-
-        public final long generation;
-        public final long translogLocation;
-        public final int size;
-
-        public Location(long generation, long translogLocation, int size) {
-            this.generation = generation;
-            this.translogLocation = translogLocation;
-            this.size = size;
-        }
 
         @Override
         public String toString() {
@@ -985,38 +975,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public int compareTo(Location o) {
-            if (generation == o.generation) {
-                return Long.compare(translogLocation, o.translogLocation);
+            int result = Long.compare(generation, o.generation);
+            if (result == 0) {
+                result = Long.compare(translogLocation, o.translogLocation);
             }
-            return Long.compare(generation, o.generation);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            Location location = (Location) o;
-
-            if (generation != location.generation) {
-                return false;
-            }
-            if (translogLocation != location.translogLocation) {
-                return false;
-            }
-            return size == location.size;
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Long.hashCode(generation);
-            result = 31 * result + Long.hashCode(translogLocation);
-            result = 31 * result + size;
             return result;
         }
     }
@@ -1819,16 +1781,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * References a transaction log generation
      */
-    public static final class TranslogGeneration {
-        public final String translogUUID;
-        public final long translogFileGeneration;
-
-        public TranslogGeneration(String translogUUID, long translogFileGeneration) {
-            this.translogUUID = translogUUID;
-            this.translogFileGeneration = translogFileGeneration;
-        }
-
-    }
+    public record TranslogGeneration(String translogUUID, long translogFileGeneration) {}
 
     /**
      * Returns the current generation of this translog. This corresponds to the latest uncommitted translog generation

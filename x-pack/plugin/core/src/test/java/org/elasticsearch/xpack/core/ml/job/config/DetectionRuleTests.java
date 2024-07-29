@@ -139,6 +139,8 @@ public class DetectionRuleTests extends AbstractXContentSerializingTestCase<Dete
 
         if (actions.contains(RuleAction.FORCE_TIME_SHIFT) && params.getForceTimeShift() == null) {
             params = new RuleParams(new RuleParamsForForceTimeShift(randomLong()));
+        } else if (actions.contains(RuleAction.FORCE_TIME_SHIFT) == false && params.getForceTimeShift() != null) {
+            params = new RuleParams();
         }
 
         return new DetectionRule.Builder(conditions).setActions(actions).setScope(scope).setParams(params).build();

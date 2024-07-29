@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -54,6 +55,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * Avoid using WindowsFS since it causes occasional failures due to file deletion.
+ * See e.g. https://github.com/elastic/elasticsearch-serverless/issues/1998
+ */
+@LuceneTestCase.SuppressFileSystems(value = "WindowsFS")
 public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessIntegTestCase {
     private static final Logger logger = LogManager.getLogger(StatelessClusterStateCleanupServiceIT.class);
     private final long NUM_NODES = 3;

@@ -249,7 +249,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
-        List<SpecifiedDocument> specifiedDocuments = (docs != null) ? docs : ids.stream().map(id -> new SpecifiedDocument(null, id)).toList();
+        List<SpecifiedDocument> specifiedDocuments = (docs != null)
+            ? docs
+            : ids.stream().map(id -> new SpecifiedDocument(null, id)).toList();
         if (specifiedDocuments.isEmpty()) {
             return new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE);
         } else {

@@ -19,7 +19,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -105,7 +104,12 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             }
 
             assertPinnedPromotions(new PinnedQueryBuilder(organicQuery, idPins.toArray(new String[0])), idPins, i, numRelevantDocs);
-            assertPinnedPromotions(new PinnedQueryBuilder(organicQuery, docPins.toArray(new SpecifiedDocument[0])), idPins, i, numRelevantDocs);
+            assertPinnedPromotions(
+                new PinnedQueryBuilder(organicQuery, docPins.toArray(new SpecifiedDocument[0])),
+                idPins,
+                i,
+                numRelevantDocs
+            );
         }
 
     }

@@ -132,6 +132,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111279
 - class: org.elasticsearch.repositories.azure.RepositoryAzureClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111345
+- class: org.elasticsearch.repositories.blobstore.testkit.AzureSnapshotRepoTestKitIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/111280
 
 # Examples:
 #

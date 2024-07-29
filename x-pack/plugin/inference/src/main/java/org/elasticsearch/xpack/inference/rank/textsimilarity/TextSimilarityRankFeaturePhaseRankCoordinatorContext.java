@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVe
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
@@ -83,12 +83,14 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
             // assigning scores to the wrong input
             Integer configuredTopN = null;
-            if (r.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
+            if (r.getEndpoints().isEmpty() == false
+                && r.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
                 configuredTopN = cohereTaskSettings.getTopNDocumentsOnly();
-            } else if (r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
-                configuredTopN = googleVertexAiTaskSettings.topN();
-            }
-            if (configuredTopN != null && configuredTopN < featureDocs.length) {
+            } else if (r.getEndpoints().isEmpty() == false
+                && r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
+                    configuredTopN = googleVertexAiTaskSettings.topN();
+                }
+            if (configuredTopN != null && configuredTopN < rankWindowSize) {
                 l.onFailure(
                     new IllegalArgumentException(
                         "Inference endpoint ["

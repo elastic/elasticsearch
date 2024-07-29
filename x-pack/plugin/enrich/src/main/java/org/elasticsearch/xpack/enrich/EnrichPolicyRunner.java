@@ -85,8 +85,6 @@ public class EnrichPolicyRunner implements Runnable {
     static final String ENRICH_MATCH_FIELD_NAME = "enrich_match_field";
     static final String ENRICH_README_FIELD_NAME = "enrich_readme";
 
-    public static final String ENRICH_MIN_NUMBER_OF_REPLICAS_NAME = "enrich.min_number_of_replicas";
-
     static final String ENRICH_INDEX_README_TEXT = "This index is managed by Elasticsearch and should not be modified in any way.";
 
     private final String policyName;
@@ -437,10 +435,9 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings, Settings settings) {
-        int numberOfReplicas = settings.getAsInt(ENRICH_MIN_NUMBER_OF_REPLICAS_NAME, 0);
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", numberOfReplicas)
+            .put("index.number_of_replicas", IndexMetadata.getMinNumReplicas(settings))
             // No changes will be made to an enrich index after policy execution, so need to enable automatic refresh interval:
             .put("index.refresh_interval", -1)
             // This disables eager global ordinals loading for all fields:

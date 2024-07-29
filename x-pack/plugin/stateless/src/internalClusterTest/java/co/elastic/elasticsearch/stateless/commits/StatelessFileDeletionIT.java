@@ -237,7 +237,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
                 String snapshotName = "test-snap-0";
                 CreateSnapshotResponse createSnapshotResponse = client().admin()
                     .cluster()
-                    .prepareCreateSnapshot("test-repo", snapshotName)
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", snapshotName)
                     .setIncludeGlobalState(true)
                     .setWaitForCompletion(true)
                     .get();

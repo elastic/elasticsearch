@@ -570,11 +570,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         });
 
         // restore to same index
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snapshot")
-            .setIndices("-*")
-            .setFeatureStates(featureStateName)
-            .setWaitForCompletion(true)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snapshot"
+        ).setIndices("-*").setFeatureStates(featureStateName).setWaitForCompletion(true).get();
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
         // wait until feature state index is deleted from metadata
@@ -634,11 +634,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         });
 
         // restore to same index
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snapshot")
-            .setIndices("-*")
-            .setFeatureStates(featureStateName)
-            .setWaitForCompletion(true)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            "test-repo",
+            "test-snapshot"
+        ).setIndices("-*").setFeatureStates(featureStateName).setWaitForCompletion(true).get();
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
         assertBusy(() -> {

@@ -222,7 +222,12 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     public static void createRepository(Logger logger, String repoName, String type, Settings.Builder settings, boolean verify) {
         logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setVerify(verify).setType(type).setSettings(settings));
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setVerify(verify)
+                .setType(type)
+                .setSettings(settings)
+        );
     }
 
     protected void createRepository(String repoName, String type) {
@@ -234,12 +239,12 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteRepository(String repoName) {
-        assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName));
     }
 
     protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices, List<String> featureStates) {
         logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
-        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(repositoryName, snapshot)
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshot)
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
             .setFeatureStates(featureStates.toArray(Strings.EMPTY_ARRAY))

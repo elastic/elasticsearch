@@ -289,10 +289,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         final var sizeInBytes = pendingCompoundCommits.stream().mapToLong(PendingCompoundCommit::getSizeInBytes).sum();
         assert sizeInBytes == currentOffset.get() : "current offset must be at the end of the VBCC";
 
-        // Assert that compound commits have padding to be page-aligned, except for the last compound commit
         var it = pendingCompoundCommits.iterator();
         while (it.hasNext()) {
             var pendingCompoundCommit = it.next();
+            // Assert that compound commits have padding to be page-aligned, except for the last compound commit
             assert it.hasNext() == false
                 || pendingCompoundCommit.getSizeInBytes() == BlobCacheUtils.toPageAlignedSize(
                     pendingCompoundCommit.getStatelessCompoundCommit().sizeInBytes()
@@ -304,6 +304,18 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     + " should be equal to page-aligned size in bytes "
                     + BlobCacheUtils.toPageAlignedSize(pendingCompoundCommit.getStatelessCompoundCommit().sizeInBytes());
             assert it.hasNext() || pendingCompoundCommit.padding == 0 : "last pending compound commit should not have padding";
+
+            // Assert that all generational files are contained in the same VBCC (no reference to a previous VBCC or BCC)
+            for (var commitFile : pendingCompoundCommit.getStatelessCompoundCommit().commitFiles().entrySet()) {
+                assert isGenerationalFile(commitFile.getKey()) == false
+                    || commitFile.getValue().getBatchedCompoundCommitTermAndGeneration().equals(primaryTermAndGeneration)
+                    : "generational file "
+                        + commitFile.getValue()
+                        + " should be located in BCC "
+                        + primaryTermAndGeneration
+                        + " but got "
+                        + commitFile.getValue().getBatchedCompoundCommitTermAndGeneration();
+            }
         }
 
         // Group the internal data readers by class

@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVe
 
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within

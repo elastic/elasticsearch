@@ -86,6 +86,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -107,6 +108,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
 
@@ -676,10 +678,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 entry("_3.cfe", 7L),
                 entry("_3.cfs", 7L),
                 entry("_3.si", 7L),
-                // The generational doc value files is carried over
-                entry("_0_1_Lucene90_0.dvd", 9L),
-                entry("_0_1_Lucene90_0.dvm", 9L),
-                entry("_0_1.fnm", 9L),
+                // The generational doc value files are carried over but their BlobLocations do not after ES-8897
+                entry("_0_1_Lucene90_0.dvd", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 7L : 9L),
+                entry("_0_1_Lucene90_0.dvm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 7L : 9L),
+                entry("_0_1.fnm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 7L : 9L),
                 // BCC9 (segment _4 is reserved by the previous background merge)
                 entry("segments_9", 9L),
                 entry("_5.cfe", 9L),
@@ -746,10 +748,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 entry("_3.cfe", 7L),
                 entry("_3.cfs", 7L),
                 entry("_3.si", 7L),
-                // The generational doc value files is carried over
-                entry("_0_1_Lucene90_0.dvd", 9L),
-                entry("_0_1_Lucene90_0.dvm", 9L),
-                entry("_0_1.fnm", 9L),
+                // The generational doc value files are carried over but their BlobLocations do not after ES-8897
+                entry("_0_1_Lucene90_0.dvd", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 7L : 9L),
+                entry("_0_1_Lucene90_0.dvm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 7L : 9L),
+                entry("_0_1.fnm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 7L : 9L),
                 // BCC9 (segment _4 is reserved by the previous background merge)
                 entry("segments_9", 9L),
                 entry("_5.cfe", 9L),
@@ -784,15 +786,37 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         });
         // Ensure that the background merge is flushed and uploaded into the blob store
         flush(indexName);
-        // Wait until the file BCC 7 is deleted while there's a background merge using _0_1_Lucene90_0.dvd which was stored in BCC7
+        if (STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED) {
+            // Once generational files tracking is enabled, the blob shouldn't be deleted until the on-going merge finishes
+            // we check that by ensuring that the BlobLocation for these files are still available.
+            var commitService = internalCluster().getInstance(StatelessCommitService.class, nodeName);
+            var genFilesReadByMergeThread = Set.of("_0_1.fnm", "_0_1_Lucene90_0.dvd", "_0_1_Lucene90_0.dvm");
+            for (String genFileReadyByMergeThread : genFilesReadByMergeThread) {
+                var blobLocation = commitService.getBlobLocation(new ShardId(resolveIndex(indexName), 0), genFileReadyByMergeThread);
+                assertThat(blobLocation, notNullValue());
+            }
+            // Let the read continue
+            blockBccContainingFirstGenFileReadByFirstMerge.countDown();
+            expectThrows(TimeoutException.class, () -> fileNotFoundExceptionFuture.get(500, TimeUnit.MILLISECONDS));
+            // Speed up the file deletion consistency check (it's shared with the translog consistency checks)
+            indexDocs(indexName, 1);
+            // Eventually, the blob will be deleted
+            safeAwait(bccContainingFirstGenFileDeleted);
 
-        // TODO: once we fix the underlying issue this should fail ES-8897
-        safeAwait(bccContainingFirstGenFileDeleted);
-        // Let the read continue and fail
-        blockBccContainingFirstGenFileReadByFirstMerge.countDown();
+            // Now the merged generational files are gone
+            for (String genFileReadyByMergeThread : genFilesReadByMergeThread) {
+                var blobLocation = commitService.getBlobLocation(new ShardId(resolveIndex(indexName), 0), genFileReadyByMergeThread);
+                assertThat(blobLocation, nullValue());
+            }
+        } else {
+            // Wait until the file BCC 7 is deleted while there's a background merge using _0_1_Lucene90_0.dvd which was stored in BCC7
+            safeAwait(bccContainingFirstGenFileDeleted);
+            // Let the read continue and fail
+            blockBccContainingFirstGenFileReadByFirstMerge.countDown();
 
-        // We expect to get a NoSuchFileException while we try to read BCC7
-        assertThat(fileNotFoundExceptionFuture.get(), instanceOf(NoSuchFileException.class));
+            // We expect to get a NoSuchFileException while we try to read BCC7
+            assertThat(fileNotFoundExceptionFuture.get(), instanceOf(NoSuchFileException.class));
+        }
     }
 
     public void testSearchShardGenerationFilesRetention() throws Exception {
@@ -946,10 +970,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             entry("_3.cfe", 7L),
             entry("_3.cfs", 7L),
             entry("_3.si", 7L),
-            // copied generational files for _0
-            entry("_0_1.fnm", 7L),
-            entry("_0_1_Lucene90_0.dvd", 7L),
-            entry("_0_1_Lucene90_0.dvm", 7L)
+            // When generational files tracking is enabled blob locations do not change,
+            // otherwise they point to the BCC where they're copied
+            entry("_0_1.fnm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 6L : 7L),
+            entry("_0_1_Lucene90_0.dvd", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 6L : 7L),
+            entry("_0_1_Lucene90_0.dvm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 6L : 7L)
         );
 
         assertThat(indexEngine.getCurrentGeneration(), equalTo(7L));
@@ -1016,10 +1041,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             entry("_4.cfe", 8L),
             entry("_4.cfs", 8L),
             entry("_4.si", 8L),
-            // copied generational files for _0
-            entry("_0_1.fnm", 8L),
-            entry("_0_1_Lucene90_0.dvd", 8L),
-            entry("_0_1_Lucene90_0.dvm", 8L)
+            // When generational files tracking is enabled blob locations do not change,
+            // otherwise they point to the BCC where they're copied
+            entry("_0_1.fnm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 6L : 8L),
+            entry("_0_1_Lucene90_0.dvd", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 6L : 8L),
+            entry("_0_1_Lucene90_0.dvm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 6L : 8L)
         );
 
         assertThat(indexEngine.getCurrentGeneration(), equalTo(8L));
@@ -1103,10 +1129,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             entry("_4.cfe", 8L),
             entry("_4.cfs", 8L),
             entry("_4.si", 8L),
-            // copied generational files for _0
-            entry("_0_1.fnm", 9L),
-            entry("_0_1_Lucene90_0.dvd", 9L),
-            entry("_0_1_Lucene90_0.dvm", 9L)
+            // The recovery commit was on generation 8, if the generational files tracking is enabled the BlobLocation won't change
+            entry("_0_1.fnm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 8L : 9L),
+            entry("_0_1_Lucene90_0.dvd", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 8L : 9L),
+            entry("_0_1_Lucene90_0.dvm", STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED ? 8L : 9L)
         );
 
         assertThat(indexEngine.getCurrentGeneration(), equalTo(9L));

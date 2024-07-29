@@ -2850,7 +2850,7 @@ public class InternalEngine extends Engine {
                     @Override
                     public void onFailure(Exception e) {
                         if (isClosed.get() == false) {
-                            logger.warn("failed to flush after merge has finished");
+                            logger.warn("failed to flush after merge has finished", e);
                         }
                     }
 

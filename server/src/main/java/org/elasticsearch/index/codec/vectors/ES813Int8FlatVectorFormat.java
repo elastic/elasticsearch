@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -45,8 +44,7 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
      */
     public ES813Int8FlatVectorFormat(Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
-        // TODO can we just switch this to ES814ScalarQuantizedVectorsFormat ?
-        this.format = new Lucene99ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
+        this.format = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
     @Override

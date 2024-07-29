@@ -1053,7 +1053,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     bulkExecutor,
                     future
                 );
-                assertThat("Listener is immediately completionListener", future.isDone(), is(true));
+                assertThat("Listener is immediately completed", future.isDone(), is(true));
                 assertThat("Region already exists in cache", future.get(), is(false));
             }
             {
@@ -1228,7 +1228,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     bulkExecutor,
                     future
                 );
-                assertThat("Listener is immediately completionListener", future.isDone(), is(true));
+                assertThat("Listener is immediately completed", future.isDone(), is(true));
                 assertThat("Region already exists in cache", future.get(), is(false));
             }
             {

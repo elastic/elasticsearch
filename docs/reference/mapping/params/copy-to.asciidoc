@@ -118,7 +118,5 @@ PUT /test_index
 }
 --------------------------------------------------
 
-<1> The `notes` field is copied to the `notes_raw` field. Targeting only `notes_raw`, instead of `description.notes_raw`, without specifying the fully qualified path,
-would lead to a `strict_dynamic_mapping_exception`. 
-
-
+<1> The `notes` field is copied to the `notes_raw` field. Targeting `notes_raw` alone, instead of `description.notes_raw`
+would lead to a `strict_dynamic_mapping_exception`.

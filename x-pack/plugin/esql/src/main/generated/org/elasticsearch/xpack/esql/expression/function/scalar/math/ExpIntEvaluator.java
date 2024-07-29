@@ -2,16 +2,16 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.Locale;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -20,30 +20,27 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToUpper}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Exp}.
  * This class is generated. Do not edit it.
  */
-public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ExpIntEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator val;
 
-  private final Locale locale;
-
   private final DriverContext driverContext;
 
-  public ToUpperEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
+  public ExpIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
     this.val = val;
-    this.locale = locale;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock valBlock = (BytesRefBlock) val.eval(page)) {
-      BytesRefVector valVector = valBlock.asVector();
+    try (IntBlock valBlock = (IntBlock) val.eval(page)) {
+      IntVector valVector = valBlock.asVector();
       if (valVector == null) {
         return eval(page.getPositionCount(), valBlock);
       }
@@ -51,9 +48,8 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
+  public DoubleBlock eval(int positionCount, IntBlock valBlock) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -66,17 +62,16 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(ToUpper.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.locale));
+        result.appendDouble(Exp.process(valBlock.getInt(valBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector valVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
+  public DoubleVector eval(int positionCount, IntVector valVector) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(ToUpper.process(valVector.getBytesRef(p, valScratch), this.locale));
+        result.appendDouble(p, Exp.process(valVector.getInt(p)));
       }
       return result.build();
     }
@@ -84,7 +79,7 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "ToUpperEvaluator[" + "val=" + val + ", locale=" + locale + "]";
+    return "ExpIntEvaluator[" + "val=" + val + "]";
   }
 
   @Override
@@ -97,22 +92,19 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
 
     private final EvalOperator.ExpressionEvaluator.Factory val;
 
-    private final Locale locale;
-
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val, Locale locale) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
       this.source = source;
       this.val = val;
-      this.locale = locale;
     }
 
     @Override
-    public ToUpperEvaluator get(DriverContext context) {
-      return new ToUpperEvaluator(source, val.get(context), locale, context);
+    public ExpIntEvaluator get(DriverContext context) {
+      return new ExpIntEvaluator(source, val.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToUpperEvaluator[" + "val=" + val + ", locale=" + locale + "]";
+      return "ExpIntEvaluator[" + "val=" + val + "]";
     }
   }
 }

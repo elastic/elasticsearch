@@ -89,7 +89,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
           continue position;
         }
         try {
-          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), zoneId));
+          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), this.zoneId));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -106,7 +106,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch), zoneId));
+          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch), this.zoneId));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

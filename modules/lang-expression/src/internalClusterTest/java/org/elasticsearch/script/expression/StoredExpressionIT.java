@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptTestUtils.putJsonStoredScript;
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.hamcrest.Matchers.containsString;
 
 //TODO: please convert to unit tests!

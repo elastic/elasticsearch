@@ -49,7 +49,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.INGEST;
-import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptTestUtils.putJsonStoredScript;
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

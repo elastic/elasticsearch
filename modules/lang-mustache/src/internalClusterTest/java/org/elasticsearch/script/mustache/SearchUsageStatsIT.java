@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptTestUtils.putJsonStoredScript;
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class SearchUsageStatsIT extends ESIntegTestCase {

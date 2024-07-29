@@ -12,9 +12,12 @@ import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRe
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
@@ -35,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -160,7 +162,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexedTemplateClient() {
-        putJsonStoredScript("script1", """
+        putJsonStoredScript("testTemplate", """
             {
               "script": {
                 "lang": "mustache",
@@ -450,5 +452,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     public static void assertHitCount(SearchTemplateRequestBuilder requestBuilder, long expectedHitCount) {
         assertResponse(requestBuilder, response -> ElasticsearchAssertions.assertHitCount(response.getResponse(), expectedHitCount));
+    }
+
+    private void putJsonStoredScript(String id, String jsonContent) {
+        assertAcked(
+            safeExecute(
+                TransportPutStoredScriptAction.TYPE,
+                new PutStoredScriptRequest().id(id).content(new BytesArray(jsonContent), XContentType.JSON)
+            )
+        );
     }
 }

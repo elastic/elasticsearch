@@ -15,8 +15,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class StoredScriptTestUtils {
-    private StoredScriptTestUtils() {/* no instances */}
+public class StoredScriptIntegTestUtils {
+    private StoredScriptIntegTestUtils() {/* no instances */}
 
     public static void putJsonStoredScript(String id, String jsonContent) {
         putJsonStoredScript(id, new BytesArray(jsonContent));

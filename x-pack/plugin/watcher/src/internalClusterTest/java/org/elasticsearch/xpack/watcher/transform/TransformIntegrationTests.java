@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.watcher.transform;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -29,7 +31,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptTestUtils.putJsonStoredScript;
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -102,13 +104,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             script = mockScript("['key3' : ctx.payload.key1 + ctx.payload.key2]");
         } else {
             logger.info("testing script transform with an indexed script");
-            putJsonStoredScript("my-script", """
+            putJsonStoredScript("my-script", Strings.format("""
                 {
                   "script": {
                     "lang": "%s",
                     "source": "['key3' : ctx.payload.key1 + ctx.payload.key2]"
                   }
-                }""");
+                }""", MockScriptPlugin.NAME));
             script = new Script(ScriptType.STORED, null, "my-script", Collections.emptyMap());
         }
 

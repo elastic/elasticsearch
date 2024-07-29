@@ -140,6 +140,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testRollupAfterRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111392
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testRollupAfterRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111393
 
 # Examples:
 #

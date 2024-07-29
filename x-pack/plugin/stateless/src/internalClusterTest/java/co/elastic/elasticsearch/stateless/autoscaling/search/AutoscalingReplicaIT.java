@@ -302,6 +302,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         startSearchNode(settings);
 
         var cs = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        var sms = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
 
         putComposableIndexTemplate(
             "my-template",
@@ -313,15 +314,14 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         setupDataStream(dataStream1);
         final String dataStream2 = "logs-es2";
         setupDataStream(dataStream2);
+        ensureGreen();
 
-        // check backing indices and settings, check that we have 1 replica each
-        verifyDocs("logs-es1", 400, 1, 2);
-        verifyDocs("logs-es2", 400, 1, 2);
-        for (String datastream : new String[] { dataStream1, dataStream2 }) {
-            for (int generation = 1; generation <= 2; generation++) {
-                assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(datastream, generation)).getNumberOfReplicas());
-            }
-        }
+        // ensure we see stats for all 4 backing indices in SearchMetricsService and that we they all have interactive data
+        assertTrue(waitUntil(() -> {
+            ReplicaRankingContext rankingContext = sms.createRankingContext();
+            return rankingContext.indices().size() == 4
+                && rankingContext.properties().stream().filter(i -> i.interactiveSize() == 0).toList().isEmpty();
+        }));
 
         setFeatureFlag(true);
         waitUntil(
@@ -335,7 +335,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
         }
 
-        // add third datastream, again with 100 docs in first generation, 100 in current write index after rollover
+        // add third data stream, again with 100 docs in first generation, 100 in current write index after rollover
         final String dataStream3 = "logs-es3";
         setupDataStream(dataStream3);
         verifyDocs("logs-es3", 400, 1, 2);
@@ -416,7 +416,6 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
 
-        // new documents should count towards non-interactive part
         var now = System.currentTimeMillis();
         var boostWindow = now - DEFAULT_BOOST_WINDOW;
         indexDocsIntoDatastream(

@@ -550,7 +550,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         putShutdownMetadataForNodes(shuttingDownNodes);
 
         // Ingest load metrics are not impacted by shutdown metadata because the setting is not enabled
-        assertThat(getIngestNodesLoad(), hasSize(numNodes));
+        assertBusy(() -> assertThat(getIngestNodesLoad(), hasSize(numNodes)));
 
         // Enable the setting to see ingest load metrics attenuated for the shutdown metadata
         updateClusterSettings(Settings.builder().put(IngestMetricsService.SHUTDOWN_ATTENUATION_ENABLED.getKey(), true));

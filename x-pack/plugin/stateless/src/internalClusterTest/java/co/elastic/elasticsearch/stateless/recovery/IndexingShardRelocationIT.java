@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
@@ -56,6 +57,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
@@ -87,6 +89,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -366,6 +369,73 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         // scratch on the correct node
         ensureGreen(indexName);
         assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
+    }
+
+    public void testCommitGenerationOnRelocatingShardNeverGoesBackward() throws Exception {
+        startMasterOnlyNode();
+        var indexNodeA = startIndexNode();
+        var indexNodeB = startIndexNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", indexNodeA).build());
+        ensureGreen(indexName);
+
+        indexDocs(indexName, between(1, 100));
+        flush(indexName);
+
+        IndexShard indexShard;
+
+        indexShard = findIndexShard(indexName);
+        var generationBeforeRelocation = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        var metadataFilesBeforeRelocation = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory()).listAll();
+
+        var relocationStarted = new CountDownLatch(1);
+        var proceedWithRelocation = new CountDownLatch(1);
+
+        var transportServiceSourceNode = MockTransportService.getInstance(indexNodeA);
+        transportServiceSourceNode.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+            relocationStarted.countDown();
+            safeAwait(proceedWithRelocation);
+            handler.messageReceived(request, channel, task);
+        });
+
+        var mockRepositoryTargetNode = getObjectStoreMockRepository(getObjectStoreService(indexNodeB));
+        // delay early cache prewarming to have it running (concurrently) with relocation
+        // pre-warming reads the latest BCC blob and that we're blocking that read
+        mockRepositoryTargetNode.setBlockOnAnyFiles();
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodeB), indexName);
+
+        // early cache prewarming on target node scheduled or started
+        safeAwait(relocationStarted);
+
+        // add more commit on source shard before it gets block for primary context relocation
+        var newCommits = randomIntBetween(1, 10);
+        for (int i = 0; i < newCommits; i++) {
+            indexDocs(indexName, between(1, 100));
+            assertNoFailures(indicesAdmin().prepareRefresh(indexName).get());
+            if (randomBoolean()) {
+                assertNoFailures(indicesAdmin().prepareFlush(indexName).get());
+            }
+            if (rarely()) {
+                assertNoFailures(indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get());
+            }
+        }
+
+        mockRepositoryTargetNode.unblock();
+        proceedWithRelocation.countDown();
+
+        ensureGreen(indexName);
+        assertEquals(Set.of(indexNodeB), internalCluster().nodesInclude(indexName));
+
+        indexShard = findIndexShard(indexName);
+        var generationAfterRelocation = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        var metadataFilesAfterRelocation = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory()).listAll();
+
+        // assert that shard was not bootstrapped with old generation
+        assertThat(generationAfterRelocation, greaterThan(generationBeforeRelocation));
+        // assert that internal cache metadata files were not replaced by obsolete metadata files
+        assertThat(metadataFilesAfterRelocation, not(equalTo(metadataFilesBeforeRelocation)));
     }
 
     public void testWaitForClusterStateToBeAppliedOnSourceNodeInPrimaryRelocation() throws Exception {

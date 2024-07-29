@@ -126,7 +126,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public static String locallyUniqueTemporaryName(String inner, String outer) {
-        return FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX + inner + "$" + outer + "$" + new NameId();
+        return rawTemporaryName(inner, outer, (new NameId()).toString());
     }
 
     public static String rawTemporaryName(String inner, String outer, String suffix) {

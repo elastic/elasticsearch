@@ -242,7 +242,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         logger.info("--> restoring snapshot of {}", indexName);
-        var restore = clusterAdmin().prepareRestoreSnapshot("snapshots", "snapshot").setWaitForCompletion(true).get();
+        var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "snapshots", "snapshot").setWaitForCompletion(true).get();
         assertThat(restore.getRestoreInfo().successfulShards(), equalTo(getNumShards(indexName).numPrimaries));
         assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);

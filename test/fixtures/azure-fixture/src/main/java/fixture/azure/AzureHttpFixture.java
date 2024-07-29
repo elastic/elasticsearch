@@ -145,6 +145,7 @@ public class AzureHttpFixture extends ExternalResource {
     protected void before() {
         try {
             setupFederatedTokenFile();
+            final var federatedToken = Files.readString(federatedTokenPath);
 
             final var bearerToken = ESTestCase.randomIdentifier();
 
@@ -192,7 +193,7 @@ public class AzureHttpFixture extends ExternalResource {
                         final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                         this.oauthTokenServiceServer = httpsServer;
                         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                        httpsServer.createContext("/", new AzureOAuthTokenServiceHttpHandler(tenantId, bearerToken));
+                        httpsServer.createContext("/", new AzureOAuthTokenServiceHttpHandler(tenantId, bearerToken, federatedToken));
                         httpsServer.start();
                     }
                 }

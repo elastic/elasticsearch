@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 
@@ -33,10 +35,12 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
 
     private final String tenantId;
     private final String bearerToken;
+    private final String federatedToken;
 
-    public AzureOAuthTokenServiceHttpHandler(String tenantId, String bearerToken) {
+    public AzureOAuthTokenServiceHttpHandler(String tenantId, String bearerToken, String federatedToken) {
         this.tenantId = tenantId;
         this.bearerToken = bearerToken;
+        this.federatedToken = federatedToken;
     }
 
     @Override
@@ -44,6 +48,7 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
         // TODO assert on query params
         if ("POST".equals(exchange.getRequestMethod())
             && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
+            assertHasClientAssertionWithFederatedToken(exchange);
             try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 final BytesReference responseBytes = getAccessTokenBytes(xcb);
                 writeResponse(exchange, responseBytes);
@@ -67,6 +72,13 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
         exchange.sendResponseHeaders(200, responseBytes.length);
         new BytesArray(responseBytes).writeTo(exchange.getResponseBody());
         exchange.close();
+    }
+
+    private void assertHasClientAssertionWithFederatedToken(HttpExchange exchange) throws IOException {
+        final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
+        if (false == requestBody.contains("client_assertion=" + federatedToken)) {
+            throw new AssertionError("Expected request body to contain client_assertion with federated token");
+        }
     }
 
     private void writeResponse(HttpExchange exchange, BytesReference responseBytes) throws IOException {

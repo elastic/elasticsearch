@@ -414,8 +414,8 @@ setup:
 ---
 "nested Knn search with required similarity appropriately filters inner_hits":
   - requires:
-      cluster_features: "gte_v8.16.0"
-      reason: 'bugfix for 8.16'
+      cluster_features: "gte_v8.15.0"
+      reason: 'bugfix for 8.15'
 
   - do:
       search:

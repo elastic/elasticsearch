@@ -119,10 +119,6 @@ docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
 The service is started with a trial license. The trial license enables all features of Elasticsearch for a trial period of 30 days. After the trial period expires, the license is downgraded to a basic license, which is free forever. If you prefer to skip the trial and use the basic license, set the value of the `xpack.license.self_generated.type` variable to basic instead. For a detailed feature comparison between the different licenses, refer to our https://www.elastic.co/subscriptions[subscriptions page].
 ====
 
-==== Next steps
-
-Use our <<getting-started,quick start guide>> to learn the basics of Elasticsearch: how to add data and query it.
-
 **Send requests to Elasticsearch**
 
 You send data and other requests to Elasticsearch through REST APIs. 

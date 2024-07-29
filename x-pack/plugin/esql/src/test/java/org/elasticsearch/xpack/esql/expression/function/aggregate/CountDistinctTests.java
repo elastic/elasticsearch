@@ -28,7 +28,6 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -42,56 +41,66 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        Stream.of(
+        var precisionSuppliers = Stream.of(
             TestCaseSupplier.intCases(0, 100_000, true),
             TestCaseSupplier.longCases(0L, 100_000L, true),
             TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(100_000L), true)
-        ).flatMap(List::stream).forEach(precisionCaseSupplier -> {
-            Stream.of(
-                MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
-                MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-                MultiRowTestCaseSupplier.dateCases(1, 1000),
-                MultiRowTestCaseSupplier.booleanCases(1, 1000),
-                MultiRowTestCaseSupplier.ipCases(1, 1000),
-                MultiRowTestCaseSupplier.versionCases(1, 1000),
-                // Lower values for strings, as they take more space and may trigger the circuit breaker
-                MultiRowTestCaseSupplier.stringCases(1, 100, DataType.KEYWORD),
-                MultiRowTestCaseSupplier.stringCases(1, 100, DataType.TEXT)
-            )
-                .flatMap(List::stream)
-                .map(fieldCaseSupplier -> makeSupplier(fieldCaseSupplier, precisionCaseSupplier))
-                .collect(Collectors.toCollection(() -> suppliers));
+        ).flatMap(List::stream).toList();
 
-            // No rows
-            for (var dataType : List.of(
-                DataType.INTEGER,
-                DataType.LONG,
-                DataType.DOUBLE,
-                DataType.DATETIME,
-                DataType.BOOLEAN,
-                DataType.IP,
-                DataType.VERSION,
-                DataType.KEYWORD,
-                DataType.TEXT
-            )) {
+        Stream.of(
+            MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.dateCases(1, 1000),
+            MultiRowTestCaseSupplier.booleanCases(1, 1000),
+            MultiRowTestCaseSupplier.ipCases(1, 1000),
+            MultiRowTestCaseSupplier.versionCases(1, 1000),
+            // Lower values for strings, as they take more space and may trigger the circuit breaker
+            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 100, DataType.TEXT)
+        ).flatMap(List::stream).forEach(fieldCaseSupplier -> {
+            // With precision
+            for (var precisionCaseSupplier : precisionSuppliers) {
+                suppliers.add(makeSupplier(fieldCaseSupplier, precisionCaseSupplier));
+            }
+
+            // Without precision
+            suppliers.add(makeSupplier(fieldCaseSupplier));
+        });
+
+        // No rows
+        for (var dataType : List.of(
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.DATETIME,
+            DataType.BOOLEAN,
+            DataType.IP,
+            DataType.VERSION,
+            DataType.KEYWORD,
+            DataType.TEXT
+        )) {
+            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier(
+                "No rows (" + dataType + ")",
+                List::of,
+                dataType,
+                false,
+                true
+            );
+
+            // With precision
+            for (var precisionCaseSupplier : precisionSuppliers) {
                 suppliers.add(
-                    new TestCaseSupplier(
-                        "No rows (" + dataType + ")",
-                        List.of(dataType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field"),
-                                precisionCaseSupplier.get().forceLiteral()
-                            ),
-                            "CountDistinct[field=Attribute[channel=0],precision=Attribute[channel=1]]",
-                            DataType.LONG,
-                            equalTo(0L)
-                        )
+                    makeSupplier(
+                        emptyFieldSupplier,
+                        precisionCaseSupplier
                     )
                 );
             }
-        });
+
+            // Without precision
+            suppliers.add(makeSupplier(emptyFieldSupplier));
+        }
 
         // "No rows" expects 0 here instead of null
         // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
@@ -100,7 +109,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new CountDistinct(source, args.get(0), args.get(1));
+        return new CountDistinct(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 
     private static TestCaseSupplier makeSupplier(
@@ -118,27 +127,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             if (fieldTypedData.type() == DataType.BOOLEAN) {
                 result = values.stream().distinct().count();
             } else {
-                // Can't use driverContext().bigArrays() from a static context
-                var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-                try (var hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1)) {
-                    var hash = new MurmurHash3.Hash128();
-                    for (var value : values) {
-                        if (value instanceof Integer casted) {
-                            hll.collect(0, BitMixer.mix64(casted));
-                        } else if (value instanceof Long casted) {
-                            hll.collect(0, BitMixer.mix64(casted));
-                        } else if (value instanceof Double casted) {
-                            hll.collect(0, BitMixer.mix64(Double.doubleToLongBits(casted)));
-                        } else if (value instanceof BytesRef casted) {
-                            MurmurHash3.hash128(casted.bytes, casted.offset, casted.length, 0, hash);
-                            hll.collect(0, BitMixer.mix64(hash.h1));
-                        } else {
-                            throw new IllegalArgumentException("Unsupported data type: " + value.getClass());
-                        }
-                    }
-
-                    result = hll.cardinality(0);
-                }
+                result = calculateExpectedResult(values, precision);
             }
 
             return new TestCaseSupplier.TestCase(
@@ -148,5 +137,51 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
                 equalTo(result)
             );
         });
+    }
+
+    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+        return new TestCaseSupplier(fieldSupplier.name() + ", no precision", List.of(fieldSupplier.type()), () -> {
+            var fieldTypedData = fieldSupplier.get();
+            var values = fieldTypedData.multiRowData();
+
+            long result;
+
+            if (fieldTypedData.type() == DataType.BOOLEAN) {
+                result = values.stream().distinct().count();
+            } else {
+                result = calculateExpectedResult(values, 3000);
+            }
+
+            return new TestCaseSupplier.TestCase(
+                List.of(fieldTypedData),
+                "CountDistinct[field=Attribute[channel=0]]",
+                DataType.LONG,
+                equalTo(result)
+            );
+        });
+    }
+
+    private static long calculateExpectedResult(List<Object> values, int precision) {
+        // Can't use driverContext().bigArrays() from a static context
+        var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        try (var hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1)) {
+            var hash = new MurmurHash3.Hash128();
+            for (var value : values) {
+                if (value instanceof Integer casted) {
+                    hll.collect(0, BitMixer.mix64(casted));
+                } else if (value instanceof Long casted) {
+                    hll.collect(0, BitMixer.mix64(casted));
+                } else if (value instanceof Double casted) {
+                    hll.collect(0, BitMixer.mix64(Double.doubleToLongBits(casted)));
+                } else if (value instanceof BytesRef casted) {
+                    MurmurHash3.hash128(casted.bytes, casted.offset, casted.length, 0, hash);
+                    hll.collect(0, BitMixer.mix64(hash.h1));
+                } else {
+                    throw new IllegalArgumentException("Unsupported data type: " + value.getClass());
+                }
+            }
+
+            return hll.cardinality(0);
+        }
     }
 }

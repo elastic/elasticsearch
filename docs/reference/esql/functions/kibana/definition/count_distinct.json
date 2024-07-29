@@ -11,6 +11,18 @@
           "type" : "boolean",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         },
         {
           "name" : "precision",
@@ -65,6 +77,18 @@
           "type" : "datetime",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         },
         {
           "name" : "precision",
@@ -119,6 +143,18 @@
           "type" : "double",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         },
         {
           "name" : "precision",
@@ -173,6 +209,18 @@
           "type" : "integer",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         },
         {
           "name" : "precision",
@@ -215,6 +263,18 @@
           "type" : "unsigned_long",
           "optional" : true,
           "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         }
       ],
       "variadic" : false,
@@ -281,6 +341,18 @@
           "type" : "keyword",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         },
         {
           "name" : "precision",
@@ -335,6 +407,18 @@
           "type" : "long",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         },
         {
           "name" : "precision",
@@ -389,6 +473,18 @@
           "type" : "text",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         },
         {
           "name" : "precision",
@@ -431,6 +527,18 @@
           "type" : "unsigned_long",
           "optional" : true,
           "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
         }
       ],
       "variadic" : false,

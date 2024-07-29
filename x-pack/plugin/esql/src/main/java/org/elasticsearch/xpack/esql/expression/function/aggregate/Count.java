@@ -80,7 +80,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Expression that outputs values to be counted.\n" + "If omitted, equivalent to `COUNT(*)` (the number of rows)."
+            description = "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         ) Expression field
     ) {
         super(source, field);

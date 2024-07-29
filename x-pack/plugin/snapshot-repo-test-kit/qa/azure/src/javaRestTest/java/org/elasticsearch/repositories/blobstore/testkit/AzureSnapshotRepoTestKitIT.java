@@ -46,16 +46,8 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         .module("repository-azure")
         .module("snapshot-repo-test-kit")
         .keystore("azure.client.repository_test_kit.account", AZURE_TEST_ACCOUNT)
-        .keystore(
-            "azure.client.repository_test_kit.key",
-            () -> AZURE_TEST_KEY,
-            s -> AZURE_TEST_KEY != null && AZURE_TEST_KEY.isEmpty() == false
-        )
-        .keystore(
-            "azure.client.repository_test_kit.sas_token",
-            () -> AZURE_TEST_SASTOKEN,
-            s -> AZURE_TEST_SASTOKEN != null && AZURE_TEST_SASTOKEN.isEmpty() == false
-        )
+        .keystore("azure.client.repository_test_kit.key", () -> AZURE_TEST_KEY, s -> notNullOrEmpty(AZURE_TEST_KEY))
+        .keystore("azure.client.repository_test_kit.sas_token", () -> AZURE_TEST_SASTOKEN, s -> notNullOrEmpty(AZURE_TEST_SASTOKEN))
         .setting(
             "azure.client.repository_test_kit.endpoint_suffix",
             () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
@@ -70,7 +62,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .systemProperty("AZURE_CLIENT_ID", () -> "b64b7eb0-a5e0-49df-84ac-9216ab962421", s -> USE_FIXTURE)
-        .systemProperty("AZURE_TENANT_ID", () -> "583d4f71-148a-4163-bad5-2311e13c60dc", s -> USE_FIXTURE)
+        .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> notNullOrEmpty(AZURE_TEST_TENANT_ID))
         .systemProperty("AZURE_FEDERATED_TOKEN_FILE", () -> fixture.getFederatedTokenPath(), s -> USE_FIXTURE)
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
@@ -97,5 +89,9 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         assertThat(basePath, not(blankOrNullString()));
 
         return Settings.builder().put("client", "repository_test_kit").put("container", container).put("base_path", basePath).build();
+    }
+
+    private static boolean notNullOrEmpty(String s) {
+        return s != null && false == s.isEmpty();
     }
 }

@@ -171,7 +171,8 @@ public class AzureHttpFixture extends ExternalResource {
                 : authHeaderPredicate;
 
             switch (protocol) {
-                case NONE -> {}
+                case NONE -> {
+                }
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                     server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));

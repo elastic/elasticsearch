@@ -120,3 +120,6 @@ PUT /test_index
 
 <1> The `notes` field is copied to the `notes_raw` field. Targeting `notes_raw` alone instead of `description.notes_raw`
 would lead to a `strict_dynamic_mapping_exception`.
++
+In this example, `notes_raw` is not defined at the root of the mapping, but under the `description` field.
+Without the fully qualified path, {es} would interpret the `copy_to` target as a root-level field, not as a nested field under `description`. 

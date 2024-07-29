@@ -37,7 +37,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FIELD;
 
-
 public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     public static final String TYPE = "registered_snapshots";
@@ -68,7 +67,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
         return snapshots;
     }
 
-    public boolean contains(SnapshotId snapshotId)  {
+    public boolean contains(SnapshotId snapshotId) {
         return snapshots.stream().map(PolicySnapshot::getSnapshotId).anyMatch(snapshotId::equals);
     }
 
@@ -103,19 +102,15 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            Iterators.single((builder, params) -> {
-                builder.field(SNAPSHOTS.getPreferredName(), snapshots);
-                return builder;
-            })
-        );
+        return Iterators.concat(Iterators.single((builder, params) -> {
+            builder.field(SNAPSHOTS.getPreferredName(), snapshots);
+            return builder;
+        }));
     }
 
     @Override
     public String toString() {
-        return "RegisteredSnapshots{" +
-            "snapshots=" + snapshots +
-            '}';
+        return "RegisteredSnapshots{" + "snapshots=" + snapshots + '}';
     }
 
     @Override
@@ -137,9 +132,11 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     public static class RegisteredSnapshotsDiff implements NamedDiff<Metadata.Custom> {
         final List<PolicySnapshot> snapshots;
+
         RegisteredSnapshotsDiff(RegisteredPolicySnapshots before, RegisteredPolicySnapshots after) {
             this.snapshots = after.snapshots;
         }
+
         public RegisteredSnapshotsDiff(StreamInput in) throws IOException {
             this.snapshots = new RegisteredPolicySnapshots(in).snapshots;
         }
@@ -218,6 +215,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
             this.policy = policy;
             this.snapshotId = snapshotId;
         }
+
         public PolicySnapshot(StreamInput in) throws IOException {
             this.policy = in.readString();
             this.snapshotId = new SnapshotId(in);

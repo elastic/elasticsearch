@@ -87,7 +87,7 @@ public class CacheBlobReaderService {
         ShardId shardId,
         LongFunction<BlobContainer> blobContainer,
         BlobLocation location,
-        ObjectStoreUploadTracker tracker,
+        MutableObjectStoreUploadTracker tracker,
         LongConsumer totalBytesReadFromObjectStore,
         LongConsumer totalBytesReadFromIndexing
     ) {
@@ -111,7 +111,12 @@ public class CacheBlobReaderService {
                 ),
                 totalBytesReadFromIndexing
             );
-            return new SwitchingCacheBlobReader(latestUploadInfo, objectStoreCacheBlobReader, indexingShardCacheBlobReader);
+            return new SwitchingCacheBlobReader(
+                tracker,
+                locationPrimaryTermAndGeneration,
+                objectStoreCacheBlobReader,
+                indexingShardCacheBlobReader
+            );
         }
     }
 }

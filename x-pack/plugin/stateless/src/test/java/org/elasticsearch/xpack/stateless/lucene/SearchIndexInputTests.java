@@ -21,13 +21,17 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.IndexingShardCacheBlobReader;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.SwitchingCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
@@ -55,13 +59,16 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -115,6 +122,64 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
+    public void testSwitchToBlobRegionSizeOnUpload() throws IOException {
+        final var fileSize = ByteSizeValue.ofKb(64);
+        final ByteSizeValue cacheSize = new ByteSizeValue(32, ByteSizeUnit.MB);
+        final var settings = sharedCacheSettings(cacheSize);
+        final var rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+            final byte[] input = randomChecksumBytes((int) fileSize.getBytes()).v2();
+            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
+
+            final ObjectStoreCacheBlobReader objectStoreReader = new ObjectStoreCacheBlobReader(
+                TestUtils.singleBlobContainer(fileName, input),
+                fileName,
+                sharedBlobCacheService.getRangeSize()
+            );
+            final var indexShardReader = new IndexingShardCacheBlobReader(null, null, null, null, fileSize) {
+                @Override
+                public InputStream getRangeInputStream(long position, int length) throws IOException {
+                    throw new ResourceNotFoundException("VBCC not found");
+                }
+            };
+            final var tracker = new AtomicMutableObjectStoreUploadTracker();
+            final var rangesGot = new AtomicLong(0);
+            final var switchingReader = new SwitchingCacheBlobReader(tracker, termAndGen, objectStoreReader, indexShardReader) {
+                @Override
+                public ByteRange getRange(long position, int length, long remainingFileLength) {
+                    final var range = super.getRange(position, length, remainingFileLength);
+                    if (rangesGot.getAndIncrement() == 0) {
+                        assertFalse(tracker.getLatestUploadInfo(termAndGen).isUploaded());
+                        assertThat(range.length(), lessThan(rangeSize.getBytes()));
+                    } else {
+                        assertTrue(tracker.getLatestUploadInfo(termAndGen).isUploaded());
+                        assertThat(range.length(), equalTo(rangeSize.getBytes()));
+                    }
+                    return range;
+                }
+            };
+            assertFalse(tracker.getLatestUploadInfo(termAndGen).isUploaded());
+            final SearchIndexInput indexInput = new SearchIndexInput(
+                fileName,
+                sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, termAndGen.primaryTerm(), fileName), input.length),
+                randomIOContext(),
+                switchingReader,
+                null,
+                input.length,
+                0
+            );
+            byte[] output = new byte[input.length];
+            indexInput.readBytes(output, 0, output.length);
+            assertArrayEquals(input, output);
+            assertTrue(tracker.getLatestUploadInfo(termAndGen).isUploaded());
+        }
+    }
+
     /**
      * Test that clone copies the underlying cachefile object. Reads on cloned instances are checked by #testRandomReads
      * @throws IOException
@@ -154,7 +219,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
         final ByteSizeValue regionSize = ByteSizeValue.ofBytes(randomLongBetween(50, 256) * PAGE_SIZE);
         final var settings = Settings.builder()
             .put(sharedCacheSettings(cacheSize, regionSize))
-            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(between(2, 4) * regionSize.getKb()))
+            .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(between(2, 4) * regionSize.getKb()))
             .build();
 
         try (
@@ -162,7 +227,9 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(randomNonNegativeLong());
+            final long primaryTerm = randomNonNegativeLong();
+            final long generation = randomNonNegativeLong();
+            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
             // Create a blob with data span from 2 to 4 regions
             final int numberRegions = between(2, 4);
             final byte[] data = randomByteArrayOfLength(numberRegions * (int) regionSize.getBytes());
@@ -191,19 +258,33 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 }
             };
             final var uploaded = new AtomicBoolean(false);
-            final var cacheBlobReader = new SwitchingCacheBlobReader(new ObjectStoreUploadTracker.UploadInfo() {
+            final var cacheBlobReader = new SwitchingCacheBlobReader(new MutableObjectStoreUploadTracker() {
                 @Override
-                public boolean isUploaded() {
-                    return uploaded.get();
+                public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
+                    assert false : "should not be called";
                 }
 
                 @Override
-                public String preferredNodeId() {
-                    return "node";
+                public void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
+                    assert false : "should not be called";
                 }
-            }, objectStoreCacheBlobReader, indexingShardCacheBlobReader);
 
-            final long primaryTerm = randomNonNegativeLong();
+                @Override
+                public UploadInfo getLatestUploadInfo(PrimaryTermAndGeneration bccTermAndGen) {
+                    return new ObjectStoreUploadTracker.UploadInfo() {
+                        @Override
+                        public boolean isUploaded() {
+                            return uploaded.get();
+                        }
+
+                        @Override
+                        public String preferredNodeId() {
+                            return "node";
+                        }
+                    };
+                }
+            }, new PrimaryTermAndGeneration(primaryTerm, generation), objectStoreCacheBlobReader, indexingShardCacheBlobReader);
+
             // Creating multiple gaps by reading small portion of files
             final int interval = (int) BlobCacheUtils.toPageAlignedSize(data.length / between(5, 10));
             for (int pos = interval; pos < data.length; pos += interval) {

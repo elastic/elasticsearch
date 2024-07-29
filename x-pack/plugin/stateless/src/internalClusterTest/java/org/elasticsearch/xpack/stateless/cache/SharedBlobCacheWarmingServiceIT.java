@@ -19,7 +19,9 @@ package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -35,6 +37,7 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -52,8 +55,10 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
@@ -62,6 +67,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
@@ -69,6 +75,8 @@ import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestCase {
 
@@ -383,6 +391,119 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
     }
 
+    public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
+        var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), "1g")
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        final var indexNode = startMasterAndIndexNode(cacheSettings);
+
+        var searchNode = startSearchNode(cacheSettings);
+        ensureStableCluster(2);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+            )
+        );
+        ensureGreen(indexName);
+
+        long totalDocs = 0L;
+        if (randomBoolean()) {
+            int initialCommits = randomIntBetween(1, 3);
+            for (int i = 0; i < initialCommits; i++) {
+                int numDocs = randomIntBetween(1, 1_000);
+                indexDocs(indexName, numDocs);
+                flush(indexName);
+                totalDocs += numDocs;
+            }
+        }
+
+        final int iters = randomIntBetween(1, 5);
+        for (int i = 0; i < iters; i++) {
+            int numDocs = randomIntBetween(1, 1_000);
+            indexDocs(indexName, numDocs);
+            refresh(indexName);
+            totalDocs += numDocs;
+        }
+
+        var shardId = findIndexShard(indexName).shardId();
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
+
+        // Do not update latest uploaded info on new commit notifications so that the search node is unaware that the VBCC got uploaded
+        // The MutableObjectStoreUploadTracker should be updated by the SwitchingCacheBlobReader when receiving the first
+        // uploaded exception and that is how it will then retry from the object store.
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                NewCommitNotificationRequest notificationRequest = (NewCommitNotificationRequest) request;
+                var routingTable = mock(IndexShardRoutingTable.class);
+                when(routingTable.shardId()).thenReturn(shardId);
+                NewCommitNotificationRequest alteredRequest = new NewCommitNotificationRequest(
+                    routingTable,
+                    notificationRequest.getCompoundCommit(),
+                    notificationRequest.getBatchedCompoundCommitGeneration(),
+                    null,
+                    notificationRequest.getClusterStateVersion(),
+                    notificationRequest.getNodeId()
+                );
+                handler.messageReceived(alteredRequest, channel, task);
+            });
+
+        // Upload VBCC on first message to get a chunk from the indexing node. This will return a ResourceAlreadyUploadedException and will
+        // make the warming service to fetch from the object store.
+        final var flushed = new AtomicBoolean(false);
+        final var flushCountdown = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                if (flushed.compareAndExchange(false, true) == false) {
+                    flush(indexName);
+                    flushCountdown.countDown();
+                } else {
+                    // This point may block some transport threads.
+                    safeAwait(flushCountdown);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        assert false : "unexpectedly trying to send response " + response;
+                    }
+                }, task)
+            );
+
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNode, SEARCH_WARMING_DESCRIPTION);
+
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        assertTrue(flushed.get());
+        assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
+    }
+
     public void testSearchNodeWarmingFromIndexingNodeInMixedUploadDelaySettings() {
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
@@ -493,14 +614,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
     private void failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(String indexName, String node, String warmingDescription) {
         final long generationToBlock = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
-        final var mockRepositoryB = getObjectStoreMockRepository(getObjectStoreService(node));
+        final var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node));
         final var transportService = MockTransportService.getInstance(node);
         runOnWarmingComplete(node, warmingDescription, ActionListener.running(() -> {
             logger.info("--> fail object store repository after warming");
-            mockRepositoryB.setRandomControlIOExceptionRate(1.0);
-            mockRepositoryB.setRandomDataFileIOExceptionRate(1.0);
-            mockRepositoryB.setMaximumNumberOfFailures(Long.MAX_VALUE);
-            mockRepositoryB.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            mockRepository.setRandomControlIOExceptionRate(1.0);
+            mockRepository.setRandomDataFileIOExceptionRate(1.0);
+            mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             transportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
                     assert false : "should not have sent a request for VBCC data to the indexing node but sent request " + request;

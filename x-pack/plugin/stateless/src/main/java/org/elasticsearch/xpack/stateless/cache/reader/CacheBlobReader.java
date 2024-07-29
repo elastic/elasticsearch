@@ -53,6 +53,9 @@ public interface CacheBlobReader {
      *
      * It is OK for the {@link InputStream} to return less data than specified length (even no data).
      *
+     * Some implementations may throw a special exception if the data is not available in the primary shard and the fetch needs to be
+     * retried from the object store.
+     *
      * @param position the position of the blob to fetch data from
      * @param length the length to read from the blob starting from position
      * @return the input stream to fetch the data from

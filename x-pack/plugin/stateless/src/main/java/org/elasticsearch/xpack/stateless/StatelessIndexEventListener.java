@@ -265,7 +265,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         || batchedCompoundCommit.last().primaryTermAndGeneration().onOrBefore(compoundCommit.primaryTermAndGeneration());
                     assert compoundCommit != null;
 
-                    searchDirectory.updateLatestUploadInfo(lastUploaded, compoundCommit.primaryTermAndGeneration(), nodeId);
+                    searchDirectory.updateLatestUploadedBcc(lastUploaded);
+                    searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
                     searchDirectory.updateCommit(compoundCommit);
                     warmingService.warmCacheForShardRecovery("search", indexShard, compoundCommit, searchDirectory);
                     return null;

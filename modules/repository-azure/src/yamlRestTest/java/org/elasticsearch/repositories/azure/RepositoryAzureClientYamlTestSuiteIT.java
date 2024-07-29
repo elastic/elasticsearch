@@ -74,6 +74,12 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
             () -> fixture.getFederatedTokenPath().toString(),
             s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
         )
+        // Needed to allowlist in SM security policy for test
+        .systemProperty(
+            "test.azure.federated_token_file",
+            () -> fixture.getFederatedTokenPath().toString(),
+            s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
+        )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();

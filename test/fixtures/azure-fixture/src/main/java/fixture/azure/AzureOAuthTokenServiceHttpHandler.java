@@ -35,6 +35,7 @@ import java.util.Objects;
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
 public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(AzureOAuthTokenServiceHttpHandler.class);
+    private static final String EXPECTED_SCOPE = "https://storage.azure.com/.default";
 
     private final String bearerToken;
     private final String federatedToken;
@@ -43,7 +44,12 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
     @Nullable
     private final String clientId;
 
-    public AzureOAuthTokenServiceHttpHandler(String bearerToken, String federatedToken, @Nullable String tenantId, @Nullable String clientId) {
+    public AzureOAuthTokenServiceHttpHandler(
+        String bearerToken,
+        String federatedToken,
+        @Nullable String tenantId,
+        @Nullable String clientId
+    ) {
         this.bearerToken = bearerToken;
         this.federatedToken = federatedToken;
         this.tenantId = tenantId;
@@ -57,20 +63,19 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
 
         if ("POST".equals(exchange.getRequestMethod())
             && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
-            final InputStream requestBody = exchange.getRequestBody();
-            final String formBody = Streams.copyToString(new InputStreamReader(requestBody, StandardCharsets.UTF_8));
-            final Map<String, String> formData = parseFormData(URLDecoder.decode(formBody, StandardCharsets.UTF_8));
-            if (false == formData.containsKey("client_id") && false == formData.get("client_id").equals(clientId)) {
-                throw new AssertionError("Request body does not contain expected [client_id]");
+            final Map<String, String> formData = parseRequestBodyAsFormData(exchange.getRequestBody());
+            if (clientId.equals(formData.get("client_id"))
+                && federatedToken.equals(formData.get("client_assertion"))
+                && EXPECTED_SCOPE.equals(formData.get("scope"))) {
+                respondWithValidAccessToken(exchange, bearerToken);
+                return;
+            } else {
+                logger.error(
+                    "Request body did not contain expected [client_id], [client_assertion], or [scope]. Request form data: [{}]",
+                    formData
+                );
+                // fall through to further logging and dummy response
             }
-            if (false == Objects.requireNonNull(formData.get("client_assertion")).equals(federatedToken)) {
-                throw new AssertionError("Request body does not contain expected [client_assertion]");
-            }
-            if (false == Objects.requireNonNull(formData.get("scope")).equals("https://storage.azure.com/.default")) {
-                throw new AssertionError("Request body does not contain expected [scope]");
-            }
-            respondWithValidAccessToken(exchange, bearerToken);
-            return;
         }
 
         final var msgBuilder = new StringWriter();
@@ -91,6 +96,11 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
         exchange.close();
     }
 
+    private Map<String, String> parseRequestBodyAsFormData(InputStream requestBody) throws IOException {
+        final String formBody = Streams.copyToString(new InputStreamReader(requestBody, StandardCharsets.UTF_8));
+        return parseFormData(URLDecoder.decode(formBody, StandardCharsets.UTF_8));
+    }
+
     static void respondWithValidAccessToken(HttpExchange exchange, String bearerToken) throws IOException {
         try (exchange; var accessTokenXContent = accessTokenXContent(bearerToken)) {
             final var responseBytes = BytesReference.bytes(accessTokenXContent);
@@ -98,10 +108,6 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
             exchange.sendResponseHeaders(200, responseBytes.length());
             responseBytes.writeTo(exchange.getResponseBody());
         }
-    }
-
-    private void assertExpectedRequestBody(HttpExchange exchange) throws IOException {
-
     }
 
     private static Map<String, String> parseFormData(String formData) {

@@ -17,6 +17,8 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.function.Predicate;
+
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -34,10 +36,18 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
         AZURE_TEST_CLIENT_ID,
-        Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
-            ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
-            : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
+        decideAuthHeaderPredicate()
     );
+
+    private static Predicate<String> decideAuthHeaderPredicate() {
+        if (Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)) {
+            return AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT);
+        } else if (Strings.hasText(AZURE_TEST_TENANT_ID) && Strings.hasText(AZURE_TEST_CLIENT_ID)) {
+            return AzureHttpFixture.WORK_IDENTITY_BEARER_TOKEN_PREDICATE;
+        } else {
+            return AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE;
+        }
+    }
 
     private static final TestTrustStore trustStore = new TestTrustStore(
         () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")

@@ -463,7 +463,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("residential_proxy"), equalTo(false));
         assertThat(geoData.get("domain"), equalTo("frpt.net"));
         assertThat(geoData.get("isp"), equalTo("Fairpoint Communications"));
-        assertThat(geoData.get("isp_organization"), equalTo("Fairpoint Communications"));
+        assertThat(geoData.get("isp_organization_name"), equalTo("Fairpoint Communications"));
         assertThat(geoData.get("user_type"), equalTo("residential"));
         assertThat(geoData.get("connection_type"), equalTo("Cable/DSL"));
     }
@@ -497,7 +497,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("organization_name"), equalTo("CELLCO-PART"));
         assertThat(geoData.get("network"), equalTo("149.101.100.0/28"));
         assertThat(geoData.get("isp"), equalTo("Verizon Wireless"));
-        assertThat(geoData.get("isp_organization"), equalTo("Verizon Wireless"));
+        assertThat(geoData.get("isp_organization_name"), equalTo("Verizon Wireless"));
         assertThat(geoData.get("mobile_network_code"), equalTo("004"));
         assertThat(geoData.get("mobile_country_code"), equalTo("310"));
     }

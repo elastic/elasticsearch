@@ -66,7 +66,7 @@ public final class StDistanceGeoPointDocValuesAndConstantEvaluator implements Ev
           continue position;
         }
         try {
-          result.appendDouble(StDistance.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValue));
+          result.appendDouble(StDistance.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -80,7 +80,7 @@ public final class StDistanceGeoPointDocValuesAndConstantEvaluator implements Ev
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendDouble(StDistance.processGeoPointDocValuesAndConstant(leftValueVector.getLong(p), rightValue));
+          result.appendDouble(StDistance.processGeoPointDocValuesAndConstant(leftValueVector.getLong(p), this.rightValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

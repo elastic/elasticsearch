@@ -2511,7 +2511,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     private void safeExecute(EnrichPolicyRunner enrichPolicyRunner) {
         safeAwait(enrichPolicyRunner::run);
-        logger.info("Run complete");
+        logger.debug("Run complete");
     }
 
     private Exception safeExecuteExpectFailure(EnrichPolicyRunner enrichPolicyRunner) {

@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.info;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,7 +29,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.rest.action.info.RestClusterInfoAction.AVAILABLE_TARGETS;
+import static org.elasticsearch.rest.action.info.RestClusterInfoAction.AVAILABLE_TARGET_NAMES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
@@ -69,7 +70,7 @@ public class RestClusterInfoActionTests extends ESTestCase {
     }
 
     public void testMultiTargetRequest() throws IOException {
-        var target = String.join(",", AVAILABLE_TARGETS);
+        var target = String.join(",", AVAILABLE_TARGET_NAMES);
         var request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_info/").withParams(Map.of("target", target)).build();
 
         action.prepareRequest(request, mock(NodeClient.class));
@@ -79,7 +80,7 @@ public class RestClusterInfoActionTests extends ESTestCase {
         var nodeStats = IntStream.range(1, randomIntBetween(2, 20)).mapToObj(this::randomNodeStatsWithOnlyHttpStats).toList();
         var response = new NodesStatsResponse(new ClusterName("cluster-name"), nodeStats, List.of());
 
-        var httpStats = (HttpStats) RestClusterInfoAction.RESPONSE_MAPPER.get("http").apply(response);
+        var httpStats = (HttpStats) RestClusterInfoAction.RESPONSE_MAPPER.get(Metric.HTTP).apply(response);
 
         final Map<String, HttpRouteStats> httpRouteStatsMap = new HashMap<>();
         for (var ns : nodeStats) {

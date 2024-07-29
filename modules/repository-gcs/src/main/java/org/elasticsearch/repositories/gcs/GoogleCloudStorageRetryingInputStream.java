@@ -21,6 +21,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -31,6 +33,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -68,6 +71,26 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
 
     // both start and end are inclusive bounds, following the definition in https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
     GoogleCloudStorageRetryingInputStream(Storage client, BlobId blobId, long start, long end) throws IOException {
+        this(client, () -> getStorage(client), blobId, start, end);
+    }
+
+    // Used for testing only
+    GoogleCloudStorageRetryingInputStream(
+        com.google.cloud.storage.Storage client,
+        Supplier<com.google.api.services.storage.Storage> storage,
+        BlobId blobId
+    ) throws IOException {
+        this(client, storage, blobId, 0, Long.MAX_VALUE - 1);
+    }
+
+    // Used for testing only
+    GoogleCloudStorageRetryingInputStream(
+        com.google.cloud.storage.Storage client,
+        Supplier<com.google.api.services.storage.Storage> storage,
+        BlobId blobId,
+        long start,
+        long end
+    ) throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
@@ -80,8 +103,8 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         this.end = end;
         this.maxAttempts = client.getOptions().getRetrySettings().getMaxAttempts();
         SpecialPermission.check();
-        storage = getStorage(client);
-        currentStream = openStream();
+        this.storage = storage.get();   // to bypass static init for unit testing
+        this.currentStream = openStream();
     }
 
     @SuppressForbidden(reason = "need access to storage client")
@@ -109,7 +132,9 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                             get.setReturnRawInputStream(true);
 
                             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                                get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
+                                if (get.getRequestHeaders() != null) {
+                                    get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
+                                }
                             }
                             final HttpResponse resp = get.executeMedia();
                             final Long contentLength = resp.getHeaders().getContentLength();
@@ -126,13 +151,24 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             } catch (RetryHelper.RetryHelperException e) {
                 throw StorageException.translateAndThrow(e);
             }
-        } catch (StorageException e) {
-            if (e.getCode() == 404) {
+        } catch (StorageException storageException) {
+            if (storageException.getCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw addSuppressedExceptions(
-                    new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + e.getMessage())
+                    new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + storageException.getMessage())
                 );
             }
-            throw addSuppressedExceptions(e);
+            if (storageException.getCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                long currentPosition = Math.addExact(start, currentOffset);
+                throw addSuppressedExceptions(
+                    new RequestedRangeNotSatisfiedException(
+                        blobId.getName(),
+                        currentPosition,
+                        (end < Long.MAX_VALUE - 1) ? end - currentPosition + 1 : end,
+                        storageException
+                    )
+                );
+            }
+            throw addSuppressedExceptions(storageException);
         }
     }
 

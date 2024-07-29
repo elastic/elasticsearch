@@ -3,6 +3,9 @@
 
 Creates an {infer} endpoint to perform an {infer} task with the `elser` service.
 
+NOTE: The API request will automatically download and deploy the ELSER model if
+it isn't already downloaded.
+
 
 [discrete]
 [[infer-service-elser-api-request]]
@@ -34,7 +37,7 @@ Available task types:
 
 `service`::
 (Required, string)
-The type of service supported for the specified task type. In this case, 
+The type of service supported for the specified task type. In this case,
 `elser`.
 
 `service_settings`::
@@ -51,7 +54,7 @@ The total number of allocations this model is assigned across machine learning n
 
 `num_threads`:::
 (Required, integer)
-Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node. 
+Sets the number of threads used by each model allocation during inference. This generally increases the speed per inference request. The inference process is a compute-bound process; `threads_per_allocations` must not exceed the number of available allocated processors per node.
 Must be a power of 2. Max allowed value is 32.
 
 
@@ -62,6 +65,9 @@ Must be a power of 2. Max allowed value is 32.
 The following example shows how to create an {infer} endpoint called
 `my-elser-model` to perform a `sparse_embedding` task type.
 Refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation] for more info.
+
+The request below will automatically download the ELSER model if it isn't
+already downloaded and then deploy the model.
 
 [source,console]
 ------------------------------------------------------------
@@ -93,3 +99,11 @@ Example response:
 }
 ------------------------------------------------------------
 // NOTCONSOLE
+
+[NOTE]
+====
+You might see a 502 bad gateway error in the response when using the {kib} Console.
+This error usually just reflects a timeout, while the model downloads in the background.
+You can check the download progress in the {ml-app} UI.
+If using the Python client, you can set the `timeout` parameter to a higher value.
+====

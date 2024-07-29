@@ -56,14 +56,22 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         oldClusterTestFeatureService = null;
     }
 
-    public MixedClusterEsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
-        super(fileName, groupName, testName, lineNumber, testCase, mode);
+    public MixedClusterEsqlSpecIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
     }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, bwcVersion));
+        assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
         if (mode == ASYNC) {
             assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
         }

@@ -1,5 +1,5 @@
 [[query-dsl-text-expansion-query]]
-== Text expansion query
+=== Text expansion query
 
 ++++
 <titleabbrev>Text expansion</titleabbrev>
@@ -12,7 +12,7 @@ The text expansion query uses a {nlp} model to convert the query text into a lis
 
 [discrete]
 [[text-expansion-query-ex-request]]
-=== Example request
+==== Example request
 
 [source,console]
 ----
@@ -32,14 +32,14 @@ GET _search
 
 [discrete]
 [[text-expansion-query-params]]
-=== Top level parameters for `text_expansion`
+==== Top level parameters for `text_expansion`
 
 `<sparse_vector_field>`:::
 (Required, object) The name of the field that contains the token-weight pairs the NLP model created based on the input text.
 
 [discrete]
 [[text-expansion-rank-feature-field-params]]
-=== Top level parameters for `<sparse_vector_field>`
+==== Top level parameters for `<sparse_vector_field>`
 
 `model_id`::::
 (Required, string) The ID of the model to use to convert the query text into token-weight pairs.
@@ -84,7 +84,7 @@ NOTE: The default values for `tokens_freq_ratio_threshold` and `tokens_weight_th
 
 [discrete]
 [[text-expansion-query-example]]
-=== Example ELSER query
+==== Example ELSER query
 
 The following is an example of the `text_expansion` query that references the ELSER model to perform semantic search.
 For a more detailed description of how to perform semantic search by using ELSER and the `text_expansion` query, refer to <<semantic-search-elser,this tutorial>>.
@@ -208,7 +208,7 @@ GET my-index/_search
 
 [discrete]
 [[text-expansion-query-with-pruning-config-and-rescore-example]]
-=== Example ELSER query with pruning configuration and rescore
+==== Example ELSER query with pruning configuration and rescore
 
 The following is an extension to the above example that adds a preview:[] pruning configuration to the `text_expansion` query.
 The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.

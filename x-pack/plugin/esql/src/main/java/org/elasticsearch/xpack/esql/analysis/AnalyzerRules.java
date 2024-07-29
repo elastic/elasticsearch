@@ -20,8 +20,6 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
-
 public final class AnalyzerRules {
 
     public abstract static class AnalyzerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
@@ -138,14 +136,6 @@ public final class AnalyzerRules {
             )
             .toList();
 
-        return singletonList(
-            ua.withUnresolvedMessage(
-                "Reference ["
-                    + ua.qualifiedName()
-                    + "] is ambiguous (to disambiguate use quotes or qualifiers); "
-                    + "matches any of "
-                    + refs
-            )
-        );
+        throw new IllegalStateException("Reference [" + ua.qualifiedName() + "] is ambiguous; " + "matches any of " + refs);
     }
 }

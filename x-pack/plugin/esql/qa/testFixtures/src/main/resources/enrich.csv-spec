@@ -69,6 +69,33 @@ ROW left = "left", foo = "foo", client_ip = "172.21.0.5", env = "env", right = "
 left:keyword | client_ip:keyword | env:keyword | right:keyword | foo:keyword
 ;
 
+shadowingSubfields#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+required_capability: enrich_load
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+| ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
+| SORT city.name
+;
+
+city.country.name:keyword | city.name:keyword   | city.country.continent.planet.name:text
+Netherlands               | Amsterdam           | null
+United States of America  | South San Francisco | San Francisco Int'l
+Japan                     | Tokyo               | null
+;
+
+shadowingSubfieldsLimit0#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+| ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
+| SORT city.name
+| LIMIT 0
+;
+
+city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:text
+;
+
 shadowingSelf
 required_capability: enrich_load
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
@@ -105,6 +132,82 @@ ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "m
 ;
 
 left:keyword | city:keyword | middle:keyword | right:keyword | airport:text | region:text | city_boundary:geo_shape
+;
+
+shadowingInternal#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+required_capability: enrich_load
+ROW city = "Zürich"
+| ENRICH city_names ON city WITH x = airport, x = region
+;
+
+city:keyword | x:text
+Zürich       | Bezirk Zürich
+;
+
+shadowingInternalImplicit#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+required_capability: enrich_load
+ROW city = "Zürich"
+| ENRICH city_names ON city WITH airport = region
+;
+
+city:keyword | airport:text
+Zürich       | Bezirk Zürich
+;
+
+shadowingInternalImplicit2#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+required_capability: enrich_load
+ROW city = "Zürich"
+| ENRICH city_names ON city WITH airport, airport = region
+;
+
+city:keyword | airport:text
+Zürich       | Bezirk Zürich
+;
+
+shadowingInternalImplicit3#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+required_capability: enrich_load
+ROW city = "Zürich"
+| ENRICH city_names ON city WITH airport = region, airport
+;
+
+city:keyword | airport:text
+Zürich       | Zurich Int'l
+;
+
+shadowingWhenPushedDownPastRename
+required_capability: enrich_load
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", airport = "ZRH"
+| RENAME airport AS a
+| ENRICH city_names ON city WITH airport
+;
+
+city:keyword | a:keyword | airport:text
+Zürich       | ZRH       | Zurich Int'l
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: enrich_load
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", airport = "ZRH"
+| RENAME airport AS a
+| ENRICH city_names ON city WITH airport, region
+;
+
+city:keyword | a:keyword | airport:text | region:text
+Zürich       | ZRH       | Zurich Int'l | Bezirk Zürich
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: enrich_load
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", airport = "ZRH"
+| RENAME city as c
+| ENRICH city_names ON c WITH city = airport
+;
+
+c:keyword | airport:keyword | city:text
+Zürich    | ZRH             | Zurich Int'l
 ;
 
 simple

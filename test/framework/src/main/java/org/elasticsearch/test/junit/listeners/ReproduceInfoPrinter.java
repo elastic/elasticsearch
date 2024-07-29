@@ -67,7 +67,7 @@ public class ReproduceInfoPrinter extends RunListener {
         boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
 
         // append Gradle test runner test filter string
-        b.append("'" + task + "'");
+        b.append("\"" + task + "\"");
         if (isBwcTest) {
             // Use "legacy" method for bwc tests so that it applies globally to all upstream bwc test tasks
             b.append(" -Dtests.class=\"");

@@ -164,6 +164,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         return location;
     }
 
+    @Override
     public String modelId() {
         return modelId;
     }

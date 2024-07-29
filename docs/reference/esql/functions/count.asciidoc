@@ -56,3 +56,28 @@ include::{esql-specs}/stats.csv-spec[tag=docsCountWithExpression]
 |===
 include::{esql-specs}/stats.csv-spec[tag=docsCountWithExpression-result]
 |===
+
+[[esql-agg-count-or-null]]
+To count the number of times an expression returns `TRUE` use
+a <<esql-where>> command to remove rows that shouldn't be included:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=count-where]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=count-where-result]
+|===
+
+To count the same stream of data based on two different expressions
+use the pattern `COUNT(<expression> OR NULL)`:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=count-or-null]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=count-or-null-result]
+|===

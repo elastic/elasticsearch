@@ -36,11 +36,13 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('enrich'))
+  testImplementation project(path: xpackModule('spatial'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:ingest-common')
+  testImplementation project(path: ':modules:legacy-geo')
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
@@ -48,9 +50,9 @@ dependencies {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-s", "src/main/generated"])
+  options.compilerArgs.addAll(["-s", "$projectDir/src/main/generated"])
   // IntelliJ sticks generated files here and we can't stop it....
-  exclude { it.file.toString().contains("src/main/generated-src/generated") }
+  exclude { it.file.toString().contains("$projectDir/src/main/generated-src/generated") }
 }
 
 interface Injected {
@@ -308,5 +310,33 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBoolean.java"
+  }
+
+
+  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InEvaluator.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBooleanEvaluator.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InIntEvaluator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongEvaluator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InDoubleEvaluator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
   }
 }

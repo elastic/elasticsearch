@@ -37,6 +37,12 @@
             id="infer-api-task-mistral">
       Mistral
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-task-amazon-bedrock-tab"
+            id="infer-api-task-amazon-bedrock">
+      Amazon Bedrock
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -100,6 +106,17 @@ include::infer-api-task.asciidoc[tag=azure-ai-studio]
 ++++
 
 include::infer-api-task.asciidoc[tag=mistral]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-task-amazon-bedrock-tab"
+       aria-labelledby="infer-api-task-amazon-bedrock"
+       hidden="">
+++++
+
+include::infer-api-task.asciidoc[tag=amazon-bedrock]
 
 ++++
   </div>

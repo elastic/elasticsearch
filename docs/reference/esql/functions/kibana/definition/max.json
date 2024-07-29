@@ -56,6 +56,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "long",
           "optional" : false,
           "description" : ""

@@ -25,11 +25,11 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -85,6 +85,8 @@ public class EnrichPolicyRunner implements Runnable {
     static final String ENRICH_MATCH_FIELD_NAME = "enrich_match_field";
     static final String ENRICH_README_FIELD_NAME = "enrich_readme";
 
+    public static final String ENRICH_MIN_NUMBER_OF_REPLICAS_NAME = "enrich.min_number_of_replicas";
+
     static final String ENRICH_INDEX_README_TEXT = "This index is managed by Elasticsearch and should not be modified in any way.";
 
     private final String policyName;
@@ -137,7 +139,7 @@ public class EnrichPolicyRunner implements Runnable {
             // This call does not set the origin to ensure that the user executing the policy has permission to access the source index
             client.admin().indices().getIndex(getIndexRequest, listener.delegateFailureAndWrap((l, getIndexResponse) -> {
                 validateMappings(getIndexResponse);
-                prepareAndCreateEnrichIndex(toMappings(getIndexResponse));
+                prepareAndCreateEnrichIndex(toMappings(getIndexResponse), clusterService.getSettings());
             }));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -434,10 +436,11 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {
+    private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings, Settings settings) {
+        int numberOfReplicas = settings.getAsInt(ENRICH_MIN_NUMBER_OF_REPLICAS_NAME, 0);
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
+            .put("index.number_of_replicas", numberOfReplicas)
             // No changes will be made to an enrich index after policy execution, so need to enable automatic refresh interval:
             .put("index.refresh_interval", -1)
             // This disables eager global ordinals loading for all fields:
@@ -572,48 +575,82 @@ public class EnrichPolicyRunner implements Runnable {
     protected void ensureSingleSegment(final String destinationIndexName, final int attempt) {
         enrichOriginClient().admin()
             .indices()
-            .segments(new IndicesSegmentsRequest(destinationIndexName), new DelegatingActionListener<>(listener) {
-                @Override
-                public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
-                    IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(destinationIndexName);
-                    if (indexSegments == null) {
+            .segments(new IndicesSegmentsRequest(destinationIndexName), listener.delegateFailureAndWrap((l, indicesSegmentResponse) -> {
+                int failedShards = indicesSegmentResponse.getFailedShards();
+                if (failedShards > 0) {
+                    // Encountered a problem while querying the segments for the enrich index. Try and surface the problem in the log.
+                    logger.warn(
+                        "Policy [{}]: Encountered [{}] shard level failures while querying the segments for enrich index [{}]. "
+                            + "Turn on DEBUG logging for details.",
+                        policyName,
+                        failedShards,
+                        enrichIndexName
+                    );
+                    if (logger.isDebugEnabled()) {
+                        DefaultShardOperationFailedException[] shardFailures = indicesSegmentResponse.getShardFailures();
+                        int failureNumber = 1;
+                        String logPrefix = "Policy [" + policyName + "]: Encountered shard failure [";
+                        String logSuffix = " of "
+                            + shardFailures.length
+                            + "] while querying segments for enrich index ["
+                            + enrichIndexName
+                            + "]. Shard [";
+                        for (DefaultShardOperationFailedException shardFailure : shardFailures) {
+                            logger.debug(
+                                logPrefix + failureNumber + logSuffix + shardFailure.index() + "][" + shardFailure.shardId() + "]",
+                                shardFailure.getCause()
+                            );
+                            failureNumber++;
+                        }
+                    }
+                }
+                IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(destinationIndexName);
+                if (indexSegments == null) {
+                    if (indicesSegmentResponse.getShardFailures().length == 0) {
                         throw new ElasticsearchException(
                             "Could not locate segment information for newly created index [{}]",
                             destinationIndexName
                         );
-                    }
-                    Map<Integer, IndexShardSegments> indexShards = indexSegments.getShards();
-                    assert indexShards.size() == 1 : "Expected enrich index to contain only one shard";
-                    ShardSegments[] shardSegments = indexShards.get(0).shards();
-                    assert shardSegments.length == 1 : "Expected enrich index to contain no replicas at this point";
-                    ShardSegments primarySegments = shardSegments[0];
-                    if (primarySegments.getSegments().size() > 1) {
-                        int nextAttempt = attempt + 1;
-                        if (nextAttempt > maxForceMergeAttempts) {
-                            delegate.onFailure(
-                                new ElasticsearchException(
-                                    "Force merging index [{}] attempted [{}] times but did not result in one segment.",
-                                    destinationIndexName,
-                                    attempt,
-                                    maxForceMergeAttempts
-                                )
-                            );
-                        } else {
-                            logger.debug(
-                                "Policy [{}]: Force merge result contains more than one segment [{}], retrying (attempt {}/{})",
-                                policyName,
-                                primarySegments.getSegments().size(),
-                                nextAttempt,
-                                maxForceMergeAttempts
-                            );
-                            forceMergeEnrichIndex(destinationIndexName, nextAttempt);
-                        }
                     } else {
-                        // Force merge down to one segment successful
-                        setIndexReadOnly(destinationIndexName);
+                        DefaultShardOperationFailedException shardFailure = indicesSegmentResponse.getShardFailures()[0];
+                        throw new ElasticsearchException(
+                            "Could not obtain segment information for newly created index [{}]; shard info [{}][{}]",
+                            shardFailure.getCause(),
+                            destinationIndexName,
+                            shardFailure.index(),
+                            shardFailure.shardId()
+                        );
                     }
                 }
-            });
+                Map<Integer, IndexShardSegments> indexShards = indexSegments.getShards();
+                assert indexShards.size() == 1 : "Expected enrich index to contain only one shard";
+                ShardSegments[] shardSegments = indexShards.get(0).shards();
+                assert shardSegments.length == 1 : "Expected enrich index to contain no replicas at this point";
+                ShardSegments primarySegments = shardSegments[0];
+                if (primarySegments.getSegments().size() > 1) {
+                    int nextAttempt = attempt + 1;
+                    if (nextAttempt > maxForceMergeAttempts) {
+                        throw new ElasticsearchException(
+                            "Force merging index [{}] attempted [{}] times but did not result in one segment.",
+                            destinationIndexName,
+                            attempt,
+                            maxForceMergeAttempts
+                        );
+                    } else {
+                        logger.debug(
+                            "Policy [{}]: Force merge result contains more than one segment [{}], retrying (attempt {}/{})",
+                            policyName,
+                            primarySegments.getSegments().size(),
+                            nextAttempt,
+                            maxForceMergeAttempts
+                        );
+                        forceMergeEnrichIndex(destinationIndexName, nextAttempt);
+                    }
+                } else {
+                    // Force merge down to one segment successful
+                    setIndexReadOnly(destinationIndexName);
+                }
+            }));
     }
 
     private void setIndexReadOnly(final String destinationIndexName) {

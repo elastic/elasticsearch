@@ -45,6 +45,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * Support for the {@code INLINESTATS} syntax.
+         */
+        INLINESTATS(true),
+
+        /**
          * Support for aggregation function {@code TOP}.
          */
         AGG_TOP,
@@ -53,6 +58,21 @@ public class EsqlCapabilities {
          * Support for booleans in aggregations {@code MAX} and {@code MIN}.
          */
         AGG_MAX_MIN_BOOLEAN_SUPPORT,
+
+        /**
+         * Support for ips in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
+         * Support for booleans in {@code TOP} aggregation.
+         */
+        AGG_TOP_BOOLEAN_SUPPORT,
+
+        /**
+         * Support for ips in {@code TOP} aggregation.
+         */
+        AGG_TOP_IP_SUPPORT,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -127,7 +147,46 @@ public class EsqlCapabilities {
         /**
          * Fix for union-types when aggregating over an inline conversion with conversion function. Done in #110652.
          */
-        UNION_TYPES_INLINE_FIX;
+        UNION_TYPES_INLINE_FIX,
+
+        /**
+         * Fix for union-types when sorting a type-casted field. We changed how we remove synthetic union-types fields.
+         */
+        UNION_TYPES_REMOVE_FIELDS,
+
+        /**
+         * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
+         */
+        FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
+
+        /**
+         * Fix the status code returned when trying to run count_distinct on the _source type (which is not supported).
+         * see <a href="https://github.com/elastic/elasticsearch/issues/105240">count_distinct(_source) returns a 500 response</a>
+         */
+        FIX_COUNT_DISTINCT_SOURCE_ERROR,
+
+        /**
+         * Use RangeQuery for BinaryComparison on DateTime fields.
+         */
+        RANGEQUERY_FOR_DATETIME,
+
+        /**
+         * Fix for non-unique attribute names in ROW and logical plans.
+         * https://github.com/elastic/elasticsearch/issues/110541
+         */
+        UNIQUE_NAMES,
+
+        /**
+         * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
+         * https://github.com/elastic/elasticsearch/issues/108008
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT,
+
+        /**
+         * Support for match operator
+         */
+        MATCH_OPERATOR(true);
 
         private final boolean snapshotOnly;
 

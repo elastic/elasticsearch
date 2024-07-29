@@ -157,6 +157,7 @@ public class CsvTests extends ESTestCase {
     private final String testName;
     private final Integer lineNumber;
     private final CsvSpecReader.CsvTestCase testCase;
+    private final String instructions;
 
     private final EsqlConfiguration configuration = EsqlTestUtils.configuration(
         new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
@@ -211,23 +212,35 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    public CsvTests(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase) {
+    public CsvTests(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvSpecReader.CsvTestCase testCase,
+        String instructions
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+        this.instructions = instructions;
     }
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
              * are tested in integration tests.
              */
             assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
             assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse(
+                "can't use match in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR.capabilityName())
+            );
             assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
             assumeFalse(
                 "multiple indices aren't supported",
@@ -277,7 +290,8 @@ public class CsvTests extends ESTestCase {
             assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
-            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
+            assertBusy(() -> assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L)));
         }
     }
 

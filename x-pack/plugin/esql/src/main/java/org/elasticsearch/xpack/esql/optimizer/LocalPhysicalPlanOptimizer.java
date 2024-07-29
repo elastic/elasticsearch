@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -95,6 +96,10 @@ import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.
 import static org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.TransformDirection.UP;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
 
+/**
+ * Manages field extraction and pushing parts of the query into Lucene. (Query elements that are not pushed into Lucene are executed via
+ * the compute engine)
+ */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
     public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
@@ -296,6 +301,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     && Expressions.foldable(cidrMatch.matches());
             } else if (exp instanceof SpatialRelatesFunction bc) {
                 return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
+            } else if (exp instanceof MatchQueryPredicate mqp) {
+                return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
             }
             return false;
         }

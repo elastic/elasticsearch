@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -15,6 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -71,10 +73,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        assertBusy(() -> {
-            flushAndRefresh(".watcher-history-*");
-            assertHitCount(prepareSearch(".watcher-history-*"), 1);
-        });
+        assertBusy(() -> { assertHitCount(getWatchHistory(), 1); });
     }
 
     // See https://github.com/elastic/x-plugins/issues/2913
@@ -104,10 +103,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        assertBusy(() -> {
-            refresh(".watcher-history*");
-            assertHitCount(prepareSearch(".watcher-history*").setSize(0), 1);
-        });
+        assertBusy(() -> { assertHitCount(getWatchHistory(), 1); });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
         GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
@@ -149,10 +145,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        assertBusy(() -> {
-            refresh(".watcher-history*");
-            assertHitCount(prepareSearch(".watcher-history*").setSize(0), 1);
-        });
+        assertBusy(() -> { assertHitCount(getWatchHistory(), 1); });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
         GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
@@ -186,8 +179,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         WatchStatus status = new GetWatchRequestBuilder(client()).setId("test_watch").get().getStatus();
 
         assertBusy(() -> {
-            refresh(".watcher-history*");
-            assertResponse(prepareSearch(".watcher-history*").setSize(1), searchResponse -> {
+            assertResponse(getWatchHistory(), searchResponse -> {
                 assertHitCount(searchResponse, 1);
                 SearchHit hit = searchResponse.getHits().getAt(0);
 
@@ -231,6 +223,16 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 is(nullValue())
             );
         });
+    }
+
+    /*
+     * Returns a SearchRequestBuilder containing up to the default number of watch history records (10) if the .watcher-history* is ready.
+     * Otherwise it throws an AssertionError.
+     */
+    private SearchRequestBuilder getWatchHistory() {
+        ensureGreen(HistoryStoreField.DATA_STREAM);
+        flushAndRefresh(".watcher-history-*");
+        return prepareSearch(".watcher-history-*");
     }
 
 }

@@ -1,0 +1,7 @@
+pr: 110793
+summary: Fix for union-types for multiple columns with the same name
+area: ES|QL
+type: bug
+issues:
+ - 110490
+ - 109916

@@ -741,10 +741,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         reachabilityChecker.checkReachable();
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();
@@ -817,10 +815,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.checkReachable();
         }
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();

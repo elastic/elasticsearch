@@ -107,7 +107,11 @@ public class RepeatTests extends AbstractScalarFunctionTestCase {
         }));
 
         cases = anyNullIsNull(true, cases);
-        cases = errorsForCasesWithoutExamples(cases);
+        cases = errorsForCasesWithoutExamples(cases, (v, p) -> switch (p) {
+            case 0 -> "string";
+            case 1 -> "integer";
+            default -> "";
+        });
         return parameterSuppliersFromTypedData(cases);
     }
 

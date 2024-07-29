@@ -1175,7 +1175,7 @@ public class IngestServiceTests extends ESTestCase {
         AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingProvider documentParsingProvider = new DocumentParsingProvider() {
             @Override
-            public DocumentSizeObserver newDocumentSizeObserver() {
+            public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
                 return new DocumentSizeObserver() {
                     @Override
                     public XContentParser wrapParser(XContentParser xContentParser) {
@@ -1188,6 +1188,7 @@ public class IngestServiceTests extends ESTestCase {
                         parsedValueWasUsed.incrementAndGet();
                         return 0;
                     }
+
                 };
             }
         };
@@ -1825,9 +1826,9 @@ public class IngestServiceTests extends ESTestCase {
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
             indexRequest.source(xContentType, "field1", "value1");
-            boolean shouldListExecutedPiplines = randomBoolean();
-            executedPipelinesExpected.add(shouldListExecutedPiplines);
-            indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
+            boolean shouldListExecutedPipelines = randomBoolean();
+            executedPipelinesExpected.add(shouldListExecutedPipelines);
+            indexRequest.setListExecutedPipelines(shouldListExecutedPipelines);
             bulkRequest.add(indexRequest);
         }
 

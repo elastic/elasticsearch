@@ -880,6 +880,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#UNSIGNED_LONG}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ulongCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -1142,6 +1148,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for String DataTypes.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#stringCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> stringCases(DataType type) {
         List<TypedDataSupplier> result = new ArrayList<>();
         result.add(new TypedDataSupplier("<empty " + type + ">", () -> new BytesRef(""), type));
@@ -1170,6 +1182,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Supplier test case data for {@link Version} fields.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.
+     * </p>
      */
     public static List<TypedDataSupplier> versionCases(String prefix) {
         return List.of(

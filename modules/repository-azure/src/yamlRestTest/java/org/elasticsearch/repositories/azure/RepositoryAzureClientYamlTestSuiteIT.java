@@ -15,6 +15,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -31,7 +32,9 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
+        USE_FIXTURE
+            ? ESTestCase.inFipsJvm() ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.HTTPS
+            : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
@@ -63,7 +66,11 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         )
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
-        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
+        .systemProperty(
+            "javax.net.ssl.trustStore",
+            () -> trustStore.getTrustStorePath().toString(),
+            s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
+        )
         .build();
 
     @ClassRule(order = 1)

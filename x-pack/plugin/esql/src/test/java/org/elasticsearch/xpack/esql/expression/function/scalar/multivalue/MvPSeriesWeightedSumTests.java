@@ -34,9 +34,8 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
 
         doubles(cases);
 
+        // TODO use parameterSuppliersFromTypedDataWithDefaultChecks instead of parameterSuppliersFromTypedData and fix errors
         return parameterSuppliersFromTypedData(cases);
-        // TODO verify why parameterSuppliersFromTypedDataWithDefaultChecks doesn't work
-        // return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "double");
     }
 
     @Override

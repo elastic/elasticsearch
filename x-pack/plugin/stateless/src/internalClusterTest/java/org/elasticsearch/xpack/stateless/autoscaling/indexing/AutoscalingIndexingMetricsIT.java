@@ -22,6 +22,8 @@ import co.elastic.elasticsearch.serverless.autoscaling.action.GetIndexTierMetric
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -37,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -58,6 +61,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -559,6 +563,47 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         // Remove shutdown metadata and ingest load metrics will be back to normal
         deleteShutdownMetadataForNodes(shuttingDownNodes);
         assertThat(getIngestNodesLoad(), hasSize(numNodes));
+    }
+
+    public void testLogWarnForIngestionLoadsOlderThanAccurateWindow() throws Exception {
+        var masterNode = startMasterOnlyNode(Settings.builder().put(ACCURATE_LOAD_WINDOW.getKey(), TimeValue.timeValueSeconds(2)).build());
+        startIndexNode(
+            Settings.builder()
+                .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
+                // respond so that new publications happen
+                logger.info("--> Dropping publication");
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
+            });
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        var ingestionLoads = getNodeIngestLoad();
+        assertThat(ingestionLoads.size(), equalTo(1));
+        assertThat(ingestionLoads.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+        try (var mockLog = MockLog.capture(IngestMetricsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "outdated ingest load",
+                    IngestMetricsService.class.getCanonicalName(),
+                    Level.WARN,
+                    "reported node ingest load is older than *"
+                )
+            );
+            // dropping the publications leads to marking the ingest load as minimum after accurate_load_window seconds
+            // so we use that to wait for the warning message
+            assertBusy(() -> {
+                var ingestionLoads2 = getNodeIngestLoad();
+                assertThat(ingestionLoads2.size(), equalTo(1));
+                assertThat(ingestionLoads2.get(0).metricQuality(), equalTo(MetricQuality.MINIMUM));
+            });
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     private static void putShutdownMetadataForNodes(List<DiscoveryNode> shuttingDownNodes) {

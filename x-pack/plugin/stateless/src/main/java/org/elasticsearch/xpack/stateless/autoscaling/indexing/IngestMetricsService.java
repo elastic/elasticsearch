@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 
 public class IngestMetricsService implements ClusterStateListener {
+
     // Ingest load samples older than this value will be considered not exact ingest loads.
     public static final Setting<TimeValue> ACCURATE_LOAD_WINDOW = Setting.timeSetting(
         "serverless.autoscaling.ingest_metrics.accurate_load_window",
@@ -141,6 +142,13 @@ public class IngestMetricsService implements ClusterStateListener {
             if (value.isStale()) {
                 nodeLoadIterator.remove();
             } else {
+                if (value.isWithinAccurateWindow() == false) {
+                    logger.warn(
+                        "reported node ingest load is older than {} seconds (accurate_load_window) for node ID [{}}]",
+                        accurateLoadWindow.getSeconds(),
+                        nodeIngestStatsEntry.getKey()
+                    );
+                }
                 ingestLoads.add(value.getIngestLoadSnapshot());
             }
         }
@@ -220,10 +228,14 @@ public class IngestMetricsService implements ClusterStateListener {
         }
 
         synchronized NodeIngestLoadSnapshot getIngestLoadSnapshot() {
-            if (quality == MetricQuality.EXACT && timeSinceLastSampleInNanos() >= accurateLoadWindow.getNanos()) {
+            if (quality == MetricQuality.EXACT && isWithinAccurateWindow() == false) {
                 quality = MetricQuality.MINIMUM;
             }
             return new NodeIngestLoadSnapshot(ingestLoad, quality);
+        }
+
+        synchronized boolean isWithinAccurateWindow() {
+            return timeSinceLastSampleInNanos() < accurateLoadWindow.getNanos();
         }
 
         synchronized boolean isStale() {

@@ -36,7 +36,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 
 import java.io.IOException;
 import java.util.List;
@@ -72,8 +72,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private final Map<String, Object> matchCriteria;
     private final QueryBuilder organicQuery;
 
-    private final Supplier<List<Item>> pinnedDocsSupplier;
-    private final Supplier<List<Item>> excludedDocsSupplier;
+    private final Supplier<List<SpecifiedDocument>> pinnedDocsSupplier;
+    private final Supplier<List<SpecifiedDocument>> excludedDocsSupplier;
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
@@ -93,7 +93,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         } else {
             rulesetIds = List.of(in.readString());
             in.readOptionalStringCollectionAsList();
-            in.readOptionalCollectionAsList(Item::new);
+            in.readOptionalCollectionAsList(SpecifiedDocument::new);
         }
         pinnedDocsSupplier = null;
         excludedDocsSupplier = null;
@@ -103,8 +103,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         QueryBuilder organicQuery,
         Map<String, Object> matchCriteria,
         List<String> rulesetIds,
-        Supplier<List<Item>> pinnedDocsSupplier,
-        Supplier<List<Item>> excludedDocsSupplier
+        Supplier<List<SpecifiedDocument>> pinnedDocsSupplier,
+        Supplier<List<SpecifiedDocument>> excludedDocsSupplier
 
     ) {
         if (organicQuery == null) {
@@ -179,22 +179,21 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         // NOTE: this is old query logic, as in 8.12.2+ and 8.13.0+ we will always rewrite this query
         // into a pinned/boolean query or the organic query. This logic remains here for backwards compatibility
         // with coordinator nodes running versions 8.10.0 - 8.12.1.
-        List<Item> pinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
+        List<SpecifiedDocument> pinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
         if (pinnedDocs != null && pinnedDocs.isEmpty() == false) {
-            PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new Item[0]));
+            PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new SpecifiedDocument[0]));
             return pinnedQueryBuilder.toQuery(context);
         } else {
             return organicQuery.toQuery(context);
         }
     }
 
-    // TODO - Refactor so we don't use Items in pinned query builder class
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
 
         if (pinnedDocsSupplier != null && excludedDocsSupplier != null) {
-            List<Item> identifiedPinnedDocs = pinnedDocsSupplier.get();
-            List<Item> identifiedExcludedDocs = excludedDocsSupplier.get();
+            List<SpecifiedDocument> identifiedPinnedDocs = pinnedDocsSupplier.get();
+            List<SpecifiedDocument> identifiedExcludedDocs = excludedDocsSupplier.get();
 
             if (identifiedPinnedDocs == null || identifiedExcludedDocs == null) {
                 // Not executed yet
@@ -208,7 +207,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
             if (identifiedPinnedDocs.isEmpty() == false && identifiedExcludedDocs.isEmpty()) {
                 // We have pinned IDs but nothing to exclude
-                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
+                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0]));
             }
 
             if (identifiedPinnedDocs.isEmpty()) {
@@ -217,14 +216,17 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                 return new BoolQueryBuilder().must(organicQuery).mustNot(excludedDocsQueryBuilder);
             } else {
                 // We have documents to both pin and exclude
-                QueryBuilder pinnedQuery = new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new Item[0]));
+                QueryBuilder pinnedQuery = new PinnedQueryBuilder(
+                    organicQuery,
+                    truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0])
+                );
                 QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);
                 return new BoolQueryBuilder().must(pinnedQuery).mustNot(excludedDocsQueryBuilder);
             }
         }
 
-        SetOnce<List<Item>> pinnedDocsSetOnce = new SetOnce<>();
-        SetOnce<List<Item>> excludedDocsSetOnce = new SetOnce<>();
+        SetOnce<List<SpecifiedDocument>> pinnedDocsSetOnce = new SetOnce<>();
+        SetOnce<List<SpecifiedDocument>> excludedDocsSetOnce = new SetOnce<>();
         AppliedQueryRules appliedRules = new AppliedQueryRules();
 
         // Identify matching rules and apply them as applicable
@@ -277,12 +279,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         ).queryName(this.queryName);
     }
 
-    private QueryBuilder buildExcludedDocsQuery(List<Item> identifiedExcludedDocs) {
+    private QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
         QueryBuilder excludedDocsQueryBuilder;
         if (identifiedExcludedDocs.stream().allMatch(item -> item.index() == null)) {
             // Easy case - just add an ids query
             excludedDocsQueryBuilder = QueryBuilders.idsQuery()
-                .addIds(identifiedExcludedDocs.stream().map(Item::id).toArray(String[]::new));
+                .addIds(identifiedExcludedDocs.stream().map(SpecifiedDocument::id).toArray(String[]::new));
         } else {
             // Here, we have to create Boolean queries for the _id and _index fields
             excludedDocsQueryBuilder = QueryBuilders.boolQuery();

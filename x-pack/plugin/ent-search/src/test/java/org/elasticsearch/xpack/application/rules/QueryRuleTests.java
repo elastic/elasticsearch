@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,7 +32,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleTests extends ESTestCase {
@@ -285,7 +285,7 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
-        assertEquals(List.of(new Item(null, "id1"), new Item(null, "id2")), appliedQueryRules.pinnedDocs());
+        assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
@@ -304,7 +304,7 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
-        assertEquals(List.of(new Item(null, "id1"), new Item(null, "id2")), appliedQueryRules.excludedDocs());
+        assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.excludedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
@@ -323,7 +323,7 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));
-        assertEquals(List.of(new Item(null, "id1"), new Item(null, "id2")), appliedQueryRules.pinnedDocs());
+        assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
 
         appliedQueryRules = new AppliedQueryRules();

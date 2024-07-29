@@ -23,7 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -319,9 +319,9 @@ public class QueryRule implements Writeable, ToXContentObject {
     }
 
     public AppliedQueryRules applyRule(AppliedQueryRules appliedRules, Map<String, Object> matchCriteria) {
-        List<PinnedQueryBuilder.Item> pinnedDocs = appliedRules.pinnedDocs();
-        List<PinnedQueryBuilder.Item> excludedDocs = appliedRules.excludedDocs();
-        List<PinnedQueryBuilder.Item> matchingDocs = identifyMatchingDocs(matchCriteria);
+        List<SpecifiedDocument> pinnedDocs = appliedRules.pinnedDocs();
+        List<SpecifiedDocument> excludedDocs = appliedRules.excludedDocs();
+        List<SpecifiedDocument> matchingDocs = identifyMatchingDocs(matchCriteria);
 
         switch (type) {
             case PINNED -> pinnedDocs.addAll(matchingDocs);
@@ -334,8 +334,8 @@ public class QueryRule implements Writeable, ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    private List<PinnedQueryBuilder.Item> identifyMatchingDocs(Map<String, Object> matchCriteria) {
-        List<PinnedQueryBuilder.Item> matchingDocs = new ArrayList<>();
+    private List<SpecifiedDocument> identifyMatchingDocs(Map<String, Object> matchCriteria) {
+        List<SpecifiedDocument> matchingDocs = new ArrayList<>();
         Boolean isRuleMatch = null;
 
         // All specified criteria in a rule must match for the rule to be applied
@@ -355,21 +355,19 @@ public class QueryRule implements Writeable, ToXContentObject {
         if (isRuleMatch != null && isRuleMatch) {
             if (actions.containsKey(IDS_FIELD.getPreferredName())) {
                 matchingDocs.addAll(
-                    ((List<String>) actions.get(IDS_FIELD.getPreferredName())).stream()
-                        .map(id -> new PinnedQueryBuilder.Item(null, id))
-                        .toList()
+                    ((List<String>) actions.get(IDS_FIELD.getPreferredName())).stream().map(id -> new SpecifiedDocument(null, id)).toList()
                 );
             } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
                 List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
-                List<PinnedQueryBuilder.Item> items = docsToPin.stream()
+                List<SpecifiedDocument> specifiedDocuments = docsToPin.stream()
                     .map(
-                        map -> new PinnedQueryBuilder.Item(
+                        map -> new SpecifiedDocument(
                             map.get(INDEX_FIELD.getPreferredName()),
-                            map.get(PinnedQueryBuilder.Item.ID_FIELD.getPreferredName())
+                            map.get(SpecifiedDocument.ID_FIELD.getPreferredName())
                         )
                     )
                     .toList();
-                matchingDocs.addAll(items);
+                matchingDocs.addAll(specifiedDocuments);
             }
         }
         return matchingDocs;

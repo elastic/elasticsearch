@@ -21,7 +21,6 @@ module org.elasticsearch.application {
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.searchbusinessrules;
     requires org.apache.lucene.suggest;
-    requires org.apache.lucene.queryparser;
 
     exports org.elasticsearch.xpack.application;
     exports org.elasticsearch.xpack.application.analytics;

@@ -48,7 +48,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
         assertThat(singleModel, hasSize(1));
-        assertEquals("se_model_1", singleModel.get(0).get("model_id"));
+        assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
 
         for (int i = 0; i < 5; i++) {
             deleteModel("se_model_" + i, TaskType.SPARSE_EMBEDDING);
@@ -81,7 +81,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String inferenceEntityId = "sparse_embedding_model";
         putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var singleModel = getModels(inferenceEntityId, TaskType.ANY);
-        assertEquals(inferenceEntityId, singleModel.get(0).get("model_id"));
+        assertEquals(inferenceEntityId, singleModel.get(0).get("inference_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
     }
 
@@ -90,7 +90,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String modelId = "no_task_type_in_url";
         putModel(modelId, mockSparseServiceModelConfig(TaskType.SPARSE_EMBEDDING));
         var singleModel = getModel(modelId);
-        assertEquals(modelId, singleModel.get("model_id"));
+        assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         var inference = inferOnMockService(modelId, List.of(randomAlphaOfLength(10)));

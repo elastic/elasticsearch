@@ -1140,6 +1140,8 @@ fetch geo_point:
             subobjects: auto
             properties:
               message:
+                type: object
+                subobjects: auto
                 enabled: false
 
   - do:
@@ -1152,7 +1154,7 @@ fetch geo_point:
             "root.subfield": "child",
             "message": {
               "foo": 10,
-              "bar": 20
+              "foo.bar": 20
             }
           }
   - match: {result: "created"}
@@ -1174,4 +1176,4 @@ fetch geo_point:
   - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }
   - is_false: hits.hits.0.fields.message
   - match: { hits.hits.0._source.message.foo: 10 }
-  - match: { hits.hits.0._source.message.bar: 20 }
+  - match: { hits.hits.0._source.message.foo\.bar: 20 }

@@ -10,7 +10,7 @@ The <<esql-stats-by>> command supports these aggregate functions:
 // tag::agg_list[]
 * <<esql-avg>>
 * <<esql-count>>
-* <<esql-count-distinct>>
+* <<esql-count_distinct>>
 * <<esql-max>>
 * <<esql-median>>
 * <<esql-median_absolute_deviation>>
@@ -25,7 +25,7 @@ The <<esql-stats-by>> command supports these aggregate functions:
 
 include::layout/avg.asciidoc[]
 include::layout/count.asciidoc[]
-include::layout/count-distinct.asciidoc[]
+include::layout/count_distinct.asciidoc[]
 include::layout/max.asciidoc[]
 include::layout/median.asciidoc[]
 include::layout/median_absolute_deviation.asciidoc[]

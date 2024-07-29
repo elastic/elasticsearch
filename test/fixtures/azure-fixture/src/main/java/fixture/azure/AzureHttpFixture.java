@@ -147,12 +147,12 @@ public class AzureHttpFixture extends ExternalResource {
     @Override
     protected void before() {
         try {
-            final var federatedTokenTmpdir = ESTestCase.createTempDir();
-
+            if (tenantId != null && protocol != Protocol.HTTPS) {
+                fail(null, "when [tenantId] is set, protocol must be HTTPS");
+            }
+            final Path federatedTokenTmpdir = ESTestCase.createTempDir();
             federatedTokenPath = copyResource(federatedTokenTmpdir, "azure-federated-token");
-
-            final var federatedToken = Files.readString(federatedTokenPath);
-
+            final String federatedToken = Files.readString(federatedTokenPath);
             final var bearerToken = ESTestCase.randomIdentifier();
 
             if (protocol != Protocol.NONE) {

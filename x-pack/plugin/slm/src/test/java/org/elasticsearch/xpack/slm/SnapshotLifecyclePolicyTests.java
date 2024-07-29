@@ -88,44 +88,43 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
         );
 
         {
-
+            // current time is exactly modified time
             Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
             Instant currentTime = modifiedTime;
             var clock = Clock.fixed(currentTime, ZoneOffset.UTC);
             Instant expected = Instant.parse("2024-07-17T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
-
             assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), clock), equalTo(expected.toEpochMilli()));
         }
 
         {
+            // current time is half an interval past modified time
             Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
             Instant currentTime = modifiedTime.plus(Duration.ofMinutes(15));
             var clock = Clock.fixed(currentTime, ZoneOffset.UTC);
             Instant expected = Instant.parse("2024-07-17T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
-
             assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), clock), equalTo(expected.toEpochMilli()));
         }
 
         {
+            // current time is a full day (24 intervals) ahead of modified time
             Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
             Instant currentTime = modifiedTime.plus(Duration.ofDays(1));
             var clock = Clock.fixed(currentTime, ZoneOffset.UTC);
             Instant expected = Instant.parse("2024-07-18T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
-
             assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), clock), equalTo(expected.toEpochMilli()));
         }
 
         {
+            // current time before modified time
             Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
             Instant currentTime = modifiedTime.minus(Duration.ofHours(1));
             var clock = Clock.fixed(currentTime, ZoneOffset.UTC);
-
-            // TODO is assert good enough? 
             expectThrows(AssertionError.class, () -> p.calculateNextExecution(modifiedTime.toEpochMilli(), clock));
         }
     }
 
     public void testCalculateNextIntervalInterval() {
+
         {
             SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
                 "id",
@@ -136,8 +135,20 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
             );
-
             assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.timeValueMinutes(30)));
+        }
+        {
+            TimeValue intervalTimeValue = randomTimeValue();
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
+                "id",
+                "name",
+                null,
+                intervalTimeValue.toString(),
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(intervalTimeValue));
         }
     }
 
@@ -244,9 +255,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             ValidationException e = policy.validate();
             assertThat(
                 e.validationErrors(),
-                containsInAnyOrder(
-                    "invalid schedule/interval: either schedule or interval must not be empty"
-                )
+                containsInAnyOrder("invalid schedule/interval: either schedule or interval must not be empty")
             );
         }
 
@@ -264,10 +273,23 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             ValidationException e = policy.validate();
             assertThat(
                 e.validationErrors(),
-                containsInAnyOrder(
-                    "invalid schedule/interval: only one of schedule or interval can be non-empty"
-                )
+                containsInAnyOrder("invalid schedule/interval: only one of schedule or interval can be non-empty")
             );
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                null,
+                "0d",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), containsInAnyOrder("invalid interval: interval size must be non-zero"));
         }
 
         {

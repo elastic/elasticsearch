@@ -68,10 +68,10 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         (a, id) -> {
             String name = (String) a[0];
             String schedule = (String) a[1];
-            String repo = (String) a[2];
-            Map<String, Object> config = (Map<String, Object>) a[3];
-            SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
-            String interval = (String) a[5];
+            String interval = (String) a[2];
+            String repo = (String) a[3];
+            Map<String, Object> config = (Map<String, Object>) a[4];
+            SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[5];
             return new SnapshotLifecyclePolicy(id, name, schedule, interval, repo, config, retention);
         }
     );
@@ -79,10 +79,10 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), SCHEDULE);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), INTERVAL);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), INTERVAL);
     }
 
     public SnapshotLifecyclePolicy(
@@ -150,8 +150,12 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return this.retentionPolicy;
     }
 
+    public boolean useSchedule() {
+        return Strings.isEmpty(schedule) == false;
+    }
+
     public long calculateNextExecution(long modifiedDate, Clock clock) {
-        if (Strings.isEmpty(schedule) == false) {
+        if (useSchedule()) {
             final Cron scheduleEvaluator = new Cron(this.schedule);
             return scheduleEvaluator.getNextValidTimeAfter(clock.millis());
         } else {
@@ -171,7 +175,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
      *         if either of the next two times after now is unsupported according to @{@link Cron#getNextValidTimeAfter(long)}
      */
     public TimeValue calculateNextInterval(Clock clock) {
-        if (this.interval != null) {
+        if (useSchedule() == false) {
             return TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
         }
 
@@ -212,7 +216,6 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             err.addValidationErrors(nameValidationErrors.validationErrors());
         }
 
-
         final boolean hasSchedule = Strings.hasText(schedule);
         final boolean hasInterval = Strings.hasText(interval);
         if (hasSchedule == false && hasInterval == false) {
@@ -227,7 +230,10 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             }
         } else {
             try {
-                TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
+                var intervalTimeValue = TimeValue.parseTimeValue(interval, INTERVAL.getPreferredName());
+                if (intervalTimeValue.nanos() == 0) {
+                    err.addValidationError("invalid interval: interval size must be non-zero");
+                }
             } catch (IllegalArgumentException e) {
                 err.addValidationError("invalid interval: " + ExceptionsHelper.unwrapCause(e).getMessage());
             }

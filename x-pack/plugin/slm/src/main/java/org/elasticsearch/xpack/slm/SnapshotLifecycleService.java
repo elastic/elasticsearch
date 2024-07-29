@@ -257,12 +257,9 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
     public static void validateMinimumInterval(final SnapshotLifecyclePolicy lifecycle, final ClusterState state) {
         TimeValue minimum = LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING.get(state.metadata().settings());
         TimeValue next = lifecycle.calculateNextInterval(Clock.systemUTC());
-        String messagePrefix = lifecycle.getSchedule() == null
-            ? "invalid schedule [" + lifecycle.getSchedule()
-            : "invalid interval [" + lifecycle.getInterval();
         if (next.duration() > 0 && minimum.duration() > 0 && next.millis() < minimum.millis()) {
             throw new IllegalArgumentException(
-                    messagePrefix
+                (lifecycle.useSchedule() ? "invalid schedule [" + lifecycle.getSchedule() : "invalid interval [" + lifecycle.getInterval())
                     + "]: "
                     + "schedule would be too frequent, executing more than every ["
                     + minimum.getStringRep()

@@ -19,6 +19,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
 
+import com.azure.core.credential.TokenCredential;
 import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
@@ -29,6 +30,7 @@ import com.azure.core.http.ProxyOptions;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.identity.WorkloadIdentityCredentialBuilder;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,6 +50,8 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -95,15 +100,18 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
     private final LoopResources nioLoopResources;
+    private final Environment environment;
     private volatile boolean closed = false;
 
     AzureClientProvider(
+        Environment environment,
         ThreadPool threadPool,
         String reactorExecutorName,
         EventLoopGroup eventLoopGroup,
         ConnectionProvider connectionProvider,
         ByteBufAllocator byteBufAllocator
     ) {
+        this.environment = environment;
         this.threadPool = threadPool;
         this.reactorExecutorName = reactorExecutorName;
         this.eventLoopGroup = eventLoopGroup;
@@ -119,7 +127,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         return EVENT_LOOP_THREAD_COUNT.get(settings);
     }
 
-    static AzureClientProvider create(ThreadPool threadPool, Settings settings) {
+    static AzureClientProvider create(Environment environment, ThreadPool threadPool, Settings settings) {
         final ExecutorService eventLoopExecutor = threadPool.executor(NETTY_EVENT_LOOP_THREAD_POOL_NAME);
         // Most of the code that needs special permissions (i.e. jackson serializers generation) is executed
         // in the event loop executor. That's the reason why we should provide an executor that allows the
@@ -141,7 +149,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         // Just to verify that this executor exists
         threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
-        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, NettyAllocator.getAllocator());
+        return new AzureClientProvider(
+            environment,
+            threadPool,
+            REPOSITORY_THREAD_POOL_NAME,
+            eventLoopGroup,
+            provider,
+            NettyAllocator.getAllocator()
+        );
     }
 
     AzureBlobServiceClient createClient(
@@ -171,11 +186,30 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .retryOptions(retryOptions);
 
         if (settings.hasCredentials() == false) {
-            final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
-            if (false == instanceDiscoveryEnabled) {
-                credentialBuilder.disableInstanceDiscovery();
+            // TODO hack hack hack
+            final String tokenFilePath = System.getProperty("AZURE_FEDERATED_TOKEN_FILE");
+            if (tokenFilePath != null) {
+                final Path identityTokenFileSymlink = environment.configFile().resolve("repository-azure/azure-federated-token");
+                if (Files.exists(identityTokenFileSymlink) == false || Files.isReadable(identityTokenFileSymlink) == false) {
+                    throw new IllegalStateException("Unable to read identity token file symlink in the config directory");
+                }
+                final TokenCredential credential = new WorkloadIdentityCredentialBuilder().tokenFilePath(
+                    identityTokenFileSymlink.toString()
+                )
+                    .executorService(eventLoopGroup)
+                    .clientId(System.getProperty("AZURE_CLIENT_ID"))
+                    .tenantId(System.getProperty("AZURE_TENANT_ID"))
+                    // TODO should be configurable
+                    .disableInstanceDiscovery()
+                    .build();
+                builder.credential(credential);
+            } else {
+                final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
+                if (false == instanceDiscoveryEnabled) {
+                    credentialBuilder.disableInstanceDiscovery();
+                }
+                builder.credential(credentialBuilder.build());
             }
-            builder.credential(credentialBuilder.build());
         }
 
         if (successfulRequestConsumer != null) {

@@ -38,7 +38,7 @@ public class AzureClientProviderTests extends ESTestCase {
             AzureRepositoryPlugin.executorBuilder(),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
-        azureClientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
+        azureClientProvider = AzureClientProvider.create(null, threadPool, Settings.EMPTY);
     }
 
     @After

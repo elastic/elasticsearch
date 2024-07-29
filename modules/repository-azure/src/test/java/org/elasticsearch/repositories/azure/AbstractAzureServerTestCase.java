@@ -76,7 +76,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         httpServer.start();
         secondaryHttpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         secondaryHttpServer.start();
-        clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
+        clientProvider = AzureClientProvider.create(null, threadPool, Settings.EMPTY);
         clientProvider.start();
         super.setUp();
     }

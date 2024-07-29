@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -65,6 +66,12 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
             s -> USE_FIXTURE
         )
+        .configFile("repository-azure/azure-federated-token", Resource.fromClasspath("azure-federated-token"))
+        .systemProperty("AZURE_FEDERATED_TOKEN_FILE", () -> {
+            String loc = System.getProperty("azureFederatedIdentityTokenExternalLocation");
+            System.out.println("Using federated token file: " + loc);
+            return loc;
+        })
         .apply(c -> {
             if (USE_FIXTURE) {
                 // test fixture does not support CAS yet; TODO fix this
@@ -75,17 +82,17 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_FIXTURE)
         .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> notNullOrEmpty(AZURE_TEST_CLIENT_ID))
         .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> notNullOrEmpty(AZURE_TEST_TENANT_ID))
-        .systemProperty(
-            "AZURE_FEDERATED_TOKEN_FILE",
-            () -> fixture.getFederatedTokenPath().toString(),
-            s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
-        )
-        // Needed to allowlist in SM security policy for test
-        .systemProperty(
-            "test.azure.federated_token_file",
-            () -> fixture.getFederatedTokenPath().toString(),
-            s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
-        )
+        // .systemProperty(
+        // "AZURE_FEDERATED_TOKEN_FILE",
+        // () -> fixture.getFederatedTokenPath().toString(),
+        // s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
+        // )
+        // // Needed to allowlist in SM security policy for test
+        // .systemProperty(
+        // "test.azure.federated_token_file",
+        // () -> fixture.getFederatedTokenPath().toString(),
+        // s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
+        // )
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
 

@@ -77,9 +77,16 @@ tasks.named("workloadIdentityJavaRestTest") {
   systemProperty 'test.azure.account', azureAccount
   systemProperty 'test.azure.container', azureContainer
   // random uuids to satisfy format requirements -- the actual values are not important
-  // random uuids to satisfy format requirements -- the actual values are not important
-  systemProperty 'test.azure.client_id', azureTenantId ?: "86dd1b33-96c1-4a2e-92ac-b844404fc691"
-  systemProperty 'test.azure.tenant_id', azureClientId ?: "583d4f71-148a-4163-bad5-2311e13c60dc"
+  systemProperty 'test.azure.tenant_id', azureTenantId ?: "583d4f71-148a-4163-bad5-2311e13c60dc"
+  systemProperty 'test.azure.client_id', azureClientId ?: "86dd1b33-96c1-4a2e-92ac-b844404fc691"
+
+  // ideally we could resolve an env path in cluster config as resource similar to configuring a config file
+  // not sure how common this is, but it would be nice to support
+  File identityTokenExternalLocation = file('src/javaRestTest/resources/azure-federated-token')
+  // The web identity token can be read only from the plugin config directory because of security restrictions
+  // Ideally we would create a symlink, but extraConfigFile doesn't support it
+  nonInputProperties.systemProperty("azureFederatedIdentityTokenExternalLocation", identityTokenExternalLocation.getAbsolutePath())
+
   // omitting key and sas_token so that we use a bearer token from workload identity
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed
 }

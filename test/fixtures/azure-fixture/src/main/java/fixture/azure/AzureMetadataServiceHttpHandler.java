@@ -43,12 +43,12 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
         if ("GET".equals(exchange.getRequestMethod())
             && "/metadata/identity/oauth2/token".equals(exchange.getRequestURI().getPath())
             && "api-version=2018-02-01&resource=https://storage.azure.com".equals(exchange.getRequestURI().getQuery())) {
-
-            try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                final BytesReference responseBytes = getAccessTokenBytes(xcb);
-                writeResponse(exchange, responseBytes);
-                return;
-            }
+            throw new IllegalStateException("should not get called");
+            // try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            // final BytesReference responseBytes = getAccessTokenBytes(xcb);
+            // writeResponse(exchange, responseBytes);
+            // return;
+            // }
         } else if ("POST".equals(exchange.getRequestMethod())
             && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
                 try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {

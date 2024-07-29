@@ -96,6 +96,7 @@ public class PermissionsIT extends ESRestTestCase {
             "policy_id",
             "name",
             "1 2 3 * * ?",
+            null,
             repo,
             config,
             new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null)

@@ -135,6 +135,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         List<String> units = List.of("nanos", "micros", "ms", "s", "m", "h", "d");
         return randomIntBetween(0, 1000) + randomFrom(units);
     }
+
     public static Tuple<String, String> randomScheduleOrInterval(String schedule, String interval) {
         boolean useSchedule = randomBoolean();
         return new Tuple<>(useSchedule ? schedule : null, useSchedule ? null : interval);

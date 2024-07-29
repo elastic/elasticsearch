@@ -100,9 +100,16 @@ Minimum number of snapshots to retain, even if the snapshots have expired.
 ====
 
 `schedule`::
-(Required, <<api-cron-expressions,Cron syntax>>)
+(Optional, <<api-cron-expressions,Cron syntax>>)
 Periodic or absolute schedule at which the policy creates snapshots. {slm-init}
 applies `schedule` changes immediately.
+Either `schedule` or `interval` must be defined.
+
+`interval`::
+(Optional, <<time-units, time units>>)
+An alternative to `schedule` for creating periodic snapshots.
+The first snapshot is scheduled one interval after the policy modification time, and then again every `interval` after.
+Either `schedule` or `interval` must be defined.
 
 [[slm-api-put-example]]
 ==== {api-examples-title}

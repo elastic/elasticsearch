@@ -339,7 +339,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         builder.startObject();
         builder.field(NAME.getPreferredName(), this.name);
         builder.field(SCHEDULE.getPreferredName(), this.schedule);
-        builder.field(INTERVAL.getPreferredName(), this.interval);
+        if (this.interval != null) {
+            builder.field(INTERVAL.getPreferredName(), this.interval);
+        }
         builder.field(REPOSITORY.getPreferredName(), this.repository);
         if (this.configuration != null) {
             builder.field(CONFIG.getPreferredName(), this.configuration);

@@ -28,12 +28,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomInterval;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSchedule;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomScheduleOrInterval;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTestCase<SnapshotLifecyclePolicy> {
@@ -137,17 +139,17 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.timeValueMinutes(30)));
         }
         {
-            TimeValue intervalTimeValue = randomTimeValue();
+            String interval = randomInterval();
             SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
                 "id",
                 "name",
                 null,
-                intervalTimeValue.toString(),
+                interval,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
             );
-            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(intervalTimeValue));
+            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.parseTimeValue(interval, "")));
         }
     }
 

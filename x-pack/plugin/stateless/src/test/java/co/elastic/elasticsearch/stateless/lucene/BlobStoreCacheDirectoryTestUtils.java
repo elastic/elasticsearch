@@ -37,12 +37,11 @@ public class BlobStoreCacheDirectoryTestUtils {
         return target.getCacheService();
     }
 
-    public static void updateLastUploadedTermAndGen(
-        SearchDirectory target,
-        PrimaryTermAndGeneration latestUploadedBccTermAndGen,
-        PrimaryTermAndGeneration bccTermAndGen,
-        String nodeId
-    ) {
-        target.updateLatestUploadInfo(latestUploadedBccTermAndGen, bccTermAndGen, nodeId);
+    public static void updateLatestUploadedBcc(SearchDirectory target, PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
+        target.updateLatestUploadedBcc(latestUploadedBccTermAndGen);
+    }
+
+    public static void updateLatestCommitInfo(SearchDirectory target, PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
+        target.updateLatestCommitInfo(ccTermAndGen, nodeId);
     }
 }

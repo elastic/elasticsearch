@@ -65,6 +65,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +81,7 @@ import java.util.function.LongFunction;
 
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.hamcrest.Matchers.empty;
@@ -191,16 +193,20 @@ public class CacheBlobReaderTests extends ESTestCase {
                     }
                 );
                 virtualBatchedCompoundCommit.decRef();
-
-                BlobStoreCacheDirectoryTestUtils.updateLastUploadedTermAndGen(
-                    searchDirectory,
-                    virtualBatchedCompoundCommit.getPrimaryTermAndGeneration(),
-                    virtualBatchedCompoundCommit.lastCompoundCommit().primaryTermAndGeneration(),
-                    clusterService.localNode().getId()
-                );
                 return Objects.requireNonNull(bcc.get());
             }));
             return future.actionGet(30, TimeUnit.SECONDS);
+        }
+
+        public synchronized BatchedCompoundCommit uploadVirtualBatchedCompoundCommitAndNotifySearchDirectory() throws IOException {
+            var bcc = uploadVirtualBatchedCompoundCommit();
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(searchDirectory, bcc.primaryTermAndGeneration());
+            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
+                searchDirectory,
+                bcc.lastCompoundCommit().primaryTermAndGeneration(),
+                clusterService.localNode().getId()
+            );
+            return bcc;
         }
 
         @Override
@@ -229,7 +235,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     ShardId shardId,
                     LongFunction<BlobContainer> blobContainer,
                     BlobLocation location,
-                    ObjectStoreUploadTracker objectStoreUploadTracker,
+                    MutableObjectStoreUploadTracker objectStoreUploadTracker,
                     LongConsumer totalBytesReadFromObjectStore,
                     LongConsumer totalBytesReadFromIndexing
                 ) {
@@ -260,7 +266,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         }
                     };
                     return new SwitchingCacheBlobReader(
-                        objectStoreUploadTracker.getLatestUploadInfo(location.getBatchedCompoundCommitTermAndGeneration()),
+                        objectStoreUploadTracker,
+                        location.getBatchedCompoundCommitTermAndGeneration(),
                         originalCacheBlobReader,
                         indexingShardCacheBlobReader
                     );
@@ -298,15 +305,30 @@ public class CacheBlobReaderTests extends ESTestCase {
                         shardId,
                         (term) -> indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(term),
                         virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()),
-                        bccTermAndGen -> new ObjectStoreUploadTracker.UploadInfo() {
+                        new MutableObjectStoreUploadTracker() {
                             @Override
-                            public boolean isUploaded() {
-                                return false;
+                            public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
+                                assert false : "unexpected call to this method";
                             }
 
                             @Override
-                            public String preferredNodeId() {
-                                return null;
+                            public void updateLatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {
+                                assert false : "unexpected call to this method";
+                            }
+
+                            @Override
+                            public UploadInfo getLatestUploadInfo(PrimaryTermAndGeneration bccTermAndGen) {
+                                return new ObjectStoreUploadTracker.UploadInfo() {
+                                    @Override
+                                    public boolean isUploaded() {
+                                        return false;
+                                    }
+
+                                    @Override
+                                    public String preferredNodeId() {
+                                        return null;
+                                    }
+                                };
                             }
                         },
                         bytesReadFromObjectStore -> {},
@@ -378,7 +400,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             });
             assertThat(node.getBlobReads(), equalTo(blobReadsBefore));
 
-            var bcc = node.uploadVirtualBatchedCompoundCommit();
+            var bcc = node.uploadVirtualBatchedCompoundCommitAndNotifySearchDirectory();
 
             // Read all files and ensure they are the same. This reads from cache (if big enough) without reading from the blob store.
             virtualBatchedCompoundCommit.getInternalLocations().keySet().forEach(filename -> {
@@ -432,7 +454,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 assertThat(stats.queue(), equalTo(0));
             });
 
-            node.uploadVirtualBatchedCompoundCommit();
+            node.uploadVirtualBatchedCompoundCommitAndNotifySearchDirectory();
 
             // Read all files and ensure they are the same. This reads from cache (should be big) without reading from the blob store.
             int blobReadsBefore = node.getBlobReads();
@@ -575,7 +597,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             assertThat(node.getRangeInputStreamCalls.poll().position, equalTo(lastChunkOffset));
 
             // Upload and switch to read from the object store
-            var bcc = node.uploadVirtualBatchedCompoundCommit();
+            node.uploadVirtualBatchedCompoundCommitAndNotifySearchDirectory();
             node.getRangeInputStreamCalls.clear();
 
             // Read the files, which makes the cache fill a 16MiB region from the cache that extends beyond the end of the blob file.
@@ -621,7 +643,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             );
 
             // Upload and switch to read from the object store
-            node.uploadVirtualBatchedCompoundCommit();
+            node.uploadVirtualBatchedCompoundCommitAndNotifySearchDirectory();
 
             // Read the files again. The data is all from the cache and there will be no request trying to fill
             // the gap beyond the available data
@@ -681,7 +703,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
                         BlobLocation location,
-                        ObjectStoreUploadTracker objectStoreUploadTracker,
+                        MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing
                     ) {
@@ -717,74 +739,124 @@ public class CacheBlobReaderTests extends ESTestCase {
 
     public void testCacheBlobReaderSwitchesFromIndexingToBlobStoreOnIntermediateUpload() throws Exception {
         final var primaryTerm = randomLongBetween(1L, 10L);
-        try (var node = new FakeVBCCStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-                var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
-                return new CacheBlobReaderService(nodeSettings, cacheService, client) {
-                    @Override
-                    public CacheBlobReader getCacheBlobReader(
-                        ShardId shardId,
-                        LongFunction<BlobContainer> blobContainer,
-                        BlobLocation location,
-                        ObjectStoreUploadTracker objectStoreUploadTracker,
-                        LongConsumer totalBytesReadFromObjectStore,
-                        LongConsumer totalBytesReadFromIndexing
-                    ) {
-                        var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
-                            shardId,
-                            blobContainer,
-                            location,
-                            objectStoreUploadTracker,
-                            totalBytesReadFromObjectStore,
-                            totalBytesReadFromIndexing
-                        );
-                        var writerFromPrimary = new IndexingShardCacheBlobReader(
-                            shardId,
-                            location.getBatchedCompoundCommitTermAndGeneration(),
-                            clusterService.localNode().getId(),
-                            client,
-                            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
+        final var rangeSize = new ByteSizeValue(4, ByteSizeUnit.MB);
+        try (
+            var node = new FakeVBCCStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                new ByteSizeValue(2, ByteSizeUnit.MB).getBytes()
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(
+                            SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                            new ByteSizeValue(12, ByteSizeUnit.MB).getStringRep()
+                        )
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize.getStringRep())
+                        .build();
+                }
+
+                @Override
+                protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client) {
+                        @Override
+                        public CacheBlobReader getCacheBlobReader(
+                            ShardId shardId,
+                            LongFunction<BlobContainer> blobContainer,
+                            BlobLocation location,
+                            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                            LongConsumer totalBytesReadFromObjectStore,
+                            LongConsumer totalBytesReadFromIndexing
                         ) {
-                            @Override
-                            public void getVirtualBatchedCompoundCommitChunk(
-                                final PrimaryTermAndGeneration virtualBccTermAndGen,
-                                final long offset,
-                                final int length,
-                                final String preferredNodeId,
-                                final ActionListener<ReleasableBytesReference> listener
+                            var writerFromObjectStore = new ObjectStoreCacheBlobReader(
+                                blobContainer.apply(location.primaryTerm()),
+                                location.blobName(),
+                                rangeSize.getBytes()
                             ) {
-                                if (randomBoolean()) {
-                                    customizedGetVirtualBatchedCompoundCommitChunk(virtualBccTermAndGen, offset, length, listener);
-                                } else {
-                                    try {
-                                        uploadVirtualBatchedCompoundCommit();
-                                    } catch (IOException e) {
-                                        logger.error("Failed to upload virtual batched compound commit", e);
-                                        assert false : e;
-                                    }
-                                    listener.onFailure(
-                                        VirtualBatchedCompoundCommit.buildResourceNotFoundException(shardId, virtualBccTermAndGen)
-                                    );
+                                @Override
+                                public ByteRange getRange(long position, int length, long remainingFileLength) {
+                                    assert virtualBatchedCompoundCommit.isFrozen()
+                                        : "should not call this cache blob reader when the BCC is not uploaded";
+                                    var range = super.getRange(position, length, remainingFileLength);
+                                    assertThat(range, equalTo(BlobCacheUtils.computeRange(rangeSize.getBytes(), position, length)));
+                                    return range;
                                 }
-                            }
-                        };
-                        return new SwitchingCacheBlobReader(
-                            objectStoreUploadTracker.getLatestUploadInfo(location.getBatchedCompoundCommitTermAndGeneration()),
-                            originalCacheBlobReader,
-                            writerFromPrimary
-                        );
-                    }
-                };
+                            };
+                            var writerFromPrimary = new IndexingShardCacheBlobReader(
+                                shardId,
+                                location.getBatchedCompoundCommitTermAndGeneration(),
+                                clusterService.localNode().getId(),
+                                client,
+                                TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
+                            ) {
+                                @Override
+                                public void getVirtualBatchedCompoundCommitChunk(
+                                    final PrimaryTermAndGeneration virtualBccTermAndGen,
+                                    final long offset,
+                                    final int length,
+                                    final String preferredNodeId,
+                                    final ActionListener<ReleasableBytesReference> listener
+                                ) {
+                                    if (randomBoolean()) {
+                                        customizedGetVirtualBatchedCompoundCommitChunk(virtualBccTermAndGen, offset, length, listener);
+                                    } else {
+                                        try {
+                                            // Upload the VBCC, without notifying the search directory of what is the latest uploaded BCC.
+                                            // The ResourceNotFoundException should prompt the SwitchingCacheBlobReader to update the info
+                                            // that the VBCC was uploaded and the search directory should read from the blob store.
+                                            uploadVirtualBatchedCompoundCommit();
+                                        } catch (IOException e) {
+                                            logger.error("Failed to upload virtual batched compound commit", e);
+                                            assert false : e;
+                                        }
+                                        listener.onFailure(
+                                            VirtualBatchedCompoundCommit.buildResourceNotFoundException(shardId, virtualBccTermAndGen)
+                                        );
+                                    }
+                                }
+                            };
+                            return new SwitchingCacheBlobReader(
+                                objectStoreUploadTracker,
+                                location.getBatchedCompoundCommitTermAndGeneration(),
+                                writerFromObjectStore,
+                                writerFromPrimary
+                            );
+                        }
+                    };
+                }
             }
-        }) {
+        ) {
             var virtualBatchedCompoundCommit = node.virtualBatchedCompoundCommit;
             var searchDirectory = node.searchDirectory;
 
             // Read all files and ensure they are the same. This tries to read from the VBCC, but it uploads it in the meantime and
             // produces a ResourceNotFoundException that makes the search directory read from the blob store ultimately.
-            virtualBatchedCompoundCommit.getInternalLocations().keySet().forEach(filename -> assertFileChecksum(searchDirectory, filename));
+            var files = new ArrayList<>(virtualBatchedCompoundCommit.getInternalLocations().keySet());
+            if (randomBoolean()) {
+                Collections.shuffle(files, getRandom());
+            } else {
+                Collections.sort(files, Comparator.comparingLong(f -> virtualBatchedCompoundCommit.getInternalLocations().get(f).offset()));
+            }
+
+            final Thread[] threads = new Thread[Math.min(randomIntBetween(1, files.size()), Runtime.getRuntime().availableProcessors())];
+            logger.info("--> creating {} threads to assert {} file checksums", threads.length, files.size());
+            for (int t = 0; t < threads.length; t++) {
+                final int thread = t;
+                threads[t] = new Thread(() -> {
+                    for (int j = thread; j < files.size(); j += threads.length) {
+                        assertFileChecksum(searchDirectory, files.get(j));
+                    }
+                });
+                threads[t].setName("TEST-assert-file-T#" + t);
+                threads[t].start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
         }
     }
-
 }

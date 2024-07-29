@@ -22,7 +22,6 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
@@ -109,7 +108,7 @@ public class SearchDirectoryTests extends ESTestCase {
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
                         BlobLocation location,
-                        ObjectStoreUploadTracker objectStoreUploadTracker,
+                        MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer bytesReadFromObjectStore,
                         LongConsumer bytesReadFromIndexing
                     ) {

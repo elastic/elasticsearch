@@ -39,8 +39,7 @@ import java.io.InputStream;
 
 /**
  * A {@link CacheBlobReader} that fetches page-aligned data from the indexing node. May throw
- * {@link org.elasticsearch.ResourceNotFoundException} exception if the
- * fetch needs to be tried from the blob store.
+ * {@link org.elasticsearch.ResourceNotFoundException} exception if the commit has been uploaded to the object store in the meantime.
  *
  * The chunk size argument is only used to round down the beginning of a range. The end of the range is always rounded up to the next page.
  */

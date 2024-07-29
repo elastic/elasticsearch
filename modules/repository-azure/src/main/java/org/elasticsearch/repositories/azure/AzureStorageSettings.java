@@ -58,6 +58,13 @@ final class AzureStorageSettings {
         key -> SecureSetting.secureString(key, null)
     );
 
+    /** Azure instance discovery */
+    public static final AffixSetting<Boolean> INSTANCE_DISCOVERY_ENABLED_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "instance_discovery.enabled",
+        key -> Setting.boolSetting(key, true, Property.NodeScope)
+    );
+
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RequestRetryOptions). */
     public static final AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
@@ -130,6 +137,7 @@ final class AzureStorageSettings {
     private final int maxRetries;
     private final Proxy proxy;
     private final boolean hasCredentials;
+    private final boolean instanceDiscoveryEnabled;
 
     private AzureStorageSettings(
         String account,
@@ -142,7 +150,8 @@ final class AzureStorageSettings {
         String proxyHost,
         Integer proxyPort,
         String endpoint,
-        String secondaryEndpoint
+        String secondaryEndpoint,
+        boolean instanceDiscoveryEnabled
     ) {
         this.account = account;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, endpoint, secondaryEndpoint);
@@ -150,6 +159,7 @@ final class AzureStorageSettings {
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
+        this.instanceDiscoveryEnabled = instanceDiscoveryEnabled;
         // Register the proxy if we have any
         // Validate proxy settings
         if (proxyType.equals(Proxy.Type.DIRECT) && ((proxyPort != 0) || Strings.hasText(proxyHost))) {
@@ -188,6 +198,10 @@ final class AzureStorageSettings {
 
     public String getConnectString() {
         return connectString;
+    }
+
+    public boolean instanceDiscoveryEnabled() {
+        return instanceDiscoveryEnabled;
     }
 
     private static String buildConnectString(
@@ -295,7 +309,8 @@ final class AzureStorageSettings {
                 getValue(settings, clientName, PROXY_HOST_SETTING),
                 getValue(settings, clientName, PROXY_PORT_SETTING),
                 getValue(settings, clientName, ENDPOINT_SETTING),
-                getValue(settings, clientName, SECONDARY_ENDPOINT_SETTING)
+                getValue(settings, clientName, SECONDARY_ENDPOINT_SETTING),
+                getConfigValue(settings, clientName, INSTANCE_DISCOVERY_ENABLED_SETTING)
             );
         }
     }

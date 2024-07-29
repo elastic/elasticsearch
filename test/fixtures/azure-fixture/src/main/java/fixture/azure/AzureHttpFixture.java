@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.rules.ExternalResource;
 
@@ -39,6 +40,7 @@ public class AzureHttpFixture extends ExternalResource {
     private final Protocol protocol;
     private final String account;
     private final String container;
+    @Nullable
     private final String tenantId;
     private final Predicate<String> authHeaderPredicate;
 
@@ -99,12 +101,13 @@ public class AzureHttpFixture extends ExternalResource {
         };
     }
 
-    // TODO remove constructor
-    public AzureHttpFixture(Protocol protocol, String account, String container, Predicate<String> authHeaderPredicate) {
-        this(protocol, account, container, "wrong-bad-no", authHeaderPredicate);
-    }
-
-    public AzureHttpFixture(Protocol protocol, String account, String container, String tenantId, Predicate<String> authHeaderPredicate) {
+    public AzureHttpFixture(
+        Protocol protocol,
+        String account,
+        String container,
+        @Nullable String tenantId,
+        Predicate<String> authHeaderPredicate
+    ) {
         this.protocol = protocol;
         this.account = account;
         this.container = container;
@@ -144,7 +147,10 @@ public class AzureHttpFixture extends ExternalResource {
     @Override
     protected void before() {
         try {
-            setupFederatedTokenFile();
+            final var federatedTokenTmpdir = ESTestCase.createTempDir();
+
+            federatedTokenPath = copyResource(federatedTokenTmpdir, "azure-federated-token");
+
             final var federatedToken = Files.readString(federatedTokenPath);
 
             final var bearerToken = ESTestCase.randomIdentifier();
@@ -201,11 +207,6 @@ public class AzureHttpFixture extends ExternalResource {
         } catch (Exception e) {
             throw new AssertionError("unexpected", e);
         }
-    }
-
-    private void setupFederatedTokenFile() throws IOException {
-        final var tmpdir = ESTestCase.createTempDir();
-        federatedTokenPath = copyResource(tmpdir, "azure-federated-token");
     }
 
     private Path copyResource(Path tmpdir, String name) throws IOException {

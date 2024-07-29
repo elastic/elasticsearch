@@ -29,11 +29,14 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
     private static final String AZURE_TEST_CONTAINER = System.getProperty("test.azure.container");
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
+    private static final String AZURE_TEST_TENANT_ID = System.getProperty("test.azure.tenant_id");
+    private static final String AZURE_TEST_CLIENT_ID = System.getProperty("test.azure.client_id");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
+        AZURE_TEST_TENANT_ID,
         Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
             ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
             : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
@@ -62,6 +65,14 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
             s -> USE_FIXTURE
         )
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
+        .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getOAuthTokenServiceAddress(), s -> USE_FIXTURE)
+        .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> notNullOrEmpty(AZURE_TEST_CLIENT_ID))
+        .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> notNullOrEmpty(AZURE_TEST_TENANT_ID))
+        .systemProperty(
+            "AZURE_FEDERATED_TOKEN_FILE",
+            () -> fixture.getFederatedTokenPath().toString(),
+            s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
+        )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
@@ -81,5 +92,9 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    private static boolean notNullOrEmpty(String s) {
+        return s != null && false == s.isEmpty();
     }
 }

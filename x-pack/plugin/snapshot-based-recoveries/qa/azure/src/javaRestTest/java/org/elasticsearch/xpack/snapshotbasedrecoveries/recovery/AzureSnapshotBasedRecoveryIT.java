@@ -31,6 +31,7 @@ public class AzureSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryR
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
+        System.getProperty("test.azure.tenant_id"),
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
     );
 

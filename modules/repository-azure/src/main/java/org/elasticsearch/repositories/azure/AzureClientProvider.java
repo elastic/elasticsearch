@@ -19,7 +19,6 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
 
-import com.azure.core.credential.TokenCredential;
 import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
@@ -150,6 +149,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         LocationMode locationMode,
         RequestRetryOptions retryOptions,
         ProxyOptions proxyOptions,
+        boolean instanceDiscoveryEnabled,
         BiConsumer<String, URL> successfulRequestConsumer
     ) {
         if (closed) {
@@ -171,10 +171,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .retryOptions(retryOptions);
 
         if (settings.hasCredentials() == false) {
-            final TokenCredential credential = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup)
-                .disableInstanceDiscovery()
-                .build();
-            builder.credential(credential);
+            final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
+            if (false == instanceDiscoveryEnabled) {
+                credentialBuilder.disableInstanceDiscovery();
+            }
+            builder.credential(credentialBuilder.build());
         }
 
         if (successfulRequestConsumer != null) {

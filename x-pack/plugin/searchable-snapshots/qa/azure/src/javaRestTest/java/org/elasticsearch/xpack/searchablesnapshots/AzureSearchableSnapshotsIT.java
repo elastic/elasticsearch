@@ -32,6 +32,7 @@ public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestT
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
+        System.getProperty("test.azure.tenant_id"),
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
     );
 

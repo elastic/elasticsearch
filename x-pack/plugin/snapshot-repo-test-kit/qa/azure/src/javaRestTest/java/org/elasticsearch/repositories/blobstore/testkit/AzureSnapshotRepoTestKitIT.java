@@ -27,6 +27,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
     private static final String AZURE_TEST_TENANT_ID = System.getProperty("test.azure.tenant_id");
+    private static final String AZURE_TEST_CLIENT_ID = System.getProperty("test.azure.client_id");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
@@ -61,8 +62,9 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         })
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
-        .systemProperty("AZURE_CLIENT_ID", () -> "b64b7eb0-a5e0-49df-84ac-9216ab962421", s -> USE_FIXTURE)
+        .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> notNullOrEmpty(AZURE_TEST_CLIENT_ID))
         .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> notNullOrEmpty(AZURE_TEST_TENANT_ID))
+        // TODO only set if client and tenant ID are set?
         .systemProperty("AZURE_FEDERATED_TOKEN_FILE", () -> fixture.getFederatedTokenPath(), s -> USE_FIXTURE)
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();

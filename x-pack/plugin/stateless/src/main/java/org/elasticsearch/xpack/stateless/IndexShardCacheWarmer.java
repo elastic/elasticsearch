@@ -25,15 +25,20 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class IndexShardCacheWarmer {
+
+    private static final Logger logger = LogManager.getLogger(IndexShardCacheWarmer.class);
 
     private final ObjectStoreService objectStoreService;
     private final SharedBlobCacheWarmingService warmingService;
@@ -66,7 +71,10 @@ public class IndexShardCacheWarmer {
         assert indexShard.routingEntry().isSearchable() == false && indexShard.routingEntry().isPromotableToPrimary()
             : "only stateless ingestion shards are supported";
         assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER : "Only peer recoveries are supported";
-        threadPool.generic().execute(() -> doPreWarmIndexShardCache(description, indexShard, listener));
+        threadPool.generic().execute(() -> doPreWarmIndexShardCache(description, indexShard, listener.delegateResponse((delegate, e) -> {
+            logger.info(() -> Strings.format("%s %s cache prewarming failed", indexShard.shardId(), description), e);
+            delegate.onFailure(e);
+        })));
     }
 
     private void doPreWarmIndexShardCache(String description, IndexShard indexShard, ActionListener<Boolean> listener) {

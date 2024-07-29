@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 public class SecurityIndexManager implements ClusterStateListener {
 
     public static final String SECURITY_VERSION_STRING = "security-version";
+    private static final String METADATA_PROPERTY_FOR_INDEXED_BUILTIN_ROLES = "indexed-builtin-roles";
 
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 

@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestVa
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -261,6 +263,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role management is disabled"));
+            return;
+        }
         SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
         SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
@@ -529,9 +535,52 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
     }
 
+    public void ensureBuiltinRolesAreQueriable(ActionListener<Void> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role management is disabled"));
+            return;
+        }
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(null);
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            frozenSecurityIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    ReservedRolesStore.roleDescriptors(),
+                    listener,
+                    (roles, innerListener) -> putRoles(
+                        frozenSecurityIndex,
+                        WriteRequest.RefreshPolicy.IMMEDIATE,
+                        ReservedRolesStore.roleDescriptors(),
+                        false,
+                        ActionListener.wrap(onResponse -> {
+
+                        }, innerListener::onFailure)
+                    )
+                )
+            );
+        }
+    }
+
     public void putRoles(
         final WriteRequest.RefreshPolicy refreshPolicy,
-        final List<RoleDescriptor> roles,
+        final Collection<RoleDescriptor> roles,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
+        putRoles(securityIndex, refreshPolicy, roles, true, listener);
+    }
+
+    private void putRoles(
+        SecurityIndexManager securityIndexManager,
+        final WriteRequest.RefreshPolicy refreshPolicy,
+        final Collection<RoleDescriptor> roles,
+        boolean validateRoles,
         final ActionListener<BulkRolesResponse> listener
     ) {
         if (enabled == false) {
@@ -544,7 +593,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         for (RoleDescriptor role : roles) {
             Exception validationException;
             try {
-                validationException = validateRoleDescriptor(role);
+                validationException = validateRoles ? validateRoleDescriptor(role) : null;
             } catch (Exception e) {
                 validationException = e;
             }
@@ -567,7 +616,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        securityIndex.prepareIndexIfNeededThenExecute(
+        securityIndexManager.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),

@@ -50,8 +50,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
     }
 
     public void testBasics() {
-
-        putJsonStoredScript("my-script", Strings.format("""
+        putJsonStoredScript("foobar", Strings.format("""
             {"script": {"lang": "%s", "source": "1"} }
             """, LANG));
         String script = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("foobar")).getSource().getSource();
@@ -73,7 +72,8 @@ public class StoredScriptsIT extends ESIntegTestCase {
                             TransportPutStoredScriptAction.TYPE,
                             new PutStoredScriptRequest().id("id#").content(new BytesArray(Strings.format("""
                                 {"script": {"lang": "%s", "source": "1"} }
-                                """, LANG)), XContentType.JSON)
+                                """, LANG)), XContentType.JSON),
+                            l
                         )
                     )
                 )
@@ -93,7 +93,8 @@ public class StoredScriptsIT extends ESIntegTestCase {
                             TransportPutStoredScriptAction.TYPE,
                             new PutStoredScriptRequest().id("foobar").content(new BytesArray(Strings.format("""
                                 {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                                """, LANG)), XContentType.JSON)
+                                """, LANG)), XContentType.JSON),
+                            l
                         )
 
                     )

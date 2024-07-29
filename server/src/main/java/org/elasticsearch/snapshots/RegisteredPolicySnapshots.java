@@ -108,6 +108,10 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
         }));
     }
 
+    public static RegisteredPolicySnapshots parse(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
     @Override
     public String toString() {
         return "RegisteredSnapshots{" + "snapshots=" + snapshots + '}';

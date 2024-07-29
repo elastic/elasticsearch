@@ -174,7 +174,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
                 new ParseField(RegisteredPolicySnapshots.TYPE),
-                parser -> RegisteredPolicySnapshots.PARSER.parse(parser, null)
+                RegisteredPolicySnapshots::parse
             )
         );
     }

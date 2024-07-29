@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
@@ -1740,13 +1741,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             // Also closing refreshListeners to prevent us from accumulating any more listeners
                             // TODO Consider closing the engine asynchronously, but since it should be already be closed,
                             // a sync call should complete immediately
-                            IOUtils.close(
-                                () -> Engine.close(engine, ActionListener.noop()),
-                                globalCheckpointListeners,
-                                refreshListeners,
-                                pendingReplicationActions,
-                                indexShardOperationPermits
-                            );
+                            IOUtils.close(() -> {
+                                // TODO Make it async
+                                var future = new PlainActionFuture<Void>();
+                                Engine.close(engine, future);
+                                FutureUtils.get(future);
+                            }, globalCheckpointListeners, refreshListeners, pendingReplicationActions, indexShardOperationPermits);
                         });
                         if (engine != null && flushEngine) {
                             engine.flushAndClose(cleanUpAndClose);
@@ -1894,8 +1894,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .<Void>newForked(l -> ActionListener.runWithResource(ActionListener.assertOnce(l), () -> () -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 synchronized (engineMutex) {
-                    // TODO Remove no-op listener
-                    Engine.close(currentEngineReference.getAndSet(null), ActionListener.noop());
+                    // TODO Make it async
+                    var future = new PlainActionFuture<Void>();
+                    Engine.close(currentEngineReference.getAndSet(null), future);
+                    FutureUtils.get(future);
                 }
             }, (recoveryCompleteListener, ignoredRef) -> {
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
@@ -2203,8 +2205,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert Thread.holdsLock(mutex) == false : "restart recovery under mutex";
         synchronized (engineMutex) {
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
-            // TODO Remove no-op listener
-            Engine.close(currentEngineReference.getAndSet(null), ActionListener.noop());
+            // TODO Make it async
+            var future = new PlainActionFuture<Void>();
+            Engine.close(currentEngineReference.getAndSet(null), future);
+            FutureUtils.get(future);
             resetRecoveryStage();
         }
     }
@@ -4272,8 +4276,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             };
-            // TODO Remove no-op listener
-            Engine.close(currentEngineReference.getAndSet(readOnlyEngine), ActionListener.noop());
+            // TODO Make it async
+            var future = new PlainActionFuture<Void>();
+            Engine.close(currentEngineReference.getAndSet(readOnlyEngine), future);
+            FutureUtils.get(future);
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
@@ -4289,8 +4295,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         newEngineReference.get().refresh("reset_engine");
         synchronized (engineMutex) {
             verifyNotClosed();
-            // TODO Remove no-op listener
-            Engine.close(currentEngineReference.getAndSet(newEngineReference.get()), ActionListener.noop());
+            // TODO Make it async
+            var future = new PlainActionFuture<Void>();
+            Engine.close(currentEngineReference.getAndSet(newEngineReference.get()), future);
+            FutureUtils.get(future);
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);

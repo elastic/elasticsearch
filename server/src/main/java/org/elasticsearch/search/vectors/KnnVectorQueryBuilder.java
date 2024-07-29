@@ -400,7 +400,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             ).queryName(queryName).addFilterQueries(filterQueries);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
-            return new ExactKnnQueryBuilder(queryVector, fieldName).boost(boost).queryName(queryName);
+            return new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity).boost(boost).queryName(queryName);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());

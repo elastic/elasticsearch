@@ -35,6 +35,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
@@ -351,12 +352,14 @@ public class DfsQueryPhaseTests extends ESTestCase {
         KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) },
             "vector",
-            new float[] { 0.0f }
+            VectorData.fromFloats(new float[] { 0.0f }),
+            null
         );
         KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) },
             "vector2",
-            new float[] { 0.0f }
+            VectorData.fromFloats(new float[] { 0.0f }),
+            null
         );
         assertEquals(
             List.of(bm25, ksdqb0, ksdqb1),

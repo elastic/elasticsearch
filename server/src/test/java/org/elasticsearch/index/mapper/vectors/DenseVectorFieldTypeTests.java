@@ -215,7 +215,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector));
+            Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null);
             assertTrue(query instanceof DenseVectorQuery.Floats);
         }
         {
@@ -233,7 +233,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomByte();
             }
-            Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector));
+            Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector), null);
             assertTrue(query instanceof DenseVectorQuery.Bytes);
         }
     }

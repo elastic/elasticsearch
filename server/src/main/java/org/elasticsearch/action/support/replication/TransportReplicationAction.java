@@ -122,11 +122,11 @@ public abstract class TransportReplicationAction<
      */
     protected enum ReplicaActionExecution {
         /**
-         * Will bypass queue length and indexing pressure checks
+         * Will only execute when permitted by the configured circuit breakers
          */
         SubjectToCircuitBreaker,
         /**
-         * Will bypass queue length, indexing pressure and circuit breaker checks
+         * Will bypass the configured circuit breaker checks
          */
         BypassCircuitBreaker
     }

@@ -5,7 +5,7 @@ preview::[]
 
 [TIP]
 ====
-This overview focuses more on the high-level concepts and use cases for semantic reranking. For full implementation details on how to set up and use semantic reranking in {es}, see the <<retriever,reference documentation>> in the Search API docs.
+This overview focuses more on the high-level concepts and use cases for semantic reranking. For full implementation details on how to set up and use semantic reranking in {es}, see the <<text-similarity-reranker-retriever,reference documentation>> in the Search API docs.
 ====
 
 Rerankers improve the relevance of results from earlier-stage retrieval mechanisms.
@@ -89,11 +89,16 @@ In {es}, semantic rerankers are implemented using the {es} <<inference-apis,Infe
 
 To use semantic reranking in {es}, you need to:
 
-. Choose a reranking model. In addition to cross-encoder models running on {es} inference nodes, we also expose external models and services via the Inference API to semantic rerankers.
-** This includes cross-encoder models running in https://huggingface.co/inference-endpoints[HuggingFace Inference Endpoints] and the https://cohere.com/rerank[Cohere Rerank API].
-. Create a `rerank` task using the <<put-inference-api,{es} Inference API>>.
+. *Choose a reranking model*.
+Currently you can:
+
+** Integrate directly with the <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type
+** Integrate directly with the <<infer-service-google-vertex-ai,Google Vertex AI inference endpoint>> using the `rerank` task type
+** Upload a model to {es} from Hugging Face with {eland-docs}/machine-learning.html#ml-nlp-pytorch[Eland]
+*** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type
+. *Create a `rerank` task using the <<put-inference-api,{es} Inference API>>*.
 The Inference API creates an inference endpoint and configures your chosen machine learning model to perform the reranking task.
-. Define a `text_similarity_reranker` retriever in your search request.
+. *Define a `text_similarity_reranker` retriever in your search request*.
 The retriever syntax makes it simple to configure both the retrieval and reranking of search results in a single API call.
 
 .*Example search request* with semantic reranker
@@ -126,20 +131,6 @@ POST _search
 ----
 // TEST[skip:TBD]
 ==============
-
-[discrete]
-[[semantic-reranking-types]]
-==== Supported reranking types
-
-The following `text_similarity_reranker` model configuration options are available.
-
-*Text similarity with cross-encoder*
-
-This solution uses a hosted or 3rd party inference service which relies on a cross-encoder model.
-The model receives the text fields from the _top-K_ documents, as well as the search query, and calculates scores directly, which are then used to rerank the documents.
-
-Used with the Cohere inference service rolled out in 8.13, turn on semantic reranking that works out of the box.
-Check out our https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/integrations/cohere/cohere-elasticsearch.ipynb[Python notebook] for using Cohere with {es}.
 
 [discrete]
 [[semantic-reranking-learn-more]]

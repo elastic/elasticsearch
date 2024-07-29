@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.cluster.shards;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -142,9 +144,14 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             enableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
             assertBlocked(
                 null,
-                safeAwaitFailure(
-                    ClusterSearchShardsResponse.class,
-                    l -> client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest("test-blocks"))
+                asInstanceOf(
+                    ClusterBlockException.class,
+                    ExceptionsHelper.unwrapCause(
+                        safeAwaitFailure(
+                            ClusterSearchShardsResponse.class,
+                            l -> client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest("test-blocks"), l)
+                        )
+                    )
                 )
             );
         } finally {

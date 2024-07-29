@@ -215,7 +215,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ) {
                 @Override
                 protected String missingShardsErrorMessage(StringBuilder missingShards) {
-                    return "Search rejected due to missing shards. [open_point_in_time] action requires all shards to be available.";
+                    return "[open_point_in_time] action requires all shards to be available. Missing shards: " + missingShards;
                 }
 
                 @Override

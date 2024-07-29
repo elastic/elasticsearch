@@ -143,7 +143,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        final Exception exception = analyseRepository(request);
+        final Exception exception = analyseRepositoryExpectFailure(request);
         assertAnalysisFailureMessage(exception.getMessage());
         final IOException ioException = (IOException) ExceptionsHelper.unwrap(exception, IOException.class);
         assert ioException != null : exception;
@@ -168,7 +168,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        assertAnalysisFailureMessage(analyseRepository(request).getMessage());
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnChecksumMismatch() {
@@ -199,7 +199,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        assertAnalysisFailureMessage(analyseRepository(request).getMessage());
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnWriteException() {
@@ -220,7 +220,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         });
 
-        final Exception exception = analyseRepository(request);
+        final Exception exception = analyseRepositoryExpectFailure(request);
         assertAnalysisFailureMessage(exception.getMessage());
         final IOException ioException = (IOException) ExceptionsHelper.unwrap(exception, IOException.class);
         assert ioException != null : exception;
@@ -243,7 +243,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         });
 
-        assertAnalysisFailureMessage(analyseRepository(request).getMessage());
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnListingException() {
@@ -263,7 +263,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        assertAnalysisFailureMessage(analyseRepository(request).getMessage());
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnDeleteException() {
@@ -278,7 +278,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        assertAnalysisFailureMessage(analyseRepository(request).getMessage());
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsOnIncompleteDelete() {
@@ -306,7 +306,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        assertAnalysisFailureMessage(analyseRepository(request).getMessage());
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsIfBlobCreatedOnAbort() {
@@ -354,7 +354,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return register.compareAndExchange(expected, updated);
             }
         });
-        assertAnalysisFailureMessage(analyseRepository(request).getMessage());
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
     public void testFailsIfRegisterHoldsSpuriousValue() {
@@ -424,7 +424,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return isContendedRegisterKey(key) == false;
             }
         });
-        final var exception = analyseRepository(request);
+        final var exception = analyseRepositoryExpectFailure(request);
         assertThat(
             exception.getMessage(),
             allOf(
@@ -446,7 +446,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
         });
-        final var exception = analyseRepository(request);
+        final var exception = analyseRepositoryExpectFailure(request);
         assertAnalysisFailureMessage(exception.getMessage());
         assertThat(
             asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
@@ -462,7 +462,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
         });
-        final var exception = analyseRepository(request);
+        final var exception = analyseRepositoryExpectFailure(request);
         assertAnalysisFailureMessage(exception.getMessage());
         final var cause = ExceptionsHelper.unwrapCause(exception.getCause());
         if (cause instanceof IOException ioException) {
@@ -478,7 +478,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private RepositoryVerificationException analyseRepository(RepositoryAnalyzeAction.Request request) {
+    private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
         return asInstanceOf(
             RepositoryVerificationException.class,
             ExceptionsHelper.unwrapCause(safeAwaitFailure(RepositoryAnalyzeAction.Response.class, l -> analyseRepository(request, l)))

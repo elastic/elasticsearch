@@ -71,6 +71,8 @@ directly to multiple fields from the originating field.
 
 NOTE: `copy_to` is _not_ supported for field types where values take the form of objects, e.g. `date_range`
 
+[float]
+[[copy-to-dynamic-mapping]]
 ==== Dynamic mapping
 
 Here are some important points to consider when using `copy_to` with dynamic mappings:

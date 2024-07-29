@@ -22,49 +22,17 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
 
     public static MultilingualE5SmallInternalServiceSettings createRandom() {
         return new MultilingualE5SmallInternalServiceSettings(
-            randomIntBetween(1, 4),
-            randomIntBetween(1, 4),
-            randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS),
-            null
-        );
-    }
-
-    public void testFromMap_DefaultModelVersion() {
-        var serviceSettingsBuilder = MultilingualE5SmallInternalServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
-                    1,
-                    MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
-                    4
-                )
+            ElasticsearchInternalServiceSettingsTests.validInstance(
+                randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS)
             )
         );
-        assertNull(serviceSettingsBuilder.getModelId());
-    }
-
-    public void testFromMap() {
-        String randomModelVariant = randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
-        var serviceSettings = MultilingualE5SmallInternalServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
-                    1,
-                    MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
-                    4,
-                    MultilingualE5SmallInternalServiceSettings.MODEL_ID,
-                    randomModelVariant
-                )
-            )
-        ).build();
-        assertEquals(new MultilingualE5SmallInternalServiceSettings(1, 4, randomModelVariant, null), serviceSettings);
     }
 
     public void testFromMapInvalidVersion() {
         String randomModelVariant = randomAlphaOfLength(10);
         var e = expectThrows(
             ValidationException.class,
-            () -> MultilingualE5SmallInternalServiceSettings.fromMap(
+            () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(
                 new HashMap<>(
                     Map.of(
                         MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
@@ -83,7 +51,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
     public void testFromMapMissingOptions() {
         var e = expectThrows(
             ValidationException.class,
-            () -> MultilingualE5SmallInternalServiceSettings.fromMap(
+            () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(
                 new HashMap<>(Map.of(MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS, 1))
             )
         );
@@ -92,7 +60,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
 
         e = expectThrows(
             ValidationException.class,
-            () -> MultilingualE5SmallInternalServiceSettings.fromMap(
+            () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(
                 new HashMap<>(Map.of(MultilingualE5SmallInternalServiceSettings.NUM_THREADS, 1))
             )
         );
@@ -112,7 +80,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
                 -1
             )
         );
-        var e = expectThrows(ValidationException.class, () -> MultilingualE5SmallInternalServiceSettings.fromMap(settingsMap));
+        var e = expectThrows(ValidationException.class, () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(settingsMap));
 
         assertThat(e.getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
         assertThat(e.getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
@@ -132,7 +100,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
     protected MultilingualE5SmallInternalServiceSettings mutateInstance(MultilingualE5SmallInternalServiceSettings instance) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> new MultilingualE5SmallInternalServiceSettings(
-                instance.getNumAllocations() + 1,
+                instance.getNumAllocations() == null ? 1 : instance.getNumAllocations() + 1,
                 instance.getNumThreads(),
                 instance.modelId(),
                 null

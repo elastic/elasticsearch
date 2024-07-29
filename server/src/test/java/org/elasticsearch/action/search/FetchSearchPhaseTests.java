@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -201,7 +202,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     try {
@@ -317,7 +318,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     if (request.contextId().getId() == 321) {
                         FetchSearchResult fetchResult = new FetchSearchResult();
@@ -426,7 +427,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     new Thread(() -> {
                         FetchSearchResult fetchResult = new FetchSearchResult();
@@ -562,7 +563,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     try {
@@ -667,7 +668,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     try {

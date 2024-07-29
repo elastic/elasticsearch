@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -84,8 +85,8 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.elasticsearch.xpack.inference.telemetry.InferenceAPMStats;
-import org.elasticsearch.xpack.inference.telemetry.StatsMap;
+import org.elasticsearch.xpack.inference.telemetry.ApmInferenceStats;
+import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -196,10 +197,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
-        var statsFactory = new InferenceAPMStats.Factory(services.telemetryProvider().getMeterRegistry());
-        var statsMap = new StatsMap<>(InferenceAPMStats::key, statsFactory::newInferenceRequestAPMCounter);
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var stats = new PluginComponentBinding<>(InferenceStats.class, ApmInferenceStats.create(meterRegistry));
 
-        return List.of(modelRegistry, registry, httpClientManager, statsMap);
+        return List.of(modelRegistry, registry, httpClientManager, stats);
     }
 
     @Override
@@ -276,11 +277,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public List<Setting<?>> getSettings() {
         return Stream.of(
-            HttpSettings.getSettings(),
-            HttpClientManager.getSettings(),
-            ThrottlerManager.getSettings(),
+            HttpSettings.getSettingsDefinitions(),
+            HttpClientManager.getSettingsDefinitions(),
+            ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettings(),
+            Truncator.getSettingsDefinitions(),
             RequestExecutorServiceSettings.getSettingsDefinitions(),
             List.of(SKIP_VALIDATE_AND_START)
         ).flatMap(Collection::stream).collect(Collectors.toList());

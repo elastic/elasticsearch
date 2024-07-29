@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -43,7 +42,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -448,7 +446,11 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         @Override
         void consumeResult(CanMatchShardResponse result, Runnable next) {
             try {
-                consumeResult(result.getShardIndex(), result.canMatch(), result.estimatedMinAndMax());
+                final boolean canMatch = result.canMatch();
+                final MinAndMax<?> minAndMax = result.estimatedMinAndMax();
+                if (canMatch || minAndMax != null) {
+                    consumeResult(result.getShardIndex(), canMatch, minAndMax);
+                }
             } finally {
                 next.run();
             }
@@ -465,7 +467,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             consumeResult(shardIndex, true, null);
         }
 
-        synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
+        private synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
             if (canMatch) {
                 possibleMatches.set(shardIndex);
                 numPossibleMatches++;
@@ -494,10 +496,9 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         CanMatchSearchPhaseResults results,
         GroupShardsIterator<SearchShardIterator> shardsIts
     ) {
-        int cardinality = results.getNumPossibleMatches();
         FixedBitSet possibleMatches = results.getPossibleMatches();
         // TODO: pick the local shard when possible
-        if (requireAtLeastOneMatch && cardinality == 0) {
+        if (requireAtLeastOneMatch && results.getNumPossibleMatches() == 0) {
             // this is a special case where we have no hit but we need to get at least one search response in order
             // to produce a valid search result with all the aggs etc.
             // Since it's possible that some of the shards that we're skipping are
@@ -514,7 +515,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             }
             possibleMatches.set(shardIndexToQuery);
         }
-        SearchSourceBuilder source = request.source();
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
             iter.reset();
@@ -528,7 +528,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         if (shouldSortShards(results.minAndMaxes) == false) {
             return shardsIts;
         }
-        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
+        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
         return new GroupShardsIterator<>(sortShards(shardsIts, results.minAndMaxes, fieldSort.order()));
     }
 
@@ -537,11 +537,24 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         MinAndMax<?>[] minAndMaxes,
         SortOrder order
     ) {
-        return IntStream.range(0, shardsIts.size())
-            .boxed()
-            .sorted(shardComparator(shardsIts, minAndMaxes, order))
-            .map(shardsIts::get)
-            .toList();
+        int bound = shardsIts.size();
+        List<Integer> toSort = new ArrayList<>(bound);
+        for (int i = 0; i < bound; i++) {
+            toSort.add(i);
+        }
+        Comparator<? super MinAndMax<?>> keyComparator = forciblyCast(MinAndMax.getComparator(order));
+        toSort.sort((idx1, idx2) -> {
+            int res = keyComparator.compare(minAndMaxes[idx1], minAndMaxes[idx2]);
+            if (res != 0) {
+                return res;
+            }
+            return shardsIts.get(idx1).compareTo(shardsIts.get(idx2));
+        });
+        List<SearchShardIterator> list = new ArrayList<>(bound);
+        for (Integer integer : toSort) {
+            list.add(shardsIts.get(integer));
+        }
+        return list;
     }
 
     private static boolean shouldSortShards(MinAndMax<?>[] minAndMaxes) {
@@ -557,19 +570,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             }
         }
         return clazz != null;
-    }
-
-    private static Comparator<Integer> shardComparator(
-        GroupShardsIterator<SearchShardIterator> shardsIts,
-        MinAndMax<?>[] minAndMaxes,
-        SortOrder order
-    ) {
-        final Comparator<Integer> comparator = Comparator.comparing(
-            index -> minAndMaxes[index],
-            forciblyCast(MinAndMax.getComparator(order))
-        );
-
-        return comparator.thenComparing(shardsIts::get);
     }
 
 }

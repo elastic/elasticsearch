@@ -17,9 +17,14 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.logsdb.qa.exceptions.MatcherException;
+import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logsdb.datageneration.DataGenerator;
+import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
+import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -39,52 +44,71 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
+    private final DataGenerator dataGenerator;
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
-        super("logs-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 99, 99);
+        super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
+        this.dataGenerator = new DataGenerator(
+            DataGeneratorSpecification.builder()
+                // Nested fields don't work with subobjects: false.
+                .withNestedFieldsLimit(0)
+                // TODO increase depth of objects
+                // Currently matching fails because in synthetic source all fields are flat (given that we have subobjects: false)
+                // but stored source is identical to original document which has nested structure.
+                .withMaxObjectDepth(0)
+                .withArbitrary(new RandomBasedArbitrary() {
+                    // TODO enable null values
+                    // Matcher does not handle nulls currently
+                    @Override
+                    public boolean generateNullValue() {
+                        return false;
+                    }
+
+                    // TODO enable arrays
+                    // List matcher currently does not apply matching logic recursively
+                    // and equality check fails because arrays are sorted in synthetic source.
+                    @Override
+                    public boolean generateArrayOfValues() {
+                        return false;
+                    }
+                })
+                .withPredefinedFields(List.of(new PredefinedField("host.name", FieldType.KEYWORD)))
+                .build()
+        );
     }
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        mappings(builder);
-    }
-
-    @Override
-    public void contenderMappings(XContentBuilder builder) throws IOException {
-        mappings(builder);
-    }
-
-    private static void mappings(final XContentBuilder builder) throws IOException {
-        builder.field("subobjects", false);
         if (randomBoolean()) {
-            builder.startObject("properties")
-
-                .startObject("@timestamp")
-                .field("type", "date")
-                .endObject()
+            dataGenerator.writeMapping(builder);
+        } else {
+            // We want dynamic mapping, but we need host.name to be a keyword instead of text to support aggregations.
+            builder.startObject()
+                .startObject("properties")
 
                 .startObject("host.name")
                 .field("type", "keyword")
                 .field("ignore_above", randomIntBetween(1000, 1200))
                 .endObject()
 
-                .startObject("message")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
                 .endObject()
-
-                .startObject("method")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("memory_usage_bytes")
-                .field("type", "long")
-                .field("ignore_malformed", randomBoolean())
-                .endObject()
-
                 .endObject();
+        }
+    }
+
+    @Override
+    public void contenderMappings(XContentBuilder builder) throws IOException {
+        if (randomBoolean()) {
+            dataGenerator.writeMapping(builder, b -> builder.field("subobjects", false));
+        } else {
+            // Sometimes we go with full dynamic mapping.
+            builder.startObject();
+            builder.field("subobjects", false);
+            builder.endObject();
         }
     }
 
@@ -99,12 +123,14 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void contenderSettings(Settings.Builder builder) {
-        builder.put("index.mode", "logs");
+        builder.put("index.mode", "logsdb");
+        builder.put("index.mapping.total_fields.limit", 5000);
         settings(builder);
     }
 
     @Override
     public void baselineSettings(Settings.Builder builder) {
+        builder.put("index.mapping.total_fields.limit", 5000);
         settings(builder);
     }
 
@@ -125,131 +151,130 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     @SuppressWarnings("unchecked")
-    public void testMatchAllQuery() throws IOException, MatcherException {
+    public void testMatchAllQuery() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
             .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testTermsQuery() throws IOException, MatcherException {
+    public void testTermsQuery() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String method = randomFrom("put", "post", "get");
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
             .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testHistogramAggregation() throws IOException, MatcherException {
+    public void testHistogramAggregation() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments)
             .aggregation(new HistogramAggregationBuilder("agg").field("memory_usage_bytes").interval(100.0D));
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testTermsAggregation() throws IOException, MatcherException {
+    public void testTermsAggregation() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(0)
             .aggregation(new TermsAggregationBuilder("agg").field("host.name"));
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testDateHistogramAggregation() throws IOException, MatcherException {
+    public void testDateHistogramAggregation() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = randomIntBetween(100, 200);
         for (int i = 0; i < numberOfDocuments; i++) {
             documents.add(generateDocument(Instant.now().plus(i, ChronoUnit.SECONDS)));
         }
 
-        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
-        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        assertDocumentIndexing(documents);
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .aggregation(AggregationBuilders.dateHistogram("agg").field("@timestamp").calendarInterval(DateHistogramInterval.SECOND))
             .size(0);
 
-        Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getAggregationBuckets(queryBaseline(searchSourceBuilder), "agg"))
             .ignoringSort(true)
             .isEqualTo(getAggregationBuckets(queryContender(searchSourceBuilder), "agg"));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    private static XContentBuilder generateDocument(final Instant timestamp) throws IOException {
-        return XContentFactory.jsonBuilder()
-            .startObject()
-            .field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
-            .field("host.name", randomFrom("foo", "bar", "baz"))
-            .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
-            .field("method", randomFrom("put", "post", "get"))
-            .field("memory_usage_bytes", randomLongBetween(1000, 2000))
-            .endObject();
+    private XContentBuilder generateDocument(final Instant timestamp) throws IOException {
+        var document = XContentFactory.jsonBuilder();
+        dataGenerator.generateDocument(document, doc -> {
+            doc.field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp));
+            // Needed for terms query
+            doc.field("method", randomFrom("put", "post", "get"));
+            // We can generate this but we would get "too many buckets"
+            doc.field("memory_usage_bytes", randomLongBetween(1000, 2000));
+        });
+
+        return document;
     }
 
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> getQueryHits(final Response response) throws IOException {
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> hitsMap = (Map<String, Object>) map.get("hits");
+
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
+        assertThat(hitsList.size(), greaterThan(0));
+
         return hitsList.stream().map(hit -> (Map<String, Object>) hit.get("_source")).toList();
     }
 
@@ -258,7 +283,23 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> aggs = (Map<String, Object>) map.get("aggregations");
         final Map<String, Object> agg = (Map<String, Object>) aggs.get(aggName);
-        return (List<Map<String, Object>>) agg.get("buckets");
+
+        var buckets = (List<Map<String, Object>>) agg.get("buckets");
+        assertThat(buckets.size(), greaterThan(0));
+
+        return buckets;
+    }
+
+    private void assertDocumentIndexing(List<XContentBuilder> documents) throws IOException {
+        final Tuple<Response, Response> tuple = indexDocuments(() -> documents, () -> documents);
+
+        assertThat(tuple.v1().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        var baselineResponseBody = entityAsMap(tuple.v1());
+        assertThat("errors in baseline bulk response:\n " + baselineResponseBody, baselineResponseBody.get("errors"), equalTo(false));
+
+        assertThat(tuple.v2().getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
+        var contenderResponseBody = entityAsMap(tuple.v2());
+        assertThat("errors in contender bulk response:\n " + contenderResponseBody, contenderResponseBody.get("errors"), equalTo(false));
     }
 
 }

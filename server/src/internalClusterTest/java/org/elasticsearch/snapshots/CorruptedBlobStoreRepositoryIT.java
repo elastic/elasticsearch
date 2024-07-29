@@ -8,12 +8,10 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -34,7 +32,6 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.channels.SeekableByteChannel;
@@ -309,18 +306,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
 
         logger.info("--> verify that repo is assumed in old metadata format");
-        final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(
-            PlainActionFuture.get(
-                // any other executor than generic and management
-                f -> threadPool.executor(ThreadPool.Names.SNAPSHOT)
-                    .execute(
-                        ActionRunnable.supply(
-                            f,
-                            () -> SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null)
-                        )
-                    )
-            ),
+            SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT)
         );
 
@@ -329,15 +316,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(
-            PlainActionFuture.get(
-                f -> threadPool.generic()
-                    .execute(
-                        ActionRunnable.supply(
-                            f,
-                            () -> SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null)
-                        )
-                    )
-            ),
+            SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
             is(IndexVersion.current())
         );
         final RepositoryData finalRepositoryData = getRepositoryData(repoName);

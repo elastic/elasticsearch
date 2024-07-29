@@ -49,8 +49,16 @@ class JdkPosixCLibrary implements PosixCLibrary {
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS)
     );
     private static final MethodHandle mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
-    private static final MethodHandle fcntl$mh = downcallHandle("fcntl", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
-    private static final MethodHandle ftruncate$mh = downcallHandle("ftruncate", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG));
+    private static final MethodHandle fcntl$mh = downcallHandle(
+        "fcntl",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS),
+        CAPTURE_ERRNO_OPTION,
+        Linker.Option.firstVariadicArg(2)
+    );
+    private static final MethodHandle ftruncate$mh = downcallHandleWithErrno(
+        "ftruncate",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG)
+    );
     private static final MethodHandle open$mh = downcallHandle(
         "open",
         FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT),
@@ -281,17 +289,16 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
     private static class JdkFStore implements FStore {
         private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_LONG);
-        private static final VarHandle st_flags$vh = layout.varHandle(groupElement(0));
-        private static final VarHandle st_posmode$vh = layout.varHandle(groupElement(1));
-        private static final VarHandle st_offset$vh = layout.varHandle(groupElement(2));
-        private static final VarHandle st_length$vh = layout.varHandle(groupElement(3));
-        private static final VarHandle st_bytesalloc$vh = layout.varHandle(groupElement(4));
+        private static final VarHandle st_flags$vh = varHandleWithoutOffset(layout, groupElement(0));
+        private static final VarHandle st_posmode$vh = varHandleWithoutOffset(layout, groupElement(1));
+        private static final VarHandle st_offset$vh = varHandleWithoutOffset(layout, groupElement(2));
+        private static final VarHandle st_length$vh = varHandleWithoutOffset(layout, groupElement(3));
+        private static final VarHandle st_bytesalloc$vh = varHandleWithoutOffset(layout, groupElement(4));
 
         private final MemorySegment segment;
 
         JdkFStore() {
-            var arena = Arena.ofAuto();
-            this.segment = arena.allocate(layout);
+            this.segment = Arena.ofAuto().allocate(layout);
         }
 
         @Override
@@ -306,7 +313,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
         @Override
         public void set_offset(long offset) {
-            st_offset$vh.get(segment, offset);
+            st_offset$vh.set(segment, offset);
         }
 
         @Override

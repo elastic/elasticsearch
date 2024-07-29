@@ -19,6 +19,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -30,11 +33,15 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * Periodically schedules adaptive allocations scaling. This process consists
@@ -75,6 +82,108 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         }
     }
 
+    private class Metrics {
+
+        private final List<AutoCloseable> metrics = new ArrayList<>();
+
+        Metrics() {}
+
+        void init() {
+            if (metrics.isEmpty() == false) {
+                return;
+            }
+            metrics.add(
+                meterRegistry.registerLongsGauge(
+                    "es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current",
+                    "the actual number of allocations",
+                    "",
+                    () -> observeLong(AdaptiveAllocationsScaler::getNumberOfAllocations)
+                )
+            );
+            metrics.add(
+                meterRegistry.registerLongsGauge(
+                    "es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current",
+                    "the number of allocations needed according to the adaptive allocations scaler",
+                    "",
+                    () -> observeLong(AdaptiveAllocationsScaler::getNeededNumberOfAllocations)
+                )
+            );
+            metrics.add(
+                meterRegistry.registerDoublesGauge(
+                    "es.ml.trained_models.adaptive_allocations.measured_request_rate.current",
+                    "the request rate reported by the stats API",
+                    "1/s",
+                    () -> observeDouble(AdaptiveAllocationsScaler::getLastMeasuredRequestRate)
+                )
+            );
+            metrics.add(
+                meterRegistry.registerDoublesGauge(
+                    "es.ml.trained_models.adaptive_allocations.estimated_request_rate.current",
+                    "the request rate estimated by the adaptive allocations scaler",
+                    "1/s",
+                    () -> observeDouble(AdaptiveAllocationsScaler::getRequestRateEstimate)
+                )
+            );
+            metrics.add(
+                meterRegistry.registerDoublesGauge(
+                    "es.ml.trained_models.adaptive_allocations.measured_inference_time.current",
+                    "the inference time reported by the stats API",
+                    "s",
+                    () -> observeDouble(AdaptiveAllocationsScaler::getLastMeasuredInferenceTime)
+                )
+            );
+            metrics.add(
+                meterRegistry.registerDoublesGauge(
+                    "es.ml.trained_models.adaptive_allocations.estimated_inference_time.current",
+                    "the inference time estimated by the adaptive allocations scaler",
+                    "s",
+                    () -> observeDouble(AdaptiveAllocationsScaler::getInferenceTimeEstimate)
+                )
+            );
+            metrics.add(
+                meterRegistry.registerLongsGauge(
+                    "es.ml.trained_models.adaptive_allocations.queue_size.current",
+                    "the queue size reported by the stats API",
+                    "s",
+                    () -> observeLong(AdaptiveAllocationsScaler::getLastMeasuredQueueSize)
+                )
+            );
+        }
+
+        Collection<LongWithAttributes> observeLong(Function<AdaptiveAllocationsScaler, Long> getValue) {
+            List<LongWithAttributes> observations = new ArrayList<>();
+            for (AdaptiveAllocationsScaler scaler : scalers.values()) {
+                Long value = getValue.apply(scaler);
+                if (value != null) {
+                    observations.add(new LongWithAttributes(value, Map.of("deployment_id", scaler.getDeploymentId())));
+                }
+            }
+            return observations;
+        }
+
+        Collection<DoubleWithAttributes> observeDouble(Function<AdaptiveAllocationsScaler, Double> getValue) {
+            List<DoubleWithAttributes> observations = new ArrayList<>();
+            for (AdaptiveAllocationsScaler scaler : scalers.values()) {
+                Double value = getValue.apply(scaler);
+                if (value != null) {
+                    observations.add(new DoubleWithAttributes(value, Map.of("deployment_id", scaler.getDeploymentId())));
+                }
+            }
+            return observations;
+        }
+
+        void close() {
+            for (AutoCloseable metric : metrics) {
+                try {
+                    metric.close();
+                } catch (Exception e) {
+                    // do nothing
+                }
+            }
+            metrics.clear();
+        }
+    }
+
     /**
      * The time interval between the adaptive allocations triggers.
      */
@@ -92,6 +201,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final ClusterService clusterService;
     private final Client client;
     private final InferenceAuditor inferenceAuditor;
+    private final MeterRegistry meterRegistry;
+    private final Metrics metrics;
     private final boolean isNlpEnabled;
     private final Map<String, Map<String, Stats>> lastInferenceStatsByDeploymentAndNode;
     private Long lastInferenceStatsTimestampMillis;
@@ -106,9 +217,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         ClusterService clusterService,
         Client client,
         InferenceAuditor inferenceAuditor,
+        MeterRegistry meterRegistry,
         boolean isNlpEnabled
     ) {
-        this(threadPool, clusterService, client, inferenceAuditor, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
+        this(threadPool, clusterService, client, inferenceAuditor, meterRegistry, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
     }
 
     // visible for testing
@@ -117,6 +229,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         ClusterService clusterService,
         Client client,
         InferenceAuditor inferenceAuditor,
+        MeterRegistry meterRegistry,
         boolean isNlpEnabled,
         int timeIntervalSeconds
     ) {
@@ -124,6 +237,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         this.clusterService = clusterService;
         this.client = client;
         this.inferenceAuditor = inferenceAuditor;
+        this.meterRegistry = meterRegistry;
         this.isNlpEnabled = isNlpEnabled;
         this.timeIntervalSeconds = timeIntervalSeconds;
 
@@ -131,11 +245,13 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         lastInferenceStatsTimestampMillis = null;
         lastScaleUpTimesMillis = new HashMap<>();
         scalers = new HashMap<>();
+        metrics = new Metrics();
         busy = new AtomicBoolean(false);
     }
 
     public synchronized void start() {
         updateAutoscalers(clusterService.state());
+        metrics.init();
         clusterService.addListener(this);
         if (scalers.isEmpty() == false) {
             startScheduling();
@@ -144,6 +260,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     public synchronized void stop() {
         stopScheduling();
+        metrics.close();
     }
 
     @Override

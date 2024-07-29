@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
@@ -32,13 +33,12 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -88,6 +88,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         // same context, and therefore does not have access to the appropriate security headers.
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
+
         submitUnbatchedTask(
             "put-snapshot-lifecycle-" + request.getLifecycleId(),
             new UpdateSnapshotPolicyTask(request, listener, filteredHeaders)
@@ -119,49 +120,46 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         UpdateSnapshotPolicyTask(PutSnapshotLifecycleAction.Request request) {
             super(request, null);
             this.request = request;
-            this.filteredHeaders = Collections.emptyMap();
+            this.filteredHeaders = Map.of();
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata()
+                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
+            final SnapshotLifecyclePolicyMetadata existingPolicyMetadata = snapMeta.getSnapshotConfigurations()
+                .get(request.getLifecycleId());
 
-            String id = request.getLifecycleId();
-            final SnapshotLifecycleMetadata lifecycleMetadata;
-            if (snapMeta == null) {
-                SnapshotLifecyclePolicyMetadata meta = SnapshotLifecyclePolicyMetadata.builder()
-                    .setPolicy(request.getLifecycle())
-                    .setHeaders(filteredHeaders)
-                    .setModifiedDate(Instant.now().toEpochMilli())
-                    .build();
-                lifecycleMetadata = new SnapshotLifecycleMetadata(
-                    Collections.singletonMap(id, meta),
-                    currentMode,
-                    new SnapshotLifecycleStats()
-                );
-                logger.info("adding new snapshot lifecycle [{}]", id);
-            } else {
-                Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
-                SnapshotLifecyclePolicyMetadata oldLifecycle = snapLifecycles.get(id);
-                SnapshotLifecyclePolicyMetadata newLifecycle = SnapshotLifecyclePolicyMetadata.builder(oldLifecycle)
-                    .setPolicy(request.getLifecycle())
-                    .setHeaders(filteredHeaders)
-                    .setVersion(oldLifecycle == null ? 1L : oldLifecycle.getVersion() + 1)
-                    .setModifiedDate(Instant.now().toEpochMilli())
-                    .build();
-                snapLifecycles.put(id, newLifecycle);
-                lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats());
-                if (oldLifecycle == null) {
-                    logger.info("adding new snapshot lifecycle [{}]", id);
-                } else {
-                    logger.info("updating existing snapshot lifecycle [{}]", id);
-                }
+            // check for no-op in the state update task, in case it was changed/reset in the meantime
+            if (isNoopUpdate(existingPolicyMetadata, request.getLifecycle(), filteredHeaders)) {
+                return currentState;
             }
 
-            Metadata currentMeta = currentState.metadata();
+            long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
+            Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
+            SnapshotLifecyclePolicyMetadata newLifecycle = SnapshotLifecyclePolicyMetadata.builder(existingPolicyMetadata)
+                .setPolicy(request.getLifecycle())
+                .setHeaders(filteredHeaders)
+                .setVersion(nextVersion)
+                .setModifiedDate(Instant.now().toEpochMilli())
+                .build();
+
+            SnapshotLifecyclePolicyMetadata oldPolicy = snapLifecycles.put(newLifecycle.getId(), newLifecycle);
+            if (oldPolicy == null) {
+                logger.info("adding new snapshot lifecycle [{}]", newLifecycle.getId());
+            } else {
+                logger.info("updating existing snapshot lifecycle [{}]", newLifecycle.getId());
+            }
+
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
+                .metadata(
+                    Metadata.builder(currentState.metadata())
+                        .putCustom(
+                            SnapshotLifecycleMetadata.TYPE,
+                            new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats())
+                        )
+                )
                 .build();
         }
     }
@@ -184,5 +182,20 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     @Override
     public Set<String> modifiedKeys(PutSnapshotLifecycleAction.Request request) {
         return Set.of(request.getLifecycleId());
+    }
+
+    /**
+     * Returns 'true' if the SLM is effectually the same (same policy and headers), and thus can be a no-op update.
+     */
+    static boolean isNoopUpdate(
+        @Nullable SnapshotLifecyclePolicyMetadata existingPolicyMeta,
+        SnapshotLifecyclePolicy newPolicy,
+        Map<String, String> filteredHeaders
+    ) {
+        if (existingPolicyMeta == null) {
+            return false;
+        } else {
+            return newPolicy.equals(existingPolicyMeta.getPolicy()) && filteredHeaders.equals(existingPolicyMeta.getHeaders());
+        }
     }
 }

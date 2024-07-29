@@ -1826,9 +1826,9 @@ public class IngestServiceTests extends ESTestCase {
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
             indexRequest.source(xContentType, "field1", "value1");
-            boolean shouldListExecutedPiplines = randomBoolean();
-            executedPipelinesExpected.add(shouldListExecutedPiplines);
-            indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
+            boolean shouldListExecutedPipelines = randomBoolean();
+            executedPipelinesExpected.add(shouldListExecutedPipelines);
+            indexRequest.setListExecutedPipelines(shouldListExecutedPipelines);
             bulkRequest.add(indexRequest);
         }
 

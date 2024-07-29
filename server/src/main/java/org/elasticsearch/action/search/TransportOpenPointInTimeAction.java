@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -63,7 +62,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
-    private final Client client;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -72,8 +70,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         ActionFilters actionFilters,
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Client client
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -81,7 +78,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.client = client;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -217,6 +213,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters
             ) {
+                @Override
+                protected String missingShardsErrorMessage(StringBuilder missingShards) {
+                    return "[open_point_in_time] action requires all shards to be available. Missing shards: [" + missingShards + "]";
+                }
+
                 @Override
                 protected void executePhaseOnShard(
                     SearchShardIterator shardIt,

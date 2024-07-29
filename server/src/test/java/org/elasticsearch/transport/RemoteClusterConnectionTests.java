@@ -922,7 +922,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         RemoteClusterCredentialsManager.EMPTY
                     )
                 ) {
-                    PlainActionFuture.get(fut -> connection.ensureConnected(fut.map(x -> null)));
+                    safeAwait(listener -> connection.ensureConnected(listener.map(x -> null)));
                     for (int i = 0; i < 10; i++) {
                         // always a direct connection as the remote node is already connected
                         Transport.Connection remoteConnection = connection.getConnection(seedNode);

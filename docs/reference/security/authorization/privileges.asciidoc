@@ -282,7 +282,7 @@ status of {Ilm}
 This privilege is not available in {serverless-full}.
 
 `read_pipeline`::
-Read-only access to ingest pipline (get, simulate).
+Read-only access to ingest pipeline (get, simulate).
 
 `read_slm`::
 All read-only {slm-init} actions, such as getting policies and checking the

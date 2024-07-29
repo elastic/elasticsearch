@@ -11,7 +11,6 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -262,8 +261,8 @@ public class FsBlobContainerTests extends ESTestCase {
         final var finalValue = randomValueOtherThan(startValue, () -> new BytesArray(randomByteArrayOfLength(8)));
 
         final var p = randomPurpose();
-        assertTrue(PlainActionFuture.get(l -> container.compareAndSetRegister(p, contendedKey, BytesArray.EMPTY, startValue, l)));
-        assertTrue(PlainActionFuture.get(l -> container.compareAndSetRegister(p, uncontendedKey, BytesArray.EMPTY, startValue, l)));
+        assertTrue(safeAwait(l -> container.compareAndSetRegister(p, contendedKey, BytesArray.EMPTY, startValue, l)));
+        assertTrue(safeAwait(l -> container.compareAndSetRegister(p, uncontendedKey, BytesArray.EMPTY, startValue, l)));
 
         final var threads = new Thread[between(2, 5)];
         final var startBarrier = new CyclicBarrier(threads.length + 1);
@@ -274,7 +273,7 @@ public class FsBlobContainerTests extends ESTestCase {
                     // first thread does an uncontended write, which must succeed
                     ? () -> {
                         safeAwait(startBarrier);
-                        final OptionalBytesReference result = PlainActionFuture.get(
+                        final OptionalBytesReference result = safeAwait(
                             l -> container.compareAndExchangeRegister(p, uncontendedKey, startValue, finalValue, l)
                         );
                         // NB calling .bytesReference() asserts that the result is present, there was no contention
@@ -284,7 +283,7 @@ public class FsBlobContainerTests extends ESTestCase {
                     : () -> {
                         safeAwait(startBarrier);
                         while (casSucceeded.get() == false) {
-                            final OptionalBytesReference result = PlainActionFuture.get(
+                            final OptionalBytesReference result = safeAwait(
                                 l -> container.compareAndExchangeRegister(p, contendedKey, startValue, finalValue, l)
                             );
                             if (result.isPresent() && result.bytesReference().equals(startValue)) {
@@ -302,7 +301,7 @@ public class FsBlobContainerTests extends ESTestCase {
             for (var key : new String[] { contendedKey, uncontendedKey }) {
                 // NB calling .bytesReference() asserts that the read did not experience contention
                 assertThat(
-                    PlainActionFuture.<OptionalBytesReference, RuntimeException>get(l -> container.getRegister(p, key, l)).bytesReference(),
+                    safeAwait((ActionListener<OptionalBytesReference> l) -> container.getRegister(p, key, l)).bytesReference(),
                     oneOf(startValue, finalValue)
                 );
             }
@@ -315,7 +314,7 @@ public class FsBlobContainerTests extends ESTestCase {
         for (var key : new String[] { contendedKey, uncontendedKey }) {
             assertEquals(
                 finalValue,
-                PlainActionFuture.<OptionalBytesReference, RuntimeException>get(l -> container.getRegister(p, key, l)).bytesReference()
+                safeAwait((ActionListener<OptionalBytesReference> l) -> container.getRegister(p, key, l)).bytesReference()
             );
         }
     }

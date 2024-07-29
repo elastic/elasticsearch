@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -28,7 +29,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Percentile extends NumericAggregate {
@@ -41,9 +41,33 @@ public class Percentile extends NumericAggregate {
     private final Expression percentile;
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long" },
-        description = "The value at which a certain percentage of observed values occur.",
-        isAggregation = true
+        returnType = "double",
+        description = "Returns the value at which a certain percentage of observed values occur. "
+            + "For example, the 95th percentile is the value which is greater than 95% of the "
+            + "observed values and the 50th percentile is the `MEDIAN`.",
+        appendix = """
+            [discrete]
+            [[esql-percentile-approximate]]
+            ==== `PERCENTILE` is (usually) approximate
+
+            include::../../../aggregations/metrics/percentile-aggregation.asciidoc[tag=approximate]
+
+            [WARNING]
+            ====
+            `PERCENTILE` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
+            This means you can get slightly different results using the same data.
+            ====
+            """,
+        isAggregation = true,
+        examples = {
+            @Example(file = "stats_percentile", tag = "percentile"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate a percentile "
+                    + "of the maximum values of a multivalued column, first use `MV_MAX` to get the "
+                    + "maximum value per row, and use the result with the `PERCENTILE` function",
+                file = "stats_percentile",
+                tag = "docsStatsPercentileNestedExpression"
+            ), }
     )
     public Percentile(
         Source source,
@@ -101,7 +125,13 @@ public class Percentile extends NumericAggregate {
             return resolution;
         }
 
-        return isNumeric(percentile, sourceText(), SECOND).and(isFoldable(percentile, sourceText(), SECOND));
+        return isType(
+            percentile,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            sourceText(),
+            SECOND,
+            "numeric except unsigned_long"
+        ).and(isFoldable(percentile, sourceText(), SECOND));
     }
 
     @Override

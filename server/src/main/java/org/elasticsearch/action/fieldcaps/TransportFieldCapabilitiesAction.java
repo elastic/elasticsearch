@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -279,9 +280,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private static void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
+        var blocks = clusterState.blocks();
+        if (blocks.global().isEmpty() && blocks.indices().isEmpty()) {
+            // short circuit optimization because block check below is relatively expensive for many indices
+            return;
+        }
+        blocks.globalBlockedRaiseException(ClusterBlockLevel.READ);
         for (String index : concreteIndices) {
-            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+            blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
         }
     }
 
@@ -552,7 +558,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
                 final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
-                final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
+                Predicate<String> fieldNameFilter;
+                try {
+                    fieldNameFilter = Regex.simpleMatcher(request.fields());
+                } catch (TooComplexToDeterminizeException e) {
+                    throw new IllegalArgumentException("The field names are too complex to process. " + e.getMessage());
+                }
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();

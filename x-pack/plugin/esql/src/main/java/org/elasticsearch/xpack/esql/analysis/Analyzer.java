@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -61,7 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -74,13 +75,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Stats;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.util.ArrayList;
@@ -115,9 +116,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
+/**
+ * This class is part of the planner. Resolves references (such as variable and index names) and performs implicit casting.
+ */
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
@@ -238,7 +242,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     ? new UnsupportedAttribute(source, name, uef)
                     : new FieldAttribute(source, parent, name, t);
                 // primitive branch
-                if (EsqlDataTypes.isPrimitive(type)) {
+                if (DataType.isPrimitive(type)) {
                     list.add(attribute);
                 }
                 // allow compound object even if they are unknown (but not NESTED)
@@ -383,7 +387,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveRefs extends BaseAnalyzerRule {
+    public static class ResolveRefs extends BaseAnalyzerRule {
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan.childrenResolved() == false) {
@@ -396,8 +400,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof Aggregate agg) {
-                return resolveAggregate(agg, childrenOutput);
+            if (plan instanceof Stats stats) {
+                return resolveStats(stats, childrenOutput);
             }
 
             if (plan instanceof Drop d) {
@@ -431,11 +435,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
-        private LogicalPlan resolveAggregate(Aggregate a, List<Attribute> childrenOutput) {
+        private LogicalPlan resolveStats(Stats stats, List<Attribute> childrenOutput) {
             // if the grouping is resolved but the aggs are not, use the former to resolve the latter
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);
-            List<Expression> groupings = a.groupings();
+            List<Expression> groupings = stats.groupings();
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             if (Resolvables.resolved(groupings) == false) {
@@ -449,12 +453,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 groupings = newGroupings;
                 if (changed.get()) {
-                    a = new Aggregate(a.source(), a.child(), a.aggregateType(), newGroupings, a.aggregates());
+                    stats = stats.with(newGroupings, stats.aggregates());
                     changed.set(false);
                 }
             }
 
-            if (a.expressionsResolved() == false) {
+            if (stats.expressionsResolved() == false) {
                 AttributeMap<Expression> resolved = new AttributeMap<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
@@ -465,7 +469,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
                 List<NamedExpression> newAggregates = new ArrayList<>();
 
-                for (NamedExpression aggregate : a.aggregates()) {
+                for (NamedExpression aggregate : stats.aggregates()) {
                     var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
                         Expression ne = ua;
                         Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
@@ -478,10 +482,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newAggregates.add(agg);
                 }
 
-                a = changed.get() ? new Aggregate(a.source(), a.child(), a.aggregateType(), groupings, newAggregates) : a;
+                stats = changed.get() ? stats.with(groupings, newAggregates) : stats;
             }
 
-            return a;
+            return (LogicalPlan) stats;
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -575,20 +579,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
+            return maybeResolveAttribute(ua, childrenOutput, log);
+        }
+
+        private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             if (ua.customMessage()) {
                 return ua;
             }
-            return resolveAttribute(ua, childrenOutput);
+            return resolveAttribute(ua, childrenOutput, logger);
         }
 
         private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
+            return resolveAttribute(ua, childrenOutput, log);
+        }
+
+        private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             Attribute resolved = ua;
             var named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
-                if (log.isTraceEnabled() && resolved.resolved()) {
-                    log.trace("Resolved {} to {}", ua, resolved);
+                if (logger != null && logger.isTraceEnabled() && resolved.resolved()) {
+                    logger.trace("Resolved {} to {}", ua, resolved);
                 }
             } else {
                 if (named.size() > 0) {
@@ -724,6 +736,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveRename(Rename rename, List<Attribute> childrenOutput) {
+            List<NamedExpression> projections = projectionsForRename(rename, childrenOutput, log);
+
+            return new EsqlProject(rename.source(), rename.child(), projections);
+        }
+
+        public static List<NamedExpression> projectionsForRename(Rename rename, List<Attribute> childrenOutput, Logger logger) {
             List<NamedExpression> projections = new ArrayList<>(childrenOutput);
 
             int renamingsCount = rename.renamings().size();
@@ -736,7 +754,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
                     projections.removeIf(x -> x.name().equals(alias.name()));
 
-                    var resolved = maybeResolveAttribute(ua, childrenOutput);
+                    var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
                         var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
@@ -779,7 +797,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // add unresolved renamings to later trip the Verifier.
             projections.addAll(unresolved);
 
-            return new EsqlProject(rename.source(), rename.child(), projections);
+            return projections;
         }
 
         private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
@@ -845,7 +863,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
                 String nameCandidate = a.name();
-                if (EsqlDataTypes.isPrimitive(a.dataType())) {
+                if (DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }
             }
@@ -1068,13 +1086,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
      * (See UnresolveUnionTypes below).
      */
-    private static class ResolveUnionTypes extends BaseAnalyzerRule {
+    private static class ResolveUnionTypes extends Rule<LogicalPlan, LogicalPlan> {
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
+        private List<FieldAttribute> unionFieldAttributes;
+
         @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
-            List<FieldAttribute> unionFieldAttributes = new ArrayList<>();
+        public LogicalPlan apply(LogicalPlan plan) {
+            unionFieldAttributes = new ArrayList<>();
+            // Collect field attributes from previous runs
+            plan.forEachUp(EsRelation.class, rel -> {
+                for (Attribute attr : rel.output()) {
+                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField) {
+                        unionFieldAttributes.add(fa);
+                    }
+                }
+            });
+
+            return plan.transformUp(LogicalPlan.class, p -> p.resolved() || p.childrenResolved() == false ? p : doRule(p));
+        }
+
+        private LogicalPlan doRule(LogicalPlan plan) {
+            int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(
@@ -1082,13 +1116,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 convert -> resolveConvertFunction(convert, unionFieldAttributes)
             );
             // If no union fields were generated, return the plan as is
-            if (unionFieldAttributes.isEmpty()) {
+            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
             }
 
             // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
             // Now that we have resolved those, we need to re-resolve the aggregates.
             if (plan instanceof Aggregate agg) {
+                // TODO once inlinestats supports expressions in groups we'll likely need the same sort of extraction here
                 // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
                 plan = agg.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
 
@@ -1162,7 +1197,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
-            String unionTypedFieldName = SubstituteSurrogates.rawTemporaryName(
+            String unionTypedFieldName = LogicalPlanOptimizer.rawTemporaryName(
                 fa.name(),
                 "converted_to",
                 resolvedField.getDataType().typeName()

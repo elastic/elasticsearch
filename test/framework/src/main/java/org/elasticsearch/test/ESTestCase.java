@@ -44,8 +44,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -115,6 +115,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -154,6 +155,7 @@ import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -1476,10 +1478,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         // we override LTC behavior here: wrap even resources with mockfilesystems,
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
+        return getResourceDataPath(getClass(), relativePath);
+    }
+
+    public static Path getResourceDataPath(Class<?> clazz, String relativePath) {
+        final var resource = Objects.requireNonNullElseGet(
+            clazz.getResource(relativePath),
+            () -> fail(null, "resource not found: [%s][%s]", clazz.getCanonicalName(), relativePath)
+        );
+        final URI uri;
         try {
-            return PathUtils.get(getClass().getResource(relativePath).toURI()).toAbsolutePath().normalize();
+            uri = resource.toURI();
         } catch (Exception e) {
-            throw new RuntimeException("resource not found: " + relativePath, e);
+            return fail(null, "resource URI not found: [%s][%s]", clazz.getCanonicalName(), relativePath);
+        }
+        try {
+            return PathUtils.get(uri).toAbsolutePath().normalize();
+        } catch (Exception e) {
+            return fail(e, "resource path not found: %s", uri);
         }
     }
 
@@ -2287,7 +2303,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code listener} was completed.
      */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        final var future = new PlainActionFuture<T>();
+        final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
         return safeGet(future);
     }
@@ -2513,6 +2529,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         if (e != null) {
             throw new AssertionError(e);
+        }
+    }
+
+    public static void ensureAllContextsReleased(SearchService searchService) {
+        try {
+            assertBusy(() -> {
+                assertThat(searchService.getActiveContexts(), equalTo(0));
+                assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+            });
+        } catch (Exception e) {
+            throw new AssertionError("Failed to verify search contexts", e);
         }
     }
 }

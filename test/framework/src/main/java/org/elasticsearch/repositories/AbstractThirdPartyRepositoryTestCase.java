@@ -31,7 +31,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
+import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -313,6 +315,31 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 readBlob(repository, blobName, position, length),
                 equalTo(blobBytes.slice(position, Math.toIntExact(Math.min(length, blobBytes.length() - position))))
             );
+        }
+    }
+
+    public void testSkipBeyondBlobLengthShouldThrowEOFException() throws IOException {
+        final var blobName = randomIdentifier();
+        final int blobLength = randomIntBetween(100, 2_000);
+        final var blobBytes = randomBytesReference(blobLength);
+
+        final var repository = getRepository();
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
+            return null;
+        });
+
+        var blobContainer = repository.blobStore().blobContainer(repository.basePath());
+        try (var input = blobContainer.readBlob(randomPurpose(), blobName, 0, blobLength); var output = new BytesStreamOutput()) {
+            Streams.copy(input, output, false);
+            expectThrows(EOFException.class, () -> input.skipNBytes(randomLongBetween(1, 1000)));
+        }
+
+        try (var input = blobContainer.readBlob(randomPurpose(), blobName, 0, blobLength); var output = new BytesStreamOutput()) {
+            final int capacity = between(1, blobLength);
+            final ByteBuffer byteBuffer = randomBoolean() ? ByteBuffer.allocate(capacity) : ByteBuffer.allocateDirect(capacity);
+            Streams.read(input, byteBuffer, capacity);
+            expectThrows(EOFException.class, () -> input.skipNBytes((blobLength - capacity) + randomLongBetween(1, 1000)));
         }
     }
 

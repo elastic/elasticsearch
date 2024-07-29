@@ -538,11 +538,9 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
             final var rejectingExecutor = threadPool.executor(REJECTING_EXECUTOR);
             rejectingExecutor.execute(threadBlock::actionGet);
-            expectThrows(
-                EsRejectedExecutionException.class,
-                () -> PlainActionFuture.<Releasable, RuntimeException>get(
-                    f -> permits.blockOperations(f, 1, TimeUnit.HOURS, rejectingExecutor)
-                )
+            assertThat(
+                safeAwaitFailure(Releasable.class, l -> permits.blockOperations(l, 1, TimeUnit.HOURS, rejectingExecutor)),
+                instanceOf(EsRejectedExecutionException.class)
             );
 
             // ensure that the exception means no block was put in place
@@ -554,7 +552,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         // ensure that another block can still be acquired
-        try (Releasable block = PlainActionFuture.get(f -> permits.blockOperations(f, 1, TimeUnit.HOURS, threadPool.generic()))) {
+        try (Releasable block = safeAwait(l -> permits.blockOperations(l, 1, TimeUnit.HOURS, threadPool.generic()))) {
             assertNotNull(block);
         }
     }
@@ -566,11 +564,9 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
             assertEquals(
                 "timeout while blocking operations after [0s]",
-                expectThrows(
+                asInstanceOf(
                     ElasticsearchTimeoutException.class,
-                    () -> PlainActionFuture.<Releasable, RuntimeException>get(
-                        f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, threadPool.generic())
-                    )
+                    safeAwaitFailure(Releasable.class, f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, threadPool.generic()))
                 ).getMessage()
             );
 
@@ -584,7 +580,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         // ensure that another block can still be acquired
-        try (Releasable block = PlainActionFuture.get(f -> permits.blockOperations(f, 1, TimeUnit.HOURS, threadPool.generic()))) {
+        try (Releasable block = safeAwait(l -> permits.blockOperations(l, 1, TimeUnit.HOURS, threadPool.generic()))) {
             assertNotNull(block);
         }
     }

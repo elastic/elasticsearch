@@ -26,11 +26,13 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
     private static final String AZURE_TEST_CONTAINER = System.getProperty("test.azure.container");
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
+    private static final String AZURE_TEST_TENANT_ID = System.getProperty("test.azure.tenant_id");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
+        AZURE_TEST_TENANT_ID,
         Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
             ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
             : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
@@ -67,8 +69,8 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         })
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
-        .systemProperty("AZURE_CLIENT_ID", () -> "8e6641ab-a6bd-4457-be6a-c97f3c3de81e", s -> USE_FIXTURE)
-        .systemProperty("AZURE_TENANT_ID", () -> "4fa94b7d-a743-486f-abcc-6c276c44cf4b", s -> USE_FIXTURE)
+        .systemProperty("AZURE_CLIENT_ID", () -> "b64b7eb0-a5e0-49df-84ac-9216ab962421", s -> USE_FIXTURE)
+        .systemProperty("AZURE_TENANT_ID", () -> "583d4f71-148a-4163-bad5-2311e13c60dc", s -> USE_FIXTURE)
         .systemProperty("AZURE_FEDERATED_TOKEN_FILE", () -> fixture.getFederatedTokenPath(), s -> USE_FIXTURE)
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();

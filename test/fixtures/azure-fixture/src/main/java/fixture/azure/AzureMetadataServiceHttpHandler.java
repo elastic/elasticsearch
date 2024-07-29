@@ -32,9 +32,10 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(AzureMetadataServiceHttpHandler.class);
 
     private final String bearerToken;
-    private final String tenantId = "4fa94b7d-a743-486f-abcc-6c276c44cf4b";
+    private final String tenantId;
 
-    public AzureMetadataServiceHttpHandler(String bearerToken) {
+    public AzureMetadataServiceHttpHandler(String tenantId, String bearerToken) {
+        this.tenantId = tenantId;
         this.bearerToken = bearerToken;
     }
 
@@ -43,6 +44,7 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
         if ("GET".equals(exchange.getRequestMethod())
             && "/metadata/identity/oauth2/token".equals(exchange.getRequestURI().getPath())
             && "api-version=2018-02-01&resource=https://storage.azure.com".equals(exchange.getRequestURI().getQuery())) {
+            // TODO remove me
             throw new IllegalStateException("should not get called");
             // try (exchange; var xcb = XContentBuilder.builder(XContentType.JSON.xContent())) {
             // final BytesReference responseBytes = getAccessTokenBytes(xcb);

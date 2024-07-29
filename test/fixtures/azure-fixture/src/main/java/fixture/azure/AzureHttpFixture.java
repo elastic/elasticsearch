@@ -39,6 +39,7 @@ public class AzureHttpFixture extends ExternalResource {
     private final Protocol protocol;
     private final String account;
     private final String container;
+    private final String tenantId;
     private final Predicate<String> authHeaderPredicate;
 
     private HttpServer server;
@@ -97,10 +98,16 @@ public class AzureHttpFixture extends ExternalResource {
         };
     }
 
+    // TODO remove constructor
     public AzureHttpFixture(Protocol protocol, String account, String container, Predicate<String> authHeaderPredicate) {
+        this(protocol, account, container, "wrong-bad-no", authHeaderPredicate);
+    }
+
+    public AzureHttpFixture(Protocol protocol, String account, String container, String tenantId, Predicate<String> authHeaderPredicate) {
         this.protocol = protocol;
         this.account = account;
         this.container = container;
+        this.tenantId = tenantId;
         this.authHeaderPredicate = authHeaderPredicate;
     }
 
@@ -150,11 +157,11 @@ public class AzureHttpFixture extends ExternalResource {
                         new SecureRandom()
                     );
                     httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                    httpsServer.createContext("/", new AzureMetadataServiceHttpHandler(bearerToken));
+                    httpsServer.createContext("/", new AzureMetadataServiceHttpHandler(tenantId, bearerToken));
                     httpsServer.start();
                 } else {
                     this.metadataServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                    metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(bearerToken));
+                    metadataServer.createContext("/", new AzureMetadataServiceHttpHandler(tenantId, bearerToken));
                     metadataServer.start();
                 }
             }
@@ -164,8 +171,7 @@ public class AzureHttpFixture extends ExternalResource {
                 : authHeaderPredicate;
 
             switch (protocol) {
-                case NONE -> {
-                }
+                case NONE -> {}
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                     server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));

@@ -24,6 +24,7 @@ String azureKey = System.getenv("azure_storage_key")
 String azureContainer = System.getenv("azure_storage_container")
 String azureBasePath = System.getenv("azure_storage_base_path")
 String azureSasToken = System.getenv("azure_storage_sas_token")
+String azureTenantId = System.getenv("azure_storage_tenant_id")
 
 if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
   azureAccount = 'azure_integration_test_account'
@@ -31,6 +32,7 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   azureContainer = 'container'
   azureBasePath = ''
   azureSasToken = ''
+  azureTenantId = ''
   useFixture = true
 }
 
@@ -69,6 +71,7 @@ tasks.named("workloadIdentityJavaRestTest") {
   systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
   systemProperty 'test.azure.account', azureAccount
   systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.tenant_id', "583d4f71-148a-4163-bad5-2311e13c60dc"
   // omitting key and sas_token so that we use a bearer token from the metadata service
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed
 }

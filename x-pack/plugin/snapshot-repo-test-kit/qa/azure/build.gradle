@@ -60,6 +60,20 @@ tasks.named("managedIdentityJavaRestTest") {
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed
 }
 
+tasks.register("workloadIdentityJavaRestTest", RestIntegTestTask) {
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+}
+
+tasks.named("workloadIdentityJavaRestTest") {
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  // omitting key and sas_token so that we use a bearer token from the metadata service
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed
+}
+
 tasks.named("check") {
   dependsOn("managedIdentityJavaRestTest")
+  dependsOn("workloadIdentityJavaRestTest")
 }

@@ -44,6 +44,8 @@ public class AzureHttpFixture extends ExternalResource {
     private HttpServer server;
     private HttpServer metadataServer;
 
+    private String federatedTokenPath;
+
     public enum Protocol {
         NONE,
         HTTP,
@@ -118,10 +120,16 @@ public class AzureHttpFixture extends ExternalResource {
         return scheme() + "://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
     }
 
+    public String getFederatedTokenPath() {
+        return federatedTokenPath;
+    }
+
     @Override
     protected void before() {
         try {
             final var bearerToken = ESTestCase.randomIdentifier();
+
+            setupFederatedTokenFile();
 
             if (protocol != Protocol.NONE) {
                 if (protocol == Protocol.HTTPS) {
@@ -156,7 +164,8 @@ public class AzureHttpFixture extends ExternalResource {
                 : authHeaderPredicate;
 
             switch (protocol) {
-                case NONE -> {}
+                case NONE -> {
+                }
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                     server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
@@ -187,6 +196,11 @@ public class AzureHttpFixture extends ExternalResource {
         } catch (Exception e) {
             throw new AssertionError("unexpected", e);
         }
+    }
+
+    private void setupFederatedTokenFile() throws IOException {
+        final var tmpdir = ESTestCase.createTempDir();
+        federatedTokenPath = copyResource(tmpdir, "azure-federated-token").toString();
     }
 
     private Path copyResource(Path tmpdir, String name) throws IOException {

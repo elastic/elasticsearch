@@ -826,7 +826,7 @@ public class AzureBlobStore implements BlobStore {
                 )
             );
         } catch (Exception e) {
-            if (Throwables.getRootCause(e)instanceof BlobStorageException blobStorageException
+            if (Throwables.getRootCause(e) instanceof BlobStorageException blobStorageException
                 && blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 return OptionalBytesReference.EMPTY;
             }
@@ -855,7 +855,7 @@ public class AzureBlobStore implements BlobStore {
                 )
             );
         } catch (Exception e) {
-            if (Throwables.getRootCause(e)instanceof BlobStorageException blobStorageException) {
+            if (Throwables.getRootCause(e) instanceof BlobStorageException blobStorageException) {
                 if (blobStorageException.getStatusCode() == RestStatus.PRECONDITION_FAILED.getStatus()
                     || blobStorageException.getStatusCode() == RestStatus.CONFLICT.getStatus()) {
                     return OptionalBytesReference.MISSING;

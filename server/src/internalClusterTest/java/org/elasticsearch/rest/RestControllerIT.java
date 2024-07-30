@@ -20,9 +20,12 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -34,10 +37,10 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numClientNodes = 1, numDataNodes = 0)
@@ -54,7 +57,7 @@ public class RestControllerIT extends ESIntegTestCase {
         assertEquals(ChunkedResponseWithHeadersPlugin.HEADER_VALUE, response.getHeader(ChunkedResponseWithHeadersPlugin.HEADER_NAME));
     }
 
-    public void testMetricsEmittedOnSuccess() throws IOException {
+    public void testMetricsEmittedOnSuccess() throws Exception {
         final var client = getRestClient();
         final var request = new Request("GET", TestEchoStatusCodePlugin.ROUTE);
         request.addParameter("status_code", "200");
@@ -70,7 +73,7 @@ public class RestControllerIT extends ESIntegTestCase {
         });
     }
 
-    public void testMetricsEmittedOnRestError() throws IOException {
+    public void testMetricsEmittedOnRestError() throws Exception {
         final var client = getRestClient();
         final var request = new Request("GET", TestEchoStatusCodePlugin.ROUTE);
         request.addParameter("status_code", "503");
@@ -85,7 +88,7 @@ public class RestControllerIT extends ESIntegTestCase {
         });
     }
 
-    public void testMetricsEmittedOnWrongMethod() throws IOException {
+    public void testMetricsEmittedOnWrongMethod() throws Exception {
         final var client = getRestClient();
         final var request = new Request("DELETE", TestEchoStatusCodePlugin.ROUTE);
         final var response = expectThrows(ResponseException.class, () -> client.performRequest(request));
@@ -97,30 +100,38 @@ public class RestControllerIT extends ESIntegTestCase {
         });
     }
 
-    private static void assertMeasurement(Consumer<Measurement> measurementConsumer) {
-        var measurements = new ArrayList<Measurement>();
-        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
-            telemetryPlugin.collect();
+    private void assertMeasurement(Consumer<Measurement> measurementConsumer) throws Exception {
+        assertBusy(() -> {
+            var measurements = new ArrayList<Measurement>();
+            for (var nodeName : internalCluster().getNodeNames()) {
+                PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, nodeName);
+                var telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class).toList();
 
-            final var metrics = telemetryPlugin.getLongCounterMeasurement(RestController.METRIC_REQUESTS_TOTAL);
-            measurements.addAll(metrics);
-        }
-        assertThat(measurements, hasSize(1));
-        measurementConsumer.accept(measurements.get(0));
+                assertThat(telemetryPlugins, hasSize(1));
+                assertThat(telemetryPlugins.get(0), instanceOf(TestTelemetryPlugin.class));
+                var telemetryPlugin = (TestTelemetryPlugin) telemetryPlugins.get(0);
+
+                telemetryPlugin.collect();
+
+                final var metrics = telemetryPlugin.getLongCounterMeasurement(RestController.METRIC_REQUESTS_TOTAL);
+                logger.info("collecting [{}] metrics from [{}]", metrics.size(), nodeName);
+                measurements.addAll(metrics);
+            }
+            assertThat(measurements, hasSize(1));
+            measurementConsumer.accept(measurements.get(0));
+        });
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(
-            super.nodePlugins().stream(),
-            Stream.of(ChunkedResponseWithHeadersPlugin.class, TestEchoStatusCodePlugin.class, TestTelemetryPlugin.class)
-        ).toList();
+        return List.of(ChunkedResponseWithHeadersPlugin.class, TestEchoStatusCodePlugin.class, TestTelemetryPlugin.class);
     }
 
     public static class TestEchoStatusCodePlugin extends Plugin implements ActionPlugin {
         static final String ROUTE = "/_test/echo_status_code";
         static final String NAME = "test_echo_status_code";
+
+        private static final Logger logger = LogManager.getLogger(TestEchoStatusCodePlugin.class);
 
         @Override
         public Collection<RestHandler> getRestHandlers(
@@ -148,7 +159,8 @@ public class RestControllerIT extends ESIntegTestCase {
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
                     var statusCode = request.param("status_code");
-                    client.getLocalNodeId();
+                    logger.info("received echo request for {}", statusCode);
+
                     var restStatus = RestStatus.fromCode(Integer.parseInt(statusCode));
                     return channel -> {
                         final var response = RestResponse.chunked(
@@ -161,6 +173,7 @@ public class RestControllerIT extends ESIntegTestCase {
                             null
                         );
                         channel.sendResponse(response);
+                        logger.info("sent response");
                     };
                 }
             });

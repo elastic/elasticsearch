@@ -880,6 +880,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#UNSIGNED_LONG}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ulongCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -1076,12 +1082,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cartesianShapeCases(ESTestCase::randomBoolean);
     }
 
+    /**
+     * Generate cases for {@link DataType#GEO_POINT}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#geoPointCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), DataType.GEO_POINT)
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#CARTESIAN_POINT}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#cartesianPointCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> cartesianPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
@@ -1130,6 +1148,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for String DataTypes.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#stringCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> stringCases(DataType type) {
         List<TypedDataSupplier> result = new ArrayList<>();
         result.add(new TypedDataSupplier("<empty " + type + ">", () -> new BytesRef(""), type));
@@ -1158,6 +1182,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Supplier test case data for {@link Version} fields.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.
+     * </p>
      */
     public static List<TypedDataSupplier> versionCases(String prefix) {
         return List.of(

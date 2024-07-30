@@ -47,7 +47,7 @@ class ListEqualMatcher extends EqualMatcher<List<?>> {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Lists do not match when ignoreing sort order"
+                        "Lists do not match when ignoring sort order"
                     )
                 );
         } else {

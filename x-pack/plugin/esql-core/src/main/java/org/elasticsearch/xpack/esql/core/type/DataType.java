@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -73,8 +75,29 @@ public enum DataType {
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
 
+    /**
+     * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
+     * <ul>
+     *     <li>One copy of it is always added at the start of every query</li>
+     *     <li>It is implicitly dropped before being returned to the user</li>
+     *     <li>It is not "target-able" by any functions</li>
+     *     <li>Users shouldn't know it's there at all</li>
+     *     <li>It is used as an input for things that interact with Lucene like
+     *         loading field values</li>
+     * </ul>
+     */
     DOC_DATA_TYPE(builder().esType("_doc").estimatedSize(Integer.BYTES * 3)),
+    /**
+     * Fields with this type represent values from the {@link TimeSeriesIdFieldMapper}.
+     * Every document in {@link IndexMode#TIME_SERIES} index will have a single value
+     * for this field and the segments themselves are sorted on this value.
+     */
     TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
+    /**
+     * Fields with this type are the partial result of running a non-time-series aggregation
+     * inside alongside time-series aggregations. These fields are not parsable from the
+     * mapping and should be hidden from users.
+     */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
 
     private final String typeName;

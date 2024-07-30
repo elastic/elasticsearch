@@ -21,6 +21,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.transport.Transports;
@@ -48,6 +49,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Generates the shard id for {@code (id, routing)} pairs.
  */
 public abstract class IndexRouting {
+
+    static final NodeFeature BOOLEAN_ROUTING_PATH = new NodeFeature("routing.boolean_routing_path");
+
     /**
      * Build the routing from {@link IndexMetadata}.
      */
@@ -361,6 +365,7 @@ public abstract class IndexRouting {
                         break;
                     case VALUE_STRING:
                     case VALUE_NUMBER:
+                    case VALUE_BOOLEAN:
                         hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
                         source.nextToken();
                         break;

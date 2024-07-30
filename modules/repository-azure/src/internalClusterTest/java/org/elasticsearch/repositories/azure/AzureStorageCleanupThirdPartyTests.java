@@ -44,11 +44,14 @@ import static org.hamcrest.Matchers.not;
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
+    private static final String AZURE_ACCOUNT = System.getProperty("test.azure.account");
+
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
-        System.getProperty("test.azure.account"),
-        System.getProperty("test.azure.container")
+        AZURE_ACCOUNT,
+        System.getProperty("test.azure.container"),
+        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT)
     );
 
     @Override

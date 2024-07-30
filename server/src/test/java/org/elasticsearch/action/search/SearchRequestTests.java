@@ -29,6 +29,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -37,6 +38,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -256,6 +258,113 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("cannot use `collapse` in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // allow_partial_results and compound retriever
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().retriever(new RetrieverBuilder() {
+                @Override
+                public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                    // no-op
+                }
+
+                @Override
+                public String getName() {
+                    return "compound_retriever";
+                }
+
+                @Override
+                protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
+
+                @Override
+                protected boolean doEquals(Object o) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+
+                @Override
+                public boolean isCompound() {
+                    return true;
+                }
+            }));
+            searchRequest.allowPartialSearchResults(true);
+            searchRequest.scroll((Scroll) null);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals(
+                "cannot specify a compound retriever and [allow_partial_search_results]",
+                validationErrors.validationErrors().get(0)
+            );
+        }
+        {
+            // allow_partial_results and non-compound retriever
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().retriever(new RetrieverBuilder() {
+                @Override
+                public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                    // no-op
+                }
+
+                @Override
+                public String getName() {
+                    return "not_a_compound_retriever";
+                }
+
+                @Override
+                protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
+
+                @Override
+                protected boolean doEquals(Object o) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            }));
+            searchRequest.allowPartialSearchResults(true);
+            searchRequest.scroll((Scroll) null);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNull(validationErrors);
+        }
+        {
+            // allow_partial_results not defined and compound retriever
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().retriever(new RetrieverBuilder() {
+                @Override
+                public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                    // no-op
+                }
+
+                @Override
+                public String getName() {
+                    return "compound_retriever";
+                }
+
+                @Override
+                protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
+
+                @Override
+                protected boolean doEquals(Object o) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+
+                @Override
+                public boolean isCompound() {
+                    return true;
+                }
+            }));
+            searchRequest.scroll((Scroll) null);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNull(validationErrors);
         }
         {
             // search_after and `from` isn't valid

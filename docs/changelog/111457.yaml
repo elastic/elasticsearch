@@ -1,6 +1,6 @@
 pr: 111457
 summary: Add support for boolean dimensions
-area: "Mapping, TSDB"
+area: TSDB
 type: enhancement
 issues:
  - 111338

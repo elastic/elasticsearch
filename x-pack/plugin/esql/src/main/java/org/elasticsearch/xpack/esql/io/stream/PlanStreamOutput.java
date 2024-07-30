@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -34,7 +35,7 @@ import java.util.function.Function;
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
  * output with methods that write plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamOutput extends StreamOutput {
+public final class PlanStreamOutput extends StreamOutput implements org.elasticsearch.xpack.esql.core.util.PlanStreamOutput {
 
     /**
      * Cache of written blocks. We use an {@link IdentityHashMap} for this
@@ -43,6 +44,16 @@ public final class PlanStreamOutput extends StreamOutput {
      * object identity.
      */
     private final Map<Block, BytesReference> cachedBlocks = new IdentityHashMap<>();
+
+    /**
+     * Cache for field attributes.
+     * Field attributes can be a significant part of the query execution plan, especially
+     * for queries like `from *`, that can have thousands of output columns.
+     * Attributes can be shared by many plan nodes (eg. ExcahngeSink output, Project output, EsRelation fields);
+     * in addition, multiple FieldAttributes can share the same parent field.
+     * This cache allows to send each attribute only once; from the second occurrence, only an id will be sent
+     */
+    protected final Map<FieldAttribute, Integer> cachedFieldAttributes = new IdentityHashMap<>();
 
     private final StreamOutput delegate;
     private final PlanNameRegistry registry;
@@ -156,6 +167,17 @@ public final class PlanStreamOutput extends StreamOutput {
         cachedBlocks.put(block, fromPreviousKey(nextCachedBlock));
         writeNamedWriteable(block);
         nextCachedBlock++;
+    }
+
+    public Integer fromCache(FieldAttribute attr) {
+        return cachedFieldAttributes.get(attr);
+    }
+
+    public Integer addToCache(FieldAttribute attr) {
+        assert cachedFieldAttributes.containsKey(attr) == false;
+        int id = cachedFieldAttributes.size();
+        cachedFieldAttributes.put(attr, id);
+        return id;
     }
 
     /**

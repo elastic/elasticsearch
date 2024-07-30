@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
@@ -36,7 +38,7 @@ public class FieldAttribute extends TypedAttribute {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "FieldAttribute",
-        FieldAttribute::new
+        FieldAttribute::readFrom
     );
 
     private final FieldAttribute parent;
@@ -81,7 +83,7 @@ public class FieldAttribute extends TypedAttribute {
         this.field = field;
     }
 
-    public FieldAttribute(StreamInput in) throws IOException {
+    private FieldAttribute(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -92,7 +94,7 @@ public class FieldAttribute extends TypedAttribute {
          */
         this(
             Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readOptionalWriteable(FieldAttribute::new),
+            in.readOptionalWriteable(FieldAttribute::readFrom),
             in.readString(),
             DataType.readFrom(in),
             in.readNamedWriteable(EsField.class),
@@ -105,6 +107,19 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)
+            && out instanceof PlanStreamOutput pso) {
+            Integer inCache = pso.fromCache(this);
+            if (inCache != null) {
+                out.writeBoolean(true);
+                out.writeInt(inCache);
+                return;
+            }
+
+            Integer newCacheId = pso.addToCache(this);
+            out.writeBoolean(false);
+            out.writeInt(newCacheId);
+        }
         Source.EMPTY.writeTo(out);
         out.writeOptionalWriteable(parent);
         out.writeString(name());
@@ -114,6 +129,21 @@ public class FieldAttribute extends TypedAttribute {
         out.writeEnum(nullable());
         id().writeTo(out);
         out.writeBoolean(synthetic());
+    }
+
+    public static FieldAttribute readFrom(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)
+            && in instanceof PlanStreamInput psi) {
+            boolean inCache = in.readBoolean();
+            int cacheId = in.readInt();
+            if (inCache) {
+                return psi.attributeFromCache(cacheId);
+            }
+            FieldAttribute result = new FieldAttribute(in);
+            psi.toCache(result, cacheId);
+            return result;
+        }
+        return new FieldAttribute(in);
     }
 
     @Override

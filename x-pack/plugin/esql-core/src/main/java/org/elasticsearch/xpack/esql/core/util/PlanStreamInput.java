@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -33,4 +34,18 @@ public interface PlanStreamInput {
      * the same result.
      */
     NameId mapNameId(long id) throws IOException;
+
+    /**
+     * Retrieves a FieldAttribute from the cache
+     * @param id the serialization ID for the FieldAttribute
+     * @return
+     */
+    FieldAttribute attributeFromCache(int id);
+
+    /**
+     * adds a FieldAttribute to the cache, with the corresponding serialization ID
+     * @param attr
+     * @param id
+     */
+    void toCache(FieldAttribute attr, int id);
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongFunction;
@@ -59,6 +61,8 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
+
+    private FieldAttribute[] fieldAttributes = new FieldAttribute[64];
 
     private final PlanNameRegistry registry;
 
@@ -205,5 +209,17 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     @Override
     public NameId mapNameId(long l) {
         return nameIdFunction.apply(l);
+    }
+
+    public FieldAttribute attributeFromCache(int id) {
+        assert fieldAttributes.length > id && fieldAttributes[id] != null;
+        return fieldAttributes[id];
+    }
+
+    public void toCache(FieldAttribute attr, int id) {
+        while (id >= fieldAttributes.length) {
+            fieldAttributes = Arrays.copyOf(fieldAttributes, fieldAttributes.length * 2);
+        }
+        fieldAttributes[id] = attr;
     }
 }

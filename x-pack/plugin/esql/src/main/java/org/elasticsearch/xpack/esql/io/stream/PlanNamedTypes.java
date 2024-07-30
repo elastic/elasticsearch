@@ -768,7 +768,7 @@ public final class PlanNamedTypes {
 
     static EsQueryExec.FieldSort readFieldSort(PlanStreamInput in) throws IOException {
         return new EsQueryExec.FieldSort(
-            new FieldAttribute(in),
+            FieldAttribute.readFrom(in),
             in.readEnum(Order.OrderDirection.class),
             in.readEnum(Order.NullsPosition.class)
         );

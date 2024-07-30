@@ -18,17 +18,24 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PlanStreamOutputTests extends ESTestCase {
@@ -113,6 +120,39 @@ public class PlanStreamOutputTests extends ESTestCase {
         }
     }
 
+    public void testWriteFieldAttributeTwice() throws IOException {
+        FieldAttribute fa = PlanNamedTypesTests.randomFieldAttribute();
+        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        try (
+            BytesStreamOutput out = new BytesStreamOutput();
+            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
+        ) {
+            planStream.writeNamedWriteable(fa);
+            planStream.writeNamedWriteable(fa);
+            int depth = 0;
+            FieldAttribute parent = fa;
+            while (parent != null) {
+                depth++;
+                parent = parent.parent();
+            }
+            assertThat(planStream.cachedFieldAttributes.size(), is(depth));
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+                FieldAttribute first = (FieldAttribute) in.readNamedWriteable(Attribute.class);
+                FieldAttribute second = (FieldAttribute) in.readNamedWriteable(Attribute.class);
+                assertThat(first, sameInstance(second));
+
+                for (int i = 0; i < depth; i++) {
+                    assertThat(first, equalTo(fa));
+                    first = first.parent();
+                    fa = fa.parent();
+                }
+                assertThat(first, is(nullValue()));
+                assertThat(fa, is(nullValue()));
+            }
+        }
+
+    }
+
     private EsqlConfiguration randomConfiguration(Map<String, Map<String, Column>> tables) {
         return EsqlConfigurationSerializationTests.randomConfiguration("query_" + randomAlphaOfLength(1), tables);
     }
@@ -133,5 +173,12 @@ public class PlanStreamOutputTests extends ESTestCase {
         BigArrays.NON_RECYCLING_INSTANCE
     );
 
-    private static final NamedWriteableRegistry REGISTRY = new NamedWriteableRegistry(Block.getNamedWriteables());
+    private static final NamedWriteableRegistry REGISTRY;
+    static {
+        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
+        writeables.addAll(Block.getNamedWriteables());
+        writeables.addAll(FieldAttribute.getNamedWriteables());
+        writeables.addAll(EsField.getNamedWriteables());
+        REGISTRY = new NamedWriteableRegistry(writeables);
+    }
 }

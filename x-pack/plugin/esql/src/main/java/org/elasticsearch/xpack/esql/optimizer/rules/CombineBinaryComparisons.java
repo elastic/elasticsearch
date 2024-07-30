@@ -46,9 +46,7 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
         List<Expression> exps = new ArrayList<>();
         boolean changed = false;
         List<Expression> andExps = Predicates.splitAnd(and);
-        // Ranges need to show up before BinaryComparisons in list, to allow the latter be optimized away into a Range, if possible.
-        // NotEquals need to be last in list, to have a complete set of Ranges (ranges) and BinaryComparisons (bcs) and allow these to
-        // optimize the NotEquals away.
+
         andExps.sort((o1, o2) -> {
             if (o1 instanceof NotEquals && o2 instanceof NotEquals) {
                 return 0; // keep NotEquals' order

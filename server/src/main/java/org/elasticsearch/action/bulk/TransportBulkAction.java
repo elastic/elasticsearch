@@ -57,7 +57,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.Executor;
@@ -569,27 +568,23 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     }
 
     /**
-     * Determines if an index name is associated with either an existing data stream or a template
-     * for one that has the failure store enabled.
-     * @param indexName The index name to check.
-     * @param metadata Cluster state metadata.
-     * @param epochMillis A timestamp to use when resolving date math in the index name.
-     * @return true if the given index name corresponds to a data stream with a failure store, or if it matches a template that has
-     * a data stream failure store enabled. Returns false if the index name corresponds to a data stream, but it doesn't have the
-     * failure store enabled. Returns empty when it doesn't correspond to a data stream.
+     * See {@link #resolveFailureStore(String, Metadata, long)}
      */
-    static Optional<Boolean> shouldStoreFailureInternal(String indexName, Metadata metadata, long epochMillis) {
+    // Visibility for testing
+    static Boolean resolveFailureInternal(String indexName, Metadata metadata, long epochMillis) {
         if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            return Optional.empty();
+            return null;
         }
-        return resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
-            () -> resolveFailureStoreFromTemplate(indexName, metadata)
-        );
+        var resolution = resolveFailureStoreFromMetadata(indexName, metadata, epochMillis);
+        if (resolution != null) {
+            return resolution;
+        }
+        return resolveFailureStoreFromTemplate(indexName, metadata);
     }
 
     @Override
-    protected Optional<Boolean> shouldStoreFailure(String indexName, Metadata metadata, long time) {
-        return shouldStoreFailureInternal(indexName, metadata, time);
+    protected Boolean resolveFailureStore(String indexName, Metadata metadata, long time) {
+        return resolveFailureInternal(indexName, metadata, time);
     }
 
     /**
@@ -599,9 +594,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param epochMillis A timestamp to use when resolving date math in the index name.
      * @return true if the given index name corresponds to an existing data stream with a failure store enabled.
      */
-    private static Optional<Boolean> resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
+    private static Boolean resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
         if (indexName == null) {
-            return Optional.empty();
+            return null;
         }
 
         // Get index abstraction, resolving date math if it exists
@@ -611,7 +606,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // We only store failures if the failure is being written to a data stream,
         // not when directly writing to backing indices/failure stores
         if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
-            return Optional.empty();
+            return null;
         }
 
         // Locate the write index for the abstraction, and check if it has a data stream associated with it.
@@ -622,7 +617,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStream targetDataStream = writeAbstraction.getParentDataStream();
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
-        return Optional.of(targetDataStream != null && targetDataStream.isFailureStoreEnabled());
+        return targetDataStream != null && targetDataStream.isFailureStoreEnabled();
     }
 
     /**
@@ -631,9 +626,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param metadata Cluster state metadata.
      * @return true if the given index name corresponds to an index template with a data stream failure store enabled.
      */
-    private static Optional<Boolean> resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
+    private static Boolean resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
         if (indexName == null) {
-            return Optional.empty();
+            return null;
         }
 
         // Check to see if the index name matches any templates such that an index would have been attributed
@@ -644,11 +639,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
-                return Optional.of(composableIndexTemplate.getDataStreamTemplate().hasFailureStore());
+                return composableIndexTemplate.getDataStreamTemplate().hasFailureStore();
             }
         }
 
         // Could not locate a failure store via template
-        return Optional.empty();
+        return null;
     }
 }

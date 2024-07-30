@@ -62,7 +62,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -111,7 +110,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
     @Captor
-    ArgumentCaptor<Function<String, Optional<Boolean>>> redirectPredicate;
+    ArgumentCaptor<Function<String, Boolean>> redirectPredicate;
     @Captor
     ArgumentCaptor<TriConsumer<Integer, String, Exception>> redirectHandler;
     @Captor
@@ -413,9 +412,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         failureHandler.getValue().accept(0, exception); // have an exception for our one index request
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         // ensure redirects on failure store data stream
-        assertTrue(redirectPredicate.getValue().apply(WITH_FAILURE_STORE_ENABLED + "-1").orElse(false));
-        assertFalse(redirectPredicate.getValue().apply(WITH_DEFAULT_PIPELINE).orElse(false)); // no redirects for random existing indices
-        assertFalse(redirectPredicate.getValue().apply("index").orElse(false)); // no redirects for non-existant indices with no templates
+        assertTrue(redirectPredicate.getValue().apply(WITH_FAILURE_STORE_ENABLED + "-1"));
+        assertNull(redirectPredicate.getValue().apply(WITH_DEFAULT_PIPELINE)); // no redirects for random existing indices
+        assertNull(redirectPredicate.getValue().apply("index")); // no redirects for non-existent indices with no templates
         redirectHandler.getValue().apply(2, WITH_FAILURE_STORE_ENABLED + "-1", exception); // exception and redirect for request 3 (slot 2)
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null); // all ingestion completed
         assertTrue(action.isExecuted);

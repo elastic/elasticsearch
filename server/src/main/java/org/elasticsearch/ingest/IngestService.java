@@ -683,7 +683,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param actionRequests The collection of requests to be processed.
      * @param onDropped A callback executed when a document is dropped by a pipeline.
      *                  Accepts the slot in the collection of requests that the document occupies.
-     * @param shouldStoreFailure A predicate executed on each ingest failure to determine if the
+     * @param resolveFailureStore A function executed on each ingest failure to determine if the
      *                           failure should be stored somewhere.
      * @param onStoreFailure A callback executed when a document fails ingest but the failure should
      *                       be persisted elsewhere. Accepts the slot in the collection of requests
@@ -701,7 +701,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final int numberOfActionRequests,
         final Iterable<DocWriteRequest<?>> actionRequests,
         final IntConsumer onDropped,
-        final Function<String, Optional<Boolean>> shouldStoreFailure,
+        final Function<String, Boolean> resolveFailureStore,
         final TriConsumer<Integer, String, Exception> onStoreFailure,
         final BiConsumer<Integer, Exception> onFailure,
         final BiConsumer<Thread, Exception> onCompletion,
@@ -756,10 +756,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     String originalIndex = indexRequest.index();
                                     // We only increment the total counter for dropped docs here, because these docs don't reach the code
                                     // that ordinarily take care of that.
-                                    // We reuse `shouldStoreFailure` here to determine whether the index request targets a data stream,
+                                    // We reuse `resolveFailureStore` here to determine whether the index request targets a data stream,
                                     // because we only want to track these metrics for data streams.
-                                    Optional<Boolean> storeFailure = shouldStoreFailure.apply(originalIndex);
-                                    if (storeFailure.isPresent()) {
+                                    Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
+                                    if (failureStoreResolution != null) {
                                         failureStoreMetrics.incrementTotal(originalIndex);
                                     }
                                     onDropped.accept(slot);
@@ -773,10 +773,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             public void onFailure(Exception e) {
                                 final String originalIndex = indexRequest.index();
                                 String errorType = ElasticsearchException.getExceptionName(ExceptionsHelper.unwrapCause(e));
-                                // If `storeFailure` is true, we store the failure. If it's false, the target is a data stream,
-                                // but it doesn't have the failure store enabled. If it's empty, the target wasn't a data stream.
-                                Optional<Boolean> storeFailure = shouldStoreFailure.apply(originalIndex);
-                                if (storeFailure.orElse(false)) {
+                                // If `failureStoreResolution` is true, we store the failure. If it's false, the target is a data stream,
+                                // but it doesn't have the failure store enabled. If it's null, the target wasn't a data stream.
+                                Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
+                                if (failureStoreResolution != null && failureStoreResolution) {
                                     failureStoreMetrics.incrementFailureStore(
                                         originalIndex,
                                         errorType,
@@ -788,7 +788,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     totalMetrics.ingestFailed();
                                     onStoreFailure.apply(slot, originalIndex, e);
                                 } else {
-                                    if (storeFailure.isPresent()) {
+                                    if (failureStoreResolution != null) {
                                         // If this document targeted a data stream that didn't have the failure store enabled, we increment
                                         // the rejected counter.
                                         // We also increment the total counter because this request will not reach the code that increments

@@ -69,3 +69,22 @@ setup:
           fields: ["service.name", "telemetry.sdk.language", "telemetry.sdk.name"]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields: {"service.name": ["OtelSample"], "telemetry.sdk.language": ["dotnet"], "telemetry.sdk.name": ["opentelemetry"]} }
+---
+"Boolean as dimension":
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/pull/111445: Currently a boolean as dimension is rejected"
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"metrics"},"processor":{"event":"metric"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}}, "attributes": {"transaction.root":false}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["transaction.root"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields: {"transaction.root": [false] }}

@@ -1,6 +1,6 @@
 version: ${xpack.oteldata.template.version}
 _meta:
-  description: Default mappings for the logs index template installed by x-pack
+  description: Default mappings for the OpenTelemetry tsdb index template installed by x-pack
   managed: true
 template:
   mappings:
@@ -10,3 +10,10 @@ template:
             ignore_above: 1024
             type: keyword
           match_mapping_type: string
+#       Likely we won't need this, see https://github.com/elastic/elasticsearch/pull/111445
+#       Will be very likely removed before merge
+#      - booleans_to_keywords:
+#          mapping:
+#            ignore_above: 1024
+#            type: keyword
+#          match_mapping_type: boolean

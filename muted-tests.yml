@@ -146,6 +146,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111430
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSingleDoc {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111434
 
 # Examples:
 #

@@ -318,12 +318,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             service.checkModelConfig(model, listener);
 
             var returnedModel = listener.actionGet(TIMEOUT);
-            assertThat(
-                returnedModel,
-                is(
-                    ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer))
-                )
-            );
+            assertThat(returnedModel, is(ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer))));
         }
     }
 
@@ -371,11 +366,13 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testInfer_ThrowsWhenQueryIsPresent() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new ElasticInferenceService(
-            senderFactory,
-            createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(getUrl(webServer))
-        )) {
+        try (
+            var service = new ElasticInferenceService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                new ElasticInferenceServiceComponents(getUrl(webServer))
+            )
+        ) {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -457,11 +454,13 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
 
-        try (var service = new ElasticInferenceService(
-            senderFactory,
-            createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(eisGatewayUrl)
-        )) {
+        try (
+            var service = new ElasticInferenceService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                new ElasticInferenceServiceComponents(eisGatewayUrl)
+            )
+        ) {
             // Batching will call the service with 2 inputs
             String responseJson = """
                 {

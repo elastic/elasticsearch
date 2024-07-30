@@ -114,7 +114,6 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         handler.checkForFailureStatusCode(mockRequest, httpResult);
     }
 
-
     // TODO: test other error code, which is not explicitly handled (unknown)
 
 }

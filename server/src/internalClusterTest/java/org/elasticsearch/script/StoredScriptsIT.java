@@ -53,12 +53,19 @@ public class StoredScriptsIT extends ESIntegTestCase {
         putJsonStoredScript("foobar", Strings.format("""
             {"script": {"lang": "%s", "source": "1"} }
             """, LANG));
-        String script = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("foobar")).getSource().getSource();
+        String script = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")).getSource()
+            .getSource();
         assertNotNull(script);
         assertEquals("1", script);
 
-        assertAcked(safeExecute(TransportDeleteStoredScriptAction.TYPE, new DeleteStoredScriptRequest("foobar")));
-        StoredScriptSource source = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("foobar")).getSource();
+        assertAcked(
+            safeExecute(
+                TransportDeleteStoredScriptAction.TYPE,
+                new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "foobar")
+            )
+        );
+        StoredScriptSource source = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar"))
+            .getSource();
         assertNull(source);
 
         assertEquals(
@@ -70,9 +77,10 @@ public class StoredScriptsIT extends ESIntegTestCase {
                         AcknowledgedResponse.class,
                         l -> client().execute(
                             TransportPutStoredScriptAction.TYPE,
-                            new PutStoredScriptRequest().id("id#").content(new BytesArray(Strings.format("""
-                                {"script": {"lang": "%s", "source": "1"} }
-                                """, LANG)), XContentType.JSON),
+                            new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("id#")
+                                .content(new BytesArray(Strings.format("""
+                                    {"script": {"lang": "%s", "source": "1"} }
+                                    """, LANG)), XContentType.JSON),
                             l
                         )
                     )
@@ -91,9 +99,10 @@ public class StoredScriptsIT extends ESIntegTestCase {
                         AcknowledgedResponse.class,
                         l -> client().execute(
                             TransportPutStoredScriptAction.TYPE,
-                            new PutStoredScriptRequest().id("foobar").content(new BytesArray(Strings.format("""
-                                {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                                """, LANG)), XContentType.JSON),
+                            new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("foobar")
+                                .content(new BytesArray(Strings.format("""
+                                    {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
+                                    """, LANG)), XContentType.JSON),
                             l
                         )
 

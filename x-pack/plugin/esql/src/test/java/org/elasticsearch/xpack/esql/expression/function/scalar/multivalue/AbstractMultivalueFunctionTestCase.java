@@ -657,13 +657,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     protected abstract Expression build(Source source, Expression field);
 
-    protected abstract DataType[] supportedTypes();
-
-    protected final DataType[] representableNumerics() {
-        // TODO numeric should only include representable numbers but that is a change for a followup
-        return DataType.types().stream().filter(DataType::isNumeric).filter(DataType::isRepresentable).toArray(DataType[]::new);
-    }
-
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);
     }

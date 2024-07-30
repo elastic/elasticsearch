@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class StoredScriptIntegTestUtils {
@@ -26,7 +27,7 @@ public class StoredScriptIntegTestUtils {
         assertAcked(
             ESIntegTestCase.safeExecute(
                 TransportPutStoredScriptAction.TYPE,
-                new PutStoredScriptRequest().id(id).content(jsonContent, XContentType.JSON)
+                new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id(id).content(jsonContent, XContentType.JSON)
             )
         );
     }

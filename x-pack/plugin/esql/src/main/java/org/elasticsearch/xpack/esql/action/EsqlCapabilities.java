@@ -189,6 +189,11 @@ public class EsqlCapabilities {
         MATCH_OPERATOR(true),
 
         /**
+         * Add CombineBinaryComparisons rule.
+         */
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
          * Support for nanosecond dates as a data type
          */
         DATE_NANOS_TYPE;

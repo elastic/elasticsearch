@@ -223,7 +223,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.onJoinValidators = NodeJoinExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
-        this.joinReasonService = new JoinReasonService(transportService.getThreadPool()::relativeTimeInMillis);
+        this.joinReasonService = new JoinReasonService(transportService.getThreadPool().relativeTimeInMillisSupplier());
         this.joinHelper = new JoinHelper(
             allocationService,
             masterService,

@@ -156,7 +156,7 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, MvExpand.class, PlanNamedTypes::writeMvExpand, PlanNamedTypes::readMvExpand),
             of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
-            of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN)
+            of(LogicalPlan.class, TopN.ENTRY)
         );
         return declared;
     }
@@ -746,22 +746,6 @@ public final class PlanNamedTypes {
         Source.EMPTY.writeTo(out);
         out.writeLogicalPlanNode(project.child());
         out.writeNamedWriteableCollection(project.projections());
-    }
-
-    static TopN readTopN(PlanStreamInput in) throws IOException {
-        return new TopN(
-            Source.readFrom(in),
-            in.readLogicalPlanNode(),
-            in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new),
-            in.readNamedWriteable(Expression.class)
-        );
-    }
-
-    static void writeTopN(PlanStreamOutput out, TopN topN) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(topN.child());
-        out.writeCollection(topN.order());
-        out.writeNamedWriteable(topN.limit());
     }
 
     // -- ancillary supporting classes of plan nodes, etc

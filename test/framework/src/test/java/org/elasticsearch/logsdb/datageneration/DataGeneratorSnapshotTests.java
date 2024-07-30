@@ -83,22 +83,43 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
 
         var expectedDocument = """
             {
-              "f1" : {
-                "f2" : {
-                  "f3" : "string1",
-                  "f4" : 0
+              "f1" : [
+                {
+                  "f2" : {
+                    "f3" : [
+                      null,
+                      "string1"
+                    ],
+                    "f4" : 0
+                  },
+                  "f5" : {
+                    "f6" : "string2",
+                    "f7" : null
+                  }
                 },
-                "f5" : {
-                  "f6" : "string2",
-                  "f7" : 1
+                {
+                  "f2" : {
+                    "f3" : [
+                      "string3",
+                      "string4"
+                    ],
+                    "f4" : 1
+                  },
+                  "f5" : {
+                    "f6" : null,
+                    "f7" : 2
+                  }
                 }
-              },
+              ],
               "f8" : {
                 "f9" : {
-                  "f10" : "string3",
-                  "f11" : 2
+                  "f10" : [
+                    "string5",
+                    "string6"
+                  ],
+                  "f11" : null
                 },
-                "f12" : "string4"
+                "f12" : "string7"
               }
             }""";
 
@@ -111,6 +132,9 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         private FieldType fieldType = FieldType.KEYWORD;
         private long longValue = 0;
         private long generatedStringValues = 0;
+        private int generateNullChecks = 0;
+        private int generateArrayChecks = 0;
+        private boolean producedObjectArray = false;
 
         @Override
         public boolean generateSubObject() {
@@ -153,5 +177,35 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         public String stringValue(int lengthLowerBound, int lengthUpperBound) {
             return "string" + (generatedStringValues++ + 1);
         }
-    };
+
+        @Override
+        public boolean generateNullValue() {
+            return generateNullChecks++ % 4 == 0;
+        }
+
+        @Override
+        public boolean generateArrayOfValues() {
+            return generateArrayChecks++ % 4 == 0;
+        }
+
+        @Override
+        public int valueArraySize() {
+            return 2;
+        }
+
+        @Override
+        public boolean generateArrayOfObjects() {
+            if (producedObjectArray == false) {
+                producedObjectArray = true;
+                return true;
+            }
+
+            return false;
+        }
+
+        @Override
+        public int objectArraySize() {
+            return 2;
+        }
+    }
 }

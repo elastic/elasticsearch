@@ -665,7 +665,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
         assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
         assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
-
+        ensureGreen(openNonwriteIndex, closedIndex, writeIndexPrefix + "000001");
         index(closedIndex, null, "{\"foo\": \"bar\"}");
         index(aliasName, null, "{\"foo\": \"bar\"}");
         index(aliasName, null, "{\"foo\": \"bar\"}");

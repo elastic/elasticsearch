@@ -80,12 +80,6 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             () -> fixture.getFederatedTokenPath().toString(),
             s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
         )
-        // Needed to allowlist in SM security policy for test
-        .systemProperty(
-            "test.azure.federated_token_file",
-            () -> fixture.getFederatedTokenPath().toString(),
-            s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
-        )
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
         .build();
 

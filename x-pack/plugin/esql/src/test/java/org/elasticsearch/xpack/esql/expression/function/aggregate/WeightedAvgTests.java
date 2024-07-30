@@ -40,6 +40,8 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1000, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).toList();
 
+        // Most of those cases, if not all, will be ignored, as they use complex surrogates.
+        // Kept here to correctly generate the function types docs, and in case the tests are later improved to support them.
         for (var number : numberCases) {
             for (var weight : numberCases) {
                 suppliers.add(makeSupplier(number, weight));

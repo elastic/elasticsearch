@@ -91,6 +91,58 @@ setup:
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
+"Numeric query using a sparse embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [40, 49.678]
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "40"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
+"Boolean query using a sparse embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: true
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "true"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
+
+---
 "Query using a dense embedding model":
   - skip:
       features: [ "headers", "close_to" ]
@@ -120,6 +172,58 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
   - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
+"Numeric query using a dense embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: [45.1, 100]
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "45.1"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
+
+---
+"Boolean query using a dense embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: false
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "false"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
 
 ---
 "Query using a dense embedding model that uses byte embeddings":

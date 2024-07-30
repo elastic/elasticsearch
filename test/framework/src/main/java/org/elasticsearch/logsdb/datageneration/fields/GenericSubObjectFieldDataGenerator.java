@@ -11,8 +11,16 @@ package org.elasticsearch.logsdb.datageneration.fields;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.ByteFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.IntegerFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.LongFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +42,7 @@ public class GenericSubObjectFieldDataGenerator {
     List<ChildField> generateChildFields() {
         var existingFieldNames = new HashSet<String>();
         // no child fields is legal
-        var childFieldsCount = context.specification().arbitrary().childFieldCount(0, context.specification().maxFieldCountPerLevel());
+        var childFieldsCount = context.childFieldGenerator().generateChildFieldCount();
         var result = new ArrayList<ChildField>(childFieldsCount);
 
         for (int i = 0; i < childFieldsCount; i++) {
@@ -45,7 +53,7 @@ public class GenericSubObjectFieldDataGenerator {
             } else if (context.shouldAddNestedField()) {
                 result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject())));
             } else {
-                var fieldType = context.specification().arbitrary().fieldType();
+                var fieldType = context.childFieldGenerator().generateFieldType();
                 result.add(leafField(fieldType, fieldName));
             }
         }
@@ -66,8 +74,9 @@ public class GenericSubObjectFieldDataGenerator {
 
     static void writeObjectsData(XContentBuilder document, Context context, CheckedConsumer<XContentBuilder, IOException> objectWriter)
         throws IOException {
-        if (context.shouldGenerateObjectArray()) {
-            int size = context.specification().arbitrary().objectArraySize();
+        var optionalLength = context.generateObjectArray();
+        if (optionalLength.isPresent()) {
+            int size = optionalLength.get();
 
             document.startArray();
             for (int i = 0; i < size; i++) {
@@ -94,17 +103,25 @@ public class GenericSubObjectFieldDataGenerator {
 
     private ChildField leafField(FieldType type, String fieldName) {
         var generator = switch (type) {
-            case LONG -> new LongFieldDataGenerator(context.specification().arbitrary());
-            case KEYWORD -> new KeywordFieldDataGenerator(context.specification().arbitrary());
+            case KEYWORD -> new KeywordFieldDataGenerator(context.specification().dataSource());
+            case LONG -> new LongFieldDataGenerator(context.specification().dataSource());
+            case UNSIGNED_LONG -> new UnsignedLongFieldDataGenerator(context.specification().dataSource());
+            case INTEGER -> new IntegerFieldDataGenerator(context.specification().dataSource());
+            case SHORT -> new ShortFieldDataGenerator(context.specification().dataSource());
+            case BYTE -> new ByteFieldDataGenerator(context.specification().dataSource());
+            case DOUBLE -> new DoubleFieldDataGenerator(context.specification().dataSource());
+            case FLOAT -> new FloatFieldDataGenerator(context.specification().dataSource());
+            case HALF_FLOAT -> new HalfFloatFieldDataGenerator(context.specification().dataSource());
+            case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(context.specification().dataSource());
         };
 
         return new ChildField(fieldName, generator);
     }
 
     private String generateFieldName(Set<String> existingFields) {
-        var fieldName = context.specification().arbitrary().fieldName(1, 10);
+        var fieldName = context.childFieldGenerator().generateFieldName();
         while (existingFields.contains(fieldName)) {
-            fieldName = context.specification().arbitrary().fieldName(1, 10);
+            fieldName = context.childFieldGenerator().generateFieldName();
         }
         existingFields.add(fieldName);
 

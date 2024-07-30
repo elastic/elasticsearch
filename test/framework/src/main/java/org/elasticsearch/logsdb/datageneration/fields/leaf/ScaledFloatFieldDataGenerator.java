@@ -18,20 +18,26 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-public class LongFieldDataGenerator implements FieldDataGenerator {
+public class ScaledFloatFieldDataGenerator implements FieldDataGenerator {
+    private final double scalingFactor;
     private final Supplier<Object> valueGenerator;
 
-    public LongFieldDataGenerator(DataSource dataSource) {
-        var longs = (DataSourceResponse.LongGenerator) dataSource.get(new DataSourceRequest.LongGenerator());
+    public ScaledFloatFieldDataGenerator(DataSource dataSource) {
+        var positiveDoubles = (DataSourceResponse.DoubleInRangeGenerator) dataSource.get(
+            new DataSourceRequest.DoubleInRangeGenerator(0, Double.MAX_VALUE)
+        );
+        this.scalingFactor = positiveDoubles.generator().get();
+
+        var doubles = (DataSourceResponse.DoubleGenerator) dataSource.get(new DataSourceRequest.DoubleGenerator());
         var nulls = (DataSourceResponse.NullWrapper) dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = (DataSourceResponse.ArrayWrapper) dataSource.get(new DataSourceRequest.ArrayWrapper());
 
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> longs.generator().get());
+        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> doubles.generator().get());
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return b -> b.startObject().field("type", "long").endObject();
+        return b -> b.startObject().field("type", "scaled_float").field("scaling_factor", scalingFactor).endObject();
     }
 
     @Override

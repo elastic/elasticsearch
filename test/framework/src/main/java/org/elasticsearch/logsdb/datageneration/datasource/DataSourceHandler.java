@@ -6,20 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logsdb.datageneration;
+package org.elasticsearch.logsdb.datageneration.datasource;
 
-/**
- * Lists all leaf field types that are supported for data generation.
- */
-public enum FieldType {
-    KEYWORD,
-    LONG,
-    UNSIGNED_LONG,
-    INTEGER,
-    SHORT,
-    BYTE,
-    DOUBLE,
-    FLOAT,
-    HALF_FLOAT,
-    SCALED_FLOAT
+public interface DataSourceHandler {
+    DataSourceResponse handle(DataSourceRequest request);
 }

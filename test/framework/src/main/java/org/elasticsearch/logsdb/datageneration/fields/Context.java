@@ -9,9 +9,16 @@
 package org.elasticsearch.logsdb.datageneration.fields;
 
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+
+import java.util.Optional;
 
 class Context {
     private final DataGeneratorSpecification specification;
+
+    private final DataSourceResponse.ChildFieldGenerator childFieldGenerator;
+    private final DataSourceResponse.ObjectArrayGenerator objectArrayGenerator;
     private final int objectDepth;
     private final int nestedFieldsCount;
 
@@ -21,12 +28,20 @@ class Context {
 
     private Context(DataGeneratorSpecification specification, int objectDepth, int nestedFieldsCount) {
         this.specification = specification;
+        this.childFieldGenerator = (DataSourceResponse.ChildFieldGenerator) specification.dataSource()
+            .get(new DataSourceRequest.ChildFieldGenerator(specification));
+        this.objectArrayGenerator = (DataSourceResponse.ObjectArrayGenerator) specification.dataSource()
+            .get(new DataSourceRequest.ObjectArrayGenerator());
         this.objectDepth = objectDepth;
         this.nestedFieldsCount = nestedFieldsCount;
     }
 
     public DataGeneratorSpecification specification() {
         return specification;
+    }
+
+    public DataSourceResponse.ChildFieldGenerator childFieldGenerator() {
+        return childFieldGenerator;
     }
 
     public Context subObject() {
@@ -38,16 +53,20 @@ class Context {
     }
 
     public boolean shouldAddObjectField() {
-        return specification.arbitrary().generateSubObject() && objectDepth < specification.maxObjectDepth();
+        return childFieldGenerator.generateRegularSubObject() && objectDepth < specification.maxObjectDepth();
     }
 
     public boolean shouldAddNestedField() {
-        return specification.arbitrary().generateNestedObject()
+        return childFieldGenerator.generateNestedSubObject()
             && objectDepth < specification.maxObjectDepth()
             && nestedFieldsCount < specification.nestedFieldsLimit();
     }
 
-    public boolean shouldGenerateObjectArray() {
-        return objectDepth > 0 && specification.arbitrary().generateArrayOfObjects();
+    public Optional<Integer> generateObjectArray() {
+        if (objectDepth == 0) {
+            return Optional.empty();
+        }
+
+        return objectArrayGenerator.lengthGenerator().get();
     }
 }

@@ -18,20 +18,20 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-public class LongFieldDataGenerator implements FieldDataGenerator {
+public class FloatFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
-    public LongFieldDataGenerator(DataSource dataSource) {
-        var longs = (DataSourceResponse.LongGenerator) dataSource.get(new DataSourceRequest.LongGenerator());
+    public FloatFieldDataGenerator(DataSource dataSource) {
+        var floats = (DataSourceResponse.FloatGenerator) dataSource.get(new DataSourceRequest.FloatGenerator());
         var nulls = (DataSourceResponse.NullWrapper) dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = (DataSourceResponse.ArrayWrapper) dataSource.get(new DataSourceRequest.ArrayWrapper());
 
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> longs.generator().get());
+        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> floats.generator().get());
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return b -> b.startObject().field("type", "long").endObject();
+        return b -> b.startObject().field("type", "float").endObject();
     }
 
     @Override

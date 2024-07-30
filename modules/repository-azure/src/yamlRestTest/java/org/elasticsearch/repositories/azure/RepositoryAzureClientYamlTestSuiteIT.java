@@ -52,6 +52,9 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         } else if (Strings.hasText(AZURE_TEST_TENANT_ID) && Strings.hasText(AZURE_TEST_CLIENT_ID)) {
             return AzureHttpFixture.WORK_IDENTITY_BEARER_TOKEN_PREDICATE;
         } else {
+            if (Strings.hasText(AZURE_TEST_TENANT_ID) || Strings.hasText(AZURE_TEST_CLIENT_ID)) {
+                fail(null, "Both [test.azure.tenant_id] and [test.azure.client_id] must be set if either is set");
+            }
             return AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE;
         }
     }
@@ -80,12 +83,12 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         )
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getOAuthTokenServiceAddress(), s -> USE_FIXTURE)
-        .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> notNullOrEmpty(AZURE_TEST_CLIENT_ID))
-        .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> notNullOrEmpty(AZURE_TEST_TENANT_ID))
+        .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))
+        .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> Strings.hasText(AZURE_TEST_TENANT_ID))
         .systemProperty(
             "AZURE_FEDERATED_TOKEN_FILE",
             () -> fixture.getFederatedTokenPath().toString(),
-            s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
+            s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
         )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
         .systemProperty(
@@ -112,7 +115,4 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         return cluster.getHttpAddresses();
     }
 
-    private static boolean notNullOrEmpty(String s) {
-        return s != null && false == s.isEmpty();
-    }
 }

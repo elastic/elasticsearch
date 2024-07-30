@@ -115,12 +115,12 @@ public class AzureHttpFixture extends ExternalResource {
         @Nullable String clientId,
         Predicate<String> authHeaderPredicate
     ) {
+        if ((clientId == null) != (tenantId == null)) {
+            fail(null, "either both [tenantId] and [clientId] must be set or neither must be set");
+        }
         if (tenantId != null) {
             if (protocol != Protocol.HTTPS) {
                 fail(null, "when [tenantId] is set, protocol must be HTTPS");
-            }
-            if (clientId == null) {
-                fail(null, "when [tenantId] is set, [clientId] must also be set");
             }
         }
         this.protocol = protocol;
@@ -193,6 +193,13 @@ public class AzureHttpFixture extends ExternalResource {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                     server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
                     server.start();
+
+                    oauthTokenServiceServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                    oauthTokenServiceServer.createContext(
+                        "/",
+                        new AzureOAuthTokenServiceHttpHandler(workloadIdentityBearerToken, federatedToken, tenantId, clientId)
+                    );
+                    oauthTokenServiceServer.start();
                 }
                 case HTTPS -> {
                     final var tmpdir = ESTestCase.createTempDir();
@@ -251,9 +258,7 @@ public class AzureHttpFixture extends ExternalResource {
         if (protocol != Protocol.NONE) {
             server.stop(0);
             metadataServer.stop(0);
-            if (oauthTokenServiceServer != null) {
-                oauthTokenServiceServer.stop(0);
-            }
+            oauthTokenServiceServer.stop(0);
         }
     }
 }

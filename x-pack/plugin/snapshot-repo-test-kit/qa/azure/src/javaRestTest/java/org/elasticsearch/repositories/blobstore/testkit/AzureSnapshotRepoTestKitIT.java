@@ -60,9 +60,9 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         .module("repository-azure")
         .module("snapshot-repo-test-kit")
         .keystore("azure.client.repository_test_kit.account", AZURE_TEST_ACCOUNT)
-        .keystore("azure.client.repository_test_kit.key", () -> AZURE_TEST_KEY, s -> notNullOrEmpty(AZURE_TEST_KEY))
-        .keystore("azure.client.repository_test_kit.sas_token", () -> AZURE_TEST_SASTOKEN, s -> notNullOrEmpty(AZURE_TEST_SASTOKEN))
-        .setting("azure.client.repository_test_kit.instance_discovery.enabled", () -> "false", s -> notNullOrEmpty(AZURE_TEST_TENANT_ID))
+        .keystore("azure.client.repository_test_kit.key", () -> AZURE_TEST_KEY, s -> Strings.hasText(AZURE_TEST_KEY))
+        .keystore("azure.client.repository_test_kit.sas_token", () -> AZURE_TEST_SASTOKEN, s -> Strings.hasText(AZURE_TEST_SASTOKEN))
+        .setting("azure.client.repository_test_kit.instance_discovery.enabled", () -> "false", s -> Strings.hasText(AZURE_TEST_TENANT_ID))
         .setting(
             "azure.client.repository_test_kit.endpoint_suffix",
             () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
@@ -76,12 +76,12 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         })
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", fixture::getMetadataAddress, s -> USE_FIXTURE)
         .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_FIXTURE)
-        .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> notNullOrEmpty(AZURE_TEST_CLIENT_ID))
-        .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> notNullOrEmpty(AZURE_TEST_TENANT_ID))
+        .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))
+        .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> Strings.hasText(AZURE_TEST_TENANT_ID))
         .systemProperty(
             "AZURE_FEDERATED_TOKEN_FILE",
             () -> fixture.getFederatedTokenPath().toString(),
-            s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
+            s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
         )
         .systemProperty(
             "javax.net.ssl.trustStore",
@@ -112,9 +112,5 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         assertThat(basePath, not(blankOrNullString()));
 
         return Settings.builder().put("client", "repository_test_kit").put("container", container).put("base_path", basePath).build();
-    }
-
-    private static boolean notNullOrEmpty(String s) {
-        return s != null && false == s.isEmpty();
     }
 }

@@ -29,7 +29,6 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
 public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
@@ -57,8 +56,12 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        Objects.requireNonNull(tenantId, "OAuth token service handler should not be called if [tenantId] is null");
-        Objects.requireNonNull(clientId, "OAuth token service handler should not be called if [clientId] is null");
+        if (tenantId == null) {
+            throw new AssertionError("OAuth token service handler should not be called if [tenantId] is null");
+        }
+        if (clientId == null) {
+            throw new AssertionError("OAuth token service handler should not be called if [clientId] is null");
+        }
 
         if ("POST".equals(exchange.getRequestMethod())
             && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {

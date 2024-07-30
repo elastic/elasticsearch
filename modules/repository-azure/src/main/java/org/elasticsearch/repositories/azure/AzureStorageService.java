@@ -88,7 +88,6 @@ public class AzureStorageService {
 
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
-
         return azureClientProvider.createClient(azureStorageSettings, locationMode, retryOptions, proxyOptions, successfulRequestConsumer);
     }
 

@@ -46,49 +46,47 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
             }
         }
 
-        for (var weightTypedData : numberCases) {
-            suppliers.addAll(
-                List.of(
-                    // Folding
-                    new TestCaseSupplier(
-                        List.of(DataType.INTEGER),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                TestCaseSupplier.TypedData.multiRow(List.of(5), DataType.INTEGER, "field"),
-                                TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
-                            ),
-                            "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
-                            DataType.DOUBLE,
-                            equalTo(5.)
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        List.of(DataType.LONG),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                TestCaseSupplier.TypedData.multiRow(List.of(5L), DataType.LONG, "field"),
-                                TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
-                            ),
-                            "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
-                            DataType.DOUBLE,
-                            equalTo(5.)
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        List.of(DataType.DOUBLE),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                TestCaseSupplier.TypedData.multiRow(List.of(5.), DataType.DOUBLE, "field"),
-                                TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
-                            ),
-                            "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
-                            DataType.DOUBLE,
-                            equalTo(5.)
-                        )
+        suppliers.addAll(
+            List.of(
+                // Folding
+                new TestCaseSupplier(
+                    List.of(DataType.INTEGER),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(5), DataType.INTEGER, "field"),
+                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
+                        ),
+                        "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(5.)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.LONG),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(5L), DataType.LONG, "field"),
+                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
+                        ),
+                        "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(5.)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(5.), DataType.DOUBLE, "field"),
+                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
+                        ),
+                        "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(5.)
                     )
                 )
-            );
-        }
+            )
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }

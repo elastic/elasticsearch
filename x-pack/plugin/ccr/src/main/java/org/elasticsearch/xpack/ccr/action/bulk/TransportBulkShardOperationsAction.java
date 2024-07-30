@@ -69,7 +69,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             ExecutorSelector.getWriteExecutorForShard(threadPool),
             PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -145,6 +146,55 @@ public final class MultiRowTestCaseSupplier {
                 }
                 return randomBoolean() ? ESTestCase.randomLongBetween(min, -1) : ESTestCase.randomLongBetween(1, max);
             }), DataType.LONG, false, true));
+        }
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> ulongCases(int minRows, int maxRows, BigInteger min, BigInteger max, boolean includeZero) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        // Zero
+        if (BigInteger.ZERO.compareTo(max) <= 0 && BigInteger.ZERO.compareTo(min) >= 0 && includeZero) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<0 unsigned longs>",
+                    () -> randomList(minRows, maxRows, () -> BigInteger.ZERO),
+                    DataType.UNSIGNED_LONG,
+                    false,
+                    true
+                )
+            );
+        }
+
+        // Small values, less than Long.MAX_VALUE
+        BigInteger lower1 = min.max(BigInteger.ONE);
+        BigInteger upper1 = max.min(BigInteger.valueOf(Long.MAX_VALUE));
+        if (lower1.compareTo(upper1) < 0) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<small unsigned longs>",
+                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomUnsignedLongBetween(lower1, upper1)),
+                    DataType.UNSIGNED_LONG,
+                    false,
+                    true
+                )
+            );
+        }
+
+        // Big values, greater than Long.MAX_VALUE
+        BigInteger lower2 = min.max(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
+        BigInteger upper2 = max.min(ESTestCase.UNSIGNED_LONG_MAX);
+        if (lower2.compareTo(upper2) < 0) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<big unsigned longs>",
+                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomUnsignedLongBetween(lower2, upper2)),
+                    DataType.UNSIGNED_LONG,
+                    false,
+                    true
+                )
+            );
         }
 
         return cases;

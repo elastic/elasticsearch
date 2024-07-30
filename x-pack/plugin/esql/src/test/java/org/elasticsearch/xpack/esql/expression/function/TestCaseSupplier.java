@@ -880,6 +880,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#UNSIGNED_LONG}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ulongCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 

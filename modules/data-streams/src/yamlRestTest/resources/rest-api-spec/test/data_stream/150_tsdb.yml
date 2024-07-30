@@ -1056,7 +1056,7 @@ dimensions with ignore_malformed and ignore_above:
 ---
 non string dimension fields:
   - requires:
-      cluster_features: ["mapper.pass_through_priority", "routing.boolean_routing_path"]
+      cluster_features: ["mapper.pass_through_priority", "routing.boolean_routing_path", "mapper.boolean_dimension"]
       reason: support for priority in passthrough objects
   - do:
       allowed_warnings:
@@ -1096,13 +1096,6 @@ non string dimension fields:
                       type: ip
                 - strings_as_keywords:
                     match_mapping_type: string
-                    mapping:
-                      type: keyword
-                # ES doesn't support boolean fields as dimensions, yet
-                # however, support has been added to have boolean fields in the routing path
-                # as long as these boolean fields are converted to a field type that supports dimensions
-                - booleans_as_keywords:
-                    match_mapping_type: boolean
                     mapping:
                       type: keyword
                 - double_as_double:
@@ -1145,7 +1138,7 @@ non string dimension fields:
           fields: [ "*" ]
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields.attributes\.string: [ "foo" ] }
-  - match: { hits.hits.0.fields.attributes\.boolean: [ "true" ] }
+  - match: { hits.hits.0.fields.attributes\.boolean: [ true ] }
   - match: { hits.hits.0.fields.attributes\.integer: [ 1 ] }
   - match: { hits.hits.0.fields.attributes\.double: [ 1.1 ] }
   - match: { hits.hits.0.fields.attributes\.host\.ip: [ "127.0.0.1" ] }
@@ -1160,7 +1153,7 @@ non string dimension fields:
         index: $idx0name
         expand_wildcards: hidden
   - match: { .$idx0name.mappings.properties.attributes.properties.string.type: 'keyword' }
-  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.type: 'keyword' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.type: 'boolean' }
   - match: { .$idx0name.mappings.properties.attributes.properties.integer.type: 'long' }
   - match: { .$idx0name.mappings.properties.attributes.properties.double.type: 'double' }
   - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }

@@ -64,10 +64,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
@@ -282,15 +278,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public CancelTasksRequestBuilder prepareCancelTasks(String... nodesIds) {
         return new CancelTasksRequestBuilder(this).setNodesIds(nodesIds);
-    }
-
-    public void searchShards(final ClusterSearchShardsRequest request, final ActionListener<ClusterSearchShardsResponse> listener) {
-        execute(TransportClusterSearchShardsAction.TYPE, request, listener);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices) {
-        return new ClusterSearchShardsRequestBuilder(this).setIndices(indices);
     }
 
     public void putRepository(PutRepositoryRequest request, ActionListener<AcknowledgedResponse> listener) {

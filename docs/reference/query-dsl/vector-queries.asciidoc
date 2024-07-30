@@ -21,9 +21,6 @@ Use the <<query-dsl-sparse-vector-query,`sparse_vector` query>> query instead.
 <<query-dsl-text-expansion-query,`text_expansion` query>>::
 A query that allows you to perform sparse vector search on <<sparse-vector,`sparse_vector`>> or <<rank-features,`rank_features`>> fields.
 
-<<query-dsl-weighted-tokens-query,`weighted_tokens` query>>::
-Allows to perform text expansion queries optimizing for performance.
-
 include::knn-query.asciidoc[]
 
 include::sparse-vector-query.asciidoc[]

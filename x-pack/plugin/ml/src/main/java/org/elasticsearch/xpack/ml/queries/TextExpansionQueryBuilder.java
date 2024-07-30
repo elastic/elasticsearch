@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
-import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +40,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
+import static org.elasticsearch.xpack.core.ml.search.TokenPruningConfig.PRUNING_CONFIG;
 
 /**
  * @deprecated Replaced by sparse_vector query
@@ -209,14 +208,18 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
         if (tokenPruningConfig != null) {
-            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+            SparseVectorQueryBuilder sparseVectorQueryBuilder = new SparseVectorQueryBuilder(
                 fieldName,
                 textExpansionResults.getWeightedTokens(),
+                null,
+                null,
+                true,
                 tokenPruningConfig
             );
-            weightedTokensQueryBuilder.queryName(queryName);
-            weightedTokensQueryBuilder.boost(boost);
-            return weightedTokensQueryBuilder;
+
+            sparseVectorQueryBuilder.queryName(queryName);
+            sparseVectorQueryBuilder.boost(boost);
+            return sparseVectorQueryBuilder;
         }
         // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
         // if no token pruning configuration is specified we fall back to a boolean query.

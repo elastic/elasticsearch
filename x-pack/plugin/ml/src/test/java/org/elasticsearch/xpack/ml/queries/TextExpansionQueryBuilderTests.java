@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
-import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -280,7 +279,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected String[] shuffleProtectedFields() {
-        return new String[] { WeightedTokensQueryBuilder.TOKENS_FIELD.getPreferredName() };
+        return new String[] { SparseVectorQueryBuilder.QUERY_VECTOR_FIELD.getPreferredName() };
     }
 
     public void testThatTokensAreCorrectlyPruned() {
@@ -290,7 +289,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         if (queryBuilder.getTokenPruningConfig() == null) {
             assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder);
         } else {
-            assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
+            assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
         }
     }
 }

@@ -149,7 +149,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         LocationMode locationMode,
         RequestRetryOptions retryOptions,
         ProxyOptions proxyOptions,
-        boolean instanceDiscoveryEnabled,
         BiConsumer<String, URL> successfulRequestConsumer
     ) {
         if (closed) {
@@ -172,7 +171,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         if (settings.hasCredentials() == false) {
             final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
-            if (false == instanceDiscoveryEnabled) {
+            if (false == settings.instanceDiscoveryEnabled()) {
                 credentialBuilder.disableInstanceDiscovery();
             }
             builder.credential(credentialBuilder.build());

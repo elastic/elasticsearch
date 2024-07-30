@@ -56,9 +56,6 @@ tasks.register("azureThirdPartyTest") {
 tasks.register("managedIdentityJavaRestTest", RestIntegTestTask) {
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
-}
-
-tasks.named("managedIdentityJavaRestTest") {
   systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
   systemProperty 'test.azure.account', azureAccount
   systemProperty 'test.azure.container', azureContainer
@@ -70,9 +67,6 @@ tasks.named("managedIdentityJavaRestTest") {
 tasks.register("workloadIdentityJavaRestTest", RestIntegTestTask) {
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
-}
-
-tasks.named("workloadIdentityJavaRestTest") {
   systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
   systemProperty 'test.azure.account', azureAccount
   systemProperty 'test.azure.container', azureContainer

@@ -71,7 +71,7 @@ public class AzureClientProviderTests extends ESTestCase {
 
         LocationMode locationMode = LocationMode.SECONDARY_ONLY;
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
-        azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, false, EMPTY_CONSUMER);
+        azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER);
     }
 
     public void testCanNotCreateAClientWithSecondaryLocationWithoutAProperEndpoint() {
@@ -94,7 +94,7 @@ public class AzureClientProviderTests extends ESTestCase {
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
         expectThrows(
             IllegalArgumentException.class,
-            () -> azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, false, EMPTY_CONSUMER)
+            () -> azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER)
         );
     }
 

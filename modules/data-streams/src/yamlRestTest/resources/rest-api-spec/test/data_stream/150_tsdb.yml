@@ -1105,6 +1105,10 @@ non string dimension fields:
                     match_mapping_type: boolean
                     mapping:
                       type: keyword
+                - double_as_double:
+                    match_mapping_type: double
+                    mapping:
+                      type: double
 
   - do:
       bulk:
@@ -1112,7 +1116,7 @@ non string dimension fields:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "metrics.data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "metrics.data": "10", "attributes.string": "foo", "attributes.boolean": true, "attributes.integer": 1, "attributes.float": 1.1, "attributes.host.ip": "127.0.0.1" }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "metrics.data": "10", "attributes.string": "foo", "attributes.boolean": true, "attributes.integer": 1, "attributes.double": 1.1, "attributes.host.ip": "127.0.0.1" }'
   - is_false: errors
 
   - do:
@@ -1132,7 +1136,7 @@ non string dimension fields:
                     attributes.integer:
                       value: 1
                 - term:
-                    attributes.float:
+                    attributes.double:
                       value: 1.1
                 - term:
                     attributes.host.ip:
@@ -1143,7 +1147,7 @@ non string dimension fields:
   - match: { hits.hits.0.fields.attributes\.string: [ "foo" ] }
   - match: { hits.hits.0.fields.attributes\.boolean: [ "true" ] }
   - match: { hits.hits.0.fields.attributes\.integer: [ 1 ] }
-  - match: { hits.hits.0.fields.attributes\.float: [ 1.1 ] }
+  - match: { hits.hits.0.fields.attributes\.double: [ 1.1 ] }
   - match: { hits.hits.0.fields.attributes\.host\.ip: [ "127.0.0.1" ] }
 
   - do:
@@ -1158,5 +1162,5 @@ non string dimension fields:
   - match: { .$idx0name.mappings.properties.attributes.properties.string.type: 'keyword' }
   - match: { .$idx0name.mappings.properties.attributes.properties.boolean.type: 'keyword' }
   - match: { .$idx0name.mappings.properties.attributes.properties.integer.type: 'long' }
-  - match: { .$idx0name.mappings.properties.attributes.properties.float.type: 'float' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.double.type: 'double' }
   - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }

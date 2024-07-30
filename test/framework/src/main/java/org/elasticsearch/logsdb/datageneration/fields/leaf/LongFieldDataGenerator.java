@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logsdb.datageneration.fields;
+package org.elasticsearch.logsdb.datageneration.fields.leaf;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
@@ -19,16 +19,16 @@ import java.util.function.Supplier;
 import static org.elasticsearch.logsdb.datageneration.fields.FieldValues.injectNulls;
 import static org.elasticsearch.logsdb.datageneration.fields.FieldValues.wrappedInArray;
 
-public class KeywordFieldDataGenerator implements FieldDataGenerator {
+public class LongFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
-    public KeywordFieldDataGenerator(Arbitrary arbitrary) {
-        this.valueGenerator = injectNulls(arbitrary).andThen(wrappedInArray(arbitrary)).apply(() -> arbitrary.stringValue(0, 50));
+    public LongFieldDataGenerator(Arbitrary arbitrary) {
+        this.valueGenerator = injectNulls(arbitrary).andThen(wrappedInArray(arbitrary)).apply(arbitrary::longValue);
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return b -> b.startObject().field("type", "keyword").endObject();
+        return b -> b.startObject().field("type", "long").endObject();
     }
 
     @Override

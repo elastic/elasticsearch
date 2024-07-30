@@ -15,7 +15,6 @@ grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
-  // TODO test-only -- can we move this into a separate policy file?
-  // azure client reads the federated token file for integration tests
-  permission java.io.FilePermission "${test.azure.federated_token_file}", "read";
+  // azure client reads the federated token file for workload identity authentication
+  permission java.io.FilePermission "${AZURE_FEDERATED_TOKEN_FILE}", "read";
 };

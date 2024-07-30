@@ -111,9 +111,10 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
               }
             }""";
 
+        expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage();
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
-            is("Required [schedule]")
+            is("Error on validating SLM requests")
         );
     }
 

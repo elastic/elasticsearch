@@ -9,8 +9,8 @@ The <<esql-stats-by>> command supports these aggregate functions:
 
 // tag::agg_list[]
 * <<esql-avg>>
-* <<esql-agg-count>>
-* <<esql-agg-count-distinct>>
+* <<esql-count>>
+* <<esql-count_distinct>>
 * <<esql-max>>
 * <<esql-median>>
 * <<esql-median_absolute_deviation>>
@@ -19,13 +19,13 @@ The <<esql-stats-by>> command supports these aggregate functions:
 * experimental:[] <<esql-st_centroid_agg>>
 * <<esql-sum>>
 * <<esql-top>>
-* <<esql-agg-values>>
+* <<esql-values>>
 * experimental:[] <<esql-agg-weighted-avg>>
 // end::agg_list[]
 
-include::count.asciidoc[]
-include::count-distinct.asciidoc[]
 include::layout/avg.asciidoc[]
+include::layout/count.asciidoc[]
+include::layout/count_distinct.asciidoc[]
 include::layout/max.asciidoc[]
 include::layout/median.asciidoc[]
 include::layout/median_absolute_deviation.asciidoc[]
@@ -34,5 +34,5 @@ include::layout/percentile.asciidoc[]
 include::layout/st_centroid_agg.asciidoc[]
 include::layout/sum.asciidoc[]
 include::layout/top.asciidoc[]
-include::values.asciidoc[]
+include::layout/values.asciidoc[]
 include::weighted-avg.asciidoc[]

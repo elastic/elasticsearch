@@ -155,6 +155,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111389
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testDataStreams {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111448
 
 # Examples:
 #

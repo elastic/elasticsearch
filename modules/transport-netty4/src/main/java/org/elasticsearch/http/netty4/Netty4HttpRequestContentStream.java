@@ -19,6 +19,13 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.function.Consumer;
 
+/**
+ * Implementation of HTTP request content stream. This implementation relies on
+ * {@link io.netty.channel.ChannelConfig#setAutoRead(boolean)} to stop arrival of new chunks.
+ * Otherwise, downstream might receive much more data than requested.
+ * This can be achieved with {@link io.netty.handler.flow.FlowControlHandler} placed before stream
+ * constructor in {@link io.netty.channel.ChannelPipeline} and after {@link io.netty.handler.codec.http.HttpRequestDecoder}.
+ */
 public class Netty4HttpRequestContentStream implements HttpContent.Stream {
 
     private final Channel channel;
@@ -67,10 +74,12 @@ public class Netty4HttpRequestContentStream implements HttpContent.Stream {
 
         if (aggregate == null && content.readableBytes() >= requestedBytes) {
             // network chunk is large enough and there is no ongoing aggregation
+            requestedBytes = 0;
             handler.accept(new Netty4ContentChunk(content, isLast));
         } else if (content.readableBytes() >= requestedBytes) {
             // there is ongoing aggregation, and we reached requestBytes limit, send aggregated chunk downstream
-            aggregate.addComponent(content);
+            aggregate.addComponent(true, content);
+            requestedBytes = 0;
             handler.accept(new Netty4ContentChunk(aggregate, isLast));
             aggregate = null;
         } else {
@@ -78,11 +87,14 @@ public class Netty4HttpRequestContentStream implements HttpContent.Stream {
             if (aggregate == null) {
                 aggregate = channel.alloc().compositeHeapBuffer();
             }
-            aggregate.addComponent(content);
+            aggregate.addComponent(true, content);
+            requestedBytes -= content.readableBytes();
             channel.read();
         }
-        requestedBytes = Math.max(0, requestedBytes - content.readableBytes());
         if (isLast) {
+            if (aggregate != null) {
+                handler.accept(new Netty4ContentChunk(aggregate, true));
+            }
             channel.config().setAutoRead(true);
         }
     }

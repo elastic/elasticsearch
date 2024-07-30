@@ -97,6 +97,9 @@ public class Netty4HttpRequestStreamIT extends ESNetty4IntegTestCase {
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
                     return channel -> {
+
+                        // Example of handling streamed content
+
                         var contentStream = request.contentStream();
                         var totalReceivedBytes = new AtomicInteger();
 
@@ -104,14 +107,14 @@ public class Netty4HttpRequestStreamIT extends ESNetty4IntegTestCase {
                             LOGGER.info("got next chunk with size {}", chunk.bytes().length());
                             totalReceivedBytes.addAndGet(chunk.bytes().length());
                             if (chunk.isLast() == false) {
-                                contentStream.request(1024);
+                                contentStream.request(1024 * 10); // ask for 10kb, will round up to 16kb
                             } else {
                                 channel.sendResponse(new RestResponse(RestStatus.OK, Integer.toString(totalReceivedBytes.get())));
                             }
                         };
 
-                        contentStream.setHandler(contentConsumer);
-                        contentStream.request(1024);
+                        contentStream.setHandler(contentConsumer); // must setup handler before first request
+                        contentStream.request(1024); // initiate first chunk, will round up to 8kb
                     };
                 }
             });

@@ -89,6 +89,7 @@ The following actions are allowed for `pinned` or `exclude` rules:
 Only one of `ids` or `docs` may be specified, and at least one must be specified.
 - `docs` (Optional, array of objects) The specified documents.
 Only one of `ids` or `docs` may be specified, and at least one must be specified.
+There is a maximum value of 100 documents in a rule.
 You can specify the following attributes for each document:
 +
 --
@@ -105,7 +106,7 @@ If multiple matching rules pin more than 100 documents, only the first 100 docum
 [[put-query-rule-example]]
 ==== {api-examples-title}
 
-The following example creates a new query rule in a query ruleset called `my-ruleset`.
+The following example creates a new query rule with the ID `my-rule1` in a query ruleset called `my-ruleset`.
 
 - `my-rule1` will select documents to promote with IDs `id1` and `id2` when `user_query` contains `pugs` _or_ `puggles` **and** `user_country` exactly matches `us`.
 

@@ -1119,8 +1119,32 @@ non string dimension fields:
       search:
         index: k9s
         body:
+          query:
+            bool:
+              must:
+                - term:
+                    attributes.string:
+                      value: foo
+                - term:
+                    attributes.boolean:
+                      value: true
+                - term:
+                    attributes.integer:
+                      value: 1
+                - term:
+                    attributes.float:
+                      value: 1.1
+                - term:
+                    attributes.host.ip:
+                      value: 127.0.0.1
           size: 1
+          fields: [ "*" ]
   - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.attributes\.string: [ "foo" ] }
+  - match: { hits.hits.0.fields.attributes\.boolean: [ "true" ] }
+  - match: { hits.hits.0.fields.attributes\.integer: [ 1 ] }
+  - match: { hits.hits.0.fields.attributes\.float: [ 1.1 ] }
+  - match: { hits.hits.0.fields.attributes\.host\.ip: [ "127.0.0.1" ] }
 
   - do:
       indices.get_data_stream:

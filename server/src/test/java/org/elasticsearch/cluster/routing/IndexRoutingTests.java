@@ -589,6 +589,14 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(routing, Map.of("foo", 123), Math.floorMod(hash(List.of("foo", "123")), shards));
     }
 
+    public void testRoutingPathBooleansInSource() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = indexRoutingForPath(shards, "foo");
+        assertIndexShard(routing, Map.of("foo", true), Math.floorMod(hash(List.of("foo", "true")), shards));
+        assertIndexShard(routing, Map.of("foo", false), Math.floorMod(hash(List.of("foo", "false")), shards));
+
+    }
+
     public void testRoutingPathBwc() throws IOException {
         IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         IndexRouting routing = indexRoutingForPath(version, 8, "dim.*,other.*,top");

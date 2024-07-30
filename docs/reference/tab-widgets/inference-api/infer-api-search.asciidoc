@@ -79,13 +79,12 @@ query from the `cohere-embeddings` index sorted by their proximity to the query:
 GET elser-embeddings/_search
 {
   "query":{
-    "text_expansion":{
-      "content_embedding":{
-        "model_id":"elser_embeddings",
-        "model_text":"How to avoid muscle soreness after running?"
-      }
+    "sparse_vector":{
+      "field": "content_embedding",
+      "inference_id": "elser_embeddings",
+      "query": "How to avoid muscle soreness after running?"
     }
-   },
+  },
   "_source": [
     "id",
     "content"

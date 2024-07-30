@@ -27,7 +27,7 @@ public interface HttpRequest extends HttpPreRequest {
         HTTP_1_1
     }
 
-    BytesReference content();
+    HttpContent content();
 
     List<String> strictCookies();
 

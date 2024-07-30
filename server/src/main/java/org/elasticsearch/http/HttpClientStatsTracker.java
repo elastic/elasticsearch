@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
+import java.util.function.Consumer;
 import java.util.function.LongPredicate;
 import java.util.stream.Stream;
 
@@ -226,7 +227,18 @@ public class HttpClientStatsTracker {
             lastRequestTimeMillis = currentTimeMillis;
             lastUri = httpRequest.uri();
             requestCount += 1;
-            requestSizeBytes += httpRequest.content().length();
+            if (httpRequest.content().isFull()) {
+                requestSizeBytes += httpRequest.content().asFull().bytes().length();
+            } else {
+                var contentStream = httpRequest.content().asStream();
+                var chunkHandler = contentStream.handler();
+                Consumer<HttpContent.Chunk> bytesCountingHandler = (chunk) -> {
+                    requestSizeBytes += chunk.bytes().length();
+                    chunkHandler.accept(chunk);
+                };
+                contentStream.setHandler(bytesCountingHandler);
+            }
+
         }
 
         private static String getFirstValueForHeader(final HttpRequest request, final String header) {

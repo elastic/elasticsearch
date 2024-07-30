@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpContent;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -53,24 +54,24 @@ public class FakeRestRequest extends RestRequest {
 
         private final Method method;
         private final String uri;
-        private final BytesReference content;
+        private final HttpContent content;
         private final Map<String, List<String>> headers;
         private final Exception inboundException;
 
         public FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
-            this(method, uri, content, headers, null);
+            this(method, uri, content == null ? HttpContent.empty() : HttpContent.fromBytesReference(content), headers, null);
         }
 
         private FakeHttpRequest(
             Method method,
             String uri,
-            BytesReference content,
+            HttpContent content,
             Map<String, List<String>> headers,
             Exception inboundException
         ) {
             this.method = method;
             this.uri = uri;
-            this.content = content == null ? BytesArray.EMPTY : content;
+            this.content = content;
             this.headers = headers;
             this.inboundException = inboundException;
         }
@@ -86,7 +87,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public BytesReference content() {
+        public HttpContent content() {
             return content;
         }
 
@@ -194,7 +195,7 @@ public class FakeRestRequest extends RestRequest {
 
         private Map<String, String> params = new HashMap<>();
 
-        private BytesReference content = BytesArray.EMPTY;
+        private HttpContent content = HttpContent.empty();
 
         private String path = "/";
 
@@ -220,7 +221,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public Builder withContent(BytesReference contentBytes, XContentType xContentType) {
-            this.content = contentBytes;
+            this.content = HttpContent.fromBytesReference(contentBytes);
             if (xContentType != null) {
                 headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             }

@@ -904,7 +904,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertThat(channel.request().getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(channel.request().getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
                 // assert content is dropped
-                assertThat(channel.request().getHttpRequest().content().utf8ToString(), is(""));
+                assertThat(channel.request().getHttpRequest().content().asFull().bytes().utf8ToString(), is(""));
                 try {
                     channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
                 } catch (IOException e) {

@@ -83,6 +83,10 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
+
+        // exactly one of schedule and interval may be defined
+        PARSER.declareExclusiveFieldSet(SCHEDULE.getPreferredName(), INTERVAL.getPreferredName());
+        PARSER.declareRequiredFieldSet(SCHEDULE.getPreferredName(), INTERVAL.getPreferredName());
     }
 
     public SnapshotLifecyclePolicy(
@@ -96,6 +100,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
+        assert schedule != null || interval != null : "policy schedule or interval is required";
         this.schedule = schedule;
         this.interval = interval;
         this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");

@@ -305,6 +305,25 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
+            return toIntervalsSource(
+                Intervals.regexp(pattern),
+                new MatchAllDocsQuery(), // regexp queries can be expensive, what should the approximation be?
+                context
+            );
+        }
+
+        @Override
+        public IntervalsSource rangeIntervals(BytesRef lowerTerm, BytesRef upperTerm,
+                                              boolean includeLower, boolean includeUpper, SearchExecutionContext context) {
+            return toIntervalsSource(
+                Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper),
+                new MatchAllDocsQuery(), // range queries can be expensive, what should the approximation be?
+                context
+            );
+        }
+
+        @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
             throws IOException {
             final Query query = textFieldType.phraseQuery(stream, slop, enablePosIncrements, queryShardContext);

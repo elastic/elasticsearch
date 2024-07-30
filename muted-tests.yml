@@ -156,6 +156,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111448
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeChallengeRestIT
+  method: testTermsAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/111441
 
 # Examples:
 #

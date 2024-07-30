@@ -17,3 +17,7 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 // TEST[skip:indexes don't assign]
+
+You can also consider <<modules-gateway,gateway settings>> when restarting 
+large clusters to reduce initial strain while nodes are processing 
+<<modules-discovery,through discovery>>. 

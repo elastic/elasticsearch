@@ -71,8 +71,6 @@ setup:
   - match: { hits.hits.0.fields: {"service.name": ["OtelSample"], "telemetry.sdk.language": ["dotnet"], "telemetry.sdk.name": ["opentelemetry"]} }
 ---
 "Boolean as dimension":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/pull/111445: Currently a boolean as dimension is rejected"
   - do:
       bulk:
         index: metrics-generic.otel-default
@@ -87,4 +85,4 @@ setup:
         body:
           fields: ["transaction.root"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: {"transaction.root": [false] }}
+  - match: { hits.hits.0.fields: {"transaction.root": ["false"] }}

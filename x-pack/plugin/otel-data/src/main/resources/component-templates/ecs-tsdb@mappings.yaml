@@ -10,10 +10,8 @@ template:
             ignore_above: 1024
             type: keyword
           match_mapping_type: string
-#       Likely we won't need this, see https://github.com/elastic/elasticsearch/pull/111445
-#       Will be very likely removed before merge
-#      - booleans_to_keywords:
-#          mapping:
-#            ignore_above: 1024
-#            type: keyword
-#          match_mapping_type: boolean
+      - booleans_to_keywords:
+          mapping:
+            ignore_above: 1024
+            type: keyword
+          match_mapping_type: boolean

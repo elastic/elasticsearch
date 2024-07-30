@@ -68,11 +68,6 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             .keystore("azure.client.repository_test_kit.key", () -> AZURE_TEST_KEY, s -> Strings.hasText(AZURE_TEST_KEY))
             .keystore("azure.client.repository_test_kit.sas_token", () -> AZURE_TEST_SASTOKEN, s -> Strings.hasText(AZURE_TEST_SASTOKEN))
             .setting(
-                "azure.client.repository_test_kit.instance_discovery.enabled",
-                () -> "false",
-                s -> Strings.hasText(AZURE_TEST_TENANT_ID)
-            )
-            .setting(
                 "azure.client.repository_test_kit.endpoint_suffix",
                 () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
                 s -> USE_FIXTURE
@@ -83,6 +78,11 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
                     c.systemProperty("test.repository_test_kit.skip_cas", "true");
                 }
             })
+            .systemProperty(
+                "tests.azure.credentials.disable_instance_discovery",
+                () -> "true",
+                s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+            )
             .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", fixture::getMetadataAddress, s -> USE_FIXTURE)
             .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_FIXTURE)
             .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))

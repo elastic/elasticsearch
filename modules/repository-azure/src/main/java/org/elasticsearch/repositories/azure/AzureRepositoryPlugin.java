@@ -98,8 +98,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.PROXY_HOST_SETTING,
             AzureStorageSettings.PROXY_PORT_SETTING,
             AzureStorageSettings.ENDPOINT_SETTING,
-            AzureStorageSettings.SECONDARY_ENDPOINT_SETTING,
-            AzureStorageSettings.INSTANCE_DISCOVERY_ENABLED_SETTING
+            AzureStorageSettings.SECONDARY_ENDPOINT_SETTING
         );
     }
 

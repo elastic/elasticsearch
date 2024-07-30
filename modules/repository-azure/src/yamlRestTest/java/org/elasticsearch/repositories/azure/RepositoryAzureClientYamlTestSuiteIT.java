@@ -80,6 +80,11 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
             () -> "ignored;DefaultEndpointsProtocol=https;BlobEndpoint=" + fixture.getAddress(),
             s -> USE_FIXTURE
         )
+        .systemProperty(
+            "tests.azure.credentials.disable_instance_discovery",
+            () -> "true",
+            s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+        )
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getOAuthTokenServiceAddress(), s -> USE_FIXTURE)
         .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))

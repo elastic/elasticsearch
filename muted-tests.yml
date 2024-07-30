@@ -133,17 +133,11 @@ tests:
   method: testGroupingAggregate {TestCase=<long unicode KEYWORDs>}
   issue: https://github.com/elastic/elasticsearch/issues/111428
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testSingleDoc {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111430
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111434
 - class: org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.AzureSnapshotBasedRecoveryIT
   method: testRecoveryUsingSnapshots
   issue: https://github.com/elastic/elasticsearch/issues/111377
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDataStreams {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111389
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111448

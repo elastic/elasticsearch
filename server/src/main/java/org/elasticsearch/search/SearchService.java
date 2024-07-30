@@ -84,6 +84,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -1578,6 +1579,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.responseCollectorService;
     }
 
+    public long getDefaultKeepAliveInMillis() {
+        return defaultKeepAlive;
+    }
+
     /**
      * Used to indicate which result object should be instantiated when creating a search context
      */
@@ -1821,8 +1826,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

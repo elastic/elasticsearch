@@ -361,6 +361,7 @@ public abstract class IndexRouting {
                         break;
                     case VALUE_STRING:
                     case VALUE_NUMBER:
+                    case VALUE_BOOLEAN:
                         hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
                         source.nextToken();
                         break;

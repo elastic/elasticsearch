@@ -1052,3 +1052,87 @@ dimensions with ignore_malformed and ignore_above:
   - length: { aggregations.keyword_dims.buckets: 1 }
   - match: { aggregations.keyword_dims.buckets.0.key: "foo" }
   - match: { aggregations.keyword_dims.buckets.0.doc_count: 2 }
+
+---
+non string dimension fields:
+  - requires:
+      cluster_features: ["mapper.pass_through_priority"]
+      reason: support for priority in passthrough objects
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 0
+                metrics:
+                  type: passthrough
+                  priority: 1
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+                - ip_attributes:
+                    path_match: "*.ip"
+                    match_mapping_type: string
+                    mapping:
+                      type: ip
+                - strings_as_keywords:
+                    match_mapping_type: string
+                    mapping:
+                      type: keyword
+                # ES doesn't support boolean fields as dimensions, yet
+                # however, support has been added to have boolean fields in the routing path
+                # as long as these boolean fields are converted to a field type that supports dimensions
+                - booleans_as_keywords:
+                    match_mapping_type: boolean
+                    mapping:
+                      type: keyword
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "metrics.data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "metrics.data": "10", "attributes.string": "foo", "attributes.boolean": true, "attributes.integer": 1, "attributes.float": 1.1, "attributes.host.ip": "127.0.0.1" }'
+  - is_false: errors
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 1
+  - match: { hits.total.value: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: k9s
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.attributes.properties.string.type: 'keyword' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.type: 'keyword' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.integer.type: 'long' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.float.type: 'float' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }

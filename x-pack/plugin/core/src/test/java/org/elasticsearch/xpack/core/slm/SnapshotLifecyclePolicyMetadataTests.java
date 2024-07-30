@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +82,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         SnapshotLifecyclePolicyMetadata.Builder builder = SnapshotLifecyclePolicyMetadata.builder()
             .setPolicy(randomSnapshotLifecyclePolicy(policyId))
             .setVersion(randomNonNegativeLong())
-            .setModifiedDate(randomNonNegativeLong());
+            .setModifiedDate(randomModifiedTime());
         if (randomBoolean()) {
             builder.setHeaders(randomHeaders());
         }
@@ -143,5 +144,10 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
 
     public static Tuple<String, String> randomScheduleOrInterval() {
         return randomScheduleOrInterval(randomSchedule(), randomInterval());
+    }
+
+    public static long randomModifiedTime() {
+        // if modified time is after the current time, validation will fail
+        return randomLongBetween(0, Clock.systemUTC().millis());
     }
 }

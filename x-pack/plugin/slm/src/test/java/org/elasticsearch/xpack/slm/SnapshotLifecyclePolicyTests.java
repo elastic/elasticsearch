@@ -91,36 +91,53 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             // current time is exactly modified time
             Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
             Instant currentTime = modifiedTime;
-            var clock = Clock.fixed(currentTime, ZoneOffset.UTC);
             Instant expected = Instant.parse("2024-07-17T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
-            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), clock), equalTo(expected.toEpochMilli()));
+            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)), equalTo(expected.toEpochMilli()));
         }
 
         {
             // current time is half an interval past modified time
             Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
             Instant currentTime = modifiedTime.plus(Duration.ofMinutes(15));
-            var clock = Clock.fixed(currentTime, ZoneOffset.UTC);
             Instant expected = Instant.parse("2024-07-17T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
-            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), clock), equalTo(expected.toEpochMilli()));
+            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)), equalTo(expected.toEpochMilli()));
         }
 
         {
             // current time is a full day (24 intervals) ahead of modified time
             Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
             Instant currentTime = modifiedTime.plus(Duration.ofDays(1));
-            var clock = Clock.fixed(currentTime, ZoneOffset.UTC);
             Instant expected = Instant.parse("2024-07-18T00:30:00.000Z").truncatedTo(ChronoUnit.SECONDS);
-            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), clock), equalTo(expected.toEpochMilli()));
+            assertThat(p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)), equalTo(expected.toEpochMilli()));
         }
 
         {
             // current time before modified time
             Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
             Instant currentTime = modifiedTime.minus(Duration.ofHours(1));
-            var clock = Clock.fixed(currentTime, ZoneOffset.UTC);
-            expectThrows(AssertionError.class, () -> p.calculateNextExecution(modifiedTime.toEpochMilli(), clock));
+            expectThrows(AssertionError.class, () -> p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)));
         }
+
+        {
+            // current time is every minute of a day
+            Instant modifiedTime = Instant.parse("2024-07-17T00:00:00.000Z").truncatedTo(ChronoUnit.SECONDS);
+            Instant currentTime = modifiedTime;
+            Instant expectedTime = modifiedTime.plus(Duration.ofMinutes(30));
+
+            for (; currentTime.isBefore(modifiedTime.plus(Duration.ofDays(1))); currentTime = currentTime.plus(Duration.ofMinutes(1))) {
+                if (currentTime.equals(expectedTime)) {
+                    expectedTime = expectedTime.plus(Duration.ofMinutes(30));
+                }
+                assertThat(
+                    p.calculateNextExecution(modifiedTime.toEpochMilli(), fixedClock(currentTime)),
+                    equalTo(expectedTime.toEpochMilli())
+                );
+            }
+        }
+    }
+
+    private static Clock fixedClock(Instant instant) {
+        return Clock.fixed(instant, ZoneOffset.UTC);
     }
 
     public void testCalculateNextIntervalInterval() {

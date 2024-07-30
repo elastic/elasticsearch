@@ -83,7 +83,7 @@ public class PermissionsIT extends ESRestTestCase {
         createUser("slm_admin", "slm-admin-password", "slm-manage");
         createUser("slm_user", "slm-user-password", "slm-read");
 
-        PutRepositoryRequest repoRequest = new PutRepositoryRequest();
+        PutRepositoryRequest repoRequest = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         Settings.Builder settingsBuilder = Settings.builder().put("location", ".");
         repoRequest.settings(settingsBuilder);
         repoRequest.name(repo);

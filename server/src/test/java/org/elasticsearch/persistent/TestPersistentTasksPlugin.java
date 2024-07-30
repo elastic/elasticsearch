@@ -298,7 +298,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         private static volatile boolean nonClusterStateCondition = true;
 
         public TestPersistentTasksExecutor(ClusterService clusterService) {
-            super(NAME, ThreadPool.Names.GENERIC);
+            super(NAME, clusterService.threadPool().generic());
             this.clusterService = clusterService;
         }
 
@@ -531,7 +531,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 transportService,
                 actionFilters,
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );

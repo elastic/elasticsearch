@@ -20,6 +20,8 @@ import java.util.Arrays;
  */
 public class RRFRankDoc extends RankDoc {
 
+    static final String NAME = "rrf_rank_doc";
+
     /**
      * The position within each result set per query. The length
      * of {@code positions} is the number of queries that are part
@@ -88,5 +90,10 @@ public class RRFRankDoc extends RankDoc {
             + ", shardIndex="
             + shardIndex
             + '}';
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

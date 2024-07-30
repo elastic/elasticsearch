@@ -39,6 +39,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,7 +62,7 @@ public abstract class TransportWriteAction<
     protected final ExecutorSelector executorSelector;
 
     protected final PostWriteRefresh postWriteRefresh;
-    private final BiFunction<ExecutorSelector, IndexShard, String> executorFunction;
+    private final BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction;
 
     protected TransportWriteAction(
         Settings settings,
@@ -74,10 +75,11 @@ public abstract class TransportWriteAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         Writeable.Reader<ReplicaRequest> replicaRequest,
-        BiFunction<ExecutorSelector, IndexShard, String> executorFunction,
-        boolean forceExecutionOnPrimary,
+        BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
+        PrimaryActionExecution primaryActionExecution,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ReplicaActionExecution replicaActionExecution
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
@@ -93,8 +95,9 @@ public abstract class TransportWriteAction<
             request,
             replicaRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            true,
-            forceExecutionOnPrimary
+            SyncGlobalCheckpointAfterOperation.AttemptAfterSuccess,
+            primaryActionExecution,
+            replicaActionExecution
         );
         this.executorFunction = executorFunction;
         this.indexingPressure = indexingPressure;
@@ -103,7 +106,7 @@ public abstract class TransportWriteAction<
         this.postWriteRefresh = new PostWriteRefresh(transportService);
     }
 
-    protected String executor(IndexShard shard) {
+    protected Executor executor(IndexShard shard) {
         return executorFunction.apply(executorSelector, shard);
     }
 
@@ -210,7 +213,7 @@ public abstract class TransportWriteAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
     ) {
-        threadPool.executor(executorFunction.apply(executorSelector, primary)).execute(new ActionRunnable<>(listener) {
+        executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnPrimary(request, primary, listener);
@@ -238,7 +241,7 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        threadPool.executor(executorFunction.apply(executorSelector, replica)).execute(new ActionRunnable<>(listener) {
+        executorFunction.apply(executorSelector, replica).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnReplica(request, replica, listener);

@@ -1,7 +1,7 @@
 ---
 "Rollover with max_primary_shard_docs condition":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   # create index with alias and replica

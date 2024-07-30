@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -94,6 +95,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
             singleTask(request)
         );
         assertThat(resultingState.metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+        assertThat(resultingState.metadata().index("test").getMappingsUpdatedVersion(), equalTo(IndexVersion.current()));
     }
 
     public void testMappingVersionUnchanged() throws Exception {

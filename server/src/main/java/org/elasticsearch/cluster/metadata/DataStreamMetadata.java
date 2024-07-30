@@ -89,7 +89,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     public DataStreamMetadata(StreamInput in) throws IOException {
         this(
-            in.readImmutableOpenMap(StreamInput::readString, DataStream::new),
+            in.readImmutableOpenMap(StreamInput::readString, DataStream::read),
             in.readImmutableOpenMap(StreamInput::readString, DataStreamAlias::new)
         );
     }
@@ -265,7 +265,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         private static final DiffableUtils.DiffableValueReader<String, DataStream> DS_DIFF_READER = new DiffableUtils.DiffableValueReader<>(
-            DataStream::new,
+            DataStream::read,
             DataStream::readDiffFrom
         );
 

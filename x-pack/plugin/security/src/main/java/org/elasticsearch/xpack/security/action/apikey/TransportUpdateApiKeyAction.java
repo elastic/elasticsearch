@@ -37,7 +37,7 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
         final CompositeRolesStore rolesStore,
         final NamedXContentRegistry xContentRegistry
     ) {
-        super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new, context);
+        super(UpdateApiKeyAction.NAME, transportService, actionFilters, context);
         this.apiKeyService = apiKeyService;
         this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
     }

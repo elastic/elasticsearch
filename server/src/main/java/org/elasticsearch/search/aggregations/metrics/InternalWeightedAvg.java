@@ -11,12 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -78,19 +78,23 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    public InternalWeightedAvg reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        CompensatedSum sumCompensation = new CompensatedSum(0, 0);
-        CompensatedSum weightCompensation = new CompensatedSum(0, 0);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final CompensatedSum sumCompensation = new CompensatedSum(0, 0);
+            final CompensatedSum weightCompensation = new CompensatedSum(0, 0);
 
-        // Compute the sum of double values with Kahan summation algorithm which is more
-        // accurate than naive summation.
-        for (InternalAggregation aggregation : aggregations) {
-            InternalWeightedAvg avg = (InternalWeightedAvg) aggregation;
-            weightCompensation.add(avg.weight);
-            sumCompensation.add(avg.sum);
-        }
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalWeightedAvg avg = (InternalWeightedAvg) aggregation;
+                weightCompensation.add(avg.weight);
+                sumCompensation.add(avg.sum);
+            }
 
-        return new InternalWeightedAvg(getName(), sumCompensation.value(), weightCompensation.value(), format, getMetadata());
+            @Override
+            public InternalAggregation get() {
+                return new InternalWeightedAvg(getName(), sumCompensation.value(), weightCompensation.value(), format, getMetadata());
+            }
+        };
     }
 
     @Override

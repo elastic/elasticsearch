@@ -142,7 +142,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testMoveToInjectedStep() throws Exception {
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1, null), TimeValue.timeValueHours(12));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1, null, false), TimeValue.timeValueHours(12));
 
         createIndexWithSettings(
             client(),

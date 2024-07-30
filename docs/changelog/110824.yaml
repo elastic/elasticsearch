@@ -1,0 +1,5 @@
+pr: 110824
+summary: "[ESQL] Count_distinct(_source) should return a 400"
+area: ES|QL
+type: bug
+issues: []

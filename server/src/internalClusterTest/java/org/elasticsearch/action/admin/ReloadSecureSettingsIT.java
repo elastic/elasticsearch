@@ -65,9 +65,8 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         SecureString password,
         ActionListener<NodesReloadSecureSettingsResponse> listener
     ) {
-        final var request = new NodesReloadSecureSettingsRequest();
+        final var request = new NodesReloadSecureSettingsRequest(nodeIds);
         try {
-            request.nodesIds(nodeIds);
             request.setSecureStorePassword(password);
             client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, listener);
         } finally {

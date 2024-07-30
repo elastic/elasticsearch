@@ -95,7 +95,7 @@ public abstract class BindingImpl<T> implements Binding<T> {
         return visitor.visit(this);
     }
 
-    protected BindingImpl<T> withScoping(Scoping scoping) {
+    protected BindingImpl<T> withEagerSingletonScoping() {
         throw new AssertionError();
     }
 

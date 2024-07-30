@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -36,7 +37,8 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         var respMap = entityAsMap(response.getEntity());
         String id = (String) respMap.get("id");
         assertThat((boolean) respMap.get("is_running"), either(is(true)).or(is(false)));
-        var getResponse = runAsyncGet(user, id);
+        int tries = 0;
+        Response getResponse = runAsyncGet(user, id);
         assertOK(getResponse);
         var deleteResponse = runAsyncDelete(user, id);
         assertOK(deleteResponse);
@@ -98,6 +100,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         Request request = new Request("POST", "_query/async");
         request.setJsonEntity(Strings.toString(json));
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.addParameter("error_trace", "true");
         logRequest(request);
         Response response = client().performRequest(request);
         logResponse(response);
@@ -105,19 +108,45 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
     }
 
     private Response runAsyncGet(String user, String id) throws IOException {
-        Request getRequest = new Request("GET", "_query/async/" + id + "?wait_for_completion_timeout=60s");
-        getRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
-        logRequest(getRequest);
-        var response = client().performRequest(getRequest);
-        logResponse(response);
-        return response;
+        int tries = 0;
+        while (tries < 10) {
+            // Sometimes we get 404s fetching the task status.
+            try {
+                Request getRequest = new Request("GET", "_query/async/" + id + "?wait_for_completion_timeout=60s");
+                getRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+                getRequest.addParameter("error_trace", "true");
+                logRequest(getRequest);
+                var response = client().performRequest(getRequest);
+                logResponse(response);
+                return response;
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() == 404
+                    && EntityUtils.toString(e.getResponse().getEntity()).contains("no such index [.async-search]")) {
+                    /*
+                     * Work around https://github.com/elastic/elasticsearch/issues/110304 - the .async-search
+                     * index may not exist when we try the fetch, but it should exist on next attempt.
+                     */
+                    logger.warn("async-search index does not exist", e);
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                } else {
+                    throw e;
+                }
+                tries++;
+            }
+        }
+        throw new IllegalStateException("couldn't find task status");
     }
 
     private Response runAsyncDelete(String user, String id) throws IOException {
-        Request getRequest = new Request("DELETE", "_query/async/" + id);
-        getRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
-        logRequest(getRequest);
-        var response = client().performRequest(getRequest);
+        Request deleteRequest = new Request("DELETE", "_query/async/" + id);
+        deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        deleteRequest.addParameter("error_trace", "true");
+        logRequest(deleteRequest);
+        var response = client().performRequest(deleteRequest);
         logResponse(response);
         return response;
     }

@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -71,7 +70,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
             client(),
             ClusterState.EMPTY_STATE,
             TestIndexNameExpressionResolver.newInstance(),
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.actionGet();
@@ -255,7 +254,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
             bulkRequest.add(indexRequest);
         }
 
-        BulkResponse bulkResponse = client().execute(BulkAction.INSTANCE, bulkRequest).actionGet();
+        BulkResponse bulkResponse = client().execute(TransportBulkAction.TYPE, bulkRequest).actionGet();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
     }
 }

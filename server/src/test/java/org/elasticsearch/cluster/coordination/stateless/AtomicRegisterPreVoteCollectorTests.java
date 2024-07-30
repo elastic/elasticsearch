@@ -8,12 +8,13 @@
 
 package org.elasticsearch.cluster.coordination.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -64,8 +65,8 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
 
         // Either there's no heartbeat or is stale
         if (randomBoolean()) {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
-            fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
+            fakeClock.set(maxTimeSinceLastHeartbeat.millis() + randomLongBetween(0, 1000));
         }
 
         var startElection = new AtomicBoolean();
@@ -74,6 +75,48 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
         preVoteCollector.start(ClusterState.EMPTY_STATE, Collections.emptyList());
 
         assertThat(startElection.get(), is(true));
+    }
+
+    public void testLogSkippedElectionIfRecentLeaderHeartbeat() throws Exception {
+        final var currentTermProvider = new AtomicLong(1);
+        final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
+        final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
+        DiscoveryNodeUtils.create("master");
+        try (var mockLog = MockLog.capture(AtomicRegisterPreVoteCollector.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "log emitted when skipping election",
+                    AtomicRegisterPreVoteCollector.class.getCanonicalName(),
+                    Level.INFO,
+                    "skipping election since there is a recent heartbeat*"
+                )
+            );
+            final var fakeClock = new AtomicLong();
+            final var heartbeatStore = new InMemoryHeartbeatStore();
+            final var heartbeatService = new StoreHeartbeatService(
+                heartbeatStore,
+                threadPool,
+                heartbeatFrequency,
+                maxTimeSinceLastHeartbeat,
+                listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
+            ) {
+                @Override
+                protected long absoluteTimeInMillis() {
+                    return fakeClock.get();
+                }
+            };
+
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
+            fakeClock.addAndGet(randomLongBetween(0L, maxTimeSinceLastHeartbeat.millis() - 1));
+
+            var startElection = new AtomicBoolean();
+            var preVoteCollector = new AtomicRegisterPreVoteCollector(heartbeatService, () -> startElection.set(true));
+
+            preVoteCollector.start(ClusterState.EMPTY_STATE, Collections.emptyList());
+
+            assertThat(startElection.get(), is(false));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testElectionDoesNotRunWhenThereIsALeader() throws Exception {
@@ -97,7 +140,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             }
         };
 
-        PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+        safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
 
         var startElection = new AtomicBoolean();
         var preVoteCollector = new AtomicRegisterPreVoteCollector(heartbeatService, () -> startElection.set(true));

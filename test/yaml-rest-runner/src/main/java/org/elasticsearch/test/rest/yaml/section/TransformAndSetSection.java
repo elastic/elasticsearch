@@ -78,7 +78,7 @@ public class TransformAndSetSection implements ExecutableSection {
             String key = entry.getKey();
             String value = entry.getValue();
             if (value.startsWith("#base64EncodeCredentials(") && value.endsWith(")")) {
-                value = entry.getValue().substring("#base64EncodeCredentials(".length(), entry.getValue().lastIndexOf(")"));
+                value = entry.getValue().substring("#base64EncodeCredentials(".length(), entry.getValue().lastIndexOf(')'));
                 String[] idAndPassword = value.split(",");
                 if (idAndPassword.length == 2) {
                     String credentials = executionContext.response(idAndPassword[0].trim())

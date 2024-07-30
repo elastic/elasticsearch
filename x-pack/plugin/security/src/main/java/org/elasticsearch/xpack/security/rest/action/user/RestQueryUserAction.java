@@ -89,6 +89,7 @@ public final class RestQueryUserAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final boolean withProfileUid = request.paramAsBoolean("with_profile_uid", false);
         final QueryUserRequest queryUserRequest;
         if (request.hasContentOrSourceParam()) {
             final Payload payload = PARSER.parse(request.contentOrSourceParamParser(), null);
@@ -97,10 +98,11 @@ public final class RestQueryUserAction extends SecurityBaseRestHandler {
                 payload.from,
                 payload.size,
                 payload.fieldSortBuilders,
-                payload.searchAfterBuilder
+                payload.searchAfterBuilder,
+                withProfileUid
             );
         } else {
-            queryUserRequest = new QueryUserRequest(null, null, null, null, null);
+            queryUserRequest = new QueryUserRequest(null, null, null, null, null, withProfileUid);
         }
         return channel -> client.execute(ActionTypes.QUERY_USER_ACTION, queryUserRequest, new RestToXContentListener<>(channel));
     }

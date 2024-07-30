@@ -115,8 +115,10 @@ public class QuerySearchResultTests extends ESTestCase {
                 assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
                 if (deserialized.hasAggs()) {
                     assertThat(deserialized.aggregations().isSerialized(), is(delayed));
-                    InternalAggregations aggs = querySearchResult.consumeAggs();
-                    InternalAggregations deserializedAggs = deserialized.consumeAggs();
+                    InternalAggregations aggs = querySearchResult.getAggs().expand();
+                    querySearchResult.releaseAggs();
+                    InternalAggregations deserializedAggs = deserialized.getAggs().expand();
+                    deserialized.releaseAggs();
                     assertEquals(aggs.asList(), deserializedAggs.asList());
                     assertThat(deserialized.aggregations(), is(nullValue()));
                 }

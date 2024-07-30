@@ -7,32 +7,40 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
+    private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
-            "1:40: second argument of [a + c] must be [numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a + c] must be [datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
-            "1:40: second argument of [a - c] must be [numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a - c] must be [datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
@@ -55,31 +63,24 @@ public class VerifierTests extends ESTestCase {
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
         assertEquals(
-            "1:9: second argument of [round(123.45, \"1\")] must be [integer], found value [\"1\"] type [keyword]",
-            error("row a = round(123.45, \"1\")")
+            "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
+            error("row a = round(123.45, \"c\")")
         );
     }
 
     public void testAggsExpressionsInStatsAggs() {
         assertEquals(
-            "1:44: expected an aggregate function or group but got [salary] of type [FieldAttribute]",
+            "1:44: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
             error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
-        );
-        assertEquals(
-            "1:19: expected an aggregate function or group but got [length(first_name)] of type [Length]",
-            error("from test | stats length(first_name), count(1) by first_name")
         );
         assertEquals(
             "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long], found value [first_name] type [keyword]",
+            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long or counter types],"
+                + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
-        );
-        assertEquals(
-            "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
-            error("from test | stats x = emp_no + avg(emp_no) by emp_no")
         );
         assertEquals(
             "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
@@ -88,6 +89,35 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = count_distinct(languages, languages) by emp_no")
+        );
+        // no agg function
+        assertEquals("1:19: expected an aggregate function but found [5]", error("from test | stats 5 by emp_no"));
+
+        // don't allow naked group
+        assertEquals("1:19: grouping key [emp_no] already specified in the STATS BY clause", error("from test | stats emp_no BY emp_no"));
+        // don't allow naked group - even when it's an expression
+        assertEquals(
+            "1:19: grouping key [languages + emp_no] already specified in the STATS BY clause",
+            error("from test | stats languages + emp_no BY languages + emp_no")
+        );
+        // don't allow group alias
+        assertEquals(
+            "1:19: grouping key [e] already specified in the STATS BY clause",
+            error("from test | stats e BY e = languages + emp_no")
+        );
+
+        var message = error("from test | stats languages + emp_no BY e = languages + emp_no");
+        assertThat(
+            message,
+            containsString(
+                "column [emp_no] cannot be used as an aggregate once declared in the STATS BY grouping key [e = languages + emp_no]"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                " column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [e = languages + emp_no]"
+            )
         );
     }
 
@@ -98,8 +128,128 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testGroupingInsideAggsAsAgg() {
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.) by emp_no")
+        );
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+        );
+        assertEquals(
+            "1:22: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats 3 + bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+        );
+    }
+
+    public void testGroupingInsideAggsAsGrouping() {
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by emp_no, bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats z = bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats y = bucket(emp_no, 5.) by y = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats z = bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+        );
+    }
+
+    public void testGroupingInsideGrouping() {
+        assertEquals(
+            "1:40: cannot nest grouping functions; found [bucket(emp_no, 5.)] inside [bucket(bucket(emp_no, 5.), 6.)]",
+            error("from test| stats max(emp_no) by bucket(bucket(emp_no, 5.), 6.)")
+        );
+    }
+
+    public void testAggsWithInvalidGrouping() {
+        assertEquals(
+            "1:35: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
+            error("from test| stats max(languages) + languages by l = languages % 3")
+        );
+    }
+
+    public void testGroupingAlias() throws Exception {
+        assertEquals(
+            "1:23: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
+            error("from test | stats l = languages + 3 by l = languages % 3 | keep l")
+        );
+    }
+
+    public void testGroupingAliasDuplicate() throws Exception {
+        assertEquals(
+            "1:22: column [languages] cannot be used as an aggregate "
+                + "once declared in the STATS BY grouping key [l = languages % 3, l = languages, l = languages % 2]",
+            error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
+        );
+
+        assertEquals(
+            "1:22: column [languages] cannot be used as an aggregate " + "once declared in the STATS BY grouping key [l = languages % 3]",
+            error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
+        );
+
+    }
+
+    public void testAggsIgnoreCanonicalGrouping() {
+        // the grouping column should appear verbatim - ignore canonical representation as they complicate things significantly
+        // for no real benefit (1+languages != languages + 1)
+        assertEquals(
+            "1:39: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages + 1]",
+            error("from test| stats max(languages) + 1 + languages by l = languages + 1")
+        );
+    }
+
+    public void testAggsWithoutAgg() {
+        // should work
+        assertEquals(
+            "1:35: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + salary by l = languages + 1")
+        );
+    }
+
     public void testAggsInsideEval() throws Exception {
         assertEquals("1:29: aggregate function [max(b)] not allowed outside STATS command", error("row a = 1, b = 2 | eval x = max(b)"));
+    }
+
+    public void testGroupingInAggs() {
+        assertEquals("2:12: column [salary] must appear in the STATS BY clause or be used in an aggregate function", error("""
+             from test
+            |stats e = salary + max(salary) by languages
+            """));
+    }
+
+    public void testBucketOnlyInAggs() {
+        assertEquals(
+            "1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0")
+        );
+        assertEquals(
+            "1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | EVAL 3 + BUCKET(emp_no, 100.)")
+        );
+        assertEquals(
+            "1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
+            error("FROM test | SORT BUCKET(emp_no, 100.)")
+        );
     }
 
     public void testDoubleRenamingField() {
@@ -160,9 +310,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnsignedLongTypeMixInComparisons() {
-        List<String> types = EsqlDataTypes.types()
+        List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -198,9 +348,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnsignedLongTypeMixInArithmetics() {
-        List<String> types = EsqlDataTypes.types()
+        List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -220,16 +370,7 @@ public class VerifierTests extends ESTestCase {
                 var op = left + " " + operation + " " + right;
                 assertThat(
                     error("row n = to_" + type + "(1), ul = to_ul(1) | eval " + op),
-                    containsString(
-                        "first argument of ["
-                            + op
-                            + "] is ["
-                            + leftType
-                            + "] and second is ["
-                            + rightType
-                            + "]."
-                            + " [unsigned_long] can only be operated on together with another [unsigned_long]"
-                    )
+                    containsString("[" + operation + "] has arguments with incompatible types [" + leftType + "] and [" + rightType + "]")
                 );
             }
         }
@@ -237,14 +378,15 @@ public class VerifierTests extends ESTestCase {
 
     public void testUnsignedLongNegation() {
         assertEquals(
-            "1:29: negation unsupported for arguments of type [unsigned_long] in expression [-x]",
+            "1:29: argument of [-x] must be [numeric, date_period or time_duration], found value [x] type [unsigned_long]",
             error("row x = to_ul(1) | eval y = -x")
         );
     }
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long], found value [hire_date] type [datetime]",
+            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long or counter types],"
+                + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
     }
@@ -313,8 +455,207 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
     }
 
-    public void testUnfinishedAggFunction() {
-        assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
+    public void testNotFoundFieldInNestedFunction() {
+        assertEquals("""
+            1:30: Unknown column [missing]
+            line 1:43: Unknown column [not_found]
+            line 1:23: Unknown column [avg]""", error("from test | stats c = avg by missing + 1, not_found"));
+    }
+
+    public void testSpatialSort() {
+        String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
+        assertEquals("1:130: cannot sort on geo_point", error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_point",
+            error(prefix + "| EVAL shape = TO_CARTESIANPOINT(wkt) | limit 5 | sort shape")
+        );
+        assertEquals("1:130: cannot sort on geo_shape", error(prefix + "| EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_shape",
+            error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
+        );
+        var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
+        var airportsWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports_web.json", "airports_web"));
+        var countriesBbox = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox.json", "countries_bbox"));
+        var countriesBboxWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox_web.json", "countries_bbox_web"));
+        assertEquals("1:32: cannot sort on geo_point", error("FROM airports | LIMIT 5 | sort location", airports));
+        assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
+        assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
+        assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+    }
+
+    public void testInlineImpossibleConvert() {
+        assertEquals("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]", error("ROW false::ip"));
+    }
+
+    public void testAggregateOnCounter() {
+        assertThat(
+            error("FROM tests | STATS min(network.bytes_in)", tsdb),
+            equalTo(
+                "1:20: argument of [min(network.bytes_in)] must be"
+                    + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
+                    + " found value [min(network.bytes_in)] type [counter_long]"
+            )
+        );
+
+        assertThat(
+            error("FROM tests | STATS max(network.bytes_in)", tsdb),
+            equalTo(
+                "1:20: argument of [max(network.bytes_in)] must be"
+                    + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
+                    + " found value [max(network.bytes_in)] type [counter_long]"
+            )
+        );
+
+        assertThat(
+            error("FROM tests | STATS count(network.bytes_out)", tsdb),
+            equalTo(
+                "1:20: argument of [count(network.bytes_out)] must be [any type except counter types],"
+                    + " found value [network.bytes_out] type [counter_long]"
+            )
+        );
+    }
+
+    public void testGroupByCounter() {
+        assertThat(
+            error("FROM tests | STATS count(*) BY network.bytes_in", tsdb),
+            equalTo("1:32: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testAggsResolutionWithUnresolvedGroupings() {
+        String agg_func = randomFrom(
+            new String[] { "avg", "count", "count_distinct", "min", "max", "median", "median_absolute_deviation", "sum", "values" }
+        );
+
+        assertThat(error("FROM tests | STATS " + agg_func + "(emp_no) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(x) by foobar, x = emp_no"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]")
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(languages, 10)"),
+            matchesRegex(
+                "1:\\d+: function expects exactly four arguments when the first one is of type \\[INTEGER]"
+                    + " and the second of type \\[INTEGER]\n"
+                    + "line 1:\\d+: Unknown column \\[foobar]"
+            )
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by emp_no"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        // TODO: Ideally, we'd detect that count_distinct(x) doesn't require an error message.
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(x) by x = foobar"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]\n" + "line 1:\\d+: Unknown column \\[x]")
+        );
+    }
+
+    public void testNotAllowRateOutsideMetrics() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assertThat(
+            error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
+            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("METRICS tests | STATS sum(rate(network.bytes_in))", tsdb),
+            equalTo("1:27: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("FROM tests | STATS rate(network.bytes_in)", tsdb),
+            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+        );
+        assertThat(
+            error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
+            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside METRICS command")
+        );
+    }
+
+    public void testRateNotEnclosedInAggregate() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assertThat(
+            error("METRICS tests rate(network.bytes_in)", tsdb),
+            equalTo(
+                "1:15: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+            )
+        );
+        assertThat(
+            error("METRICS tests avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            equalTo(
+                "1:44: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
+            )
+        );
+        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+             [max(avg(rate(network.bytes_in)))]
+            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+             and inside another aggregate"""));
+        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+             [max(avg(rate(network.bytes_in)))]
+            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+             and inside another aggregate"""));
+    }
+
+    public void testWeightedAvg() {
+        assertEquals(
+            "1:35: SECOND argument of [weighted_avg(v, null)] cannot be null or 0, received [null]",
+            error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)")
+        );
+        assertEquals(
+            "1:27: SECOND argument of [weighted_avg(salary, null)] cannot be null or 0, received [null]",
+            error("from test | stats w_avg = weighted_avg(salary, null)")
+        );
+        assertEquals(
+            "1:45: SECOND argument of [weighted_avg(v, w)] cannot be null or 0, received [null]",
+            error("row v = [1, 2, 3], w = null | stats w_avg = weighted_avg(v, w)")
+        );
+        assertEquals(
+            "1:44: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
+            error("from test | eval w = null |  stats w_avg = weighted_avg(salary, w)")
+        );
+        assertEquals(
+            "1:51: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
+            error("from test | eval w = null + null |  stats w_avg = weighted_avg(salary, w)")
+        );
+        assertEquals(
+            "1:35: SECOND argument of [weighted_avg(v, 0)] cannot be null or 0, received [0]",
+            error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, 0)")
+        );
+        assertEquals(
+            "1:27: SECOND argument of [weighted_avg(salary, 0.0)] cannot be null or 0, received [0.0]",
+            error("from test | stats w_avg = weighted_avg(salary, 0.0)")
+        );
+    }
+
+    public void testMatchInsideEval() throws Exception {
+        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+    }
+
+    public void testMatchFilter() throws Exception {
+        assertEquals(
+            "1:63: MATCH requires a mapped index field, found [name]",
+            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
+        );
+
+        assertEquals(
+            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
+            error("from test | where salary match \"100\"")
+        );
+
+        assertEquals(
+            "1:19: Invalid condition using MATCH",
+            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
+        );
+
+        assertEquals(
+            "1:51: Invalid condition using MATCH",
+            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
+        );
+
+        assertEquals(
+            "1:45: MATCH requires a mapped index field, found [fn]",
+            error("from test | rename first_name as fn | where fn match \"Anna\"")
+        );
     }
 
     private String error(String query) {
@@ -326,21 +667,21 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
-        List<TypedParamValue> parameters = new ArrayList<>();
+        List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(new TypedParamValue("null", null));
+                parameters.add(new QueryParam(null, null, NULL));
             } else if (param instanceof String) {
-                parameters.add(new TypedParamValue("keyword", param));
+                parameters.add(new QueryParam(null, param, KEYWORD));
             } else if (param instanceof Number) {
-                parameters.add(new TypedParamValue("param", param));
+                parameters.add(new QueryParam(null, param, DataType.fromJava(param)));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> analyzer.analyze(parser.createStatement(query, parameters))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
         );
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));

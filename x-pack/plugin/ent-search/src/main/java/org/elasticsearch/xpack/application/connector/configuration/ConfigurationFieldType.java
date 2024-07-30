@@ -30,6 +30,6 @@ public enum ConfigurationFieldType {
                 return fieldType;
             }
         }
-        throw new IllegalArgumentException("Unknown FieldType: " + type);
+        throw new IllegalArgumentException("Unknown " + ConfigurationFieldType.class.getSimpleName() + " [" + type + "].");
     }
 }

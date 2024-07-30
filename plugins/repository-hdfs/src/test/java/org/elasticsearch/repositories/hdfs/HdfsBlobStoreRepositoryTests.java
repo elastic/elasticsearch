@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.fixtures.hdfs.HdfsClientThreadLeakFilter;
 
 import java.util.Collection;
 import java.util.Collections;

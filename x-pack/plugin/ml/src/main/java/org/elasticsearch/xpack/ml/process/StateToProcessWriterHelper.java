@@ -27,8 +27,8 @@ public final class StateToProcessWriterHelper {
             --length;
         }
         source.slice(0, length).writeTo(stream);
-        // This is dictated by RapidJSON on the C++ side; it treats a '\0' as end-of-file
-        // even when it's not really end-of-file, and this is what we need because we're
+        // This is dictated by the JSON parser on the C++ side; it treats a '\0' as the character
+        // that separates distinct JSON documents, and this is what we need because we're
         // sending multiple JSON documents via the same named pipe.
         stream.write(0);
     }

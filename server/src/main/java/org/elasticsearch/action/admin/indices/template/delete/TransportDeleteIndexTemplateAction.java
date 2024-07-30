@@ -70,20 +70,17 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        indexTemplateService.removeTemplates(
-            new MetadataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse response) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> "failed to delete templates [" + request.name() + "]", e);
-                    listener.onFailure(e);
-                }
+        indexTemplateService.removeTemplates(request.name(), request.masterNodeTimeout(), new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                listener.onResponse(response);
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(() -> "failed to delete templates [" + request.name() + "]", e);
+                listener.onFailure(e);
+            }
+        });
     }
 }

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
 
 /**
  * Test that needsScores() is reported correctly depending on whether _score is used
@@ -33,7 +34,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(NumberSortScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(NumberSortScript.CONTEXT, PAINLESS_BASE_WHITELIST);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
         SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());

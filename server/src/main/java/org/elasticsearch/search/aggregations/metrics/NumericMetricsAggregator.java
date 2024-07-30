@@ -7,9 +7,17 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.Comparators;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -42,6 +50,39 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         }
     }
 
+    public abstract static class SingleDoubleValue extends SingleValue {
+
+        private final ValuesSource.Numeric valuesSource;
+
+        protected SingleDoubleValue(
+            String name,
+            ValuesSourceConfig valuesSourceConfig,
+            AggregationContext context,
+            Aggregator parent,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, context, parent, metadata);
+            this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        }
+
+        @Override
+        public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+            throws IOException {
+            final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+        }
+
+        protected abstract LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub);
+
+        protected abstract LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub);
+    }
+
     public abstract static class MultiValue extends NumericMetricsAggregator {
 
         protected MultiValue(String name, AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
@@ -63,5 +104,38 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
             // TODO it'd be faster replace hasMetric and metric with something that returned a function from long to double.
             return (lhs, rhs) -> Comparators.compareDiscardNaN(metric(key, lhs), metric(key, rhs), order == SortOrder.ASC);
         }
+    }
+
+    public abstract static class MultiDoubleValue extends MultiValue {
+
+        private final ValuesSource.Numeric valuesSource;
+
+        protected MultiDoubleValue(
+            String name,
+            ValuesSourceConfig valuesSourceConfig,
+            AggregationContext context,
+            Aggregator parent,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, context, parent, metadata);
+            this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        }
+
+        @Override
+        public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+            throws IOException {
+            final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+        }
+
+        protected abstract LeafBucketCollector getLeafCollector(SortedNumericDoubleValues values, LeafBucketCollector sub);
+
+        protected abstract LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub);
     }
 }

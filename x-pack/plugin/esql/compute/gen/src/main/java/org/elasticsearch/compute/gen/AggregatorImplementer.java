@@ -44,6 +44,8 @@ import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
+import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK;
+import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
@@ -108,10 +110,8 @@ public class AggregatorImplementer {
             (declarationType.getSimpleName() + "AggregatorFunction").replace("AggregatorAggregator", "Aggregator")
         );
         this.valuesIsBytesRef = BYTES_REF.equals(TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType()));
-        intermediateState = Arrays.stream(interStateAnno).map(state -> new IntermediateStateDesc(state.name(), state.type())).toList();
+        intermediateState = Arrays.stream(interStateAnno).map(IntermediateStateDesc::newIntermediateStateDesc).toList();
     }
-
-    record IntermediateStateDesc(String name, String elementType) {}
 
     ClassName implementation() {
         return implementation;
@@ -138,6 +138,8 @@ public class AggregatorImplementer {
         switch (initReturn) {
             case "double":
                 return "double";
+            case "float":
+                return "float";
             case "long":
                 return "long";
             case "int":
@@ -153,6 +155,7 @@ public class AggregatorImplementer {
         return switch (valueType(init, combine)) {
             case "boolean" -> BOOLEAN_BLOCK;
             case "double" -> DOUBLE_BLOCK;
+            case "float" -> FLOAT_BLOCK;
             case "long" -> LONG_BLOCK;
             case "int" -> INT_BLOCK;
             case "org.apache.lucene.util.BytesRef" -> BYTES_REF_BLOCK;
@@ -164,6 +167,7 @@ public class AggregatorImplementer {
         return switch (valueType(init, combine)) {
             case "boolean" -> BOOLEAN_VECTOR;
             case "double" -> DOUBLE_VECTOR;
+            case "float" -> FLOAT_VECTOR;
             case "long" -> LONG_VECTOR;
             case "int" -> INT_VECTOR;
             case "org.apache.lucene.util.BytesRef" -> BYTES_REF_VECTOR;
@@ -229,7 +233,7 @@ public class AggregatorImplementer {
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
         }
-        if (init.getParameters().isEmpty()) {
+        if (createParameters.isEmpty()) {
             builder.addStatement("return new $T(driverContext, channels, $L)", implementation, callInit());
         } else {
             builder.addStatement(
@@ -410,20 +414,7 @@ public class AggregatorImplementer {
         builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
         for (int i = 0; i < intermediateState.size(); i++) {
             var interState = intermediateState.get(i);
-            ClassName blockType = blockType(interState.elementType());
-            builder.addStatement("Block $L = page.getBlock(channels.get($L))", interState.name + "Uncast", i);
-            builder.beginControlFlow("if ($L.areAllValuesNull())", interState.name + "Uncast");
-            {
-                builder.addStatement("return");
-                builder.endControlFlow();
-            }
-            builder.addStatement(
-                "$T $L = (($T) $L).asVector()",
-                vectorType(interState.elementType()),
-                interState.name(),
-                blockType,
-                interState.name() + "Uncast"
-            );
+            interState.assignToVariable(builder, i);
             builder.addStatement("assert $L.getPositionCount() == 1", interState.name());
         }
         if (combineIntermediate != null) {
@@ -449,25 +440,21 @@ public class AggregatorImplementer {
     }
 
     String intermediateStateRowAccess() {
-        return intermediateState.stream().map(AggregatorImplementer::vectorAccess).collect(joining(", "));
-    }
-
-    static String vectorAccess(IntermediateStateDesc isd) {
-        String s = isd.name() + "." + vectorAccessorName(isd.elementType()) + "(0";
-        if (isd.elementType().equals("BYTES_REF")) {
-            s += ", scratch";
-        }
-        return s + ")";
+        return intermediateState.stream().map(desc -> desc.access("0")).collect(joining(", "));
     }
 
     private String primitiveStateMethod() {
         switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.BooleanState":
+                return "booleanValue";
             case "org.elasticsearch.compute.aggregation.IntState":
                 return "intValue";
             case "org.elasticsearch.compute.aggregation.LongState":
                 return "longValue";
             case "org.elasticsearch.compute.aggregation.DoubleState":
                 return "doubleValue";
+            case "org.elasticsearch.compute.aggregation.FloatState":
+                return "floatValue";
             default:
                 throw new IllegalArgumentException(
                     "don't know how to fetch primitive values from " + stateType + ". define combineIntermediate."
@@ -509,6 +496,9 @@ public class AggregatorImplementer {
 
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.BooleanState":
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.booleanValue(), 1)");
+                return;
             case "org.elasticsearch.compute.aggregation.IntState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1)");
                 return;
@@ -517,6 +507,9 @@ public class AggregatorImplementer {
                 return;
             case "org.elasticsearch.compute.aggregation.DoubleState":
                 builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(state.doubleValue(), 1)");
+                return;
+            case "org.elasticsearch.compute.aggregation.FloatState":
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantFloatBlockWith(state.floatValue(), 1)");
                 return;
             default:
                 throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);
@@ -543,9 +536,48 @@ public class AggregatorImplementer {
 
     private boolean hasPrimitiveState() {
         return switch (stateType.toString()) {
-            case "org.elasticsearch.compute.aggregation.IntState", "org.elasticsearch.compute.aggregation.LongState",
-                "org.elasticsearch.compute.aggregation.DoubleState" -> true;
+            case "org.elasticsearch.compute.aggregation.BooleanState", "org.elasticsearch.compute.aggregation.IntState",
+                "org.elasticsearch.compute.aggregation.LongState", "org.elasticsearch.compute.aggregation.DoubleState",
+                "org.elasticsearch.compute.aggregation.FloatState" -> true;
             default -> false;
         };
+    }
+
+    record IntermediateStateDesc(String name, String elementType, boolean block) {
+        static IntermediateStateDesc newIntermediateStateDesc(IntermediateState state) {
+            String type = state.type();
+            boolean block = false;
+            if (type.toUpperCase(Locale.ROOT).endsWith("_BLOCK")) {
+                type = type.substring(0, type.length() - "_BLOCK".length());
+                block = true;
+            }
+            return new IntermediateStateDesc(state.name(), type, block);
+        }
+
+        public String access(String position) {
+            if (block) {
+                return name();
+            }
+            String s = name() + "." + vectorAccessorName(elementType()) + "(" + position;
+            if (elementType().equals("BYTES_REF")) {
+                s += ", scratch";
+            }
+            return s + ")";
+        }
+
+        public void assignToVariable(MethodSpec.Builder builder, int offset) {
+            builder.addStatement("Block $L = page.getBlock(channels.get($L))", name + "Uncast", offset);
+            ClassName blockType = blockType(elementType());
+            builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");
+            {
+                builder.addStatement("return");
+                builder.endControlFlow();
+            }
+            if (block) {
+                builder.addStatement("$T $L = ($T) $L", blockType, name, blockType, name + "Uncast");
+            } else {
+                builder.addStatement("$T $L = (($T) $L).asVector()", vectorType(elementType), name, blockType, name + "Uncast");
+            }
+        }
     }
 }

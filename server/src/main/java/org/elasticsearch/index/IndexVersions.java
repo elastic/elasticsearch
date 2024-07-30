@@ -100,7 +100,18 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_8_12_1_LUCENE_9_9_2 = def(8_500_010, Version.LUCENE_9_9_2);
     public static final IndexVersion NEW_INDEXVERSION_FORMAT = def(8_501_00_0, Version.LUCENE_9_9_1);
     public static final IndexVersion UPGRADE_LUCENE_9_9_2 = def(8_502_00_0, Version.LUCENE_9_9_2);
-
+    public static final IndexVersion TIME_SERIES_ID_HASHING = def(8_502_00_1, Version.LUCENE_9_9_2);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_10 = def(8_503_00_0, Version.LUCENE_9_10_0);
+    public static final IndexVersion TIME_SERIES_ROUTING_HASH_IN_ID = def(8_504_00_0, Version.LUCENE_9_10_0);
+    public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_INT8_HNSW = def(8_505_00_0, Version.LUCENE_9_10_0);
+    public static final IndexVersion DOC_VALUES_FOR_IGNORED_META_FIELD = def(8_505_00_1, Version.LUCENE_9_10_0);
+    public static final IndexVersion SOURCE_MAPPER_LOSSY_PARAMS_CHECK = def(8_506_00_0, Version.LUCENE_9_10_0);
+    public static final IndexVersion SEMANTIC_TEXT_FIELD_TYPE = def(8_507_00_0, Version.LUCENE_9_10_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_11 = def(8_508_00_0, Version.LUCENE_9_11_0);
+    public static final IndexVersion UNIQUE_TOKEN_FILTER_POS_FIX = def(8_509_00_0, Version.LUCENE_9_11_0);
+    public static final IndexVersion ADD_SECURITY_MIGRATION = def(8_510_00_0, Version.LUCENE_9_11_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_11_1 = def(8_511_00_0, Version.LUCENE_9_11_1);
+    public static final IndexVersion INDEX_SORTING_ON_NESTED = def(8_512_00_0, Version.LUCENE_9_11_1);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

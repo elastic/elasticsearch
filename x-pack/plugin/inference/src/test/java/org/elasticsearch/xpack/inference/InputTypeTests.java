@@ -12,10 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 
 public class InputTypeTests extends ESTestCase {
     public static InputType randomWithoutUnspecified() {
-        return randomFrom(InputType.INGEST, InputType.SEARCH);
-    }
-
-    public static InputType[] valuesWithoutUnspecified() {
-        return new InputType[] { InputType.INGEST, InputType.SEARCH };
+        return randomFrom(InputType.INGEST, InputType.SEARCH, InputType.CLUSTERING, InputType.CLASSIFICATION);
     }
 }

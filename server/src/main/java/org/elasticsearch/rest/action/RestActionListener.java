@@ -21,9 +21,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
  */
 public abstract class RestActionListener<Response> implements ActionListener<Response> {
 
-    // we use static here so we won't have to pass the actual logger each time for a very rare case of logging
-    // where the settings don't matter that much
-    private static final Logger logger = LogManager.getLogger(RestResponseListener.class);
+    private static final Logger logger = LogManager.getLogger(RestActionListener.class);
 
     protected final RestChannel channel;
 

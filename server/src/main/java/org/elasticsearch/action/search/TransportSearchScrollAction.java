@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -36,34 +37,57 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private static final Logger logger = LogManager.getLogger(TransportSearchScrollAction.class);
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportSearchScrollAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingListener = listener.delegateFailureAndWrap((l, searchResponse) -> {
-            if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
-                for (ShardOperationFailedException f : groupedFailures) {
-                    Throwable cause = f.getCause() == null ? f : f.getCause();
-                    if (ExceptionsHelper.status(cause).getStatus() >= 500
-                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(cause) == false) {
-                        logger.warn("TransportSearchScrollAction shard failure (partial results response)", f);
+        ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
+                        SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
+                    if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                        for (ShardOperationFailedException f : groupedFailures) {
+                            Throwable cause = f.getCause() == null ? f : f.getCause();
+                            if (ExceptionsHelper.status(cause).getStatus() >= 500
+                                && ExceptionsHelper.isNodeOrShardUnavailableTypeException(cause) == false) {
+                                logger.warn("TransportSearchScrollAction shard failure (partial results response)", f);
+                                responseCountTotalStatus = SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE;
+                            }
+                        }
                     }
+                    listener.onResponse(searchResponse);
+                    // increment after the delegated onResponse to ensure we don't
+                    // record both a success and a failure if there is an exception
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                } catch (Exception e) {
+                    onFailure(e);
                 }
             }
-            l.onResponse(searchResponse);
-        });
+
+            @Override
+            public void onFailure(Exception e) {
+                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                listener.onFailure(e);
+            }
+        };
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
             Runnable action = switch (scrollId.getType()) {
@@ -74,7 +98,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     request,
                     (SearchTask) task,
                     scrollId,
-                    loggingListener
+                    loggingAndMetrics
                 );
                 case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
                     new SearchScrollQueryAndFetchAsyncAction(
@@ -84,7 +108,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        loggingListener
+                        loggingAndMetrics
                     );
                 default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             };

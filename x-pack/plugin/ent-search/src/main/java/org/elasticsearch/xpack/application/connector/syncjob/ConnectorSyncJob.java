@@ -91,7 +91,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     public static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
 
-    static final ParseField METADATA_FIELD = new ParseField("metadata");
+    public static final ParseField METADATA_FIELD = new ParseField("metadata");
 
     static final ParseField STARTED_AT_FIELD = new ParseField("started_at");
 
@@ -101,7 +101,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     public static final ParseField TRIGGER_METHOD_FIELD = new ParseField("trigger_method");
 
-    static final ParseField WORKER_HOSTNAME_FIELD = new ParseField("worker_hostname");
+    public static final ParseField WORKER_HOSTNAME_FIELD = new ParseField("worker_hostname");
 
     static final ConnectorSyncStatus DEFAULT_INITIAL_STATUS = ConnectorSyncStatus.PENDING;
 
@@ -322,7 +322,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             STATUS_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareLong(constructorArg(), TOTAL_DOCUMENT_COUNT_FIELD);
+        PARSER.declareLongOrNull(constructorArg(), 0L, TOTAL_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             constructorArg(),
             (p, c) -> ConnectorSyncJobTriggerMethod.fromString(p.text()),

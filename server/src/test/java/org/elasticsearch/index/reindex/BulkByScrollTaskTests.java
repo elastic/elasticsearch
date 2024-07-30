@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static java.lang.Math.min;
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
@@ -54,8 +53,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
         long searchRetries,
         String fieldName
     ) {
-        TimeValue throttle = parseTimeValue(randomPositiveTimeValue(), "test");
-        TimeValue throttledUntil = parseTimeValue(randomPositiveTimeValue(), "test");
+        TimeValue throttle = randomPositiveTimeValue();
+        TimeValue throttledUntil = randomPositiveTimeValue();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

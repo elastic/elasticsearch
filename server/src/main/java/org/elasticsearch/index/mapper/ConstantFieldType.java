@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -131,5 +132,11 @@ public abstract class ConstantFieldType extends MappedFieldType {
         } else {
             return new MatchNoDocsQuery();
         }
+    }
+
+    @Override
+    public final boolean fieldHasValue(FieldInfos fieldInfos) {
+        // We consider constant field types to always have value.
+        return true;
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +35,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class QueryUserIT extends SecurityInBasicRestTestCase {
 
-    private static final String READ_USERS_USER_AUTH_HEADER = "Basic cmVhZF91c2Vyc191c2VyOnJlYWQtdXNlcnMtcGFzc3dvcmQ=";
+    private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
     private static final String TEST_USER_NO_READ_USERS_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
 
     private static final Set<String> reservedUsers = Set.of(
@@ -47,15 +49,22 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     );
 
     private Request queryUserRequestWithAuth() {
-        final Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/user");
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_USERS_USER_AUTH_HEADER));
+        return queryUserRequestWithAuth(false);
+    }
+
+    private Request queryUserRequestWithAuth(boolean withProfileId) {
+        final Request request = new Request(
+            randomFrom("POST", "GET"),
+            "/_security/_query/user" + (withProfileId ? "?with_profile_uid=true" : randomFrom("", "?with_profile_uid=false"))
+        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
         return request;
     }
 
     public void testQuery() throws IOException {
+        boolean withProfileId = randomBoolean();
         // No users to match yet
-        assertQuery("", users -> assertThat(users, empty()));
-
+        assertQuery("", users -> assertThat(users, empty()), withProfileId);
         int randomUserCount = createRandomUsers().size();
 
         // An empty request body means search for all users (page size = 10)
@@ -65,7 +74,8 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         assertQuery(
             String.format("""
                 {"query":{"match_all":{}},"from":0,"size":%s}""", randomUserCount),
-            users -> assertThat(users.size(), equalTo(randomUserCount))
+            users -> assertThat(users.size(), equalTo(randomUserCount)),
+            withProfileId
         );
 
         // Exists query
@@ -73,7 +83,8 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         assertQuery(
             String.format("""
                 {"query":{"exists":{"field":"%s"}},"from":0,"size":%s}""", field, randomUserCount),
-            users -> assertEquals(users.size(), randomUserCount)
+            users -> assertEquals(users.size(), randomUserCount),
+            withProfileId
         );
 
         // Prefix search
@@ -93,28 +104,41 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             Map.of(),
             true
         );
+        // Extract map to be able to assert on profile id (not part of User model)
+        Map<String, Object> prefixUser1Map;
+        Map<String, Object> prefixUser2Map;
+        if (withProfileId) {
+            prefixUser1Map = userToMap(prefixUser1, doActivateProfile(prefixUser1.principal(), "100%-security-guaranteed"));
+            prefixUser2Map = userToMap(prefixUser2, doActivateProfile(prefixUser2.principal(), "100%-security-guaranteed"));
+            assertTrue(prefixUser1Map.containsKey("profile_uid"));
+            assertTrue(prefixUser2Map.containsKey("profile_uid"));
+        } else {
+            prefixUser1Map = userToMap(prefixUser1);
+            prefixUser2Map = userToMap(prefixUser2);
+        }
+
         assertQuery("""
             {"query":{"bool":{"must":[{"prefix":{"roles":"master-of-the"}}]}},"sort":["username"]}""", returnedUsers -> {
             assertThat(returnedUsers, hasSize(2));
-            assertUser(prefixUser1, returnedUsers.get(0));
-            assertUser(prefixUser2, returnedUsers.get(1));
-        });
+            assertUser(prefixUser1Map, returnedUsers.get(0));
+            assertUser(prefixUser2Map, returnedUsers.get(1));
+        }, withProfileId);
 
         // Wildcard search
         assertQuery("""
             { "query": { "wildcard": {"username": "mr-prefix*"} },"sort":["username"]}""", users -> {
             assertThat(users.size(), equalTo(2));
-            assertUser(prefixUser1, users.get(0));
-            assertUser(prefixUser2, users.get(1));
-        });
+            assertUser(prefixUser1Map, users.get(0));
+            assertUser(prefixUser2Map, users.get(1));
+        }, withProfileId);
 
         // Terms query
         assertQuery("""
             {"query":{"terms":{"roles":["some-other-role"]}},"sort":["username"]}""", users -> {
             assertThat(users.size(), equalTo(2));
-            assertUser(prefixUser1, users.get(0));
-            assertUser(prefixUser2, users.get(1));
-        });
+            assertUser(prefixUser1Map, users.get(0));
+            assertUser(prefixUser2Map, users.get(1));
+        }, withProfileId);
 
         // Test other fields
         User otherFieldsTestUser = createUser(
@@ -136,17 +160,27 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             users -> assertThat(
                 users.stream().map(u -> u.get(User.Fields.USERNAME.getPreferredName()).toString()).toList(),
                 hasItem("batman-official-user")
-            )
+            ),
+            withProfileId
         );
-
+        Map<String, Object> otherFieldsTestUserMap;
+        if (withProfileId) {
+            otherFieldsTestUserMap = userToMap(
+                otherFieldsTestUser,
+                doActivateProfile(otherFieldsTestUser.principal(), "100%-security-guaranteed")
+            );
+            assertTrue(otherFieldsTestUserMap.containsKey("profile_uid"));
+        } else {
+            otherFieldsTestUserMap = userToMap(otherFieldsTestUser);
+        }
         // Test complex query
         assertQuery("""
             { "query": {"bool": {"must": [
             {"wildcard": {"username": "batman-official*"}},
             {"term": {"enabled": true}}],"filter": [{"prefix": {"roles": "bat-cave"}}]}}}""", users -> {
             assertThat(users.size(), equalTo(1));
-            assertUser(otherFieldsTestUser, users.get(0));
-        });
+            assertUser(otherFieldsTestUserMap, users.get(0));
+        }, withProfileId);
 
         // Search for fields outside the allowlist fails
         assertQueryError(400, """
@@ -161,13 +195,13 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         assertQueryError(TEST_USER_NO_READ_USERS_AUTH_HEADER, 403, """
             { "query": { "wildcard": {"name": "*prefix*"} } }""");
 
-        // Range query not supported
+        // Span term query not supported
         assertQueryError(400, """
-            {"query":{"range":{"username":{"lt":"now"}}}}""");
+            {"query":{"span_term":{"username": "X"} } }""");
 
-        // IDs query not supported
+        // Fuzzy query not supported
         assertQueryError(400, """
-            { "query": { "ids": { "values": "abc" } } }""");
+            { "query": { "fuzzy": { "username": "X" } } }""");
 
         // Make sure we can't query reserved users
         String reservedUsername = getReservedUsernameAndAssertExists();
@@ -223,7 +257,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         assertUsers(users, allUserInfos, sortField, from);
 
         // size can be zero, but total should still reflect the number of users matched
-        final Request request = queryUserRequestWithAuth();
+        final Request request = queryUserRequestWithAuth(false);
         request.setJsonEntity("{\"size\":0}");
         final Response response = client().performRequest(request);
         assertOK(response);
@@ -287,10 +321,10 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
 
         final String invalidSortName = randomFrom("email", "full_name");
         assertQueryError(
-            READ_USERS_USER_AUTH_HEADER,
+            READ_SECURITY_USER_AUTH_HEADER,
             400,
-            String.format("{\"sort\":[\"%s\"]}", invalidSortName),
-            String.format("sorting is not supported for field [%s] in User query", invalidSortName)
+            Strings.format("{\"sort\":[\"%s\"]}", invalidSortName),
+            Strings.format("sorting is not supported for field [%s]", invalidSortName)
         );
     }
 
@@ -304,7 +338,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             putUserRequest.setJsonEntity("{\"enabled\": true}");
         }
 
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_USERS_USER_AUTH_HEADER));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_SECURITY_USER_AUTH_HEADER));
         final Response response = client().performRequest(request);
         assertOK(response);
         final Map<String, Object> responseMap = responseAsMap(response);
@@ -329,7 +363,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertQueryError(int statusCode, String body) {
-        assertQueryError(READ_USERS_USER_AUTH_HEADER, statusCode, body);
+        assertQueryError(READ_SECURITY_USER_AUTH_HEADER, statusCode, body);
     }
 
     private void assertQueryError(String authHeader, int statusCode, String body) {
@@ -348,7 +382,11 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertQuery(String body, Consumer<List<Map<String, Object>>> userVerifier) throws IOException {
-        final Request request = queryUserRequestWithAuth();
+        assertQuery(body, userVerifier, false);
+    }
+
+    private void assertQuery(String body, Consumer<List<Map<String, Object>>> userVerifier, boolean withProfileId) throws IOException {
+        final Request request = queryUserRequestWithAuth(withProfileId);
         request.setJsonEntity(body);
         final Response response = client().performRequest(request);
         assertOK(response);
@@ -369,6 +407,8 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             ((List<String>) expectedUser.get(User.Fields.ROLES.getPreferredName())).toArray(),
             ((List<String>) actualUser.get(User.Fields.ROLES.getPreferredName())).toArray()
         );
+        assertEquals(expectedUser.getOrDefault("profile_uid", null), actualUser.getOrDefault("profile_uid", null));
+
         assertEquals(expectedUser.get(User.Fields.FULL_NAME.getPreferredName()), actualUser.get(User.Fields.FULL_NAME.getPreferredName()));
         assertEquals(expectedUser.get(User.Fields.EMAIL.getPreferredName()), actualUser.get(User.Fields.EMAIL.getPreferredName()));
         assertEquals(expectedUser.get(User.Fields.METADATA.getPreferredName()), actualUser.get(User.Fields.METADATA.getPreferredName()));
@@ -376,20 +416,21 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     }
 
     private Map<String, Object> userToMap(User user) {
-        return Map.of(
-            User.Fields.USERNAME.getPreferredName(),
-            user.principal(),
-            User.Fields.ROLES.getPreferredName(),
-            Arrays.stream(user.roles()).toList(),
-            User.Fields.FULL_NAME.getPreferredName(),
-            user.fullName(),
-            User.Fields.EMAIL.getPreferredName(),
-            user.email(),
-            User.Fields.METADATA.getPreferredName(),
-            user.metadata(),
-            User.Fields.ENABLED.getPreferredName(),
-            user.enabled()
-        );
+        return userToMap(user, null);
+    }
+
+    private Map<String, Object> userToMap(User user, @Nullable String profileId) {
+        Map<String, Object> userMap = new HashMap<>();
+        userMap.put(User.Fields.USERNAME.getPreferredName(), user.principal());
+        userMap.put(User.Fields.ROLES.getPreferredName(), Arrays.stream(user.roles()).toList());
+        userMap.put(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
+        userMap.put(User.Fields.EMAIL.getPreferredName(), user.email());
+        userMap.put(User.Fields.METADATA.getPreferredName(), user.metadata());
+        userMap.put(User.Fields.ENABLED.getPreferredName(), user.enabled());
+        if (profileId != null) {
+            userMap.put("profile_uid", profileId);
+        }
+        return userMap;
     }
 
     private void assertUsers(List<User> expectedUsers, List<Map<String, Object>> actualUsers, String sortField, int from) {
@@ -421,6 +462,26 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             Map.of(),
             null
         );
+    }
+
+    private String doActivateProfile(String username, String password) {
+        final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
+        activateProfileRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
+            {
+              "grant_type": "password",
+              "username": "%s",
+              "password": "%s"
+            }""", username, password));
+
+        final Response activateProfileResponse;
+
+        try {
+            activateProfileResponse = adminClient().performRequest(activateProfileRequest);
+            assertOK(activateProfileResponse);
+            return responseAsMap(activateProfileResponse).get("uid").toString();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private List<User> createRandomUsers() throws IOException {

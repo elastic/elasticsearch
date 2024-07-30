@@ -54,7 +54,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     }
 
     private void indexDoc(LuceneDocument parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
-        IndexableField field = parseDoc.getByKey(wildcardFieldMapper.name());
+        IndexableField field = parseDoc.getByKey(wildcardFieldMapper.fullPath());
         if (field != null) {
             doc.add(field);
         }

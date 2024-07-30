@@ -59,17 +59,14 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
                 List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).shard(0), null, null, randomBoolean())),
                 List.of()
             );
-            assertThat(
-                clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(),
-                equalTo(failedNodeIds)
-            );
+            assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().failedNodeIds(), equalTo(failedNodeIds));
         }
 
         // reroute with retryFailed=true should discard the failedNodes
         assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).state(), equalTo(ShardRoutingState.UNASSIGNED));
         clusterState = allocationService.reroute(clusterState, new AllocationCommands(), false, true, false, ActionListener.noop())
             .clusterState();
-        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().failedNodeIds(), empty());
 
         // do not track the failed nodes while shard is started
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
@@ -79,6 +76,6 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
             List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).primaryShard(), null, null, false)),
             List.of()
         );
-        assertThat(clusterState.routingTable().index("idx").shard(0).primaryShard().unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(clusterState.routingTable().index("idx").shard(0).primaryShard().unassignedInfo().failedNodeIds(), empty());
     }
 }

@@ -36,14 +36,12 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,7 +78,7 @@ public class EnrichPolicyResolver {
         this.threadPool = transportService.getThreadPool();
         transportService.registerRequestHandler(
             RESOLVE_ACTION_NAME,
-            threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME),
+            threadPool.executor(ThreadPool.Names.SEARCH),
             LookupRequest::new,
             new RequestHandler()
         );
@@ -194,7 +192,7 @@ public class EnrichPolicyResolver {
                 EsField field = m.getValue();
                 field = new EsField(
                     field.getName(),
-                    EsqlDataTypes.fromTypeName(field.getDataType().typeName()),
+                    DataType.fromTypeName(field.getDataType().typeName()),
                     field.getProperties(),
                     field.isAggregatable(),
                     field.isAlias()
@@ -228,8 +226,8 @@ public class EnrichPolicyResolver {
 
     private String missingPolicyError(String policyName, Collection<String> targetClusters, List<String> missingClusters) {
         // local cluster only
+        String reason = "cannot find enrich policy [" + policyName + "]";
         if (targetClusters.size() == 1 && Iterables.get(missingClusters, 0).isEmpty()) {
-            String reason = "enrich policy [" + policyName + "] doesn't exist";
             // accessing the policy names directly after we have checked the permission.
             List<String> potentialMatches = StringUtils.findSimilar(policyName, availablePolicies().keySet());
             if (potentialMatches.isEmpty() == false) {
@@ -239,7 +237,7 @@ public class EnrichPolicyResolver {
             return reason;
         }
         String detailed = missingClusters.stream().sorted().map(c -> c.isEmpty() ? "_local" : c).collect(Collectors.joining(", "));
-        return "enrich policy [" + policyName + "] doesn't exist on clusters [" + detailed + "]";
+        return reason + " on clusters [" + detailed + "]";
     }
 
     private void lookupPolicies(
@@ -272,7 +270,7 @@ public class EnrichPolicyResolver {
                         new ActionListenerResponseHandler<>(
                             refs.acquire(resp -> lookupResponses.put(cluster, resp)),
                             LookupResponse::new,
-                            threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME)
+                            threadPool.executor(ThreadPool.Names.SEARCH)
                         )
                     );
                 }
@@ -290,7 +288,7 @@ public class EnrichPolicyResolver {
                     new ActionListenerResponseHandler<>(
                         refs.acquire(resp -> lookupResponses.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resp)),
                         LookupResponse::new,
-                        threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME)
+                        threadPool.executor(ThreadPool.Names.SEARCH)
                     )
                 );
             }
@@ -360,29 +358,22 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(
-                            indexName,
-                            IndexResolver.ALL_FIELDS,
-                            false,
-                            Map.of(),
-                            refs.acquire(indexResult -> {
-                                if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
-                                    EsIndex esIndex = indexResult.get();
-                                    var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
-                                    var resolved = new ResolvedEnrichPolicy(
-                                        p.getMatchField(),
-                                        p.getType(),
-                                        p.getEnrichFields(),
-                                        concreteIndices,
-                                        esIndex.mapping()
-                                    );
-                                    resolvedPolices.put(policyName, resolved);
-                                } else {
-                                    failures.put(policyName, indexResult.toString());
-                                }
-                            }),
-                            EsqlSession::specificValidity
-                        );
+                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
+                            if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
+                                EsIndex esIndex = indexResult.get();
+                                var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
+                                var resolved = new ResolvedEnrichPolicy(
+                                    p.getMatchField(),
+                                    p.getType(),
+                                    p.getEnrichFields(),
+                                    concreteIndices,
+                                    esIndex.mapping()
+                                );
+                                resolvedPolices.put(policyName, resolved);
+                            } else {
+                                failures.put(policyName, indexResult.toString());
+                            }
+                        }));
                     }
                 }
             }

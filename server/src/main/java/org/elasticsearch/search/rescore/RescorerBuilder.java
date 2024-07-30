@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -118,6 +120,10 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         return builder;
     }
 
+    public ActionRequestValidationException validate(SearchSourceBuilder source, ActionRequestValidationException validationException) {
+        return validationException;
+    }
+
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     /**
@@ -136,8 +142,8 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
             assert windowSize != null;
         }
         int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
-        RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
-        return rescoreContext;
+
+        return innerBuildContext(finalWindowSize, context);
     }
 
     /**

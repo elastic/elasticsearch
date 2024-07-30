@@ -13,13 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -38,136 +37,140 @@ public class RightTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        suppliers.add(new TestCaseSupplier("empty string", () -> {
+        suppliers.add(new TestCaseSupplier("empty string", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             int length = between(-64, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(""), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(""), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(""))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("ascii", () -> {
+        suppliers.add(new TestCaseSupplier("ascii", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii longer than string", () -> {
+        suppliers.add(new TestCaseSupplier("ascii longer than string", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(text.length(), 128);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(text))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii zero length", () -> {
+        suppliers.add(new TestCaseSupplier("ascii zero length", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(0, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(0, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(""))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii negative length", () -> {
+        suppliers.add(new TestCaseSupplier("ascii negative length", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(-128, -1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(""))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("unicode", () -> {
+        suppliers.add(new TestCaseSupplier("unicode", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode longer than string", () -> {
+        suppliers.add(new TestCaseSupplier("unicode longer than string", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(text.length(), 128);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(text))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode zero length", () -> {
+        suppliers.add(new TestCaseSupplier("unicode zero length", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(0, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(0, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(""))
             );
         }));
-        suppliers.add(new TestCaseSupplier("unicode negative length", () -> {
+        suppliers.add(new TestCaseSupplier("unicode negative length", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(-128, -1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(""))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii as text", () -> {
+        suppliers.add(new TestCaseSupplier("ascii as text", List.of(DataType.TEXT, DataType.INTEGER), () -> {
             String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
                 ),
                 "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
+            case 0 -> "string";
+            case 1 -> "integer";
+            default -> throw new IllegalStateException("bad parameter number");
+        });
     }
 
     private static String unicodeRightSubstring(String str, int length) {
@@ -188,16 +191,6 @@ public class RightTests extends AbstractScalarFunctionTestCase {
         return new Right(source, args.get(0), args.get(1));
     }
 
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(integers()));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
-    }
-
     public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         int length = (Integer) typedData.get(1).data();
@@ -213,7 +206,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
     private String process(String str, int length) {
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
-                new Right(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
+                new Right(Source.EMPTY, field("str", DataType.KEYWORD), new Literal(Source.EMPTY, length, DataType.INTEGER))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {

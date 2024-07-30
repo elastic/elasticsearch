@@ -144,7 +144,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     @Override
     public StreamInput streamInput() throws IOException {
         assert hasReferences();
-        return new BytesReferenceStreamInput(this) {
+        return new BytesReferenceStreamInput(delegate) {
             private ReleasableBytesReference retainAndSkip(int len) throws IOException {
                 if (len == 0) {
                     return ReleasableBytesReference.empty();

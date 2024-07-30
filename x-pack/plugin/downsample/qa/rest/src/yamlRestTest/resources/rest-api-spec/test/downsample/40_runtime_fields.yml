@@ -1,9 +1,9 @@
 ---
 "Runtime fields accessing metric fields in downsample target index":
-  - skip:
-      version: " - 8.4.99"
-      reason: "downsample introduced in 8.5.0"
-      features: close_to
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
+      test_runner_features: close_to
 
   - do:
       indices.create:
@@ -140,31 +140,31 @@
 
   - length: { hits.hits: 4 }
 
-  - close_to: { hits.hits.0.fields.received_kb.0: { value: 783343.5488, error: 0.0001 } }
-  - close_to: { hits.hits.0.fields.sent_kb.0: { value: 1954908.8779, error: 0.0001 } }
-  - close_to: { hits.hits.0.fields.tx_kb.0: { value: 1958181.5957, error: 0.0001 } }
-  - close_to: { hits.hits.0.fields.rx_kb.0: { value: 783333.7832, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.received_kb.0: { value: 518142.3935, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.sent_kb.0: { value: 1400935.4472, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.tx_kb.0: { value: 1400955.0009, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.rx_kb.0: { value: 518164.1484, error: 0.0001 } }
 
-  - close_to: { hits.hits.1.fields.received_kb.0: { value: 783377.7343, error: 0.0001 } }
-  - close_to: { hits.hits.1.fields.sent_kb.0: { value: 1955339.7343, error: 0.0001 } }
-  - close_to: { hits.hits.1.fields.tx_kb.0: { value: 1965738.4785, error: 0.0001 } }
-  - close_to: { hits.hits.1.fields.rx_kb.0: { value: 784849.3369, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.received_kb.0: { value: 518186.5039, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.sent_kb.0: { value: 1400988.2822, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.tx_kb.0: { value: 1400971.9453, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.rx_kb.0: { value: 518169.4443, error: 0.0001 } }
 
-  - close_to: { hits.hits.2.fields.received_kb.0: { value: 518142.3935, error: 0.0001 } }
-  - close_to: { hits.hits.2.fields.sent_kb.0: { value: 1400935.4472, error: 0.0001 } }
-  - close_to: { hits.hits.2.fields.tx_kb.0: { value: 1400955.0009, error: 0.0001 } }
-  - close_to: { hits.hits.2.fields.rx_kb.0: { value: 518164.1484, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.received_kb.0: { value: 783343.5488, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.sent_kb.0: { value: 1954908.8779, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.tx_kb.0: { value: 1958181.5957, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.rx_kb.0: { value: 783333.7832, error: 0.0001 } }
 
-  - close_to: { hits.hits.3.fields.received_kb.0: { value: 518186.5039, error: 0.0001 } }
-  - close_to: { hits.hits.3.fields.sent_kb.0: { value: 1400988.2822, error: 0.0001 } }
-  - close_to: { hits.hits.3.fields.tx_kb.0: { value: 1400971.9453, error: 0.0001 } }
-  - close_to: { hits.hits.3.fields.rx_kb.0: { value: 518169.4443, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.received_kb.0: { value: 783377.7343, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.sent_kb.0: { value: 1955339.7343, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.tx_kb.0: { value: 1965738.4785, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.rx_kb.0: { value: 784849.3369, error: 0.0001 } }
 
 ---
 "Runtime field accessing dimension fields in downsample target index":
-  - skip:
-      version: " - 8.4.99"
-      reason: "downsample introduced in 8.5.0"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -276,16 +276,16 @@
 
   - length: { hits.hits: 4 }
 
-  - match: { hits.hits.0.fields.metricset_tag.0: "pod-AAA" }
-  - match: { hits.hits.1.fields.metricset_tag.0: "pod-AAB" }
-  - match: { hits.hits.2.fields.metricset_tag.0: "pod-AAC" }
-  - match: { hits.hits.3.fields.metricset_tag.0: "pod-AAD" }
+  - match: { hits.hits.0.fields.metricset_tag.0: "pod-AAD" }
+  - match: { hits.hits.1.fields.metricset_tag.0: "pod-AAC" }
+  - match: { hits.hits.2.fields.metricset_tag.0: "pod-AAB" }
+  - match: { hits.hits.3.fields.metricset_tag.0: "pod-AAA" }
 
 ---
 "Runtime field accessing label fields in downsample target index":
-  - skip:
-      version: " - 8.4.99"
-      reason: "downsample introduced in 8.5.0"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -398,7 +398,7 @@
 
   - length: { hits.hits: 4 }
 
-  - match: { hits.hits.0.fields.labels.0: "AAA-10" }
-  - match: { hits.hits.1.fields.labels.0: "AAB-110" }
-  - match: { hits.hits.2.fields.labels.0: "AAC-11" }
-  - match: { hits.hits.3.fields.labels.0: "AAD-111" }
+  - match: { hits.hits.0.fields.labels.0: "AAC-11" }
+  - match: { hits.hits.1.fields.labels.0: "AAD-111" }
+  - match: { hits.hits.2.fields.labels.0: "AAA-10" }
+  - match: { hits.hits.3.fields.labels.0: "AAB-110" }

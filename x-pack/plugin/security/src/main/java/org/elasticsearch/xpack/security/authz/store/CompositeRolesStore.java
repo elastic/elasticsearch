@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetB
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -103,7 +105,6 @@ public class CompositeRolesStore {
     private final Role superuserRole;
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
-    private final WorkflowService workflowService;
     private final ThreadContext threadContext;
 
     public CompositeRolesStore(
@@ -117,8 +118,7 @@ public class CompositeRolesStore {
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
-        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer,
-        WorkflowService workflowService
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
         this.roleProviders = roleProviders;
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
@@ -178,7 +178,6 @@ public class CompositeRolesStore {
             effectiveRoleDescriptorsConsumer
         );
         this.anonymousUser = new AnonymousUser(settings);
-        this.workflowService = workflowService;
         this.threadContext = threadContext;
     }
 
@@ -432,6 +431,7 @@ public class CompositeRolesStore {
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
         final Set<String> workflows = new HashSet<>();
         final List<String> roleNames = new ArrayList<>(roleDescriptors.size());
+        final RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
@@ -449,6 +449,12 @@ public class CompositeRolesStore {
 
             if (descriptor.hasRemoteIndicesPrivileges()) {
                 groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
+            }
+
+            if (descriptor.hasRemoteClusterPermissions()) {
+                for (RemoteClusterPermissionGroup groups : descriptor.getRemoteClusterPermissions().groups()) {
+                    remoteClusterPermissions.addGroup(groups);
+                }
             }
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
@@ -493,7 +499,7 @@ public class CompositeRolesStore {
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
             remoteIndicesPrivilegesForCluster.forEach(
-                (privilege) -> builder.addRemoteGroup(
+                (privilege) -> builder.addRemoteIndicesGroup(
                     clusterAliasKey,
                     fieldPermissionsCache.getFieldPermissions(
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
@@ -505,6 +511,13 @@ public class CompositeRolesStore {
                 )
             );
         });
+
+        if (remoteClusterPermissions.hasPrivileges()) {
+            builder.addRemoteClusterPermissions(remoteClusterPermissions);
+        } else {
+            builder.addRemoteClusterPermissions(RemoteClusterPermissions.NONE);
+        }
+
         if (false == workflows.isEmpty()) {
             builder.workflows(workflows);
         }

@@ -10,8 +10,8 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -242,7 +242,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             )
             .alias(new Alias(AnnotationIndex.READ_ALIAS_NAME).isHidden(true))
             .alias(new Alias(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true));
-        client().execute(CreateIndexAction.INSTANCE, createIndexRequest).actionGet();
+        client().execute(TransportCreateIndexAction.TYPE, createIndexRequest).actionGet();
 
         // Because the old annotations index name began with .ml, it will trigger the new annotations index to be created.
         // When this happens the read alias should be changed to cover both indices, and the write alias should be

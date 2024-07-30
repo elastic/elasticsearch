@@ -30,6 +30,11 @@ capabilities, the local and remote cluster must be on the same
 [discrete]
 === Add remote clusters
 
+NOTE: The instructions that follow describe how to create a remote connection from a 
+self-managed cluster. You can also set up {ccs} and {ccr} from an 
+link:https://www.elastic.co/guide/en/cloud/current/ec-enable-ccs.html[{ess} deployment] 
+or from an link:https://www.elastic.co/guide/en/cloud-enterprise/current/ece-enable-ccs.html[{ece} deployment].
+
 To add remote clusters, you can choose between
 <<remote-clusters-security-models,two security models>> and
 <<sniff-proxy-modes,two connection modes>>. Both security models are compatible
@@ -40,8 +45,7 @@ with either of the connection modes.
 ==== Security models
 
 API key based security model::
-beta:[]
-For clusters on version 8.10 or later, you can use an API key to authenticate
+For clusters on version 8.14 or later, you can use an API key to authenticate
 and authorize cross-cluster operations to a remote cluster. This model offers
 administrators of both the local and the remote cluster fine-grained access
 controls. <<remote-clusters-api-key>>.

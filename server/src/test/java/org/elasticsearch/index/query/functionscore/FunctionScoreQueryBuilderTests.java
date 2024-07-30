@@ -252,8 +252,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     Instant.ofEpochMilli(System.currentTimeMillis() - randomIntBetween(0, 1000000)),
                     ZoneOffset.UTC
                 ).toString();
-                scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
-                offset = randomPositiveTimeValue();
+                scale = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m");
+                offset = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m", "micros", "nanos");
             }
             default -> {
                 origin = randomBoolean() ? randomInt() : randomFloat();

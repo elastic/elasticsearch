@@ -26,6 +26,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateCtxMap;
@@ -47,9 +49,11 @@ public class UpdateHelper {
     private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
+    private final DocumentParsingProvider documentParsingProvider;
 
-    public UpdateHelper(ScriptService scriptService) {
+    public UpdateHelper(ScriptService scriptService, DocumentParsingProvider documentParsingProvider) {
         this.scriptService = scriptService;
+        this.documentParsingProvider = documentParsingProvider;
     }
 
     /**
@@ -174,14 +178,19 @@ public class UpdateHelper {
      * Prepare the request for merging the existing document with a new one, can optionally detect a noop change. Returns a {@code Result}
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
-    static Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
+    Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
+        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
 
-        final boolean noop = XContentHelper.update(updatedSourceAsMap, currentRequest.sourceAsMap(), detectNoop) == false;
+        final boolean noop = XContentHelper.update(
+            updatedSourceAsMap,
+            currentRequest.sourceAsMap(documentSizeObserver),
+            detectNoop
+        ) == false;
 
         // We can only actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle cases
         // where users repopulating multi-fields or adding synonyms, etc.
@@ -209,14 +218,16 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             String index = request.index();
-            final IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
+            IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
                 .setIfSeqNo(getResult.getSeqNo())
                 .setIfPrimaryTerm(getResult.getPrimaryTerm())
                 .waitForActiveShards(request.waitForActiveShards())
                 .timeout(request.timeout())
-                .setRefreshPolicy(request.getRefreshPolicy());
+                .setRefreshPolicy(request.getRefreshPolicy())
+                .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
+
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
     }
@@ -251,14 +262,15 @@ public class UpdateHelper {
         switch (operation) {
             case INDEX -> {
                 String index = request.index();
-                final IndexRequest indexRequest = new IndexRequest(index).id(request.id())
+                IndexRequest indexRequest = new IndexRequest(index).id(request.id())
                     .routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .setIfSeqNo(getResult.getSeqNo())
                     .setIfPrimaryTerm(getResult.getPrimaryTerm())
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
-                    .setRefreshPolicy(request.getRefreshPolicy());
+                    .setRefreshPolicy(request.getRefreshPolicy())
+                    .setOriginatesFromUpdateByScript(true);
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {

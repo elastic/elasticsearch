@@ -301,11 +301,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public String getCustomDataPath() {
             return customDataPath;
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
-        }
     }
 
     public static class NodesStoreFilesMetadata extends BaseNodesResponse<NodeStoreFilesMetadata> {
@@ -381,10 +376,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         public StoreFilesMetadata storeFilesMetadata() {
             return storeFilesMetadata;
-        }
-
-        public static NodeStoreFilesMetadata readListShardStoreNodeOperationResponse(StreamInput in) throws IOException {
-            return new NodeStoreFilesMetadata(in, null);
         }
 
         @Override

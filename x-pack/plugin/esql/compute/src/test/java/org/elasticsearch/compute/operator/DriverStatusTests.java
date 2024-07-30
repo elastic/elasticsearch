@@ -31,7 +31,10 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
     public void testToXContent() {
         DriverStatus status = new DriverStatus(
             "ABC:123",
+            123413220000L,
             123413243214L,
+            123213L,
+            55L,
             DriverStatus.Status.RUNNING,
             List.of(
                 new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
@@ -42,7 +45,11 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         assertThat(Strings.toString(status, true, true), equalTo("""
             {
               "sessionId" : "ABC:123",
+              "started" : "1973-11-29T09:27:00.000Z",
               "last_updated" : "1973-11-29T09:27:23.214Z",
+              "cpu_nanos" : 123213,
+              "cpu_time" : "123.2micros",
+              "iterations" : 55,
               "status" : "running",
               "completed_operators" : [
                 {
@@ -76,7 +83,16 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
 
     @Override
     protected DriverStatus createTestInstance() {
-        return new DriverStatus(randomSessionId(), randomLong(), randomStatus(), randomOperatorStatuses(), randomOperatorStatuses());
+        return new DriverStatus(
+            randomSessionId(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomStatus(),
+            randomOperatorStatuses(),
+            randomOperatorStatuses()
+        );
     }
 
     private String randomSessionId() {
@@ -104,30 +120,25 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
     @Override
     protected DriverStatus mutateInstance(DriverStatus instance) throws IOException {
         var sessionId = instance.sessionId();
+        long started = instance.started();
         long lastUpdated = instance.lastUpdated();
+        long cpuNanos = instance.cpuNanos();
+        long iterations = instance.iterations();
         var status = instance.status();
         var completedOperators = instance.completedOperators();
         var activeOperators = instance.activeOperators();
-        switch (between(0, 4)) {
-            case 0:
-                sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
-                break;
-            case 1:
-                lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomLong);
-                break;
-            case 2:
-                status = randomValueOtherThan(status, this::randomStatus);
-                break;
-            case 3:
-                completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
-                break;
-            case 4:
-                activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
-                break;
-            default:
-                throw new UnsupportedOperationException();
+        switch (between(0, 7)) {
+            case 0 -> sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
+            case 1 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
+            case 2 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
+            case 3 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
+            case 4 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 5 -> status = randomValueOtherThan(status, this::randomStatus);
+            case 6 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
+            case 7 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
+            default -> throw new UnsupportedOperationException();
         }
-        return new DriverStatus(sessionId, lastUpdated, status, completedOperators, activeOperators);
+        return new DriverStatus(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators);
     }
 
     @Override

@@ -35,6 +35,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+
     static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
@@ -70,7 +71,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+            throw buildExceptionHandling429(request, result);
         } else if (isContentTooLarge(result)) {
             throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
         } else if (statusCode == 401) {
@@ -80,6 +81,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
+    }
+
+    protected RetryException buildExceptionHandling429(Request request, HttpResult result) {
+        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
     }
 
     private static boolean isContentTooLarge(HttpResult result) {

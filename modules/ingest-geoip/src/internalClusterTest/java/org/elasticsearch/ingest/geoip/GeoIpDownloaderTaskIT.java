@@ -17,14 +17,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.junit.After;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
+        return List.of(ReindexPlugin.class, IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
     }
 
     @Override

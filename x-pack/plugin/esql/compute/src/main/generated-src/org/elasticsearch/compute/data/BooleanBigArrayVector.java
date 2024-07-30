@@ -8,8 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.io.IOException;
 
 /**
  * Vector implementation that defers to an enclosed {@link BitArray}.
@@ -25,6 +31,25 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     public BooleanBigArrayVector(BitArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static BooleanBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        BitArray values = new BitArray(blockFactory.bigArrays(), true, in);
+        boolean success = false;
+        try {
+            BooleanBigArrayVector vector = new BooleanBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override
@@ -62,6 +87,11 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
             }
         }
         return new BooleanBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BooleanLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

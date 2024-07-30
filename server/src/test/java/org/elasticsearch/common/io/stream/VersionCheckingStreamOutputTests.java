@@ -49,9 +49,9 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
             );
             assertEquals(
                 "[test_writable] was released first in version "
-                    + TransportVersion.current()
+                    + TransportVersion.current().toReleaseVersion()
                     + ", failed compatibility check trying to send it to node with version "
-                    + streamVersion,
+                    + streamVersion.toReleaseVersion(),
                 e.getMessage()
             );
         }

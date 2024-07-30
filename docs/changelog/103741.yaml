@@ -1,5 +1,0 @@
-pr: 103741
-summary: Limit nesting depth in Exception XContent
-area: Infra/Resiliency
-type: bug
-issues: []

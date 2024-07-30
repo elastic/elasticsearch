@@ -11,12 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.LinkedList;
@@ -38,11 +37,11 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
             String suffix = "";
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.KEYWORD, "suffix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
                 ),
                 "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(str.endsWith(suffix))
             );
         }));
@@ -51,11 +50,11 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
             String suffix = randomAlphaOfLength(5);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.KEYWORD, "suffix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
                 ),
                 "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(str.endsWith(suffix))
             );
         }));
@@ -66,11 +65,11 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.KEYWORD, "suffix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
                 ),
                 "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(str.endsWith(suffix))
             );
         }));
@@ -81,11 +80,11 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.KEYWORD, "suffix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
                 ),
                 "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(str.endsWith(suffix))
             );
         }));
@@ -96,11 +95,11 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.KEYWORD, "suffix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.KEYWORD, "suffix")
                 ),
                 "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(str.endsWith(suffix))
             );
         }));
@@ -111,31 +110,21 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.TEXT, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.TEXT, "suffix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataType.TEXT, "suffix")
                 ),
                 "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(str.endsWith(suffix))
             );
         }));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.BOOLEAN;
-    }
-
     private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         String prefix = ((BytesRef) typedData.get(1).data()).utf8ToString();
         return equalTo(str.endsWith(prefix));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(strings()));
     }
 
     @Override

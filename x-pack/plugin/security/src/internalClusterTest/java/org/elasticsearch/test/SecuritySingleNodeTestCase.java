@@ -14,6 +14,9 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -24,7 +27,9 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -36,10 +41,12 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.getMigrationVersionFromIndexMetadata;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
@@ -77,10 +84,34 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     public void tearDown() throws Exception {
+        awaitSecurityMigration();
         super.tearDown();
         if (resetNodeAfterTest()) {
             tearDownRestClient();
         }
+    }
+
+    private boolean isMigrationComplete(ClusterState state) {
+        IndexMetadata indexMetadata = state.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+        if (indexMetadata == null) {
+            // If index doesn't exist, no migration needed
+            return true;
+        }
+        return getMigrationVersionFromIndexMetadata(indexMetadata) == SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey();
+    }
+
+    private void awaitSecurityMigration() {
+        final var latch = new CountDownLatch(1);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        clusterService.addListener((event) -> {
+            if (isMigrationComplete(event.state())) {
+                latch.countDown();
+            }
+        });
+        if (isMigrationComplete(clusterService.state())) {
+            latch.countDown();
+        }
+        safeAwait(latch);
     }
 
     private static void tearDownRestClient() {

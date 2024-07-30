@@ -97,7 +97,10 @@ public class TypeParsersTests extends ESTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA
+            ProvidedIdFieldMapper.NO_FIELD_DATA,
+            query -> {
+                throw new UnsupportedOperationException();
+            }
         );
 
         TextFieldMapper.PARSER.parse("some-field", fieldNode, olderContext);
@@ -128,7 +131,10 @@ public class TypeParsersTests extends ESTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA
+            ProvidedIdFieldMapper.NO_FIELD_DATA,
+            query -> {
+                throw new UnsupportedOperationException();
+            }
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {

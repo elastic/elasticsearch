@@ -10,8 +10,7 @@ package org.elasticsearch.plugins.spi;
 
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
-import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -61,12 +60,12 @@ public class NamedXContentProviderTests extends ESTestCase {
                 new NamedXContentRegistry.Entry(
                     Suggest.Suggestion.class,
                     new ParseField("phrase_aggregation"),
-                    (parser, context) -> PhraseSuggestion.fromXContent(parser, (String) context)
+                    (parser, context) -> SuggestTests.parsePhraseSuggestion(parser, (String) context)
                 ),
                 new NamedXContentRegistry.Entry(
                     Suggest.Suggestion.class,
                     new ParseField("test_suggestion"),
-                    (parser, context) -> TermSuggestion.fromXContent(parser, (String) context)
+                    (parser, context) -> SuggestTests.parseTermSuggestion(parser, (String) context)
                 )
             );
         }

@@ -252,10 +252,14 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             delegate.onResponse(finalConfig);
         });
 
+        final var deleterTimeout = masterNodeTimeout.millis() < 0 ? TimeValue.MAX_VALUE : masterNodeTimeout;
+        // NB a negative masterNodeTimeout means never to time out, but recording dataframe analytics configs does not support infinite
+        // timeouts so we just use a very long timeout here instead
+
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, masterNodeTimeout, auditingListener);
+            configProvider.put(config, headers, deleterTimeout, auditingListener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -264,7 +268,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             client,
             clusterState,
             masterNodeTimeout,
-            auditingListener.delegateFailureAndWrap((l, unused) -> configProvider.put(config, headers, masterNodeTimeout, l)),
+            auditingListener.delegateFailureAndWrap((l, unused) -> configProvider.put(config, headers, deleterTimeout, l)),
             MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }

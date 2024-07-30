@@ -97,7 +97,7 @@ public class RestResponseTests extends ESTestCase {
     public void testEmptyChunkedBody() {
         RestResponse response = RestResponse.chunked(
             RestStatus.OK,
-            ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+            ChunkedRestResponseBodyPart.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
             null
         );
         assertFalse(response.isChunked());

@@ -19,17 +19,17 @@ https://github.com/elastic/docs#readme[elastic/docs README].
 
 === Preview links for PRs
 
-For open PRs, the `elasticsearch-ci/docs` check generates a live preview of any
+For open PRs, a Buildkite job called `docs-build-pr` generates a live preview of any
 docs changes. If the check runs successfully, you can find the preview at:
 
-`https://elasticsearch_<PR_NUM>.docs-preview.app.elstc.co/diff`
+`https://elasticsearch_bk_<PR_NUM>.docs-preview.app.elstc.co/diff`
 
-`elasticsearch-ci/docs` runs automatically for PRs opened by Elastic employees.
+`docs-build-pr` runs automatically for PRs opened by Elastic employees.
 To run CI checks on PRs from external contributors, an Elastic employee can
-leave a GitHub comment containing `@elasticmachine ok to test`.
+leave a GitHub comment containing `run docs-build`.
 
-To re-run `elasticsearch-ci/docs`, an Elastic employee can leave a GitHub
-comment containing `@elasticmachine run elasticsearch-ci/docs`.
+To re-run `docs-build-pr`, an Elastic employee can leave a GitHub
+comment containing `run docs-build`.
 
 == Add API reference pages
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -778,6 +779,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105239")
     public void testStartDatafeed_GivenTimeout_Returns408() throws Exception {
         client().admin().indices().prepareCreate("data-1").setMapping("time", "type=date").get();
         long numDocs = 100;

@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodin
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
@@ -649,7 +652,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             new NamedWriteableRegistry.Entry(InferenceResults.class, PyTorchPassThroughResults.NAME, PyTorchPassThroughResults::new)
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextExpansionResults.NAME, TextExpansionResults::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceResults.class, MlTextEmbeddingResults.NAME, MlTextEmbeddingResults::new)
+        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceResults.class,
@@ -671,6 +676,17 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 TextSimilarityInferenceResults::new
             )
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceResults.class,
+                MlChunkedTextEmbeddingFloatResults.NAME,
+                MlChunkedTextEmbeddingFloatResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceResults.class, MlChunkedTextExpansionResults.NAME, MlChunkedTextExpansionResults::new)
+        );
+
         // Inference Configs
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, ClassificationConfig.NAME.getPreferredName(), ClassificationConfig::new)
@@ -749,6 +765,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TextSimilarityConfigUpdate.NAME, TextSimilarityConfigUpdate::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TokenizationConfigUpdate.NAME, TokenizationConfigUpdate::new)
         );
 
         // Location

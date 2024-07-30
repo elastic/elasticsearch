@@ -119,7 +119,7 @@ public final class OrdinalsBuilder implements Closeable {
         }
 
         // Current position
-        private PagedGrowableWriter positions;
+        private final PagedGrowableWriter positions;
         // First level (0) of ordinals and pointers to the next level
         private final GrowableWriter firstOrdinals;
         private PagedGrowableWriter firstNextLevelSlices;

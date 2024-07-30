@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -57,11 +58,26 @@ public class DriverContext {
 
     private final AsyncActions asyncActions = new AsyncActions();
 
+    private final WarningsMode warningsMode;
+
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
+        this(bigArrays, blockFactory, WarningsMode.COLLECT);
+    }
+
+    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.warningsMode = warningsMode;
+    }
+
+    public static DriverContext getLocalDriver() {
+        return new DriverContext(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            // TODO maybe this should have a small fixed limit?
+            new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+        );
     }
 
     public BigArrays bigArrays() {
@@ -157,6 +173,22 @@ public class DriverContext {
 
     public void removeAsyncAction() {
         asyncActions.removeInstance();
+    }
+
+    /**
+     * Evaluators should use this function to decide their warning behavior.
+     * @return an appropriate {@link WarningsMode}
+     */
+    public WarningsMode warningsMode() {
+        return warningsMode;
+    }
+
+    /**
+     * Indicates the behavior Evaluators of this context should use for reporting warnings
+     */
+    public enum WarningsMode {
+        COLLECT,
+        IGNORE
     }
 
     private static class AsyncActions {

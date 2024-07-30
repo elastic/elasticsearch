@@ -4,8 +4,6 @@
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview::[]
-
 Gets the lifecycle of a set of data streams.
 
 [[get-lifecycle-api-prereqs]]
@@ -39,7 +37,7 @@ To target all data streams use `*` or `_all`.
 [[get-data-lifecycle-api-query-parms]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.
 

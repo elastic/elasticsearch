@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * {@link WatcherSearchTemplateService} renders {@link WatcherSearchTemplateRequest} before their execution.
@@ -32,10 +34,16 @@ public class WatcherSearchTemplateService {
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public WatcherSearchTemplateService(ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
+    public WatcherSearchTemplateService(
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     public String renderTemplate(Script source, WatchExecutionContext ctx, Payload payload) {
@@ -73,7 +81,7 @@ public class WatcherSearchTemplateService {
                     XContentHelper.xContentType(source)
                 )
             ) {
-                sourceBuilder.parseXContent(parser, true);
+                sourceBuilder.parseXContent(parser, true, clusterSupportsFeature);
                 searchRequest.source(sourceBuilder);
             }
         }

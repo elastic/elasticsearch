@@ -29,7 +29,7 @@ public interface InferenceServiceResults extends NamedWriteable, ToXContentFragm
 
     /**
      * Transform the result to match the format required for versions prior to
-     * {@link org.elasticsearch.TransportVersions#INFERENCE_SERVICE_RESULTS_ADDED}
+     * {@link org.elasticsearch.TransportVersions#V_8_12_0}
      */
     List<? extends InferenceResults> transformToLegacyFormat();
 

@@ -1,0 +1,5 @@
+pr: 107972
+summary: Require question to be non-null in `QuestionAnsweringConfig`
+area: Machine Learning
+type: bug
+issues: []

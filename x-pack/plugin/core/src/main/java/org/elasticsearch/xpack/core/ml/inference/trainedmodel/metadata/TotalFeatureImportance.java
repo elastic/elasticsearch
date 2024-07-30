@@ -226,10 +226,6 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
             return parser;
         }
 
-        public static ClassImportance fromXContent(XContentParser parser, boolean lenient) throws IOException {
-            return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
-        }
-
         public final Object className;
         public final Importance importance;
 

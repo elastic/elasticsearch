@@ -1778,7 +1778,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                   "properties": {
                     "field2": {
                       "type": "object",
-                                  "subobjects": false,
+                      "subobjects": false,
                       "properties": {
                         "foo": {
                           "type": "integer"
@@ -1803,12 +1803,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 {
                       "properties": {
                         "field2": {
-                                  "type": "object",
-                                  "properties": {
-                                    "bar": {
-                                      "type": "object"
-                                    }
-                                  }
+                          "type": "object",
+                          "properties": {
+                            "bar": {
+                              "type": "nested"
+                            }
+                          }
                         }
                       }
                     }"""), null))
@@ -1834,7 +1834,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause());
         assertThat(
             e.getCause().getCause().getMessage(),
-            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
+            containsString("Tried to add nested object [bar] to object [field2] which does not support subobjects")
         );
     }
 
@@ -1920,12 +1920,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
               "properties": {
                 "field2": {
-                                  "type": "object",
-                                  "properties": {
-                                    "bar": {
-                                      "type": "object"
-                                    }
-                                  }
+                  "type": "object",
+                  "properties": {
+                    "bar": {
+                      "type": "nested"
+                    }
+                  }
                 }
               }
             }
@@ -1951,7 +1951,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause().getCause());
         assertThat(
             e.getCause().getCause().getCause().getMessage(),
-            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
+            containsString("Tried to add nested object [bar] to object [field2] which does not support subobjects")
         );
     }
 
@@ -2156,6 +2156,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // The unreferenced template can be removed without an exception
         MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
+    }
+
+    public void testDataStreamsUsingMatchAllTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .priority(100L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        final String templateName = "all-data-streams-template";
+        state = service.addIndexTemplateV2(state, false, templateName, template);
+        // When creating a data stream, we'll look for templates. The data stream is not hidden
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "some-data-stream", false), equalTo(templateName));
+        // The write index for a data stream will be a hidden index. We need to make sure it matches the same template:
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "some-data-stream", true), equalTo(templateName));
     }
 
     public void testRemovingHigherOrderTemplateOfDataStreamWithMultipleTemplates() throws Exception {
@@ -2483,11 +2500,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
-            new IndexSettingProviders(Set.of())
+            new IndexSettingProviders(Set.of()),
+            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
         );
 
         final List<Throwable> throwables = new ArrayList<>();
-        service.putTemplate(request, new ActionListener<>() {
+        service.putTemplate(request, TEST_REQUEST_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
 
@@ -2506,7 +2524,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        service.putTemplate(request, new ActionListener<>() {
+        service.putTemplate(request, TEST_REQUEST_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 latch.countDown();
@@ -2525,6 +2543,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+            DataStreamFactoryRetention.emptyFactoryRetention()
+        );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,
@@ -2546,7 +2567,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
-            new IndexSettingProviders(Set.of())
+            new IndexSettingProviders(Set.of()),
+            dataStreamGlobalRetentionResolver
         );
     }
 

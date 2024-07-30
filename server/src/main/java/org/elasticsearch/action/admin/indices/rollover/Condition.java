@@ -20,12 +20,14 @@ import java.util.Objects;
  */
 public abstract class Condition<T> implements NamedWriteable, ToXContentFragment {
 
-    /**
-     * Describes the type of condition - a min_* condition (MIN) or max_* condition (MAX).
+    /*
+     * Describes the type of condition - a min_* condition (MIN), max_* condition (MAX), or an automatic condition (automatic conditions
+     * are something that the platform configures and manages)
      */
     public enum Type {
         MIN,
-        MAX
+        MAX,
+        AUTOMATIC
     }
 
     protected T value;

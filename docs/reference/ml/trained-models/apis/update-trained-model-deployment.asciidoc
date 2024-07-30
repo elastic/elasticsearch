@@ -9,8 +9,6 @@
 
 Updates certain properties of a trained model deployment.
 
-beta::[]
-
 [[update-trained-model-deployment-request]]
 == {api-request-title}
 
@@ -34,7 +32,7 @@ You can either increase or decrease the number of allocations of such a deployme
 
 `<deployment_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 [[update-trained-model-deployment-request-body]]
 == {api-request-body-title}

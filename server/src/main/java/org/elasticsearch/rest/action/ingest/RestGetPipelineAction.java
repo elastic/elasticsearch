@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetPipelineAction extends BaseRestHandler {
@@ -42,7 +43,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
             restRequest.paramAsBoolean("summary", false),
             Strings.splitStringByCommaToArray(restRequest.param("id"))
         );
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.admin().cluster().getPipeline(request, new RestToXContentListener<>(channel, GetPipelineResponse::status));
     }
 }

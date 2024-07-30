@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +25,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,14 +35,17 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContentObject, Releasable {
+public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
+    implements
+        ChunkedToXContentObject,
+        Releasable {
 
     @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
-    private final List<ColumnInfo> columns;
+    private final List<ColumnInfoImpl> columns;
     private final List<Page> pages;
     private final Profile profile;
     private final boolean columnar;
@@ -51,7 +55,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     private final boolean isAsync;
 
     public EsqlQueryResponse(
-        List<ColumnInfo> columns,
+        List<ColumnInfoImpl> columns,
         List<Page> pages,
         @Nullable Profile profile,
         boolean columnar,
@@ -68,7 +72,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         this.isAsync = isAsync;
     }
 
-    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
+    public EsqlQueryResponse(List<ColumnInfoImpl> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
         this(columns, pages, profile, columnar, null, false, isAsync);
     }
 
@@ -76,7 +80,11 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
      * Build a reader for the response.
      */
     public static Writeable.Reader<EsqlQueryResponse> reader(BlockFactory blockFactory) {
-        return in -> deserialize(new BlockStreamInput(in, blockFactory));
+        return in -> {
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                return deserialize(bsi);
+            }
+        };
     }
 
     static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {
@@ -84,14 +92,14 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         boolean isRunning = false;
         boolean isAsync = false;
         Profile profile = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ASYNC_QUERY)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             asyncExecutionId = in.readOptionalString();
             isRunning = in.readBoolean();
             isAsync = in.readBoolean();
         }
-        List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfo::new);
+        List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::new);
         }
         boolean columnar = in.readBoolean();
@@ -100,20 +108,20 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ASYNC_QUERY)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalString(asyncExecutionId);
             out.writeBoolean(isRunning);
             out.writeBoolean(isAsync);
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
     }
 
-    public List<ColumnInfo> columns() {
+    public List<ColumnInfoImpl> columns() {
         return columns;
     }
 
@@ -122,8 +130,18 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     }
 
     public Iterator<Iterator<Object>> values() {
-        List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
+        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
         return ResponseValueUtils.pagesToValues(dataTypes, pages);
+    }
+
+    public Iterable<Iterable<Object>> rows() {
+        List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
+        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages);
+    }
+
+    public Iterator<Object> column(int columnIndex) {
+        if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
+        return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);
     }
 
     public Profile profile() {
@@ -257,11 +275,30 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public void close() {
+        super.close();
         decRef();
+        if (esqlResponse != null) {
+            esqlResponse.setClosedState();
+        }
     }
 
     void closeInternal() {
         Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
+    }
+
+    // singleton lazy set view over this response
+    private EsqlResponseImpl esqlResponse;
+
+    @Override
+    public EsqlResponse responseInternal() {
+        if (hasReferences() == false) {
+            throw new IllegalStateException("closed");
+        }
+        if (esqlResponse != null) {
+            return esqlResponse;
+        }
+        esqlResponse = new EsqlResponseImpl(this);
+        return esqlResponse;
     }
 
     public static class Profile implements Writeable, ChunkedToXContentObject {

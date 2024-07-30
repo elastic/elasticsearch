@@ -31,7 +31,9 @@ public class FieldLookup {
      */
     public void setValues(List<Object> values) {
         assert valuesLoaded == false : "Call clear() before calling setValues()";
-        values.stream().map(fieldType::valueForDisplay).forEach(this.values::add);
+        if (values != null) {
+            values.stream().map(fieldType::valueForDisplay).forEach(this.values::add);
+        }
         this.valuesLoaded = true;
     }
 

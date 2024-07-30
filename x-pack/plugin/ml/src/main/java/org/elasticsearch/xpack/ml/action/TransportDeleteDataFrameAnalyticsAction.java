@@ -125,7 +125,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         // still used from the running task which results in logging errors.
 
         StopDataFrameAnalyticsAction.Request stopRequest = new StopDataFrameAnalyticsAction.Request(request.getId());
-        stopRequest.setTimeout(request.timeout());
+        stopRequest.setTimeout(request.ackTimeout());
 
         ActionListener<StopDataFrameAnalyticsAction.Response> normalStopListener = ActionListener.wrap(
             listener::onResponse,
@@ -169,7 +169,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
 
         configProvider.get(id, listener.delegateFailureAndWrap((l, config) -> {
             DataFrameAnalyticsDeleter deleter = new DataFrameAnalyticsDeleter(parentTaskClient, auditor);
-            deleter.deleteAllDocuments(config, request.timeout(), l);
+            deleter.deleteAllDocuments(config, request.ackTimeout(), l);
         }));
     }
 

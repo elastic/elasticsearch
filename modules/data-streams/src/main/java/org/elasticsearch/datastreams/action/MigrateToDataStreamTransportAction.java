@@ -69,7 +69,7 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
                 request.getAliasName(),
                 request.masterNodeTimeout(),
-                request.timeout()
+                request.ackTimeout()
             );
         metadataMigrateToDataStreamService.migrateToDataStream(updateRequest, listener);
     }

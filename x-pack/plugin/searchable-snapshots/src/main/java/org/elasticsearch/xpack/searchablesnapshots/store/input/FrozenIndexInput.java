@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -145,7 +146,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                 final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
                 stats.addCachedBytesRead(read);
                 return read;
-            }, (channel, channelPos, relativePos, len, progressUpdater) -> {
+            }, (channel, channelPos, streamFactory, relativePos, len, progressUpdater) -> {
+                assert streamFactory == null : streamFactory;
                 final long startTimeNanos = stats.currentTimeNanos();
                 try (InputStream input = openInputStreamFromBlobStore(rangeToWrite.start() + relativePos, len)) {
                     assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -205,7 +207,11 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public FrozenIndexInput clone() {
+    public IndexInput clone() {
+        var clone = tryCloneBuffer();
+        if (clone != null) {
+            return clone;
+        }
         return new FrozenIndexInput(this);
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
@@ -52,15 +54,7 @@ public enum IndexMode {
     STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
-        }
-
-        private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
-            if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
-            }
+            IndexMode.validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -89,6 +83,12 @@ public enum IndexMode {
         @Override
         public MetadataFieldMapper timeSeriesIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
             return null;
         }
 
@@ -185,6 +185,11 @@ public enum IndexMode {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
 
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            return TimeSeriesRoutingHashFieldMapper.INSTANCE;
+        }
+
         public IdFieldMapper idFieldMapperWithoutFieldData() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
@@ -217,7 +222,94 @@ public enum IndexMode {
         public boolean isSyntheticSourceEnabled() {
             return true;
         }
+    },
+    LOGSDB("logsdb") {
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            IndexMode.validateTimeSeriesSettings(settings);
+        }
+
+        @Override
+        public void validateMapping(MappingLookup lookup) {}
+
+        @Override
+        public void validateAlias(String indexRouting, String searchRouting) {
+
+        }
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            if (isDataStream) {
+                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
+            }
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping() {
+            return DEFAULT_LOGS_TIMESTAMP_MAPPING;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        }
+
+        @Override
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+            // non time-series indices must not have a TimeSeriesIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            return new DocumentDimensions.OnlySingleValueAllowed();
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            if (sourceFieldMapper.isSynthetic() == false) {
+                throw new IllegalArgumentException("Indices with with index mode [" + IndexMode.LOGSDB + "] only support synthetic source");
+            }
+        }
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return true;
+        }
     };
+
+    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+        settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+    }
+
+    private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
+            throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
+        }
+    }
 
     protected static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
@@ -236,6 +328,31 @@ public enum IndexMode {
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
                     .field("ignore_malformed", "false")
+                    .endObject()
+                    .endObject()
+                    .endObject())
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING;
+
+    static {
+        try {
+            DEFAULT_LOGS_TIMESTAMP_MAPPING = new CompressedXContent(
+                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME)
+                    .field("enabled", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .endObject()
+                    .startObject("host.name")
+                    .field("type", KeywordFieldMapper.CONTENT_TYPE)
+                    .field("ignore_above", 1024)
                     .endObject()
                     .endObject()
                     .endObject())
@@ -323,6 +440,13 @@ public enum IndexMode {
     public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
 
     /**
+     * Return an instance of the {@link TimeSeriesRoutingHashFieldMapper} that generates
+     * the _ts_routing_hash field. The field mapper will be added to the list of the metadata
+     * field mappers for the index.
+     */
+    public abstract MetadataFieldMapper timeSeriesRoutingHashFieldMapper();
+
+    /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
     public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
@@ -349,6 +473,7 @@ public enum IndexMode {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
+            case "logsdb" -> IndexMode.LOGSDB;
             default -> throw new IllegalArgumentException(
                 "["
                     + value

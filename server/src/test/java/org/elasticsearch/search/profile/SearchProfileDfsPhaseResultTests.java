@@ -9,6 +9,7 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResultTests;
@@ -48,7 +49,7 @@ public class SearchProfileDfsPhaseResultTests extends AbstractXContentSerializin
 
     @Override
     protected SearchProfileDfsPhaseResult doParseInstance(XContentParser parser) throws IOException {
-        return SearchProfileDfsPhaseResult.fromXContent(parser);
+        return SearchResponseUtils.parseProfileDfsPhaseResult(parser);
     }
 
     public void testCombineQueryProfileShardResults() {

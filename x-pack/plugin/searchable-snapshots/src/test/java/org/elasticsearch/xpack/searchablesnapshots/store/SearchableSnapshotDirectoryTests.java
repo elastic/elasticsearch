@@ -606,13 +606,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     BlobStoreTestUtil.mockClusterService(repositoryMetadata),
                     MockBigArrays.NON_RECYCLING_INSTANCE,
                     new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-                ) {
-
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        // eliminate thread name check as we create repo manually on test/main threads
-                    }
-                };
+                );
                 repository.start();
                 releasables.add(repository::stop);
 

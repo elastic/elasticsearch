@@ -12,14 +12,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretResponse;
+import org.elasticsearch.xpack.application.connector.secrets.action.PutConnectorSecretRequest;
+import org.elasticsearch.xpack.application.connector.secrets.action.PutConnectorSecretResponse;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Map;
@@ -72,6 +76,12 @@ public class ConnectorSecretsIndexService {
             .build();
     }
 
+    /**
+     * Gets the secret from the underlying index with the specified id.
+     *
+     * @param id        The id of the secret.
+     * @param listener  The action listener to invoke on response/failure.
+     */
     public void getSecret(String id, ActionListener<GetConnectorSecretResponse> listener) {
         clientWithOrigin.prepareGet(CONNECTOR_SECRETS_INDEX_NAME, id).execute(listener.delegateFailureAndWrap((delegate, getResponse) -> {
             if (getResponse.isSourceEmpty()) {
@@ -82,6 +92,12 @@ public class ConnectorSecretsIndexService {
         }));
     }
 
+    /**
+     * Creates a secret in the underlying index with an auto-generated doc ID.
+     *
+     * @param request   Request for creating the secret.
+     * @param listener  The action listener to invoke on response/failure.
+     */
     public void createSecret(PostConnectorSecretRequest request, ActionListener<PostConnectorSecretResponse> listener) {
         try {
             clientWithOrigin.prepareIndex(CONNECTOR_SECRETS_INDEX_NAME)
@@ -96,6 +112,37 @@ public class ConnectorSecretsIndexService {
         }
     }
 
+    /**
+     * Creates a secret in the underlying index with a specified doc ID.
+     *
+     * @param request   Request for creating the secret.
+     * @param listener  The action listener to invoke on response/failure.
+     */
+    public void createSecretWithDocId(PutConnectorSecretRequest request, ActionListener<PutConnectorSecretResponse> listener) {
+
+        String connectorSecretId = request.id();
+
+        try {
+            clientWithOrigin.prepareIndex(CONNECTOR_SECRETS_INDEX_NAME)
+                .setId(connectorSecretId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setSource(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                .execute(
+                    listener.delegateFailureAndWrap(
+                        (l, indexResponse) -> l.onResponse(new PutConnectorSecretResponse(indexResponse.getResult()))
+                    )
+                );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Deletes the secret in the underlying index with the specified doc ID.
+     *
+     * @param id        The id of the secret to delete.
+     * @param listener  The action listener to invoke on response/failure.
+     */
     public void deleteSecret(String id, ActionListener<DeleteConnectorSecretResponse> listener) {
         try {
             clientWithOrigin.prepareDelete(CONNECTOR_SECRETS_INDEX_NAME, id)

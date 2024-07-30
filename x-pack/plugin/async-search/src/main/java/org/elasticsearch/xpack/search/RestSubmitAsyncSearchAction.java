@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchRequest;
@@ -35,11 +36,11 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
 
     private final SearchUsageHolder searchUsageHolder;
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, NamedWriteableRegistry namedWriteableRegistry) {
+    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
         this.searchUsageHolder = searchUsageHolder;
-        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -61,7 +62,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, namedWriteableRegistry, setSize, searchUsageHolder)
+            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, clusterSupportsFeature, setSize, searchUsageHolder)
         );
 
         if (request.hasParam("wait_for_completion_timeout")) {

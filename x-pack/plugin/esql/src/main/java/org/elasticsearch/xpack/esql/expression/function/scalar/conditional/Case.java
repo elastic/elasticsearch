@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -16,20 +19,21 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -37,9 +41,11 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
-public final class Case extends ScalarFunction implements EvaluatorMapper {
+public final class Case extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
+
     record Condition(Expression condition, Expression value) {}
 
     private final List<Condition> conditions;
@@ -61,14 +67,30 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
             "unsigned_long",
             "version" },
         description = """
-            Accepts pairs of conditions and values.
-            The function returns the value that belongs to the first condition that evaluates to true."""
+            Accepts pairs of conditions and values. The function returns the value that
+            belongs to the first condition that evaluates to `true`.
+
+            If the number of arguments is odd, the last argument is the default value which
+            is returned when no condition matches. If the number of arguments is even, and
+            no condition matches, the function returns `null`.""",
+        examples = {
+            @Example(description = "Determine whether employees are monolingual, bilingual, or polyglot:", file = "docs", tag = "case"),
+            @Example(
+                description = "Calculate the total connection success rate based on log messages:",
+                file = "conditional",
+                tag = "docsCaseSuccessRate"
+            ),
+            @Example(
+                description = "Calculate an hourly error rate as a percentage of the total number of log messages:",
+                file = "conditional",
+                tag = "docsCaseHourlyErrorRate"
+            ) }
     )
     public Case(
         Source source,
-        @Param(name = "condition", type = { "boolean" }) Expression first,
+        @Param(name = "condition", type = { "boolean" }, description = "A condition.") Expression first,
         @Param(
-            name = "rest",
+            name = "trueValue",
             type = {
                 "boolean",
                 "cartesian_point",
@@ -81,7 +103,9 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version" },
+            description = "The value that's returned when the corresponding condition is the first to evaluate to `true`. "
+                + "The default value is returned when no condition matches."
         ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
@@ -90,7 +114,31 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
         for (int c = 0; c < conditionCount; c++) {
             conditions.add(new Condition(children().get(c * 2), children().get(c * 2 + 1)));
         }
-        elseValue = children().size() % 2 == 0 ? new Literal(source, null, NULL) : children().get(children().size() - 1);
+        elseValue = elseValueIsExplicit() ? children().get(children().size() - 1) : new Literal(source, null, NULL);
+    }
+
+    private Case(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(children().get(0));
+        out.writeNamedWriteableCollection(children().subList(1, children().size()));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    private boolean elseValueIsExplicit() {
+        return children().size() % 2 == 1;
     }
 
     @Override
@@ -152,11 +200,6 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Case(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
@@ -182,7 +225,6 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public Object fold() {
-        // TODO can we partially fold? like CASE(false, foo, bar) -> bar
         for (Condition condition : conditions) {
             Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
@@ -190,6 +232,55 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
             }
         }
         return elseValue.fold();
+    }
+
+    /**
+     * Fold the arms of {@code CASE} statements.
+     * <ol>
+     *     <li>
+     *         Conditions that evaluate to {@code false} are removed so
+     *         {@code EVAL c=CASE(false, foo, b, bar, bort)} becomes
+     *         {@code EVAL c=CASE(b, bar, bort)}.
+     *     </li>
+     *     <li>
+     *         Conditions that evaluate to {@code true} stop evaluation and
+     *         return themselves so {@code EVAL c=CASE(true, foo, bar)} becomes
+     *         {@code EVAL c=foo}.
+     *     </li>
+     * </ol>
+     * And those two combine so {@code EVAL c=CASE(false, foo, b, bar, true, bort, el)} becomes
+     * {@code EVAL c=CASE(b, bar, bort)}.
+     */
+    public Expression partiallyFold() {
+        List<Expression> newChildren = new ArrayList<>(children().size());
+        boolean modified = false;
+        for (Condition condition : conditions) {
+            if (condition.condition.foldable() == false) {
+                newChildren.add(condition.condition);
+                newChildren.add(condition.value);
+                continue;
+            }
+            modified = true;
+            Boolean b = (Boolean) condition.condition.fold();
+            if (b != null && b) {
+                newChildren.add(condition.value);
+                return finishPartialFold(newChildren);
+            }
+        }
+        if (modified == false) {
+            return this;
+        }
+        if (elseValueIsExplicit()) {
+            newChildren.add(elseValue);
+        }
+        return finishPartialFold(newChildren);
+    }
+
+    private Expression finishPartialFold(List<Expression> newChildren) {
+        if (newChildren.size() == 1) {
+            return newChildren.get(0);
+        }
+        return replaceChildren(newChildren);
     }
 
     @Override

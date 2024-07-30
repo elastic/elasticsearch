@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorQueryContext;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.ByteArrayInputStream;
@@ -34,10 +35,8 @@ import java.util.Optional;
 
 /**
  * Abstract class for aggregated data extractors, e.g. {@link RollupDataExtractor}
- *
- * @param <T> The request builder type for getting data from ElasticSearch
  */
-abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>> implements DataExtractor {
+abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractAggregationDataExtractor.class);
 
@@ -86,7 +85,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     @Override
     public long getEndTime() {
-        return context.end;
+        return context.queryContext.end;
     }
 
     @Override
@@ -95,7 +94,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
             throw new NoSuchElementException();
         }
 
-        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
+        SearchInterval searchInterval = new SearchInterval(context.queryContext.start, context.queryContext.end);
         if (aggregationToJsonProcessor == null) {
             InternalAggregations aggs = search();
             if (aggs == null) {
@@ -121,11 +120,10 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     private InternalAggregations search() {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
-        T searchRequest = buildSearchRequest(buildBaseSearchSource());
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
-        SearchResponse searchResponse = executeSearchRequest(searchRequest);
+        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequest);
         try {
-            checkForSkippedClusters(searchResponse);
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             return validateAggs(searchResponse.getAggregations());
@@ -136,37 +134,66 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     private void initAggregationProcessor(InternalAggregations aggs) throws IOException {
         aggregationToJsonProcessor = new AggregationToJsonProcessor(
-            context.timeField,
+            context.queryContext.timeField,
             context.fields,
             context.includeDocCount,
-            context.start,
+            context.queryContext.start,
             null
         );
         aggregationToJsonProcessor.process(aggs);
     }
 
-    protected SearchResponse executeSearchRequest(T searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+    static SearchResponse executeSearchRequest(
+        Client client,
+        DataExtractorQueryContext context,
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder
+    ) {
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        boolean success = false;
+        try {
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
+            success = true;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
+        }
+        return searchResponse;
     }
 
     private SearchSourceBuilder buildBaseSearchSource() {
         // For derivative aggregations the first bucket will always be null
         // so query one extra histogram bucket back and hope there is data
         // in that bucket
-        long histogramSearchStartTime = Math.max(0, context.start - DatafeedConfigUtils.getHistogramIntervalMillis(context.aggs));
+        long histogramSearchStartTime = Math.max(
+            0,
+            context.queryContext.start - DatafeedConfigUtils.getHistogramIntervalMillis(context.aggs)
+        );
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
+            .query(
+                DataExtractorUtils.wrapInTimeRangeQuery(
+                    context.queryContext.query,
+                    context.queryContext.timeField,
+                    histogramSearchStartTime,
+                    context.queryContext.end
+                )
+            );
 
-        if (context.runtimeMappings.isEmpty() == false) {
-            searchSourceBuilder.runtimeMappings(context.runtimeMappings);
+        if (context.queryContext.runtimeMappings.isEmpty() == false) {
+            searchSourceBuilder.runtimeMappings(context.queryContext.runtimeMappings);
         }
         context.aggs.getAggregatorFactories().forEach(searchSourceBuilder::aggregation);
         context.aggs.getPipelineAggregatorFactories().forEach(searchSourceBuilder::aggregation);
         return searchSourceBuilder;
     }
 
-    protected abstract T buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
+    protected abstract ActionRequestBuilder<SearchRequest, SearchResponse> buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
 
     private static InternalAggregations validateAggs(@Nullable InternalAggregations aggs) {
         if (aggs == null) {
@@ -189,4 +216,18 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         return context;
     }
 
+    @Override
+    public DataSummary getSummary() {
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(
+            DataExtractorUtils.getSearchSourceBuilderForSummary(context.queryContext)
+        );
+        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        try {
+            LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            return DataExtractorUtils.getDataSummary(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
 }

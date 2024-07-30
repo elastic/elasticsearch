@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.recycler.Recycler;
 
 import java.util.Arrays;
 
@@ -81,4 +82,12 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    private Object[] newObjectPage(int page) {
+        if (recycler != null) {
+            final Recycler.V<Object[]> v = recycler.objectPage();
+            return registerNewPage(v, page, PageCacheRecycler.OBJECT_PAGE_SIZE);
+        } else {
+            return new Object[PageCacheRecycler.OBJECT_PAGE_SIZE];
+        }
+    }
 }

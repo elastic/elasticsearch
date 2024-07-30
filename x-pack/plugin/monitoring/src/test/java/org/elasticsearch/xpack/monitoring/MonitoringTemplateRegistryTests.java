@@ -154,7 +154,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         boolean historyDurationPresent = randomBoolean();
         final String expectedDeleteMinAge;
         if (historyDurationPresent) {
-            expectedDeleteMinAge = randomTimeValue(4, 10, "d");
+            expectedDeleteMinAge = between(4, 10) + "d";
         } else {
             expectedDeleteMinAge = MonitoringTemplateRegistry.MONITORING_POLICY_DEFAULT_RETENTION;
         }

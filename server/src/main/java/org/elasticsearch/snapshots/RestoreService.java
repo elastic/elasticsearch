@@ -10,6 +10,7 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -388,18 +389,28 @@ public final class RestoreService implements ClusterStateApplier {
         // Remove the data streams from the list of requested indices
         requestIndices.removeAll(dataStreamsToRestore.keySet());
 
-        // And add the backing indices
-        final Set<String> nonSystemDataStreamIndices;
+        // And add the backing indices and failure indices of data streams (the distinction is important for renaming)
         final Set<String> systemDataStreamIndices;
+        final Set<String> nonSystemDataStreamBackingIndices;
+        final Set<String> nonSystemDataStreamFailureIndices;
         {
-            Map<Boolean, Set<String>> dataStreamIndices = dataStreamsToRestore.values()
+            Map<Boolean, Set<String>> backingIndices = dataStreamsToRestore.values()
                 .stream()
                 .flatMap(ds -> ds.getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                 .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
-            systemDataStreamIndices = dataStreamIndices.get(true);
-            nonSystemDataStreamIndices = dataStreamIndices.get(false);
+            Map<Boolean, Set<String>> failureIndices = Map.of();
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                failureIndices = dataStreamsToRestore.values()
+                    .stream()
+                    .flatMap(ds -> ds.getFailureIndices().getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
+                    .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
+            }
+            systemDataStreamIndices = Sets.union(backingIndices.getOrDefault(true, Set.of()), failureIndices.getOrDefault(true, Set.of()));
+            nonSystemDataStreamBackingIndices = backingIndices.getOrDefault(false, Set.of());
+            nonSystemDataStreamFailureIndices = failureIndices.getOrDefault(false, Set.of());
         }
-        requestIndices.addAll(nonSystemDataStreamIndices);
+        requestIndices.addAll(nonSystemDataStreamBackingIndices);
+        requestIndices.addAll(nonSystemDataStreamFailureIndices);
         final Set<String> allSystemIndicesToRestore = Stream.of(systemDataStreamIndices, featureStateIndices)
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
@@ -472,7 +483,8 @@ public final class RestoreService implements ClusterStateApplier {
                 renamedIndices(
                     request,
                     requestedIndicesIncludingSystem,
-                    nonSystemDataStreamIndices,
+                    nonSystemDataStreamBackingIndices,
+                    nonSystemDataStreamFailureIndices,
                     allSystemIndicesToRestore,
                     repositoryData
                 ),
@@ -555,7 +567,7 @@ public final class RestoreService implements ClusterStateApplier {
         List<String> requestedDataStreams = filterIndices(
             snapshotInfo.dataStreams(),
             Stream.of(requestIndices, featureStateDataStreams).flatMap(Collection::stream).toArray(String[]::new),
-            IndicesOptions.fromOptions(true, true, true, true)
+            IndicesOptions.lenientExpand()
         );
         if (requestedDataStreams.isEmpty()) {
             dataStreams = Map.of();
@@ -702,22 +714,20 @@ public final class RestoreService implements ClusterStateApplier {
         }
         List<Index> updatedIndices = dataStream.getIndices()
             .stream()
-            .map(i -> metadata.get(renameIndex(i.getName(), request, true)).getIndex())
+            .map(i -> metadata.get(renameIndex(i.getName(), request, true, false)).getIndex())
             .toList();
-        return new DataStream(
-            dataStreamName,
-            updatedIndices,
-            dataStream.getGeneration(),
-            dataStream.getMetadata(),
-            dataStream.isHidden(),
-            dataStream.isReplicated(),
-            dataStream.isSystem(),
-            dataStream.isAllowCustomRouting(),
-            dataStream.getIndexMode(),
-            dataStream.getLifecycle(),
-            dataStream.isFailureStore(),
-            dataStream.getFailureIndices()
-        );
+        List<Index> updatedFailureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
+            ? dataStream.getFailureIndices()
+                .getIndices()
+                .stream()
+                .map(i -> metadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
+                .toList()
+            : List.of();
+        return dataStream.copy()
+            .setName(dataStreamName)
+            .setBackingIndices(dataStream.getBackingIndices().copy().setIndices(updatedIndices).build())
+            .setFailureIndices(dataStream.getFailureIndices().copy().setIndices(updatedFailureIndices).build())
+            .build();
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
@@ -786,13 +796,13 @@ public final class RestoreService implements ClusterStateApplier {
                     // mark restore entry for this shard as failed when it's due to a file corruption. There is no need wait on retries
                     // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
                     // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
-                    if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
+                    if (unassignedInfo.failure() != null && Lucene.isCorruptionException(unassignedInfo.failure().getCause())) {
                         changes(recoverySource).put(
                             failedShard.shardId(),
                             new ShardRestoreStatus(
                                 failedShard.currentNodeId(),
                                 RestoreInProgress.State.FAILURE,
-                                unassignedInfo.getFailure().getCause().getMessage()
+                                unassignedInfo.failure().getCause().getMessage()
                             )
                         );
                     }
@@ -820,7 +830,7 @@ public final class RestoreService implements ClusterStateApplier {
         public void unassignedInfoUpdated(ShardRouting unassignedShard, UnassignedInfo newUnassignedInfo) {
             RecoverySource recoverySource = unassignedShard.recoverySource();
             if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
-                if (newUnassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                if (newUnassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     String reason = "shard could not be allocated to any of the nodes";
                     changes(recoverySource).put(
                         unassignedShard.shardId(),
@@ -910,10 +920,33 @@ public final class RestoreService implements ClusterStateApplier {
         return failedShards;
     }
 
+    private static String renameIndex(String index, RestoreSnapshotRequest request, boolean isBackingIndex, boolean isFailureStore) {
+        if (request.renameReplacement() == null || request.renamePattern() == null) {
+            return index;
+        }
+        String prefix = null;
+        if (isBackingIndex && index.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            prefix = DataStream.BACKING_INDEX_PREFIX;
+        }
+        if (isFailureStore && index.startsWith(DataStream.FAILURE_STORE_PREFIX)) {
+            prefix = DataStream.FAILURE_STORE_PREFIX;
+        }
+        String renamedIndex;
+        if (prefix != null) {
+            index = index.substring(prefix.length());
+        }
+        renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+        if (prefix != null) {
+            renamedIndex = prefix + renamedIndex;
+        }
+        return renamedIndex;
+    }
+
     private static Map<String, IndexId> renamedIndices(
         RestoreSnapshotRequest request,
         List<String> filteredIndices,
-        Set<String> dataStreamIndices,
+        Set<String> dataStreamBackingIndices,
+        Set<String> dataStreamFailureIndices,
         Set<String> featureIndices,
         RepositoryData repositoryData
     ) {
@@ -924,7 +957,12 @@ public final class RestoreService implements ClusterStateApplier {
                 // Don't rename system indices
                 renamedIndex = index;
             } else {
-                renamedIndex = renameIndex(index, request, dataStreamIndices.contains(index));
+                renamedIndex = renameIndex(
+                    index,
+                    request,
+                    dataStreamBackingIndices.contains(index),
+                    dataStreamFailureIndices.contains(index)
+                );
             }
             IndexId previousIndex = renamedIndices.put(renamedIndex, repositoryData.resolveIndexId(index));
             if (previousIndex != null) {
@@ -936,21 +974,6 @@ public final class RestoreService implements ClusterStateApplier {
             }
         }
         return Collections.unmodifiableMap(renamedIndices);
-    }
-
-    private static String renameIndex(String index, RestoreSnapshotRequest request, boolean partOfDataStream) {
-        String renamedIndex = index;
-        if (request.renameReplacement() != null && request.renamePattern() != null) {
-            partOfDataStream = partOfDataStream && index.startsWith(DataStream.BACKING_INDEX_PREFIX);
-            if (partOfDataStream) {
-                index = index.substring(DataStream.BACKING_INDEX_PREFIX.length());
-            }
-            renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
-            if (partOfDataStream) {
-                renamedIndex = DataStream.BACKING_INDEX_PREFIX + renamedIndex;
-            }
-        }
-        return renamedIndex;
     }
 
     /**
@@ -974,10 +997,10 @@ public final class RestoreService implements ClusterStateApplier {
         if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created with index version ["
-                    + snapshotInfo.version()
-                    + "] which is higher than the version used by this node ["
-                    + IndexVersion.current()
+                "the snapshot was created with version ["
+                    + snapshotInfo.version().toReleaseVersion()
+                    + "] which is higher than the version of this node ["
+                    + IndexVersion.current().toReleaseVersion()
                     + "]"
             );
         }
@@ -1309,7 +1332,11 @@ public final class RestoreService implements ClusterStateApplier {
                     ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
                     shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
 
-                    final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(snapshotIndexMetadata, renamedIndexName);
+                    final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
+                        snapshotIndexMetadata,
+                        renamedIndexName,
+                        currentState.getMinTransportVersion()
+                    );
                     if (request.includeAliases() == false
                         && snapshotIndexMetadata.getAliases().isEmpty() == false
                         && isSystemIndex(snapshotIndexMetadata) == false) {
@@ -1327,7 +1354,11 @@ public final class RestoreService implements ClusterStateApplier {
                 } else {
                     // Index exists and it's closed - open it in metadata and start recovery
                     validateExistingClosedIndex(currentIndexMetadata, snapshotIndexMetadata, renamedIndexName, partial);
-                    final IndexMetadata.Builder indexMdBuilder = restoreOverClosedIndex(snapshotIndexMetadata, currentIndexMetadata);
+                    final IndexMetadata.Builder indexMdBuilder = restoreOverClosedIndex(
+                        snapshotIndexMetadata,
+                        currentIndexMetadata,
+                        currentState.getMinTransportVersion()
+                    );
 
                     if (request.includeAliases() == false && isSystemIndex(snapshotIndexMetadata) == false) {
                         // Remove all snapshot aliases
@@ -1702,24 +1733,35 @@ public final class RestoreService implements ClusterStateApplier {
         return convertedIndexMetadataBuilder.build();
     }
 
-    private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
+    private static IndexMetadata.Builder restoreToCreateNewIndex(
+        IndexMetadata snapshotIndexMetadata,
+        String renamedIndexName,
+        TransportVersion minClusterTransportVersion
+    ) {
         return IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .index(renamedIndexName)
             .settings(
                 Settings.builder().put(snapshotIndexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             )
-            .timestampRange(IndexLongFieldRange.NO_SHARDS);
+            .timestampRange(IndexLongFieldRange.NO_SHARDS)
+            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minClusterTransportVersion);
     }
 
-    private static IndexMetadata.Builder restoreOverClosedIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
+    private static IndexMetadata.Builder restoreOverClosedIndex(
+        IndexMetadata snapshotIndexMetadata,
+        IndexMetadata currentIndexMetadata,
+        TransportVersion minTransportVersion
+    ) {
         final IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .version(Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion()))
             .mappingVersion(Math.max(snapshotIndexMetadata.getMappingVersion(), 1 + currentIndexMetadata.getMappingVersion()))
+            .mappingsUpdatedVersion(snapshotIndexMetadata.getMappingsUpdatedVersion())
             .settingsVersion(Math.max(snapshotIndexMetadata.getSettingsVersion(), 1 + currentIndexMetadata.getSettingsVersion()))
             .aliasesVersion(Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()))
             .timestampRange(IndexLongFieldRange.NO_SHARDS)
+            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minTransportVersion)
             .index(currentIndexMetadata.getIndex().getName())
             .settings(
                 Settings.builder()

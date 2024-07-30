@@ -9,8 +9,13 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -73,7 +78,10 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         super(in);
         this.clusterAlias = in.readString();
         this.sessionId = in.readString();
-        this.configuration = new EsqlConfiguration(in);
+        this.configuration = new EsqlConfiguration(
+            // TODO make EsqlConfiguration Releasable
+            new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
+        );
         this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
         this.indices = in.readStringArray();
         this.originalIndices = in.readStringArray();
@@ -85,7 +93,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         out.writeString(clusterAlias);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
+        new PlanStreamOutput(out, planNameRegistry, configuration).writePhysicalPlanNode(plan);
         out.writeStringArray(indices);
         out.writeStringArray(originalIndices);
     }

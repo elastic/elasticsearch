@@ -895,8 +895,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     );
                     listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
                 }),
-                threadPool,
-                Names.WRITE
+                threadPool.executor(Names.WRITE)
             );
         } catch (Exception e) {
             listener.onFailure(e);

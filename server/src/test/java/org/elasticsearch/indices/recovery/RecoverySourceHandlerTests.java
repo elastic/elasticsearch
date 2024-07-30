@@ -56,6 +56,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -102,7 +103,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -521,7 +521,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 {
                     "@timestamp": %s,
                     "dim": "dim"
-                }""", docIdent)), XContentType.JSON);
+                }""", docIdent)), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
             return IndexShard.prepareIndex(
                 mapper,
                 source,
@@ -806,20 +806,21 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
-        try {
-            PlainActionFuture.<Void, RuntimeException>get(
-                future -> RecoverySourceHandler.runUnderPrimaryPermit(
-                    listener -> listener.onResponse(null),
-                    shard,
-                    cancellableThreads,
-                    future
-                ),
-                10,
-                TimeUnit.SECONDS
-            );
-        } catch (CancellableThreads.ExecutionCancelledException e) {
-            // expected.
-        }
+        safeAwait(
+            runListener -> RecoverySourceHandler.runUnderPrimaryPermit(
+                permitListener -> permitListener.onResponse(null),
+                shard,
+                cancellableThreads,
+                runListener.delegateResponse((l, e) -> {
+                    if (e instanceof CancellableThreads.ExecutionCancelledException) {
+                        // expected.
+                        l.onResponse(null);
+                    } else {
+                        l.onFailure(e);
+                    }
+                })
+            )
+        );
         cancelingThread.join();
         // we have to use assert busy as we may be interrupted while acquiring the permit, if so we want to check
         // that the permit is released.

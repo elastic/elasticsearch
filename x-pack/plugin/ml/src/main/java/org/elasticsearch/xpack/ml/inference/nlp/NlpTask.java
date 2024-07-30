@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
@@ -41,11 +42,12 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span) throws IOException;
+        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span, Integer windowSize)
+            throws IOException;
     }
 
     public interface ResultProcessor {
-        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult);
+        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult);
     }
 
     public abstract static class Processor implements Releasable {
@@ -72,6 +74,10 @@ public class NlpTask {
         public abstract RequestBuilder getRequestBuilder(NlpConfig config);
 
         public abstract ResultProcessor getResultProcessor(NlpConfig config);
+
+        static ElasticsearchException chunkingNotSupportedException(TaskType taskType) {
+            throw chunkingNotSupportedException(TaskType.NER);
+        }
     }
 
     public record Request(TokenizationResult tokenization, BytesReference processInput) {

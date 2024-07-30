@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason:  "Start of the week Monday was enabled in a backport to 7.7 PR#50916"
 
   - do:

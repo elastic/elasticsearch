@@ -1,0 +1,19 @@
+{
+  "bool" : "to_boolean",
+  "boolean" : "to_boolean",
+  "cartesian_point" : "to_cartesianpoint",
+  "cartesian_shape" : "to_cartesianshape",
+  "datetime" : "to_datetime",
+  "double" : "to_double",
+  "geo_point" : "to_geopoint",
+  "geo_shape" : "to_geoshape",
+  "int" : "to_integer",
+  "integer" : "to_integer",
+  "ip" : "to_ip",
+  "keyword" : "to_string",
+  "long" : "to_long",
+  "string" : "to_string",
+  "text" : "to_string",
+  "unsigned_long" : "to_unsigned_long",
+  "version" : "to_version"
+}

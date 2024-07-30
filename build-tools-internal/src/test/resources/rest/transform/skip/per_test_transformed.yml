@@ -7,8 +7,7 @@
 ---
 "Two Test":
   - skip:
-      version: "all"
-      reason: "my reason"
+      awaits_fix: "my reason"
   - do:
       something:
         id: "something2"
@@ -16,8 +15,7 @@
 ---
 "Three Test":
   - skip:
-      version: "all"
-      reason: "another reason"
+      awaits_fix: "another reason"
   - do:
       something:
         id: "something3"

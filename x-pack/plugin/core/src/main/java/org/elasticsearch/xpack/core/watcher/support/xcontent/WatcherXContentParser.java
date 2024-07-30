@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 
 /**
  * A xcontent parser that is used by watcher. This is a special parser that is
@@ -50,7 +51,9 @@ public class WatcherXContentParser extends FilterXContentParserWrapper {
                     throw new ElasticsearchParseException("found redacted password in field [{}]", parser.currentName());
                 }
             } else if (watcherParser.cryptoService != null) {
-                return new Secret(watcherParser.cryptoService.encrypt(chars));
+                char[] encryptedChars = watcherParser.cryptoService.encrypt(chars);
+                Arrays.fill(chars, '\0'); // Clear chars from unencrypted buffer
+                return new Secret(encryptedChars);
             }
         }
 

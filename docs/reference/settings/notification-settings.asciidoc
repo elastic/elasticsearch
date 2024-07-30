@@ -95,6 +95,7 @@ corresponding endpoints are explicitly allowed as well.
 :verifies:
 :server!:
 :ssl-context:            watcher
+:no-enabled-setting:
 
 include::ssl-settings.asciidoc[]
 
@@ -284,6 +285,7 @@ Defaults to `Warning: The attachment [%s] contains characters which spreadsheet 
 :verifies:
 :server!:
 :ssl-context:            watcher-email
+:no-enabled-setting:
 
 include::ssl-settings.asciidoc[]
 

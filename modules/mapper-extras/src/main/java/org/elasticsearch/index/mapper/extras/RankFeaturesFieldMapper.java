@@ -64,8 +64,8 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         @Override
         public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
-                name,
-                new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                leafName(),
+                new RankFeaturesFieldType(context.buildFullName(leafName()), meta.getValue(), positiveScoreImpact.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 positiveScoreImpact.getValue()
@@ -137,7 +137,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -174,7 +174,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = name() + "." + feature;
+                    final String key = fullPath() + "." + feature;
                     float value = context.parser().floatValue(true);
                     if (context.doc().getByKey(key) != null) {
                         throw new IllegalArgumentException(
@@ -187,7 +187,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                     if (positiveScoreImpact == false) {
                         value = 1 / value;
                     }
-                    context.doc().addWithKey(key, new FeatureField(name(), feature, value));
+                    context.doc().addWithKey(key, new FeatureField(fullPath(), feature, value));
                 } else {
                     throw new IllegalArgumentException(
                         "[rank_features] fields take hashes that map a feature to a strictly positive "

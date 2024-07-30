@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.async;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RefCounted;
 
-public interface AsyncResponse<T extends AsyncResponse<?>> extends Writeable, RefCounted {
+public interface AsyncResponse<T extends AsyncResponse<? extends RefCounted>> extends Writeable, RefCounted {
     /**
      * When this response will expire as a timestamp in milliseconds since epoch.
      */

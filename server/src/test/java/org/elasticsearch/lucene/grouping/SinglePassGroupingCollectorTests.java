@@ -26,7 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -132,12 +132,11 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             );
         }
 
-        TopFieldCollector topFieldCollector = TopFieldCollector.create(sort, totalHits, Integer.MAX_VALUE);
+        TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(sort, totalHits, Integer.MAX_VALUE);
         Query query = new MatchAllDocsQuery();
         searcher.search(query, collapsingCollector);
-        searcher.search(query, topFieldCollector);
+        TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
-        TopFieldDocs topDocs = topFieldCollector.topDocs();
         assertEquals(collapseField.getField(), collapseTopFieldDocs.field);
         assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(totalHits, collapseTopFieldDocs.totalHits.value);

@@ -1,0 +1,5 @@
+pr: 107877
+summary: Support metrics counter types in ESQL
+area: "ES|QL"
+type: enhancement
+issues: []

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
@@ -53,6 +55,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
+    private final SameThreadExecutorService sameThreadExecutorService = new SameThreadExecutorService();
 
     ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
         this.config = indexSettings.getMergeSchedulerConfig();
@@ -68,6 +71,19 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
     /** We're currently only interested in messages with this prefix. */
     private static final String MERGE_THREAD_MESSAGE_PREFIX = "merge thread";
+
+    @Override
+    // Overridden until investigation in https://github.com/apache/lucene/pull/13475 is complete
+    public Executor getIntraMergeExecutor(MergePolicy.OneMerge merge) {
+        return sameThreadExecutorService;
+    }
+
+    @Override
+    // Overridden until investigation in https://github.com/apache/lucene/pull/13475 is complete
+    public void close() throws IOException {
+        super.close();
+        sameThreadExecutorService.shutdown();
+    }
 
     @Override
     /** Overridden to route specific MergeThread messages to our logger. */

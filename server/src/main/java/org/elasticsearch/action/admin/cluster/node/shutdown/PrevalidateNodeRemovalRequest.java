@@ -34,6 +34,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     private PrevalidateNodeRemovalRequest(Builder builder) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.names = builder.names;
         this.ids = builder.ids;
         this.externalIds = builder.externalIds;
@@ -94,9 +95,6 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
 
     public PrevalidateNodeRemovalRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
-        if (masterNodeTimeout == DEFAULT_MASTER_NODE_TIMEOUT) {
-            masterNodeTimeout = timeout;
-        }
         return this;
     }
 

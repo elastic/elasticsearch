@@ -16,6 +16,7 @@ public enum ElementType {
     BOOLEAN(BlockFactory::newBooleanBlockBuilder),
     INT(BlockFactory::newIntBlockBuilder),
     LONG(BlockFactory::newLongBlockBuilder),
+    FLOAT(BlockFactory::newFloatBlockBuilder),
     DOUBLE(BlockFactory::newDoubleBlockBuilder),
     /**
      * Blocks containing only null values.
@@ -28,6 +29,11 @@ public enum ElementType {
      * Blocks that reference individual lucene documents.
      */
     DOC(DocBlock::newBlockBuilder),
+
+    /**
+     * Composite blocks which contain array of sub-blocks.
+     */
+    COMPOSITE((blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build composite blocks"); }),
 
     /**
      * Intermediate blocks which don't support retrieving elements.
@@ -57,6 +63,8 @@ public enum ElementType {
             elementType = INT;
         } else if (type == Long.class) {
             elementType = LONG;
+        } else if (type == Float.class) {
+            elementType = FLOAT;
         } else if (type == Double.class) {
             elementType = DOUBLE;
         } else if (type == String.class || type == BytesRef.class) {

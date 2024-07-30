@@ -1,5 +1,0 @@
-pr: 103176
-summary: Validate settings in `ReloadSecureSettings` API
-area: Client
-type: bug
-issues: []

@@ -11,7 +11,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.ConstantFieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.lookup.Source;
@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
+public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
 
     public void testTermQuery() {
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
@@ -125,5 +125,10 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(List.of("foo"), fetcher.fetchValues(sourceWithNoFieldValue, -1, ignoredValues));
         assertEquals(List.of("foo"), fetcher.fetchValues(sourceWithNullFieldValue, -1, ignoredValues));
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return new ConstantKeywordFieldMapper.ConstantKeywordFieldType(randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 }

@@ -10,13 +10,26 @@ package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
+
+import static org.elasticsearch.action.support.master.ShardsAcknowledgedResponse.declareAcknowledgedAndShardsAcknowledgedFields;
 
 public class OpenIndexResponseTests extends AbstractXContentSerializingTestCase<OpenIndexResponse> {
 
+    private static final ConstructingObjectParser<OpenIndexResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "open_index",
+        true,
+        args -> new OpenIndexResponse((boolean) args[0], (boolean) args[1])
+    );
+
+    static {
+        declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
+    }
+
     @Override
     protected OpenIndexResponse doParseInstance(XContentParser parser) {
-        return OpenIndexResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override

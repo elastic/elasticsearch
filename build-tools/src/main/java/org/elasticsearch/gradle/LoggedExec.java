@@ -17,6 +17,8 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
@@ -65,6 +67,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     @Optional
     abstract public MapProperty<String, String> getEnvironment();
 
+    @Internal
+    abstract public MapProperty<String, String> getNonTrackedEnvironment();
+
     @Input
     abstract public Property<String> getExecutable();
 
@@ -89,15 +94,43 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     private String output;
 
     @Inject
-    public LoggedExec(ProjectLayout projectLayout, ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
+    public LoggedExec(
+        ProjectLayout projectLayout,
+        ExecOperations execOperations,
+        FileSystemOperations fileSystemOperations,
+        ProviderFactory providerFactory
+    ) {
         this.projectLayout = projectLayout;
         this.execOperations = execOperations;
         this.fileSystemOperations = fileSystemOperations;
         getWorkingDir().convention(projectLayout.getProjectDirectory().getAsFile());
         // For now mimic default behaviour of Gradle Exec task here
-        getEnvironment().putAll(System.getenv());
+        setupDefaultEnvironment(providerFactory);
         getCaptureOutput().convention(false);
         getSpoolOutput().convention(false);
+    }
+
+    /**
+     * We explicitly configure the environment variables that are passed to the executed process.
+     * This is required to make sure that the build cache and Gradle configuration cache is correctly configured
+     * can be reused across different build invocations.
+     * */
+    private void setupDefaultEnvironment(ProviderFactory providerFactory) {
+        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("BUILDKITE"));
+        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("GRADLE_BUILD_CACHE"));
+        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("VAULT"));
+        Provider<String> javaToolchainHome = providerFactory.environmentVariable("JAVA_TOOLCHAIN_HOME");
+        if (javaToolchainHome.isPresent()) {
+            getEnvironment().put("JAVA_TOOLCHAIN_HOME", javaToolchainHome);
+        }
+        Provider<String> javaRuntimeHome = providerFactory.environmentVariable("RUNTIME_JAVA_HOME");
+        if (javaRuntimeHome.isPresent()) {
+            getEnvironment().put("RUNTIME_JAVA_HOME", javaRuntimeHome);
+        }
+        Provider<String> path = providerFactory.environmentVariable("PATH");
+        if (path.isPresent()) {
+            getEnvironment().put("PATH", path);
+        }
     }
 
     @TaskAction
@@ -118,7 +151,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 try {
                     // the file may not exist if the command never output anything
                     if (Files.exists(spoolFile.toPath())) {
-                        Files.lines(spoolFile.toPath()).forEach(logger::error);
+                        try (var lines = Files.lines(spoolFile.toPath())) {
+                            lines.forEach(logger::error);
+                        }
                     }
                 } catch (IOException e) {
                     throw new RuntimeException("could not log", e);
@@ -137,7 +172,8 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
             execSpec.setStandardOutput(finalOutputStream);
             execSpec.setErrorOutput(finalOutputStream);
             execSpec.setExecutable(getExecutable().get());
-            execSpec.setEnvironment(getEnvironment().get());
+            execSpec.environment(getEnvironment().get());
+            execSpec.environment(getNonTrackedEnvironment().get());
             if (getArgs().isPresent()) {
                 execSpec.setArgs(getArgs().get());
             }

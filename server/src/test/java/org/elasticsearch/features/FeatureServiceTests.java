@@ -84,6 +84,18 @@ public class FeatureServiceTests extends ESTestCase {
         );
     }
 
+    public void testFailsSameRegularAndHistoricalFeature() {
+        FeatureSpecification fs = new TestFeatureSpecification(
+            Set.of(new NodeFeature("f1")),
+            Map.of(new NodeFeature("f1"), Version.V_8_12_0)
+        );
+
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs))).getMessage(),
+            containsString("cannot be declared as both a regular and historical feature")
+        );
+    }
+
     public void testGetNodeFeaturesCombinesAllSpecs() {
         List<FeatureSpecification> specs = List.of(
             new TestFeatureSpecification(Set.of(new NodeFeature("f1"), new NodeFeature("f2")), Map.of()),

@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.create;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -43,6 +44,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
  * Create index action.
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
+    public static final ActionType<CreateIndexResponse> TYPE = new ActionType<>("indices:admin/create");
     private static final Logger logger = LogManager.getLogger(TransportCreateIndexAction.class);
 
     private final MetadataCreateIndexService createIndexService;
@@ -59,7 +61,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         SystemIndices systemIndices
     ) {
         super(
-            CreateIndexAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -163,7 +165,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 alias.isHidden(true);
             }
         }).collect(Collectors.toSet());
-        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
@@ -199,7 +201,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             request.index()
         );
 
-        return updateRequest.ackTimeout(request.timeout())
+        return updateRequest.ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)

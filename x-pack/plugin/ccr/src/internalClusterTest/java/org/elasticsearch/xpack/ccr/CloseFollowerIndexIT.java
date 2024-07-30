@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -75,7 +74,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
-        PutFollowAction.Request followRequest = new PutFollowAction.Request();
+        PutFollowAction.Request followRequest = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         followRequest.setRemoteCluster("leader_cluster");
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowerIndex("index2");
@@ -110,7 +109,6 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metadata().index("index2").getState(), is(IndexMetadata.State.CLOSE));
         assertThat(clusterState.getBlocks().hasIndexBlock("index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
-        assertThat(followerClient().admin().cluster().prepareHealth("index2").get().getStatus(), equalTo(ClusterHealthStatus.RED));
 
         isRunning.set(false);
         for (Thread thread : threads) {

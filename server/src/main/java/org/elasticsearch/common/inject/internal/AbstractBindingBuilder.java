@@ -21,9 +21,7 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
 
-import java.lang.annotation.Annotation;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Bind a value or constant.
@@ -61,15 +59,9 @@ public abstract class AbstractBindingBuilder<T> {
         return binding;
     }
 
-    public void in(final Class<? extends Annotation> scopeAnnotation) {
-        Objects.requireNonNull(scopeAnnotation, "scopeAnnotation");
-        checkNotScoped();
-        setBinding(getBinding().withScoping(Scoping.forAnnotation(scopeAnnotation)));
-    }
-
     public void asEagerSingleton() {
         checkNotScoped();
-        setBinding(getBinding().withScoping(Scoping.EAGER_SINGLETON));
+        setBinding(getBinding().withEagerSingletonScoping());
     }
 
     protected void checkNotTargetted() {

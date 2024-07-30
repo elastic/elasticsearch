@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
@@ -310,7 +311,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
-    public void testConcurrentAddBlock() throws InterruptedException {
+    public void testConcurrentAddBlock() throws InterruptedException, ExecutionException {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
@@ -322,31 +323,19 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
         ensureYellowAndNoInitializingShards(indexName);
-
-        final CountDownLatch startClosing = new CountDownLatch(1);
-        final Thread[] threads = new Thread[randomIntBetween(2, 5)];
-
         final APIBlock block = randomAddableBlock();
 
+        final int threadCount = randomIntBetween(2, 5);
         try {
-            for (int i = 0; i < threads.length; i++) {
-                threads[i] = new Thread(() -> {
-                    safeAwait(startClosing);
-                    try {
-                        indicesAdmin().prepareAddBlock(block, indexName).get();
-                        assertIndexHasBlock(block, indexName);
-                    } catch (final ClusterBlockException e) {
-                        assertThat(e.blocks(), hasSize(1));
-                        assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
-                    }
-                });
-                threads[i].start();
-            }
-
-            startClosing.countDown();
-            for (Thread thread : threads) {
-                thread.join();
-            }
+            startInParallel(threadCount, i -> {
+                try {
+                    indicesAdmin().prepareAddBlock(block, indexName).get();
+                    assertIndexHasBlock(block, indexName);
+                } catch (final ClusterBlockException e) {
+                    assertThat(e.blocks(), hasSize(1));
+                    assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
+                }
+            });
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);
@@ -422,34 +411,17 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         };
 
         try {
-            for (final String indexToDelete : indices) {
-                threads.add(new Thread(() -> {
-                    safeAwait(latch);
-                    try {
-                        assertAcked(indicesAdmin().prepareDelete(indexToDelete));
-                    } catch (final Exception e) {
-                        exceptionConsumer.accept(e);
+            startInParallel(indices.length * 2, i -> {
+                try {
+                    if (i < indices.length) {
+                        assertAcked(indicesAdmin().prepareDelete(indices[i]));
+                    } else {
+                        indicesAdmin().prepareAddBlock(block, indices[i - indices.length]).get();
                     }
-                }));
-            }
-            for (final String indexToBlock : indices) {
-                threads.add(new Thread(() -> {
-                    safeAwait(latch);
-                    try {
-                        indicesAdmin().prepareAddBlock(block, indexToBlock).get();
-                    } catch (final Exception e) {
-                        exceptionConsumer.accept(e);
-                    }
-                }));
-            }
-
-            for (Thread thread : threads) {
-                thread.start();
-            }
-            latch.countDown();
-            for (Thread thread : threads) {
-                thread.join();
-            }
+                } catch (final Exception e) {
+                    exceptionConsumer.accept(e);
+                }
+            });
         } finally {
             for (final String indexToBlock : indices) {
                 try {

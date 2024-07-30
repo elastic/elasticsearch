@@ -20,7 +20,9 @@ public interface HttpChannel extends CloseableChannel {
      * completed.
      *
      * @param response to send to channel
-     * @param listener to execute upon send completion
+     * @param listener to execute upon send completion. Note that this listener is usually completed on a network thread in a context in
+     *                 which there's a risk of stack overflows if on close it calls back into the network layer in a manner that might end
+     *                 up nesting too deeply. When in doubt, dispatch any further work onto a separate thread.
      */
     void sendResponse(HttpResponse response, ActionListener<Void> listener);
 

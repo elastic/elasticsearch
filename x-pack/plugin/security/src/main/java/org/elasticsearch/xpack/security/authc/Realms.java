@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.common.Strings;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,6 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -57,7 +60,7 @@ import java.util.stream.StreamSupport;
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
-public class Realms extends AbstractLifecycleComponent implements Iterable<Realm> {
+public class Realms extends AbstractLifecycleComponent implements Iterable<Realm>, ReloadableSecurityComponent {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
@@ -108,7 +111,13 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         // initRealms will add default file and native realm config if they are not explicitly configured
         final List<Realm> initialRealms = initRealms(realmConfigs);
         realmRefs = calculateRealmRefs(realmConfigs, realmToDomainConfig);
-        initialRealms.forEach(realm -> realm.initRealmRef(realmRefs));
+        for (Realm realm : initialRealms) {
+            Authentication.RealmRef realmRef = Objects.requireNonNull(
+                realmRefs.get(new RealmConfig.RealmIdentifier(realm.type(), realm.name())),
+                "realmRef can not be null"
+            );
+            realm.setRealmRef(realmRef);
+        }
 
         this.allConfiguredRealms = initialRealms;
         this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));
@@ -153,6 +162,12 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                 new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), nodeName, realmDomain)
             );
         }
+        assert realmRefs.values().stream().filter(realmRef -> ReservedRealm.TYPE.equals(realmRef.getType())).toList().size() == 1
+            : "there must be exactly one reserved realm configured";
+        assert realmRefs.values().stream().filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType())).toList().size() == 1
+            : "there must be exactly one native realm configured";
+        assert realmRefs.values().stream().filter(realmRef -> FileRealmSettings.TYPE.equals(realmRef.getType())).toList().size() == 1
+            : "there must be exactly one file realm configured";
         return Map.copyOf(realmRefs);
     }
 
@@ -366,8 +381,52 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         }
     }
 
-    public Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> getRealmRefs() {
-        return realmRefs;
+    /**
+     * Retrieves the {@link Authentication.RealmRef}, which contains the {@link DomainConfig}, if configured,
+     * for the passed in {@link RealmConfig.RealmIdentifier}.
+     * If the realm is not currently configured, {@code null} is returned.
+     */
+    public @Nullable Authentication.RealmRef getRealmRef(RealmConfig.RealmIdentifier realmIdentifier) {
+        // "file", "native", and "reserved" realms may be renamed, but they refer to the same corpus of users
+        if (FileRealmSettings.TYPE.equals(realmIdentifier.getType())) {
+            return getFileRealmRef();
+        } else if (NativeRealmSettings.TYPE.equals(realmIdentifier.getType())) {
+            return getNativeRealmRef();
+        } else if (ReservedRealm.TYPE.equals(realmIdentifier.getType())) {
+            return getReservedRealmRef();
+        } else {
+            // but for other realms, it is assumed that a different realm name or realm type signifies a different corpus of users
+            return realmRefs.get(realmIdentifier);
+        }
+    }
+
+    public Authentication.RealmRef getNativeRealmRef() {
+        return realmRefs.values()
+            .stream()
+            .filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("native realm realm ref not found"));
+    }
+
+    public Authentication.RealmRef getFileRealmRef() {
+        return realmRefs.values()
+            .stream()
+            .filter(realmRef -> FileRealmSettings.TYPE.equals(realmRef.getType()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("file realm realm ref not found"));
+    }
+
+    public Authentication.RealmRef getReservedRealmRef() {
+        return realmRefs.values()
+            .stream()
+            .filter(realmRef -> ReservedRealm.TYPE.equals(realmRef.getType()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("reserved realm realm ref not found"));
+    }
+
+    // should only be useful for testing
+    int getRealmRefsCount() {
+        return realmRefs.size();
     }
 
     @Override
@@ -565,5 +624,24 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             converted.put(entry.getKey(), new ArrayList<>(Collections.singletonList(entry.getValue())));
         }
         return converted;
+    }
+
+    @Override
+    public void reload(Settings settings) {
+        final List<Exception> reloadExceptions = new ArrayList<>();
+        for (Realm realm : this.allConfiguredRealms) {
+            if (realm instanceof ReloadableSecurityComponent reloadableRealm) {
+                try {
+                    reloadableRealm.reload(settings);
+                } catch (Exception e) {
+                    reloadExceptions.add(e);
+                }
+            }
+        }
+        if (false == reloadExceptions.isEmpty()) {
+            final var combinedException = new ElasticsearchException("secure settings reload failed for one or more realms");
+            reloadExceptions.forEach(combinedException::addSuppressed);
+            throw combinedException;
+        }
     }
 }

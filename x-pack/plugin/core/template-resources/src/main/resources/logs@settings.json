@@ -5,9 +5,13 @@
         "lifecycle": {
           "name": "logs"
         },
+        "mode": "${xpack.stack.template.logsdb.index.mode}",
         "codec": "best_compression",
         "mapping": {
-          "ignore_malformed": true
+          "ignore_malformed": true,
+          "total_fields": {
+            "ignore_dynamic_beyond_limit": true
+          }
         },
         "default_pipeline": "logs@default-pipeline"
       }

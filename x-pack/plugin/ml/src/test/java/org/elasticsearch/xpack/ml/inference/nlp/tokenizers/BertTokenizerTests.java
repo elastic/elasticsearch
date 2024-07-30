@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization.DEFAULT_MAX_SEQUENCE_LENGTH;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +64,13 @@ public class BertTokenizerTests extends ESTestCase {
                 new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(
+                "Elasticsearch fun",
+                Tokenization.Truncate.NONE,
+                -1,
+                0,
+                DEFAULT_MAX_SEQUENCE_LENGTH
+            ).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elastic", "##search", "fun"));
             assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
@@ -126,10 +133,11 @@ public class BertTokenizerTests extends ESTestCase {
             BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, true, null, Tokenization.Truncate.NONE, -1))
                 .build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize(inputWithAccentsToStrip1, Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(inputWithAccentsToStrip1, Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 0, 1, 3, 2, 4, 12, 11, 10, 9, 8, 7, 10, 5, 13, 14, 38 }));
 
-            tokenization = tokenizer.tokenize(inputWithAccentsToStrip2, Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize(inputWithAccentsToStrip2, Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(
                 tokenization.tokenIds(),
                 equalTo(
@@ -169,13 +177,13 @@ public class BertTokenizerTests extends ESTestCase {
                 )
             );
 
-            tokenization = tokenizer.tokenize(inputWithAccentToStripAtEndOfString, Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize(inputWithAccentToStripAtEndOfString, Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 38 }));
             // the last token is the separator, the one before that should
             // correspond to the last word in the input _not_ the accent
             assertEquals("cancer", vocab.get(26));
 
-            tokenization = tokenizer.tokenize(onlyAccents, Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize(onlyAccents, Tokenization.Truncate.NONE, -1, 0, null).get(0);
             // empty tokenization only contains ClASS and SEP tokens
             assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 38 }));
         }
@@ -202,10 +210,10 @@ public class BertTokenizerTests extends ESTestCase {
                 new BertTokenization(true, true, 512, Tokenization.Truncate.FIRST, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Br창n's", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Br창n's", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenization.tokenIds(), equalTo(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }));
 
-            tokenization = tokenizer.tokenize("Br창n", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize("Br창n", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenization.tokenIds(), equalTo(new int[] { 0, 1, 2, 3, 4, 5, 8 }));
         }
     }
@@ -224,17 +232,17 @@ public class BertTokenizerTests extends ESTestCase {
 
             ElasticsearchStatusException ex = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> tokenizer.tokenize("Elasticsearch fun with Pancake and Godzilla", Tokenization.Truncate.NONE, -1, 0)
+                () -> tokenizer.tokenize("Elasticsearch fun with Pancake and Godzilla", Tokenization.Truncate.NONE, -1, 0, null)
             );
             assertThat(ex.getMessage(), equalTo("Input too large. The tokenized input length [8] exceeds the maximum sequence length [5]"));
 
             // Shouldn't throw
-            tokenizer.tokenize("Elasticsearch fun with Pancake", Tokenization.Truncate.NONE, -1, 0);
+            tokenizer.tokenize("Elasticsearch fun with Pancake", Tokenization.Truncate.NONE, -1, 0, null);
 
             // Should throw as special chars add two tokens
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> specialCharTokenizer.tokenize("Elasticsearch fun with Pancake", Tokenization.Truncate.NONE, -1, 0)
+                () -> specialCharTokenizer.tokenize("Elasticsearch fun with Pancake", Tokenization.Truncate.NONE, -1, 0, null)
             );
         }
     }
@@ -250,7 +258,8 @@ public class BertTokenizerTests extends ESTestCase {
                 "Pancake day fun with Elasticsearch and Godzilla",
                 Tokenization.Truncate.NONE,
                 0,
-                0
+                0,
+                null
             );
             assertThat(tokens.size(), equalTo(3));
             assertArrayEquals(new int[] { 12, 17, 16, 3, 13 }, tokens.get(0).tokenIds());
@@ -262,7 +271,13 @@ public class BertTokenizerTests extends ESTestCase {
             assertArrayEquals(new int[] { 12, 15, 8, 9, 13 }, tokens.get(2).tokenIds());
             assertArrayEquals(new int[] { -1, 5, 6, 6, -1 }, tokens.get(2).tokenMap());
 
-            tokens = tokenizer.tokenize("Godzilla Elasticsearch day with Pancake and my little red car.", Tokenization.Truncate.NONE, 0, 0);
+            tokens = tokenizer.tokenize(
+                "Godzilla Elasticsearch day with Pancake and my little red car.",
+                Tokenization.Truncate.NONE,
+                0,
+                0,
+                null
+            );
             assertThat(tokens.size(), equalTo(5));
             assertArrayEquals(new int[] { 12, 8, 9, 13 }, tokens.get(0).tokenIds());
             assertArrayEquals(new int[] { -1, 0, 0, -1 }, tokens.get(0).tokenMap());
@@ -283,7 +298,13 @@ public class BertTokenizerTests extends ESTestCase {
             // is such that we cannot
             // In this case, with a span of one and two split words next to eachother, the first subsequence has
             // "God ##zilla" and the next starts "##zilla Elastic ##search"
-            tokens = tokenizer.tokenize("Godzilla Elasticsearch day with Pancake and my little red car.", Tokenization.Truncate.NONE, 1, 0);
+            tokens = tokenizer.tokenize(
+                "Godzilla Elasticsearch day with Pancake and my little red car.",
+                Tokenization.Truncate.NONE,
+                1,
+                0,
+                null
+            );
             assertThat(tokens.size(), equalTo(7));
             assertArrayEquals(new int[] { 12, 8, 9, 13 }, tokens.get(0).tokenIds());
             assertArrayEquals(new int[] { -1, 0, 0, -1 }, tokens.get(0).tokenMap());
@@ -300,7 +321,8 @@ public class BertTokenizerTests extends ESTestCase {
                 "Godzilla Elasticsearch day with Pancake and my little red car.",
                 Tokenization.Truncate.NONE,
                 1,
-                0
+                0,
+                null
             );
             assertThat(tokens.size(), equalTo(3));
             assertArrayEquals(new int[] { 8, 9, 0, 1, 16 }, tokens.get(0).tokenIds());
@@ -326,7 +348,8 @@ public class BertTokenizerTests extends ESTestCase {
                 "Elasticsearch fun with Pancake and Godzilla",
                 Tokenization.Truncate.FIRST,
                 -1,
-                0
+                0,
+                null
             ).get(0);
             assertArrayEquals(new int[] { 0, 1, 3, 18, 17 }, tokenization.tokenIds());
         }
@@ -341,7 +364,8 @@ public class BertTokenizerTests extends ESTestCase {
                 "Elasticsearch fun with Pancake and Godzilla",
                 Tokenization.Truncate.FIRST,
                 -1,
-                0
+                0,
+                null
             ).get(0);
             assertArrayEquals(new int[] { 12, 0, 1, 3, 13 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { -1, 0, 0, 1, -1 }, tokenization.tokenMap());
@@ -350,7 +374,8 @@ public class BertTokenizerTests extends ESTestCase {
 
     public void testTokenizeAppendSpecialTokens() {
         try (BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, Tokenization.createDefault()).build()) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertArrayEquals(new int[] { 12, 0, 1, 3, 13 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { -1, 0, 0, 1, -1 }, tokenization.tokenMap());
         }
@@ -370,7 +395,8 @@ public class BertTokenizerTests extends ESTestCase {
                 "Elasticsearch " + specialToken + " fun",
                 Tokenization.Truncate.NONE,
                 -1,
-                0
+                0,
+                null
             ).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elastic", "##search", specialToken, "fun"));
             assertArrayEquals(new int[] { 0, 1, 15, 3 }, tokenization.tokenIds());
@@ -386,11 +412,12 @@ public class BertTokenizerTests extends ESTestCase {
             ).setDoLowerCase(false).setWithSpecialTokens(false).build()
         ) {
 
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertArrayEquals(new int[] { 3, 2 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 1 }, tokenization.tokenMap());
 
-            tokenization = tokenizer.tokenize("elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize("elasticsearch fun", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertArrayEquals(new int[] { 0, 1, 2 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
         }
@@ -402,7 +429,8 @@ public class BertTokenizerTests extends ESTestCase {
             ).setDoLowerCase(true).setWithSpecialTokens(false).build()
         ) {
 
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertArrayEquals(new int[] { 0, 1, 2 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
         }
@@ -414,12 +442,13 @@ public class BertTokenizerTests extends ESTestCase {
                 .setWithSpecialTokens(false)
                 .build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch, fun.", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch, fun.", Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elastic", "##search", ",", "fun", "."));
             assertArrayEquals(new int[] { 0, 1, 11, 3, 10 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1, 2, 3 }, tokenization.tokenMap());
 
-            tokenization = tokenizer.tokenize("Elasticsearch, fun [MASK].", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize("Elasticsearch, fun [MASK].", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertArrayEquals(new int[] { 0, 1, 11, 3, 14, 10 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1, 2, 3, 4 }, tokenization.tokenMap());
         }
@@ -449,17 +478,18 @@ public class BertTokenizerTests extends ESTestCase {
             ).setWithSpecialTokens(true).setNeverSplit(Set.of("[MASK]")).build()
         ) {
 
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("This is [MASK]-tastic!", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("This is [MASK]-tastic!", Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("This", "is", "[MASK]", "-", "ta", "##stic", "!"));
             assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 6, 7, 8, 9 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { -1, 0, 1, 2, 3, 4, 4, 5, -1 }, tokenization.tokenMap());
 
-            tokenization = tokenizer.tokenize("This is sub~[MASK]!", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize("This is sub~[MASK]!", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("This", "is", "sub", "~", "[MASK]", "!"));
             assertArrayEquals(new int[] { 0, 1, 2, 10, 5, 3, 8, 9 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { -1, 0, 1, 2, 3, 4, 5, -1 }, tokenization.tokenMap());
 
-            tokenization = tokenizer.tokenize("This is sub,[MASK].tastic!", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize("This is sub,[MASK].tastic!", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("This", "is", "sub", ",", "[MASK]", ".", "ta", "##stic", "!"));
             assertArrayEquals(new int[] { 0, 1, 2, 10, 11, 3, 12, 6, 7, 8, 9 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { -1, 0, 1, 2, 3, 4, 5, 6, 6, 7, -1 }, tokenization.tokenMap());
@@ -476,10 +506,10 @@ public class BertTokenizerTests extends ESTestCase {
 
             TokenizationResult tr = tokenizer.buildTokenizationResult(
                 List.of(
-                    tokenizer.tokenize("Elasticsearch", Tokenization.Truncate.NONE, -1, 0).get(0),
-                    tokenizer.tokenize("my little red car", Tokenization.Truncate.NONE, -1, 1).get(0),
-                    tokenizer.tokenize("Godzilla day", Tokenization.Truncate.NONE, -1, 2).get(0),
-                    tokenizer.tokenize("Godzilla Pancake red car day", Tokenization.Truncate.NONE, -1, 3).get(0)
+                    tokenizer.tokenize("Elasticsearch", Tokenization.Truncate.NONE, -1, 0, null).get(0),
+                    tokenizer.tokenize("my little red car", Tokenization.Truncate.NONE, -1, 1, null).get(0),
+                    tokenizer.tokenize("Godzilla day", Tokenization.Truncate.NONE, -1, 2, null).get(0),
+                    tokenizer.tokenize("Godzilla Pancake red car day", Tokenization.Truncate.NONE, -1, 3, null).get(0)
                 )
             );
             assertThat(tr.getTokens(), hasSize(4));
@@ -754,7 +784,8 @@ public class BertTokenizerTests extends ESTestCase {
                 new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearchfoo fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearchfoo fun", Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("[UNK]", "fun"));
             assertEquals(BertTokenizer.UNKNOWN_TOKEN, TEST_CASED_VOCAB.get(tokenization.tokenIds()[0]));
             assertEquals("fun", TEST_CASED_VOCAB.get(tokenization.tokenIds()[1]));

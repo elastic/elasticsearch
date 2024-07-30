@@ -34,6 +34,10 @@ public class PipelineProcessor extends AbstractProcessor {
         this.ingestService = ingestService;
     }
 
+    public boolean isIgnoreMissingPipeline() {
+        return ignoreMissingPipeline;
+    }
+
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         String pipelineName = ingestDocument.renderTemplate(this.pipelineTemplate);

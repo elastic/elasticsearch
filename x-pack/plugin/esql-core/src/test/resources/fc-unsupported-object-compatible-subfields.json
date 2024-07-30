@@ -1,0 +1,48 @@
+{
+  "indices": [
+    "index-1",
+    "index-2"
+  ],
+  "fields": {
+    "file": {
+      "unknown": {
+        "type": "unknown",
+        "metadata_field": false,
+        "searchable": false,
+        "aggregatable": false,
+        "indices": [
+          "index-2"
+        ]
+      },
+      "object": {
+        "type": "object",
+        "metadata_field": false,
+        "searchable": false,
+        "aggregatable": false,
+        "indices": [
+          "index-1"
+        ]
+      }
+    },
+    "file.name": {
+      "keyword": {
+        "type": "keyword",
+        "metadata_field": false,
+        "searchable": true,
+        "aggregatable": true,
+        "indices": [
+          "index-1"
+        ]
+      },
+      "unmapped": {
+        "type": "unmapped",
+        "metadata_field": false,
+        "searchable": false,
+        "aggregatable": false,
+        "indices": [
+          "index-2"
+        ]
+      }
+    }
+  }
+}

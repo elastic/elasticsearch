@@ -17,11 +17,10 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
-
-import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.common.notifications.Level.INFO;
@@ -59,32 +58,28 @@ class TransformFailureHandler {
         // more detailed reporting in the handlers and below
         logger.atDebug().withThrowable(exception).log("[{}] transform encountered an exception", transformId);
         Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(exception);
-        boolean unattended = Boolean.TRUE.equals(settingsConfig.getUnattended());
+        boolean unattended = TransformEffectiveSettings.isUnattended(settingsConfig);
+        int numFailureRetries = TransformEffectiveSettings.getNumFailureRetries(settingsConfig, context.getNumFailureRetries());
 
         if (unwrappedException instanceof CircuitBreakingException e) {
             handleCircuitBreakingException(e, unattended);
         } else if (unwrappedException instanceof ScriptException e) {
             handleScriptException(e, unattended);
         } else if (unwrappedException instanceof BulkIndexingException e) {
-            handleBulkIndexingException(e, unattended, getNumFailureRetries(settingsConfig));
+            handleBulkIndexingException(e, unattended, numFailureRetries);
         } else if (unwrappedException instanceof ClusterBlockException e) {
             // gh#89802 always retry for a cluster block exception, because a cluster block should be temporary.
-            retry(e, e.getDetailedMessage(), unattended, getNumFailureRetries(settingsConfig));
+            retry(e, e.getDetailedMessage(), unattended, numFailureRetries);
         } else if (unwrappedException instanceof SearchPhaseExecutionException e) {
             // The reason of a SearchPhaseExecutionException unfortunately contains a full stack trace.
             // Instead of displaying that to the user, get the cause's message instead.
-            retry(e, e.getCause() != null ? e.getCause().getMessage() : null, unattended, getNumFailureRetries(settingsConfig));
+            retry(e, e.getCause() != null ? e.getCause().getMessage() : null, unattended, numFailureRetries);
         } else if (unwrappedException instanceof ElasticsearchException e) {
-            handleElasticsearchException(e, unattended, getNumFailureRetries(settingsConfig));
+            handleElasticsearchException(e, unattended, numFailureRetries);
         } else if (unwrappedException instanceof IllegalArgumentException e) {
             handleIllegalArgumentException(e, unattended);
         } else {
-            retry(
-                unwrappedException,
-                ExceptionRootCauseFinder.getDetailedMessage(unwrappedException),
-                unattended,
-                getNumFailureRetries(settingsConfig)
-            );
+            retry(unwrappedException, ExceptionRootCauseFinder.getDetailedMessage(unwrappedException), unattended, numFailureRetries);
         }
     }
 
@@ -98,7 +93,7 @@ class TransformFailureHandler {
     boolean handleStatePersistenceFailure(Exception e, SettingsConfig settingsConfig) {
         // we use the same setting for retries, however a separate counter, because the failure
         // counter for search/index gets reset after a successful bulk index request
-        int numFailureRetries = getNumFailureRetries(settingsConfig);
+        int numFailureRetries = TransformEffectiveSettings.getNumFailureRetries(settingsConfig, context.getNumFailureRetries());
 
         int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
 
@@ -272,20 +267,5 @@ class TransformFailureHandler {
     private void fail(Throwable exception, String failureMessage) {
         // note: logging and audit is done as part of context.markAsFailed
         context.markAsFailed(exception, failureMessage);
-    }
-
-    /**
-     * Get the number of retries.
-     * <p>
-     * The number of retries are read from the config or if not read from the context which is based on a cluster wide
-     * default. If the transform runs in unattended mode, the number of retries is always indefinite.
-     *
-     * @param settingsConfig the setting config
-     * @return the number of retries or -1 if retries are indefinite
-     */
-    private int getNumFailureRetries(SettingsConfig settingsConfig) {
-        return Boolean.TRUE.equals(settingsConfig.getUnattended())
-            ? -1
-            : Optional.ofNullable(settingsConfig.getNumFailureRetries()).orElse(context.getNumFailureRetries());
     }
 }

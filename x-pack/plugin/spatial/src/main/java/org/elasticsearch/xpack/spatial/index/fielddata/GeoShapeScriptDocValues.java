@@ -11,9 +11,12 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;

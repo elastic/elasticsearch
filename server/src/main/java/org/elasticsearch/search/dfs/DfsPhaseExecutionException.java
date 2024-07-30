@@ -20,10 +20,6 @@ public class DfsPhaseExecutionException extends SearchException {
         super(shardTarget, "Dfs Failed [" + msg + "]", t);
     }
 
-    public DfsPhaseExecutionException(SearchShardTarget shardTarget, String msg) {
-        super(shardTarget, "Dfs Failed [" + msg + "]");
-    }
-
     public DfsPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
     }

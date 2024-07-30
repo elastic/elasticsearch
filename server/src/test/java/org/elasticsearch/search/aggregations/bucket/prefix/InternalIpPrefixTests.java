@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.test.MapMatcher;
 
@@ -120,10 +121,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
 
     @Override
     protected void assertReduced(InternalIpPrefix reduced, List<InternalIpPrefix> inputs) {
-        InternalIpPrefix leader = inputs.get(0);
-        assertThat(reduced.keyed, equalTo(leader.keyed));
-        assertThat(reduced.format, equalTo(leader.format));
-        assertThat(reduced.minDocCount, equalTo(leader.minDocCount));
+        // we cannot check the current attribute values as they depend on the first aggregator during the reduced phase
         Map<BytesRef, Long> expectedCounts = new HashMap<>();
         for (InternalIpPrefix i : inputs) {
             for (InternalIpPrefix.Bucket b : i.getBuckets()) {
@@ -135,7 +133,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
         }
         MapMatcher countsMatches = matchesMap();
         for (Map.Entry<BytesRef, Long> e : expectedCounts.entrySet()) {
-            if (e.getValue() >= leader.minDocCount) {
+            if (e.getValue() >= inputs.get(0).minDocCount) {
                 countsMatches = countsMatches.entry(DocValueFormat.IP.format(e.getKey()), e.getValue());
             }
         }
@@ -167,7 +165,10 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
             InternalAggregations.EMPTY
         );
         InternalIpPrefix t = new InternalIpPrefix("test", DocValueFormat.IP, false, 100, List.of(b1, b2), null);
-        InternalIpPrefix reduced = (InternalIpPrefix) t.reduce(List.of(t), emptyReduceContextBuilder().forPartialReduction());
+        InternalIpPrefix reduced = (InternalIpPrefix) InternalAggregationTestCase.reduce(
+            List.of(t),
+            emptyReduceContextBuilder().forPartialReduction()
+        );
         assertThat(reduced.getBuckets().get(0).getDocCount(), equalTo(1L));
         assertThat(reduced.getBuckets().get(1).getDocCount(), equalTo(2L));
     }

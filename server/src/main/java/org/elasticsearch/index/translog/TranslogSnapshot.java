@@ -62,6 +62,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
             }
             skippedOperations++;
         }
+        reuse = null; // release buffer, it may be large and is no longer needed
         return null;
     }
 

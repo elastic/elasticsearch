@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
@@ -105,13 +106,13 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
     }
 
     @Override
-    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -95,6 +95,9 @@ public abstract class LdapTestCase extends ESTestCase {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
+            // Avoid generating operational attributes (like createTimestamp or modifyTimestamp) whose format is dependent
+            // on the locale and can cause invalid format failures since it violates the default schema.
+            serverConfig.setGenerateOperationalAttributes(false);
             debugLogging.configure(serverConfig);
             List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
             listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap", null, 0, null));

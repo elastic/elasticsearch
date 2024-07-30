@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -38,6 +40,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -61,7 +65,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,6 +80,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTests.indexBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -89,6 +93,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -192,6 +197,50 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public static class TestSlowLogFieldProvider implements SlowLogFieldProvider {
+
+        private static Map<String, String> fields = Map.of();
+
+        static void setFields(Map<String, String> fields) {
+            TestSlowLogFieldProvider.fields = fields;
+        }
+
+        @Override
+        public void init(IndexSettings indexSettings) {}
+
+        @Override
+        public Map<String, String> indexSlowLogFields() {
+            return fields;
+        }
+
+        @Override
+        public Map<String, String> searchSlowLogFields() {
+            return fields;
+        }
+    }
+
+    public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
+
+        private static Map<String, String> fields = Map.of();
+
+        static void setFields(Map<String, String> fields) {
+            TestAnotherSlowLogFieldProvider.fields = fields;
+        }
+
+        @Override
+        public void init(IndexSettings indexSettings) {}
+
+        @Override
+        public Map<String, String> indexSlowLogFields() {
+            return fields;
+        }
+
+        @Override
+        public Map<String, String> searchSlowLogFields() {
+            return fields;
+        }
+    }
+
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
@@ -225,7 +274,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
             ShardDeletionCheckResult.STILL_ALLOCATED
         );
-        test.removeShard(0, "boom");
+        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionTestUtils.assertNoFailureListener(v -> {}));
         assertEquals(
             "shard is removed",
             indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
@@ -260,6 +309,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
+        awaitIndexShardCloseAsyncTasks();
 
         assertFalse(firstPath.exists());
 
@@ -368,7 +418,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .put(SETTING_INDEX_UUID, index.getUUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
             .numberOfShards(1)
@@ -406,7 +456,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(alias).settings(idxSettings)
             .numberOfShards(1)
@@ -437,7 +487,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettingsLater = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(IndexVersion.current().id() + 10000))
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         final IndexMetadata indexMetadataLater = new IndexMetadata.Builder(indexNameLater).settings(idxSettingsLater)
             .numberOfShards(1)
@@ -465,7 +515,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final IndicesService indicesService = getIndicesService();
         final Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .put(SETTING_INDEX_UUID, index.getUUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
             .numberOfShards(1)
@@ -489,7 +539,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final IndicesService indicesService = getIndicesService();
         final Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .put(SETTING_INDEX_UUID, index.getUUID())
             .put(IndexModule.SIMILARITY_SETTINGS_PREFIX + ".test.type", "fake-similarity")
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
@@ -567,7 +617,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             final Index index = new Index(indexName, UUIDs.randomBase64UUID());
             final Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+                .put(SETTING_INDEX_UUID, index.getUUID());
             if (value != null) {
                 builder.put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), value);
             }
@@ -590,7 +640,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .put(SETTING_INDEX_UUID, index.getUUID())
             .put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), true)
             .put(BarEnginePlugin.BAR_INDEX_SETTING.getKey(), true)
             .build();
@@ -606,7 +656,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         final String pattern =
             ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
-        assertThat(e, hasToString(new RegexMatcher(pattern)));
+        assertThat(e, hasToString(matchesRegex(pattern)));
     }
 
     public void testBuildAliasFilter() {
@@ -745,5 +795,54 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs", dataStreamName1));
             assertThat(result, is(AliasFilter.EMPTY));
         }
+    }
+
+    public void testLoadSlowLogFieldProvider() {
+        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
+
+        var indicesService = getIndicesService();
+        SlowLogFieldProvider fieldProvider = indicesService.loadSlowLogFieldProvider();
+
+        // The map of fields from the two providers are merged to a single map of fields
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.searchSlowLogFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.indexSlowLogFields());
+
+        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
+
+        // There is an overlap of field names, since this isn't deterministic and probably a
+        // programming error (two providers provide the same field) throw an exception
+        assertThrows(IllegalStateException.class, fieldProvider::searchSlowLogFields);
+        assertThrows(IllegalStateException.class, fieldProvider::indexSlowLogFields);
+
+        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+
+        // One provider has no fields
+        assertEquals(Map.of("key1", "value1"), fieldProvider.searchSlowLogFields());
+        assertEquals(Map.of("key1", "value1"), fieldProvider.indexSlowLogFields());
+
+        TestSlowLogFieldProvider.setFields(Map.of());
+        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+
+        // Both providers have no fields
+        assertEquals(Map.of(), fieldProvider.searchSlowLogFields());
+        assertEquals(Map.of(), fieldProvider.indexSlowLogFields());
+    }
+
+    public void testWithTempIndexServiceHandlesExistingIndex() throws Exception {
+        // This test makes sure that we can run withTempIndexService even if the index already exists
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(
+            indexSettings(randomIntBetween(1, 5), randomIntBetween(0, 5)).put("index.version.created", IndexVersions.V_8_10_0)
+                .put(SETTING_INDEX_UUID, randomUUID())
+        ).build();
+        IndexService createdIndexService = indicesService.createIndex(indexMetadata, List.of(), true);
+        indicesService.withTempIndexService(indexMetadata, indexService -> {
+            assertNotEquals(createdIndexService, indexService);
+            assertEquals(createdIndexService.index(), indexService.index());
+            return null;
+        });
     }
 }

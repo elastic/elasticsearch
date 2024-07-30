@@ -22,10 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,18 +76,19 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         instance.includeGlobalState(randomBoolean());
 
         if (randomBoolean()) {
-            Collection<IndicesOptions.WildcardStates> wildcardStates = randomSubsetOf(
-                Arrays.asList(IndicesOptions.WildcardStates.values())
-            );
-            Collection<IndicesOptions.Option> options = randomSubsetOf(
-                Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE)
-            );
-
             instance.indicesOptions(
-                new IndicesOptions(
-                    options.isEmpty() ? IndicesOptions.Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? IndicesOptions.WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-                )
+                IndicesOptions.builder()
+                    .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
+                    .wildcardOptions(
+                        new IndicesOptions.WildcardOptions(
+                            randomBoolean(),
+                            randomBoolean(),
+                            randomBoolean(),
+                            instance.indicesOptions().ignoreAliases() == false,
+                            randomBoolean()
+                        )
+                    )
+                    .build()
             );
         }
 
@@ -109,7 +107,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected RestoreSnapshotRequest createTestInstance() {
-        return randomState(new RestoreSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+        return randomState(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(5), randomAlphaOfLength(10)));
     }
 
     @Override
@@ -141,7 +139,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         // we will only restore properties from the map that are contained in the request body. All other
         // properties are restored from the original (in the actual REST action this is restored from the
         // REST path and request parameters).
-        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(original.repository(), original.snapshot());
+        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, original.repository(), original.snapshot());
         processed.masterNodeTimeout(original.masterNodeTimeout());
         processed.waitForCompletion(original.waitForCompletion());
 

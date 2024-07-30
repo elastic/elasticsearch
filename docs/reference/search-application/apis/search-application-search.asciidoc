@@ -23,6 +23,11 @@ Unspecified template parameters will be assigned their default values (if applic
 Requires read privileges on the backing alias of the search application.
 
 [[search-application-search-path-params]]
+==== {api-path-parms-title}
+
+`typed_keys`::
+(Optional, Boolean) If `true`, aggregation and suggester names are prefixed
+by their respective types in the response. Defaults to `false`.
 
 [[search-application-search-request-body]]
 ==== {api-request-body-title}

@@ -744,7 +744,9 @@ public class SearchActionTests extends ESTestCase {
             SearchResponse r = TransportRollupSearchAction.processResponses(
                 result,
                 msearchResponse,
-                InternalAggregationTestCase.emptyReduceContextBuilder()
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("foo"))
+                )
             );
             try {
                 assertNotNull(r);

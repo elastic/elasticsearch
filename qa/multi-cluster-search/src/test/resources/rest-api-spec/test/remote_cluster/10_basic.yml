@@ -83,6 +83,10 @@
                         type: keyword
                         doc_values: false
   - do:
+        index:
+          index:  field_caps_index_1
+          body:   { number: "42", unmapped-bar: "bar" }
+  - do:
       indices.create:
         index: test_index
         body:
@@ -155,8 +159,8 @@
 
 ---
 tsdb:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:

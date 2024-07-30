@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -29,12 +28,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class GetConnectorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/get";
+    public static final String NAME = "indices:data/read/xpack/connector/get";
     public static final ActionType<GetConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetConnectorAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
 

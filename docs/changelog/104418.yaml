@@ -1,6 +1,0 @@
-pr: 104418
-summary: Fix `routing_path` when template has multiple `path_match` and multi-fields
-area: TSDB
-type: bug
-issues:
- - 104400

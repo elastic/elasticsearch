@@ -40,6 +40,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
     public void testScroll() {
         final int size = randomIntBetween(1, 4);
         assertScrollResponsesAndHitCount(
+            client(),
             TimeValue.timeValueSeconds(60),
             prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")),
             numDocs,

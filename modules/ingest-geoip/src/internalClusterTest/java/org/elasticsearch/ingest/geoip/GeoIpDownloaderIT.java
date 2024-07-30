@@ -30,7 +30,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -52,7 +52,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -87,7 +86,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
+        return List.of(
             ReindexPlugin.class,
             IngestGeoIpPlugin.class,
             GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
@@ -122,19 +121,13 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             }
         });
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response response = client().execute(
-                GeoIpDownloaderStatsAction.INSTANCE,
-                new GeoIpDownloaderStatsAction.Request()
-            ).actionGet();
-            assertThat(response.getStats().getDatabasesCount(), equalTo(0));
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
+            assertThat(response.getDownloaderStats().getDatabasesCount(), equalTo(0));
             assertThat(response.getNodes(), not(empty()));
-            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(nodeResponse.getConfigDatabases(), empty());
                 assertThat(nodeResponse.getDatabases(), empty());
-                assertThat(
-                    nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
-                    empty()
-                );
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }
         });
         assertBusy(() -> {
@@ -159,9 +152,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(
-                Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
-                state.getDatabases().keySet()
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
             );
         }, 2, TimeUnit.MINUTES);
 
@@ -234,9 +227,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(
-                Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
-                state.getDatabases().keySet()
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
             );
             putGeoIpPipeline(); // This is to work around the race condition described in #92888
         }, 2, TimeUnit.MINUTES);
@@ -245,11 +238,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertBusy(() -> {
                 try {
                     GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
-                    assertEquals(
-                        Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
-                        state.getDatabases().keySet()
+                    assertThat(
+                        state.getDatabases().keySet(),
+                        containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
                     );
-                    GeoIpTaskState.Metadata metadata = state.get(id);
+                    GeoIpTaskState.Metadata metadata = state.getDatabases().get(id);
                     int size = metadata.lastChunk() - metadata.firstChunk() + 1;
                     assertResponse(
                         prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
@@ -308,9 +301,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertNotNull(getTask().getState()); // removing all geoip processors should not result in the task being stopped
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(
-                Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
-                state.getDatabases().keySet()
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
             );
         });
     }
@@ -344,9 +337,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertAcked(indicesAdmin().prepareUpdateSettings(indexIdentifier).setSettings(indexSettings).get());
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(
-                Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
-                state.getDatabases().keySet()
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
             );
         }, 2, TimeUnit.MINUTES);
 
@@ -386,7 +379,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
+                    List<String> files = list.map(Path::getFileName).map(Path::toString).toList();
                     assertThat(
                         files,
                         containsInAnyOrder(
@@ -417,7 +410,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).collect(Collectors.toList());
+                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).toList();
                     assertThat(files, empty());
                 }
             }
@@ -681,7 +674,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertThat(Files.exists(geoipBaseTmpDir), is(true));
         final List<Path> geoipTmpDirs;
         try (Stream<Path> files = Files.list(geoipBaseTmpDir)) {
-            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).collect(Collectors.toList());
+            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).toList();
         }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         return geoipTmpDirs;
@@ -707,21 +700,15 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             });
 
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response response = client().execute(
-                GeoIpDownloaderStatsAction.INSTANCE,
-                new GeoIpDownloaderStatsAction.Request()
-            ).actionGet();
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
             assertThat(response.getNodes(), not(empty()));
-            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(
                     nodeResponse.getConfigDatabases(),
                     containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
                 );
                 assertThat(nodeResponse.getDatabases(), empty());
-                assertThat(
-                    nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
-                    empty()
-                );
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }
         });
     }
@@ -758,12 +745,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             });
 
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response response = client().execute(
-                GeoIpDownloaderStatsAction.INSTANCE,
-                new GeoIpDownloaderStatsAction.Request()
-            ).actionGet();
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
             assertThat(response.getNodes(), not(empty()));
-            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(nodeResponse.getConfigDatabases(), empty());
             }
         });

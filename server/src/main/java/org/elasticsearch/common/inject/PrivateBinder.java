@@ -24,11 +24,6 @@ package org.elasticsearch.common.inject;
  */
 public interface PrivateBinder extends Binder {
 
-    /**
-     * Makes the binding for {@code key} available to the enclosing environment
-     */
-    void expose(Key<?> key);
-
     @Override
     PrivateBinder withSource(Object source);
 

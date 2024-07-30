@@ -91,7 +91,7 @@ your query.
 [[esql-enrich-prereqs]]
 ==== Prerequisites
 
-include::{es-repo-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
+include::{es-ref-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 
 [discrete]
 [[esql-create-enrich-source-index]]
@@ -130,7 +130,7 @@ include::processing-commands/enrich.asciidoc[tag=examples]
 [[esql-update-enrich-data]]
 ==== Update an enrich index
 
-include::{es-repo-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
+include::{es-ref-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
 
 [discrete]
 [[esql-update-enrich-policies]]

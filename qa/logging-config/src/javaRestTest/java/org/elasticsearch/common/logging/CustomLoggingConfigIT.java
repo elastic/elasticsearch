@@ -8,7 +8,6 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
 
@@ -21,6 +20,8 @@ import java.nio.file.Paths;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
+
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * This test verifies that Elasticsearch can startup successfully with a custom logging config using variables introduced in
@@ -35,14 +36,14 @@ public class CustomLoggingConfigIT extends ESRestTestCase {
     public void testSuccessfulStartupWithCustomConfig() throws Exception {
         assertBusy(() -> {
             List<String> lines = readAllLines(getPlaintextLogFile());
-            assertThat(lines, Matchers.hasItem(RegexMatcher.matches(NODE_STARTED)));
+            assertThat(lines, Matchers.hasItem(matchesRegex(NODE_STARTED)));
         });
     }
 
     public void testParseAllV7JsonLines() throws Exception {
         assertBusy(() -> {
             List<String> lines = readAllLines(getJSONLogFile());
-            assertThat(lines, Matchers.hasItem(RegexMatcher.matches(NODE_STARTED)));
+            assertThat(lines, Matchers.hasItem(matchesRegex(NODE_STARTED)));
         });
     }
 

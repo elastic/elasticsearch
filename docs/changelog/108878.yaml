@@ -1,0 +1,5 @@
+pr: 108878
+summary: Support arrays in fallback synthetic source implementation
+area: Mapping
+type: feature
+issues: []

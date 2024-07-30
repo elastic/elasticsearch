@@ -40,6 +40,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107777")
     public void testCreateAndDeletePipelineWithInferenceProcessor() throws Exception {
         putRegressionModel(MODEL_ID);
         String pipelineId = "regression-model-pipeline";

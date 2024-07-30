@@ -67,19 +67,13 @@ grant codeBase "${codebase.elasticsearch-cli}" {
   permission java.util.PropertyPermission "*", "read,write";
 };
 
-grant codeBase "${codebase.jna}" {
-  // for registering native methods
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-};
-
 grant codeBase "${codebase.log4j-api}" {
   permission java.lang.RuntimePermission "getClassLoader";
 };
 
-grant codeBase "${codebase.elasticsearch-preallocate}" {
-  // for registering native methods
+grant codeBase "${codebase.elasticsearch-simdvec}" {
+  // for access MemorySegmentIndexInput internals
   permission java.lang.RuntimePermission "accessDeclaredMembers";
-  // for accessing the file descriptor field in FileChannel
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 

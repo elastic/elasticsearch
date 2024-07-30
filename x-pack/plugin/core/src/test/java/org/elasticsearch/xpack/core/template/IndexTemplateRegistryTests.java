@@ -377,6 +377,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                 rolloverCounter.incrementAndGet();
                 RolloverRequest rolloverRequest = ((RolloverRequest) request);
                 assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
+                assertThat(rolloverRequest.isLazy(), equalTo(true));
             } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 putIndexTemplateCounter.incrementAndGet();
             }

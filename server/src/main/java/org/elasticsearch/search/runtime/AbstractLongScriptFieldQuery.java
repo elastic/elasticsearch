@@ -29,7 +29,7 @@ abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery<Abs
     }
 
     @Override
-    protected boolean matches(AbstractLongFieldScript scriptContext, int docId) {
+    protected final boolean matches(AbstractLongFieldScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return AbstractLongScriptFieldQuery.this.matches(scriptContext.values(), scriptContext.count());
     }

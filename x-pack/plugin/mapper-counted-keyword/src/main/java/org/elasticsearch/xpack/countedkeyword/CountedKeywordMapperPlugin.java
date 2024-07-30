@@ -11,6 +11,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;

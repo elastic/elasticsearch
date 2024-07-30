@@ -267,7 +267,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
+            super(mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override
@@ -291,7 +291,7 @@ public final class TestUtils {
         private final ConcurrentHashMap<String, BytesArray> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
+            super(mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override

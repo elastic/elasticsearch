@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,7 +34,8 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
         private final String name;
         private boolean waitForCompletion;
 
-        public Request(String name) {
+        public Request(TimeValue masterNodeTimeout, String name) {
+            super(masterNodeTimeout);
             this.name = Objects.requireNonNull(name, "name cannot be null");
             this.waitForCompletion = true;
         }

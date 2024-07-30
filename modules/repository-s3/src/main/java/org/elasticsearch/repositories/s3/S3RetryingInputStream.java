@@ -20,15 +20,19 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.s3.S3BlobStore.configureRequestForMetrics;
 
 /**
  * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
@@ -79,31 +83,46 @@ class S3RetryingInputStream extends InputStream {
         this.end = end;
         final int initialAttempt = attempt;
         openStreamWithRetry();
-        maybeLogForSuccessAfterRetries(initialAttempt, "opened");
+        maybeLogAndRecordMetricsForSuccess(initialAttempt, "open");
     }
 
     private void openStreamWithRetry() throws IOException {
         while (true) {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-                getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
+                configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
                 if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                     assert start + currentOffset <= end
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
                     getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
                 }
-                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
+                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(s3Object));
                 this.currentStream = s3Object.getObjectContent();
                 return;
             } catch (AmazonClientException e) {
-                if (e instanceof AmazonS3Exception amazonS3Exception && 404 == amazonS3Exception.getStatusCode()) {
-                    throw addSuppressedExceptions(
-                        new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
-                    );
+                if (e instanceof AmazonS3Exception amazonS3Exception) {
+                    if (amazonS3Exception.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                        throw addSuppressedExceptions(
+                            new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
+                        );
+                    }
+                    if (amazonS3Exception.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                        throw addSuppressedExceptions(
+                            new RequestedRangeNotSatisfiedException(
+                                blobKey,
+                                currentStreamFirstOffset,
+                                (end < Long.MAX_VALUE - 1) ? end - currentStreamFirstOffset + 1 : end,
+                                amazonS3Exception
+                            )
+                        );
+                    }
                 }
 
+                if (attempt == 1) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("open"));
+                }
                 final long delayInMillis = maybeLogAndComputeRetryDelay("opening", e);
                 delayBeforeRetry(delayInMillis);
             }
@@ -119,7 +138,7 @@ class S3RetryingInputStream extends InputStream {
                 assert range[1] >= range[0] : range[1] + " vs " + range[0];
                 assert range[0] == start + currentOffset
                     : "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
-                assert range[1] == end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
+                assert range[1] <= end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
                 return range[1] - range[0] + 1L;
             }
             return metadata.getContentLength();
@@ -141,9 +160,12 @@ class S3RetryingInputStream extends InputStream {
                 } else {
                     currentOffset += 1;
                 }
-                maybeLogForSuccessAfterRetries(initialAttempt, "read");
+                maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
                 return result;
             } catch (IOException e) {
+                if (attempt == initialAttempt) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("read"));
+                }
                 reopenStreamOrFail(e);
             }
         }
@@ -161,9 +183,12 @@ class S3RetryingInputStream extends InputStream {
                 } else {
                     currentOffset += bytesRead;
                 }
-                maybeLogForSuccessAfterRetries(initialAttempt, "read");
+                maybeLogAndRecordMetricsForSuccess(initialAttempt, "read");
                 return bytesRead;
             } catch (IOException e) {
+                if (attempt == initialAttempt) {
+                    blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes("read"));
+                }
                 reopenStreamOrFail(e);
             }
         }
@@ -245,16 +270,20 @@ class S3RetryingInputStream extends InputStream {
         );
     }
 
-    private void maybeLogForSuccessAfterRetries(int initialAttempt, String action) {
+    private void maybeLogAndRecordMetricsForSuccess(int initialAttempt, String action) {
         if (attempt > initialAttempt) {
+            final int numberOfRetries = attempt - initialAttempt;
             logger.info(
                 "successfully {} input stream for [{}/{}] with purpose [{}] after [{}] retries",
                 action,
                 blobStore.bucket(),
                 blobKey,
-                purpose,
-                attempt - initialAttempt
+                purpose.getKey(),
+                numberOfRetries
             );
+            final Map<String, Object> attributes = metricAttributes(action);
+            blobStore.getS3RepositoriesMetrics().retryCompletedCounter().incrementBy(1, attributes);
+            blobStore.getS3RepositoriesMetrics().retryHistogram().record(numberOfRetries, attributes);
         }
     }
 
@@ -291,6 +320,21 @@ class S3RetryingInputStream extends InputStream {
     protected long getRetryDelayInMillis() {
         // Initial delay is 10 ms and cap max delay at 10 * 1024 millis, i.e. it retries every ~10 seconds at a minimum
         return 10L << (Math.min(attempt - 1, 10));
+    }
+
+    private Map<String, Object> metricAttributes(String action) {
+        return Map.of(
+            "repo_type",
+            S3Repository.TYPE,
+            "repo_name",
+            blobStore.getRepositoryMetadata().name(),
+            "operation",
+            Operation.GET_OBJECT.getKey(),
+            "purpose",
+            purpose.getKey(),
+            "action",
+            action
+        );
     }
 
     @Override

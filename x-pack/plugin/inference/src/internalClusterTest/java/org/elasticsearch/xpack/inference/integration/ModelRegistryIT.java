@@ -23,13 +23,14 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeModel;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceTests;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettingsTests;
 import org.junit.Before;
 
@@ -96,7 +97,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             statusException.getRootCause().getMessage(),
             containsString("mapping set to strict, dynamic introduction of [unknown_field] within [_doc] is not allowed")
         );
-        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference model [" + inferenceEntityId + "]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference endpoint [" + inferenceEntityId + "]"));
     }
 
     public void testGetModel() throws Exception {
@@ -116,8 +117,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
 
-        var elserService = new ElserMlNodeService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
-        ElserMlNodeModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
+        var elserService = new ElserInternalService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
+        ElserInternalModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
             modelHolder.get().inferenceEntityId(),
             modelHolder.get().taskType(),
             modelHolder.get().settings(),
@@ -143,7 +144,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertThat(
             exceptionHolder.get().getMessage(),
-            containsString("Inference model [test-put-trained-model-config-exists] already exists")
+            containsString("Inference endpoint [test-put-trained-model-config-exists] already exists")
         );
     }
 
@@ -170,7 +171,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
-        assertThat(exceptionHolder.get().getMessage(), containsString("Model not found [model1]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint not found [model1]"));
     }
 
     public void testGetModelsByTaskType() throws InterruptedException {
@@ -273,7 +274,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     private Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
-        return ElserMlNodeServiceTests.randomModelConfig(inferenceEntityId, taskType);
+        return ElserInternalServiceTests.randomModelConfig(inferenceEntityId, taskType);
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
@@ -296,8 +297,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             new ModelWithUnknownField(
                 inferenceEntityId,
                 TaskType.SPARSE_EMBEDDING,
-                ElserMlNodeService.NAME,
-                ElserMlNodeServiceSettingsTests.createRandom(),
+                ElserInternalService.NAME,
+                ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom()
             )
         );
@@ -338,6 +339,16 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
 
+            }
+
+            @Override
+            public String modelId() {
+                return null;
+            }
+
+            @Override
+            public ToXContentObject getFilteredXContentObject() {
+                return this;
             }
         }
 
@@ -399,7 +410,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("unknown_field", "foo");
-            builder.field(MODEL_ID, getInferenceEntityId());
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, getInferenceEntityId());
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());
@@ -425,7 +436,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("unknown_field", "foo");
-            builder.field(MODEL_ID, getInferenceEntityId());
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, getInferenceEntityId());
             builder.field(TaskType.NAME, getTaskType().toString());
             builder.field(SERVICE, getService());
             builder.field(SERVICE_SETTINGS, getServiceSettings());

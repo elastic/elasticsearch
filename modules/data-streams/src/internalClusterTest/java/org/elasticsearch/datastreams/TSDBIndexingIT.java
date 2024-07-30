@@ -8,8 +8,8 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -260,7 +260,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(
                 e.getCause().getCause().getMessage(),
                 equalTo(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    "All fields that match routing_path must be configured with [time_series_dimension: true] "
                         + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                         + "without the [script] parameter. [metricset] was not a dimension."
                 )
@@ -289,7 +289,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testInvalidTsdbTemplatesNoKeywordFieldType() throws Exception {
+    public void testTsdbTemplatesNoKeywordFieldType() throws Exception {
         var mappingTemplate = """
             {
               "_doc":{
@@ -315,18 +315,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
-        );
-        assertThat(
-            e.getCause().getCause().getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                    + "without the [script] parameter. [metricset] was [long]."
-            )
-        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     public void testInvalidTsdbTemplatesMissingSettings() throws Exception {
@@ -479,7 +468,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
         // Pre check whether _id stored field uses diskspace:
         var diskUsageResponse = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         var map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
@@ -521,7 +510,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
         // Check the _id stored field uses no disk space:
         diskUsageResponse = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
         map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);

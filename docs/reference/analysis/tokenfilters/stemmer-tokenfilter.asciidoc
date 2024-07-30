@@ -236,6 +236,7 @@ https://snowballstem.org/algorithms/serbian/stemmer.html[*`serbian`*]
 Spanish::
 https://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_spanish`*],
 https://snowballstem.org/algorithms/spanish/stemmer.html[`spanish`]
+https://www.wikilengua.org/index.php/Plural_(formaci%C3%B3n)[`spanish_plural`]
 
 Swedish::
 https://snowballstem.org/algorithms/swedish/stemmer.html[*`swedish`*],

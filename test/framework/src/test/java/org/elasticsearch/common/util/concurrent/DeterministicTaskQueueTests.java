@@ -443,20 +443,4 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, contains("periodic-0", "periodic-1", "periodic-2"));
     }
 
-    public void testSameExecutor() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ThreadPool threadPool = taskQueue.getThreadPool();
-        final AtomicBoolean executed = new AtomicBoolean(false);
-        final AtomicBoolean executedNested = new AtomicBoolean(false);
-        threadPool.generic().execute(() -> {
-            final var executor = threadPool.executor(ThreadPool.Names.SAME);
-            assertSame(EsExecutors.DIRECT_EXECUTOR_SERVICE, executor);
-            executor.execute(() -> assertTrue(executedNested.compareAndSet(false, true)));
-            assertThat(executedNested.get(), is(true));
-            assertTrue(executed.compareAndSet(false, true));
-        });
-        taskQueue.runAllRunnableTasks();
-        assertThat(executed.get(), is(true));
-    }
-
 }

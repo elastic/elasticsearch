@@ -159,7 +159,7 @@ cluster settings and node settings. The API doesn't require a restart and
 ensures a setting's value is the same on all nodes.
 ====
 
-include::{es-repo-dir}/cluster/update-settings.asciidoc[tag=transient-settings-warning]
+include::{es-ref-dir}/cluster/update-settings.asciidoc[tag=transient-settings-warning]
 // end::cluster-setting-precedence[]
 --
 

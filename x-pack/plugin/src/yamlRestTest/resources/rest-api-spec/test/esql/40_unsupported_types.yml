@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: test
@@ -109,8 +109,8 @@ setup:
 
 ---
 unsupported:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Latest types supported in ESQL as of 8.13.0"
 
   - do:
@@ -289,8 +289,8 @@ unsupported:
 
 ---
 unsupported with sort:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Latest types supported in ESQL as of 8.13.0"
 
   - do:

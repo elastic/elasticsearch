@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -26,10 +27,10 @@ public class RestRollupSearchAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestRollupSearchAction(NamedWriteableRegistry namedWriteableRegistry) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
+    public RestRollupSearchAction(Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -50,7 +51,7 @@ public class RestRollupSearchAction extends BaseRestHandler {
                 searchRequest,
                 restRequest,
                 parser,
-                namedWriteableRegistry,
+                clusterSupportsFeature,
                 size -> searchRequest.source().size(size)
             )
         );

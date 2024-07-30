@@ -10,13 +10,13 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * A registry for all field mappers.
@@ -29,13 +29,13 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers7x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers5x;
-    private final Function<String, Predicate<String>> fieldFilter;
+    private final Function<String, FieldPredicate> fieldFilter;
 
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-        Function<String, Predicate<String>> fieldFilter
+        Function<String, FieldPredicate> fieldFilter
     ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;
@@ -92,7 +92,7 @@ public final class MapperRegistry {
      * {@link MapperPlugin#getFieldFilter()}, only fields that match all the registered filters will be returned by get mappings,
      * get index, get field mappings and field capabilities API.
      */
-    public Function<String, Predicate<String>> getFieldFilter() {
+    public Function<String, FieldPredicate> getFieldFilter() {
         return fieldFilter;
     }
 }

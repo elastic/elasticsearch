@@ -185,7 +185,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
                 assertThat(global.getName(), is("global"));
                 assertThat(global.getDocCount(), is((long) NUMBER_OF_DOCS));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().entrySet(), hasSize(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 final MedianAbsoluteDeviation mad = global.getAggregations().get("mad");
                 assertThat(mad, notNullValue());

@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,6 +31,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
 
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer;
     private final SearchProgressListener progressListener;
+    private final Client client;
 
     SearchDfsQueryThenFetchAsyncAction(
         Logger logger,
@@ -46,7 +48,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        Client client
     ) {
         super(
             "dfs",
@@ -74,6 +77,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request.source());
         }
+        this.client = client;
     }
 
     @Override
@@ -100,7 +104,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             aggregatedDfs,
             mergedKnnResults,
             queryPhaseResultConsumer,
-            (queryResults) -> new FetchSearchPhase(queryResults, aggregatedDfs, context),
+            (queryResults) -> new RankFeaturePhase(queryResults, aggregatedDfs, context, client),
             context
         );
     }

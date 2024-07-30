@@ -30,32 +30,42 @@ and their disk space.
 [[cat-allocation-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 [[cat-allocation-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [[cat-allocation-api-response-body]]
 ==== {api-response-body-title}
 
 `shards`::
 Number of primary and replica shards assigned to the node.
+
+`shards.undesired`::
+Amount of shards that are scheduled to be moved elsewhere in the cluster
+or -1 other than desired balance allocator is used
+
+`write_load.forecast`::
+Sum of index write load forecasts
+
+`disk.indices.forecast`::
+Sum of shard size forecasts
 
 `disk.indices`::
 Disk space used by the node's shards. Does not include disk space for the
@@ -99,6 +109,8 @@ IP address and port for the node.
 `node`::
 Name for the node. Set using <<node-name,`node.name`>>.
 
+`node.role`, `r`, `role`, `nodeRole`::
+Node roles
 
 [[cat-allocation-api-example]]
 ==== {api-examples-title}
@@ -113,8 +125,8 @@ The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-shards disk.indices disk.used disk.avail disk.total disk.percent host      ip        node    node.role
-     1         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2 himrst
+shards shards.undesired write_load.forecast disk.indices.forecast disk.indices disk.used disk.avail disk.total disk.percent host      ip        node    node.role
+     1                0                 0.0                  260b         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2 himrst
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/ s/46/\\d+/]
 // TESTRESPONSE[s/CSUXak2 himrst/.+/ non_json]

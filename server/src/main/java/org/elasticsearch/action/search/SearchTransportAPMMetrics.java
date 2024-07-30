@@ -19,6 +19,7 @@ public class SearchTransportAPMMetrics {
     public static final String DFS_ACTION_METRIC = "dfs_query_then_fetch/shard_dfs_phase";
     public static final String QUERY_ID_ACTION_METRIC = "dfs_query_then_fetch/shard_query_phase";
     public static final String QUERY_ACTION_METRIC = "query_then_fetch/shard_query_phase";
+    public static final String RANK_SHARD_FEATURE_ACTION_METRIC = "rank/shard_feature_phase";
     public static final String FREE_CONTEXT_ACTION_METRIC = "shard_release_context";
     public static final String FETCH_ID_ACTION_METRIC = "shard_fetch_phase";
     public static final String QUERY_SCROLL_ACTION_METRIC = "scroll/shard_query_phase";

@@ -13,11 +13,11 @@ describe("generatePipelines", () => {
   });
 
   // Helper for testing pipeline generations that should be the same when using the overall ci trigger comment "buildkite test this"
-  const testWithTriggerCheck = (directory: string, changedFiles?: string[]) => {
+  const testWithTriggerCheck = (directory: string, changedFiles?: string[], comment = "buildkite test this") => {
     const pipelines = generatePipelines(directory, changedFiles);
     expect(pipelines).toMatchSnapshot();
 
-    process.env["GITHUB_PR_TRIGGER_COMMENT"] = "buildkite test this";
+    process.env["GITHUB_PR_TRIGGER_COMMENT"] = comment;
     const pipelinesWithTriggerComment = generatePipelines(directory, changedFiles);
     expect(pipelinesWithTriggerComment).toEqual(pipelines);
   };
@@ -41,5 +41,21 @@ describe("generatePipelines", () => {
 
     const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
     expect(pipelines).toMatchSnapshot();
+  });
+
+  test("should generate correct pipelines with a non-docs change and @elasticmachine", () => {
+    testWithTriggerCheck(
+      `${import.meta.dir}/mocks/pipelines`,
+      ["build.gradle", "docs/README.asciidoc"],
+      "@elasticmachine test this please"
+    );
+  });
+
+  test("should generate correct pipelines with a non-docs change and @elasticsearchmachine", () => {
+    testWithTriggerCheck(
+      `${import.meta.dir}/mocks/pipelines`,
+      ["build.gradle", "docs/README.asciidoc"],
+      "@elasticsearchmachine test this please"
+    );
   });
 });

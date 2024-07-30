@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom mappers
@@ -61,19 +60,23 @@ public interface MapperPlugin {
      * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return. The predicate receives
      * the field name as input argument and should return true to show the field and false to hide it.
      */
-    default Function<String, Predicate<String>> getFieldFilter() {
+    default Function<String, FieldPredicate> getFieldFilter() {
         return NOOP_FIELD_FILTER;
     }
-
-    /**
-     * The default field predicate applied, which doesn't filter anything. That means that by default get mappings, get index
-     * get field mappings and field capabilities API will return every field that's present in the mappings.
-     */
-    Predicate<String> NOOP_FIELD_PREDICATE = field -> true;
 
     /**
      * The default field filter applied, which doesn't filter anything. That means that by default get mappings, get index
      * get field mappings and field capabilities API will return every field that's present in the mappings.
      */
-    Function<String, Predicate<String>> NOOP_FIELD_FILTER = index -> NOOP_FIELD_PREDICATE;
+    Function<String, FieldPredicate> NOOP_FIELD_FILTER = new Function<>() {
+        @Override
+        public FieldPredicate apply(String index) {
+            return FieldPredicate.ACCEPT_ALL;
+        }
+
+        @Override
+        public String toString() {
+            return "accept all";
+        }
+    };
 }

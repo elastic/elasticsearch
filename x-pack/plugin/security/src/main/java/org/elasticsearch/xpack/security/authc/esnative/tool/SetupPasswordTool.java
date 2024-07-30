@@ -634,7 +634,7 @@ class SetupPasswordTool extends MultiCommand {
         }
 
         private static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
-            return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
+            return new URL(url, (url.toURI().getPath() + path).replaceAll("//+", "/") + query);
         }
     }
 

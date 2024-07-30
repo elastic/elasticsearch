@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -14,14 +15,17 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.VALID_REQUEST_VALUES;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsTaskSettings> {
@@ -68,7 +72,12 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is("Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [ingest, search];")
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
+                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                )
+            )
         );
     }
 
@@ -82,13 +91,25 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is("Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [ingest, search];")
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
+                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                )
+            )
         );
+    }
+
+    private static <E extends Enum<E>> String getValidValuesSortedAndCombined(EnumSet<E> validValues) {
+        var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+        Arrays.sort(validValuesAsStrings);
+
+        return String.join(", ", validValuesAsStrings);
     }
 
     public void testXContent_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(AssertionError.class, () -> new CohereEmbeddingsTaskSettings(InputType.UNSPECIFIED, null));
-        MatcherAssert.assertThat(thrownException.getMessage(), CoreMatchers.is("received invalid input type value [unspecified]"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 
     public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull_AndRequestInputTypeIsInvalid() {
@@ -135,7 +156,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected CohereEmbeddingsTaskSettings mutateInstance(CohereEmbeddingsTaskSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereEmbeddingsTaskSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

@@ -1,9 +1,9 @@
 ---
 "Indexing pressure stats":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "indexing_pressure was added in 7.9"
-      features: [arbitrary_key]
+      test_runner_features: [arbitrary_key]
 
   - do:
       nodes.info: {}
@@ -31,10 +31,10 @@
   - gte:  { nodes.$node_id.indexing_pressure.memory.total.replica_rejections: 0 }
 ---
 "Indexing pressure memory limit":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "memory limit was added in 7.10"
-      features: [arbitrary_key]
+      test_runner_features: [arbitrary_key]
 
   - do:
       nodes.info: {}

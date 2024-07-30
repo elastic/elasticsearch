@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -66,6 +67,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -239,7 +241,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>(
             super.getRestHandlers(
@@ -250,7 +253,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 indexScopedSettings,
                 settingsFilter,
                 indexNameExpressionResolver,
-                nodesInCluster
+                nodesInCluster,
+                clusterSupportsFeature
             )
         );
         filterPlugins(ActionPlugin.class).forEach(
@@ -263,7 +267,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     indexScopedSettings,
                     settingsFilter,
                     indexNameExpressionResolver,
-                    nodesInCluster
+                    nodesInCluster,
+                    clusterSupportsFeature
                 )
             )
         );
@@ -450,8 +455,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Function<String, Predicate<String>> getFieldFilter() {
-        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream()
+    public Function<String, FieldPredicate> getFieldFilter() {
+        List<Function<String, FieldPredicate>> items = filterPlugins(MapperPlugin.class).stream()
             .map(p -> p.getFieldFilter())
             .filter(p -> p.equals(NOOP_FIELD_FILTER) == false)
             .toList();

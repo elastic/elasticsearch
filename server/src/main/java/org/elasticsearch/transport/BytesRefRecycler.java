@@ -43,4 +43,9 @@ public class BytesRefRecycler implements Recycler<BytesRef> {
             }
         };
     }
+
+    @Override
+    public int pageSize() {
+        return PageCacheRecycler.BYTE_PAGE_SIZE;
+    }
 }

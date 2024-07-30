@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -21,13 +22,14 @@ import java.util.stream.Collectors;
  * This class is a container that encapsulates the necessary information needed to indicate which node information is requested.
  */
 public class NodesInfoMetrics implements Writeable {
-    private Set<String> requestedMetrics = Metric.allMetrics();
+    private final Set<String> requestedMetrics;
 
-    public NodesInfoMetrics() {}
+    public NodesInfoMetrics() {
+        requestedMetrics = new HashSet<>(Metric.allMetrics());
+    }
 
     public NodesInfoMetrics(StreamInput in) throws IOException {
-        requestedMetrics.clear();
-        requestedMetrics.addAll(Arrays.asList(in.readStringArray()));
+        requestedMetrics = in.readCollectionAsImmutableSet(StreamInput::readString);
     }
 
     public Set<String> requestedMetrics() {
@@ -36,7 +38,7 @@ public class NodesInfoMetrics implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(requestedMetrics.toArray(new String[0]));
+        out.writeStringCollection(requestedMetrics);
     }
 
     /**
@@ -58,6 +60,10 @@ public class NodesInfoMetrics implements Writeable {
         AGGREGATIONS("aggregations"),
         INDICES("indices");
 
+        private static final Set<String> ALL_METRICS = Arrays.stream(values())
+            .map(Metric::metricName)
+            .collect(Collectors.toUnmodifiableSet());
+
         private final String metricName;
 
         Metric(String name) {
@@ -69,7 +75,7 @@ public class NodesInfoMetrics implements Writeable {
         }
 
         public static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
+            return ALL_METRICS;
         }
     }
 }

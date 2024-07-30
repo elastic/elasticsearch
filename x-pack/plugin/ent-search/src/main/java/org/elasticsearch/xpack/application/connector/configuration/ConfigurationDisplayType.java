@@ -28,6 +28,6 @@ public enum ConfigurationDisplayType {
                 return displayType;
             }
         }
-        throw new IllegalArgumentException("Unknown DisplayType: " + type);
+        throw new IllegalArgumentException("Unknown " + ConfigurationDisplayType.class.getSimpleName() + " [" + type + "].");
     }
 }

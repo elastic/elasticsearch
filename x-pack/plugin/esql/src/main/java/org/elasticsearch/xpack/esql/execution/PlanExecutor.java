@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
+
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -30,7 +32,7 @@ public class PlanExecutor {
 
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
-    private final FunctionRegistry functionRegistry;
+    private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
@@ -49,7 +51,8 @@ public class PlanExecutor {
         String sessionId,
         EsqlConfiguration cfg,
         EnrichPolicyResolver enrichPolicyResolver,
-        ActionListener<PhysicalPlan> listener
+        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        ActionListener<Result> listener
     ) {
         final var session = new EsqlSession(
             sessionId,
@@ -64,7 +67,7 @@ public class PlanExecutor {
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, wrap(listener::onResponse, ex -> {
+        session.execute(request, runPhase, wrap(listener::onResponse, ex -> {
             // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
             metrics.failed(clientId);
             listener.onFailure(ex);

@@ -19,6 +19,7 @@ import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -116,6 +117,11 @@ public class ShardFetchRequest extends TransportRequest {
 
     @Nullable
     public AggregatedDfs getAggregatedDfs() {
+        return null;
+    }
+
+    @Nullable
+    public RankDocShardInfo getRankDocks() {
         return null;
     }
 }

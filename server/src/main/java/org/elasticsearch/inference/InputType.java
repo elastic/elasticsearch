@@ -16,7 +16,9 @@ import java.util.Locale;
 public enum InputType {
     INGEST,
     SEARCH,
-    UNSPECIFIED;
+    UNSPECIFIED,
+    CLASSIFICATION,
+    CLUSTERING;
 
     @Override
     public String toString() {

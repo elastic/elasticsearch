@@ -12,11 +12,8 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * The response of the delete action.
@@ -62,23 +59,6 @@ public class DeleteResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
-    }
-
-    public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-
-        Builder context = new Builder();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            parseXContentFields(parser, context);
-        }
-        return context.build();
-    }
-
-    /**
-     * Parse the current token and update the parsing context appropriately.
-     */
-    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
-        DocWriteResponse.parseInnerToXContent(parser, context);
     }
 
     /**

@@ -118,12 +118,14 @@ public interface Function {
      *
      * @param client a client instance for querying the source mappings
      * @param headers headers to be used to query only for what the caller is allowed to
+     * @param transformId transform id
      * @param sourceConfig the source configuration
      * @param listener listener to take the deduced mapping
      */
     void deduceMappings(
         Client client,
         Map<String, String> headers,
+        String transformId,
         SourceConfig sourceConfig,
         ActionListener<Map<String, String>> listener
     );

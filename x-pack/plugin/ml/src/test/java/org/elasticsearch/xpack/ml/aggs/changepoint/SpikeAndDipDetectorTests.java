@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.util.Arrays;
 
@@ -19,10 +20,13 @@ public class SpikeAndDipDetectorTests extends ESTestCase {
 
     public void testTooLittleData() {
         for (int i = 0; i < 4; i++) {
+            long[] docCounts = new long[i];
             double[] values = new double[i];
+            Arrays.fill(docCounts, 1);
             Arrays.fill(values, 1.0);
+            MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(docCounts, values);
             SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
-            assertThat(detect.at(0.01), instanceOf(ChangeType.Indeterminable.class));
+            assertThat(detect.at(0.01, bucketValues), instanceOf(ChangeType.Indeterminable.class));
         }
     }
 
@@ -142,24 +146,42 @@ public class SpikeAndDipDetectorTests extends ESTestCase {
         // Check vs some expected values.
 
         {
+            long[] docCounts = new long[] { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
             double[] values = new double[] { 0.1, 3.1, 1.2, 1.7, 0.9, 2.3, -0.8, 3.2, 1.2, 1.3, 1.1, 1.0, 8.5, 0.5, 2.6, 0.7 };
+            MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(docCounts, values);
 
             SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
 
-            ChangeType change = detect.at(0.05);
+            ChangeType change = detect.at(0.05, bucketValues);
 
             assertThat(change, instanceOf(ChangeType.Spike.class));
             assertThat(change.pValue(), closeTo(3.0465e-12, 1e-15));
         }
         {
+            long[] docCounts = new long[] { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
             double[] values = new double[] { 0.1, 3.1, 1.2, 1.7, 0.9, 2.3, -4.2, 3.2, 1.2, 1.3, 1.1, 1.0, 3.5, 0.5, 2.6, 0.7 };
+            MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(docCounts, values);
 
             SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
 
-            ChangeType change = detect.at(0.05);
+            ChangeType change = detect.at(0.05, bucketValues);
 
             assertThat(change, instanceOf(ChangeType.Dip.class));
             assertThat(change.pValue(), closeTo(1.2589e-08, 1e-11));
         }
+    }
+
+    public void testMissingBuckets() {
+        long[] docCounts = new long[] { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        double[] values = new double[] { 1.0, 2.0, 0.7, 1.0, 1.5, 1.1, 2.2, 10.0, 0.3, 0.4, 0.7, 0.9, 1.4, 2.1, 1.2, 1.0 };
+        int[] buckets = new int[] { 0, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 15, 17, 18, 19, 20 };
+        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(docCounts, values, buckets);
+
+        SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
+
+        ChangeType change = detect.at(0.01, bucketValues);
+
+        assertThat(change, instanceOf(ChangeType.Spike.class));
+        assertThat(change.changePoint(), equalTo(10));
     }
 }

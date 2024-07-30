@@ -38,6 +38,7 @@ for `/dev/nvme0n1`, specify `blockdev --setra 256 /dev/nvme0n1`.
 // end::readahead[]
 
 [discrete]
+[[search-use-faster-hardware]]
 === Use faster hardware
 
 If your searches are I/O-bound, consider increasing the size of the filesystem
@@ -46,15 +47,12 @@ sequential and random reads across multiple files, and there may be many
 searches running concurrently on each shard, so SSD drives tend to perform
 better than spinning disks.
 
-Directly-attached (local) storage generally performs better than remote storage
-because it is simpler to configure well and avoids communications overheads.
-With careful tuning it is sometimes possible to achieve acceptable performance
-using remote storage too. Benchmark your system with a realistic workload to
-determine the effects of any tuning parameters. If you cannot achieve the
-performance you expect, work with the vendor of your storage system to identify
-the problem.
-
 If your searches are CPU-bound, consider using a larger number of faster CPUs.
+
+[discrete]
+==== Local vs. remote storage
+
+include::./remote-storage.asciidoc[]
 
 [discrete]
 === Document modeling

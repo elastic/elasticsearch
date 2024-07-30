@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -60,13 +61,28 @@ import java.util.stream.Collectors;
 import static java.util.Map.entry;
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Manages all the Java thread pools we create. {@link Names} contains a list of the thread pools, but plugins can dynamically add more
+ * thread pools to instantiate.
+ */
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
+    /**
+     * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}.
+     */
     public static class Names {
-        public static final String SAME = "same";
+        /**
+         * All the tasks that do not relate to the purpose of one of the other thread pools should use this thread pool. Try to pick one of
+         * the other more specific thread pools where possible.
+         */
         public static final String GENERIC = "generic";
+        /**
+         * Important management tasks that keep the cluster from falling apart.
+         * This thread pool ensures cluster coordination tasks do not get blocked by less critical tasks and can continue to make progress.
+         * This thread pool also defaults to a single thread, reducing contention on the Coordinator mutex.
+         */
         public static final String CLUSTER_COORDINATION = "cluster_coordination";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
@@ -76,6 +92,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
+        /**
+         * Cluster management tasks. Tasks that manage data, and tasks that report on cluster health via statistics etc.
+         * Not a latency sensitive thread pool: some tasks may time be long-running; and the thread pool size is limited / relatively small.
+         */
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";
@@ -97,11 +117,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
+    public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
 
     public enum ThreadPoolType {
+        @Deprecated(forRemoval = true)
+        @UpdateForV9 // no longer used, remove in v9
         DIRECT("direct"),
         FIXED("fixed"),
-        FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"), // TODO: remove in 9.0
+        @Deprecated(forRemoval = true)
+        @UpdateForV9 // no longer used, remove in v9
+        FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
         private final String type;
@@ -127,14 +152,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES = Map.ofEntries(
-        entry(Names.SAME, ThreadPoolType.DIRECT),
         entry(Names.GENERIC, ThreadPoolType.SCALING),
+        entry(Names.CLUSTER_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.GET, ThreadPoolType.FIXED),
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
         entry(Names.SEARCH_WORKER, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
+        entry(Names.AUTO_COMPLETE, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
         entry(Names.FLUSH, ThreadPoolType.SCALING),
         entry(Names.REFRESH, ThreadPoolType.SCALING),
@@ -150,6 +176,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED)
     );
+
+    public static final double searchAutoscalingEWMA = 0.1;
 
     private final Map<String, ExecutorHolder> executors;
 
@@ -196,6 +224,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Defines and builds the many thread pools delineated in {@link Names}.
+     *
+     * @param settings
+     * @param meterRegistry
+     * @param customBuilders a list of additional thread pool builders that were defined elsewhere (like a Plugin).
+     */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public ThreadPool(final Settings settings, MeterRegistry meterRegistry, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);
@@ -224,7 +259,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, TaskTrackingConfig.DO_NOT_TRACK));
         builders.put(
             Names.SEARCH,
-            new FixedExecutorBuilder(settings, Names.SEARCH, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(
+                settings,
+                Names.SEARCH,
+                searchOrGetThreadPoolSize,
+                1000,
+                new TaskTrackingConfig(true, searchAutoscalingEWMA)
+            )
         );
         builders.put(
             Names.SEARCH_WORKER,
@@ -232,7 +273,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SEARCH_COORDINATION,
-            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProc, 1000, TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(
+                settings,
+                Names.SEARCH_COORDINATION,
+                halfProc,
+                1000,
+                new TaskTrackingConfig(true, searchAutoscalingEWMA)
+            )
         );
         builders.put(
             Names.AUTO_COMPLETE,
@@ -312,6 +359,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         threadContext = new ThreadContext(settings);
 
+        // Now that all the thread pools have been defined, actually build them.
         final Map<String, ExecutorHolder> executors = new HashMap<>();
         for (final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
             final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().getSettings(settings);
@@ -323,16 +371,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             executors.put(entry.getKey(), executorHolder);
         }
 
-        executors.put(Names.SAME, new ExecutorHolder(EsExecutors.DIRECT_EXECUTOR_SERVICE, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = Map.copyOf(executors);
         this.executors.forEach((k, v) -> instruments.put(k, setupMetrics(meterRegistry, k, v)));
         this.instruments = instruments;
-        final List<Info> infos = executors.values()
-            .stream()
-            .filter(holder -> holder.info.getName().equals("same") == false)
-            .map(holder -> holder.info)
-            .toList();
-        this.threadPoolInfo = new ThreadPoolInfo(infos);
+        this.threadPoolInfo = new ThreadPoolInfo(executors.values().stream().map(holder -> holder.info).toList());
         this.scheduler = Scheduler.initScheduler(settings, "scheduler");
         this.slowSchedulerWarnThresholdNanos = SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.get(settings).nanos();
         this.cachedTimeThread = new CachedTimeThread(
@@ -391,7 +433,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
             if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
-                handler.registerCounter(meterRegistry, prefix, name);
+                handler.registerCounter(meterRegistry, prefix + THREAD_POOL_METRIC_NAME_REJECTED, name);
             }
         }
         return instruments;
@@ -478,10 +520,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         for (ExecutorHolder holder : executors.values()) {
             final String name = holder.info.getName();
-            // no need to have info on "same" thread pool
-            if ("same".equals(name)) {
-                continue;
-            }
             int threads = -1;
             int queue = -1;
             int active = -1;
@@ -608,11 +646,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
-        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {
-            if (logger.isDebugEnabled()) {
-                logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);
-            }
-        }, (e) -> logger.warn(() -> format("failed to run scheduled task [%s] on thread pool [%s]", command, executor), e));
+        var runnable = new ReschedulingRunnable(
+            command,
+            interval,
+            executor,
+            this,
+            e -> logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e),
+            e -> logger.warn(() -> format("failed to run scheduled task [%s] on thread pool [%s]", command, executor), e)
+        );
         runnable.start();
         return runnable;
     }
@@ -938,6 +979,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
+    /**
+     * Holds a thread pool and additional ES information ({@link Info}) about that Java thread pool ({@link ExecutorService}) instance.
+     *
+     * See {@link Names} for a list of thread pools, though there can be more dynamically added via plugins.
+     */
     static class ExecutorHolder {
         private final ExecutorService executor;
         public final Info info;
@@ -953,6 +999,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
+    /**
+     * The settings used to create a Java ExecutorService thread pool.
+     */
     public static class Info implements Writeable, ToXContentFragment {
 
         private final String name;
@@ -1118,9 +1167,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public static boolean assertCurrentThreadPool(String... permittedThreadPoolNames) {
         final var threadName = Thread.currentThread().getName();
+        final var executorName = EsExecutors.executorName(threadName);
         assert threadName.startsWith("TEST-")
             || threadName.startsWith("LuceneTestCase")
-            || Arrays.stream(permittedThreadPoolNames).anyMatch(n -> threadName.contains('[' + n + ']'))
+            || Arrays.asList(permittedThreadPoolNames).contains(executorName)
             : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";
         return true;
     }

@@ -1,0 +1,5 @@
+pr: 109597
+summary: Opt `scripted_metric` out of parallelization
+area: Aggregations
+type: feature
+issues: []

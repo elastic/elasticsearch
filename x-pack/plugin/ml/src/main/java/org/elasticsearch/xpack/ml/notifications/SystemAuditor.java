@@ -42,12 +42,12 @@ public class SystemAuditor extends AbstractMlAuditor<SystemAuditMessage> {
     @Override
     public void warning(String resourceId, String message) {
         assert resourceId == null;
-        super.info(null, message);
+        super.warning(null, message);
     }
 
     @Override
     public void error(String resourceId, String message) {
         assert resourceId == null;
-        super.info(null, message);
+        super.error(null, message);
     }
 }

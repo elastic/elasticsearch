@@ -47,7 +47,7 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Map<String, Object> info;
+        private final Map<String, Object> info;
 
         public Response(Map<String, Object> info) {
             this.info = info;
@@ -55,11 +55,6 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
 
         public Response() {
             this.info = Collections.emptyMap();
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            info = in.readGenericMap();
         }
 
         public Map<String, Object> getInfo() {

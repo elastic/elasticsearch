@@ -27,16 +27,18 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class ConnectorScheduling implements Writeable, ToXContentObject {
+
+    private static final String EVERYDAY_AT_MIDNIGHT = "0 0 0 * * ?";
+    private static final ParseField ACCESS_CONTROL_FIELD = new ParseField("access_control");
+    private static final ParseField FULL_FIELD = new ParseField("full");
+    private static final ParseField INCREMENTAL_FIELD = new ParseField("incremental");
 
     private final ScheduleConfig accessControl;
     private final ScheduleConfig full;
     private final ScheduleConfig incremental;
-
-    private static final ParseField ACCESS_CONTROL_FIELD = new ParseField("access_control");
-    private static final ParseField FULL_FIELD = new ParseField("full");
-    private static final ParseField INCREMENTAL_FIELD = new ParseField("incremental");
 
     /**
      * @param accessControl connector access control sync schedule represented as {@link ScheduleConfig}
@@ -44,15 +46,27 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
      * @param incremental   connector incremental sync schedule represented as {@link ScheduleConfig}
      */
     private ConnectorScheduling(ScheduleConfig accessControl, ScheduleConfig full, ScheduleConfig incremental) {
-        this.accessControl = Objects.requireNonNull(accessControl, ACCESS_CONTROL_FIELD.getPreferredName());
-        this.full = Objects.requireNonNull(full, FULL_FIELD.getPreferredName());
-        this.incremental = Objects.requireNonNull(incremental, INCREMENTAL_FIELD.getPreferredName());
+        this.accessControl = accessControl;
+        this.full = full;
+        this.incremental = incremental;
     }
 
     public ConnectorScheduling(StreamInput in) throws IOException {
         this.accessControl = new ScheduleConfig(in);
         this.full = new ScheduleConfig(in);
         this.incremental = new ScheduleConfig(in);
+    }
+
+    public ScheduleConfig getAccessControl() {
+        return accessControl;
+    }
+
+    public ScheduleConfig getFull() {
+        return full;
+    }
+
+    public ScheduleConfig getIncremental() {
+        return incremental;
     }
 
     private static final ConstructingObjectParser<ConnectorScheduling, Void> PARSER = new ConstructingObjectParser<>(
@@ -66,13 +80,18 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> ScheduleConfig.fromXContent(p),
             ACCESS_CONTROL_FIELD,
             ObjectParser.ValueType.OBJECT
         );
-        PARSER.declareField(constructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), FULL_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(constructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), INCREMENTAL_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), FULL_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ScheduleConfig.fromXContent(p),
+            INCREMENTAL_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     public static ConnectorScheduling fromXContentBytes(BytesReference source, XContentType xContentType) {
@@ -91,9 +110,15 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(ACCESS_CONTROL_FIELD.getPreferredName(), accessControl);
-            builder.field(FULL_FIELD.getPreferredName(), full);
-            builder.field(INCREMENTAL_FIELD.getPreferredName(), incremental);
+            if (accessControl != null) {
+                builder.field(ACCESS_CONTROL_FIELD.getPreferredName(), accessControl);
+            }
+            if (full != null) {
+                builder.field(FULL_FIELD.getPreferredName(), full);
+            }
+            if (incremental != null) {
+                builder.field(INCREMENTAL_FIELD.getPreferredName(), incremental);
+            }
         }
         builder.endObject();
         return builder;
@@ -183,10 +208,6 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
             return PARSER.parse(parser, null);
         }
 
-        public static ConstructingObjectParser<ScheduleConfig, Void> getParser() {
-            return PARSER;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -238,12 +259,19 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         }
     }
 
+    /**
+     * Default scheduling is set to everyday at midnight (00:00:00).
+     *
+     * @return default scheduling for full, incremental and access control syncs.
+     */
     public static ConnectorScheduling getDefaultConnectorScheduling() {
         return new ConnectorScheduling.Builder().setAccessControl(
-            new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build()
+            new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron(EVERYDAY_AT_MIDNIGHT)).build()
         )
-            .setFull(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build())
-            .setIncremental(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build())
+            .setFull(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron(EVERYDAY_AT_MIDNIGHT)).build())
+            .setIncremental(
+                new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron(EVERYDAY_AT_MIDNIGHT)).build()
+            )
             .build();
     }
 }

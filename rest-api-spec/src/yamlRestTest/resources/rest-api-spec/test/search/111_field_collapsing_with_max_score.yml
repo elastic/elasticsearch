@@ -1,8 +1,13 @@
 setup:
   - skip:
-      version: " - 8.9.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      known_issues:
+        - cluster_feature: "gte_v8.13.0"
+          fixed_by: "gte_v8.14.0"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: Collapse with max score was fixed in 8.10.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:

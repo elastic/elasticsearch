@@ -70,6 +70,11 @@ The following tables lists all the defaults ISO formats supported:
     (separated by `T`), is optional.
     Examples: `yyyy-MM-dd'T'HH:mm:ss.SSSZ` or  `yyyy-MM-dd`.
 
+    NOTE: When using `date_optional_time`, the parsing is lenient and will attempt to parse
+    numbers as a year (e.g. `292278994` will be parsed as a year). This can lead to unexpected results
+    when paired with a numeric focused format like `epoch_second` and `epoch_millis`.
+    It is recommended you use `strict_date_optional_time` when pairing with a numeric focused format.
+
 [[strict-date-time-nanos]]`strict_date_optional_time_nanos`::
 
     A generic ISO datetime parser, where the date must include the year at a minimum, and the time

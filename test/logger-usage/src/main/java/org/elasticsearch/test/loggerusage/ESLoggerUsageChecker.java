@@ -116,8 +116,8 @@ public class ESLoggerUsageChecker {
          */
         public String getErrorLines() {
             String fullClassName = Type.getObjectType(className).getClassName();
-            String simpleClassName = fullClassName.substring(fullClassName.lastIndexOf(".") + 1, fullClassName.length());
-            int innerClassIndex = simpleClassName.indexOf("$");
+            String simpleClassName = fullClassName.substring(fullClassName.lastIndexOf('.') + 1, fullClassName.length());
+            int innerClassIndex = simpleClassName.indexOf('$');
             if (innerClassIndex > 0) {
                 simpleClassName = simpleClassName.substring(0, innerClassIndex);
             }

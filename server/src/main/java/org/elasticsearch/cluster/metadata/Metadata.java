@@ -51,6 +51,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
@@ -521,7 +522,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     /**
      * Creates a copy of this instance updated with the given {@link IndexMetadata} that must only contain changes to primary terms
      * and in-sync allocation ids relative to the existing entries. This method is only used by
-     * {@link org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater#applyChanges(Metadata, RoutingTable)}.
+     * {@link org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater#applyChanges(Metadata, RoutingTable, TransportVersion)}.
      * @param updates map of index name to {@link IndexMetadata}.
      * @return updated metadata instance
      */
@@ -921,7 +922,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      */
     public Map<String, MappingMetadata> findMappings(
         String[] concreteIndices,
-        Function<String, Predicate<String>> fieldFilter,
+        Function<String, ? extends Predicate<String>> fieldFilter,
         Runnable onNextIndex
     ) {
         assert Transports.assertNotTransportThread("decompressing mappings is too expensive for a transport thread");
@@ -974,7 +975,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         if (mappingMetadata == null) {
             return MappingMetadata.EMPTY_MAPPINGS;
         }
-        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+        if (fieldPredicate == FieldPredicate.ACCEPT_ALL) {
             return mappingMetadata;
         }
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetadata.source().compressedReference(), true).v2();
@@ -997,7 +998,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     @SuppressWarnings("unchecked")
     private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
-        assert fieldPredicate != MapperPlugin.NOOP_FIELD_PREDICATE;
+        assert fieldPredicate != FieldPredicate.ACCEPT_ALL;
         Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
         while (entryIterator.hasNext()) {
             Map.Entry<String, Object> entry = entryIterator.next();
@@ -2597,6 +2598,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private static boolean assertContainsIndexIfDataStream(DataStream parent, IndexMetadata indexMetadata) {
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
+                || (DataStream.isFailureStoreFeatureFlagEnabled()
+                    && parent.isFailureStoreEnabled()
+                    && parent.getFailureIndices()
+                        .getIndices()
+                        .stream()
+                        .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
                 : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
             return true;
         }
@@ -2617,6 +2624,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
+                }
+                if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
+                    for (Index i : dataStream.getFailureIndices().getIndices()) {
+                        indexToDataStreamLookup.put(i.getName(), dataStream);
+                    }
                 }
             }
         }

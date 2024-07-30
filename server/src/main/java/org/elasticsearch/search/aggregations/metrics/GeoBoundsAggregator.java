@@ -11,6 +11,8 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -67,64 +69,64 @@ final class GeoBoundsAggregator extends MetricsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
         final MultiGeoPointValues values = valuesSource.geoPointValues(aggCtx.getLeafReaderContext());
+        final GeoPointValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(MultiGeoPointValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= tops.size()) {
-                    long from = tops.size();
-                    tops = bigArrays().grow(tops, bucket + 1);
-                    tops.fill(from, tops.size(), Double.NEGATIVE_INFINITY);
-                    bottoms = bigArrays().resize(bottoms, tops.size());
-                    bottoms.fill(from, bottoms.size(), Double.POSITIVE_INFINITY);
-                    posLefts = bigArrays().resize(posLefts, tops.size());
-                    posLefts.fill(from, posLefts.size(), Double.POSITIVE_INFINITY);
-                    posRights = bigArrays().resize(posRights, tops.size());
-                    posRights.fill(from, posRights.size(), Double.NEGATIVE_INFINITY);
-                    negLefts = bigArrays().resize(negLefts, tops.size());
-                    negLefts.fill(from, negLefts.size(), Double.POSITIVE_INFINITY);
-                    negRights = bigArrays().resize(negRights, tops.size());
-                    negRights.fill(from, negRights.size(), Double.NEGATIVE_INFINITY);
-                }
-
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-
-                    for (int i = 0; i < valuesCount; ++i) {
-                        GeoPoint value = values.nextValue();
-                        double top = tops.get(bucket);
-                        if (value.lat() > top) {
-                            top = value.lat();
-                        }
-                        double bottom = bottoms.get(bucket);
-                        if (value.lat() < bottom) {
-                            bottom = value.lat();
-                        }
-                        double posLeft = posLefts.get(bucket);
-                        if (value.lon() >= 0 && value.lon() < posLeft) {
-                            posLeft = value.lon();
-                        }
-                        double posRight = posRights.get(bucket);
-                        if (value.lon() >= 0 && value.lon() > posRight) {
-                            posRight = value.lon();
-                        }
-                        double negLeft = negLefts.get(bucket);
-                        if (value.lon() < 0 && value.lon() < negLeft) {
-                            negLeft = value.lon();
-                        }
-                        double negRight = negRights.get(bucket);
-                        if (value.lon() < 0 && value.lon() > negRight) {
-                            negRight = value.lon();
-                        }
-                        tops.set(bucket, top);
-                        bottoms.set(bucket, bottom);
-                        posLefts.set(bucket, posLeft);
-                        posRights.set(bucket, posRight);
-                        negLefts.set(bucket, negLeft);
-                        negRights.set(bucket, negRight);
+                    growBucket(bucket);
+                    for (int i = 0; i < values.docValueCount(); ++i) {
+                        addPoint(values.nextValue(), bucket);
                     }
                 }
             }
         };
+    }
+
+    private LeafBucketCollector getLeafCollector(GeoPointValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    growBucket(bucket);
+                    addPoint(values.pointValue(), bucket);
+                }
+            }
+        };
+    }
+
+    private void growBucket(long bucket) {
+        if (bucket >= tops.size()) {
+            long from = tops.size();
+            tops = bigArrays().grow(tops, bucket + 1);
+            tops.fill(from, tops.size(), Double.NEGATIVE_INFINITY);
+            bottoms = bigArrays().resize(bottoms, tops.size());
+            bottoms.fill(from, bottoms.size(), Double.POSITIVE_INFINITY);
+            posLefts = bigArrays().resize(posLefts, tops.size());
+            posLefts.fill(from, posLefts.size(), Double.POSITIVE_INFINITY);
+            posRights = bigArrays().resize(posRights, tops.size());
+            posRights.fill(from, posRights.size(), Double.NEGATIVE_INFINITY);
+            negLefts = bigArrays().resize(negLefts, tops.size());
+            negLefts.fill(from, negLefts.size(), Double.POSITIVE_INFINITY);
+            negRights = bigArrays().resize(negRights, tops.size());
+            negRights.fill(from, negRights.size(), Double.NEGATIVE_INFINITY);
+        }
+    }
+
+    private void addPoint(GeoPoint value, long bucket) {
+        tops.set(bucket, Math.max(tops.get(bucket), value.lat()));
+        bottoms.set(bucket, Math.min(bottoms.get(bucket), value.lat()));
+        if (value.lon() >= 0) {
+            posLefts.set(bucket, Math.min(posLefts.get(bucket), value.lon()));
+            posRights.set(bucket, Math.max(posRights.get(bucket), value.lon()));
+        } else {
+            negLefts.set(bucket, Math.min(negLefts.get(bucket), value.lon()));
+            negRights.set(bucket, Math.max(negRights.get(bucket), value.lon()));
+        }
     }
 
     @Override

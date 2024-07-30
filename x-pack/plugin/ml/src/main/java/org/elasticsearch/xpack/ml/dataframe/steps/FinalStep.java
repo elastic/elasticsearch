@@ -59,18 +59,13 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
 
     @Override
     protected void doExecute(ActionListener<StepResponse> listener) {
-
-        ActionListener<BroadcastResponse> refreshListener = ActionListener.wrap(
-            refreshResponse -> listener.onResponse(new StepResponse(false)),
-            listener::onFailure
+        indexDataCounts(
+            listener.delegateFailureAndWrap(
+                (l, indexResponse) -> refreshIndices(
+                    l.delegateFailureAndWrap((ll, refreshResponse) -> ll.onResponse(new StepResponse(false)))
+                )
+            )
         );
-
-        ActionListener<DocWriteResponse> dataCountsIndexedListener = ActionListener.wrap(
-            indexResponse -> refreshIndices(refreshListener),
-            listener::onFailure
-        );
-
-        indexDataCounts(dataCountsIndexedListener);
     }
 
     private void indexDataCounts(ActionListener<DocWriteResponse> listener) {

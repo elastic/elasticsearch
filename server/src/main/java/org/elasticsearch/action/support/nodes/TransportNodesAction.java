@@ -10,24 +10,30 @@ package org.elasticsearch.action.support.nodes;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -36,7 +42,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -73,7 +78,9 @@ public abstract class TransportNodesAction<
         Writeable.Reader<NodeRequest> nodeRequest,
         Executor executor
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // Only part of this action execution needs to be forked off - coordination can run on SAME because it's only O(#nodes) work.
+        // Hence the separate "finalExecutor", and why we run the whole TransportAction.execute on SAME.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
             : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -86,14 +93,12 @@ public abstract class TransportNodesAction<
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
         // coordination can run on SAME because it's only O(#nodes) work
-        if (request.concreteNodes() == null) {
-            resolveRequest(request, clusterService.state());
-            assert request.concreteNodes() != null;
-        }
+
+        final var concreteNodes = Objects.requireNonNull(resolveRequest(request, clusterService.state()));
 
         new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
-            final ArrayList<NodeResponse> responses = new ArrayList<>(request.concreteNodes().length);
+            final ArrayList<NodeResponse> responses = new ArrayList<>(concreteNodes.length);
             final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
 
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
@@ -171,7 +176,7 @@ public abstract class TransportNodesAction<
             }
         }.run(
             task,
-            Iterators.forArray(request.concreteNodes()),
+            Iterators.forArray(concreteNodes),
             new ThreadedActionListener<>(finalExecutor, listener.delegateFailureAndWrap((l, c) -> c.accept(l)))
         );
     }
@@ -216,26 +221,73 @@ public abstract class TransportNodesAction<
 
     protected abstract NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException;
 
+    /**
+     * Implements the request recipient logic.
+     * If access to the request listener is needed, override {@link #nodeOperationAsync(TransportRequest, Task, ActionListener)}.
+     */
     protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     /**
-     * resolve node ids to concrete nodes of the incoming request
-     **/
-    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
-        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
-        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
+     * This method can be overridden if a subclass needs to access to a listener in order to asynchronously respond to the node request.
+     * The default implementation is to fall through to {@link #nodeOperation}.
+     */
+    protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
+        ActionListener.respondAndRelease(listener, nodeOperation(request, task));
+    }
+
+    /**
+     * Resolves node ids to concrete nodes of the incoming request.
+     * NB: if the request's nodeIds() returns nothing, then the request will be sent to ALL known nodes in the cluster.
+     */
+    protected DiscoveryNode[] resolveRequest(NodesRequest request, ClusterState clusterState) {
+        return request.resolveNodes(clusterState);
     }
 
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
-            final var nodeResponse = nodeOperation(request, task);
-            try {
-                channel.sendResponse(nodeResponse);
-            } finally {
-                nodeResponse.decRef();
-            }
+            ActionListener.run(
+                new ChannelActionListener<NodeResponse>(channel),
+                channelListener -> nodeOperationAsync(request, task, channelListener)
+            );
+        }
+    }
+
+    /**
+     * Some {@link TransportNodesAction} implementations send the whole top-level request out to each individual node. However, the
+     * top-level request contains a lot of unnecessary junk, particularly the heavyweight {@link DiscoveryNode} instances, so we are
+     * migrating away from this practice. This method allows to skip over the unnecessary data received from an older node.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/100878">#100878</a>
+     * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
+     * @param in            The {@link StreamInput} in which to skip the unneeded data.
+     */
+    @UpdateForV9 // no longer necessary in v9
+    public static void skipLegacyNodesRequestHeader(TransportVersion fixVersion, StreamInput in) throws IOException {
+        if (in.getTransportVersion().before(fixVersion)) {
+            TaskId.readFromStream(in);
+            in.readStringArray();
+            in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
+            in.readOptionalTimeValue();
+        }
+    }
+
+    /**
+     * Some {@link TransportNodesAction} implementations send the whole top-level request out to each individual node. However, the
+     * top-level request contains a lot of unnecessary junk, particularly the heavyweight {@link DiscoveryNode} instances, so we are
+     * migrating away from this practice. This method allows to send a well-formed, but empty, header to older nodes that require it.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/100878">#100878</a>
+     * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
+     * @param out           The {@link StreamOutput} to which to send the dummy data.
+     */
+    @UpdateForV9 // no longer necessary in v9
+    public static void sendLegacyNodesRequestHeader(TransportVersion fixVersion, StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(fixVersion)) {
+            TaskId.EMPTY_TASK_ID.writeTo(out);
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+            out.writeOptionalArray(null);
+            out.writeOptionalTimeValue(null);
         }
     }
 

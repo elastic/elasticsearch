@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
 
 public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
-    public void testCorrectThreadPoolTypePermittedInSettings() throws InterruptedException {
+    public void testCorrectThreadPoolTypePermittedInSettings() {
         String threadPoolName = randomThreadPoolName();
         ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
@@ -41,13 +41,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     .build(),
                 MeterRegistry.NOOP
             );
-            ThreadPool.Info info = info(threadPool, threadPoolName);
-            if (ThreadPool.Names.SAME.equals(threadPoolName)) {
-                assertNull(info); // we don't report on the "same" thread pool
-            } else {
-                // otherwise check we have the expected type
-                assertEquals(info.getThreadPoolType(), correctThreadPoolType);
-            }
+            assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), correctThreadPoolType);
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

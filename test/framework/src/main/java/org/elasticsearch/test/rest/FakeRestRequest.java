@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -129,7 +129,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+        public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBodyPart firstBodyPart) {
             return createResponse(status, BytesArray.EMPTY);
         }
 

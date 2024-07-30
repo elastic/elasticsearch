@@ -1,0 +1,5 @@
+pr: 107567
+summary: Add ignored field values to synthetic source
+area: Mapping
+type: enhancement
+issues: []

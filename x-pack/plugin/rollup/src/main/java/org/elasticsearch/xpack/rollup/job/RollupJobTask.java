@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -60,7 +60,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         private final ThreadPool threadPool;
 
         public RollupJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool) {
-            super(RollupField.TASK_NAME, ThreadPool.Names.GENERIC);
+            super(RollupField.TASK_NAME, threadPool.generic());
             this.client = client;
             this.schedulerEngine = schedulerEngine;
             this.threadPool = threadPool;
@@ -142,7 +142,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 job.getHeaders(),
                 ClientHelper.ROLLUP_ORIGIN,
                 client,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 request,
                 nextPhase
             );

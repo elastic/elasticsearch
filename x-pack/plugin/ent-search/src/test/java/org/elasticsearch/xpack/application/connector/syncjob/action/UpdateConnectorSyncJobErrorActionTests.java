@@ -25,7 +25,7 @@ public class UpdateConnectorSyncJobErrorActionTests extends ESTestCase {
         assertThat(exception, nullValue());
     }
 
-    public void testValidate_WhenConnectorSyncJobIdIsEmpty_ExceptionValidationError() {
+    public void testValidate_WhenConnectorSyncJobIdIsEmpty_ExpectValidationError() {
         UpdateConnectorSyncJobErrorAction.Request request = new UpdateConnectorSyncJobErrorAction.Request(
             "",
             randomAlphaOfLengthBetween(10, 100)
@@ -36,7 +36,18 @@ public class UpdateConnectorSyncJobErrorActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
     }
 
-    public void testValidate_WhenErrorIsEmpty_ExceptionValidationError() {
+    public void testValidate_WhenConnectorSyncJobIdIsNull_ExpectValidationError() {
+        UpdateConnectorSyncJobErrorAction.Request request = new UpdateConnectorSyncJobErrorAction.Request(
+            null,
+            randomAlphaOfLengthBetween(10, 100)
+        );
+        ActionRequestValidationException exception = request.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(exception.getMessage(), containsString(ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
+    }
+
+    public void testValidate_WhenErrorIsEmpty_ExpectValidationError() {
         UpdateConnectorSyncJobErrorAction.Request request = new UpdateConnectorSyncJobErrorAction.Request(randomAlphaOfLength(10), "");
         ActionRequestValidationException exception = request.validate();
 
@@ -44,4 +55,11 @@ public class UpdateConnectorSyncJobErrorActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(UpdateConnectorSyncJobErrorAction.ERROR_EMPTY_MESSAGE));
     }
 
+    public void testValidate_WhenErrorIsNull_ExpectValidationError() {
+        UpdateConnectorSyncJobErrorAction.Request request = new UpdateConnectorSyncJobErrorAction.Request(randomAlphaOfLength(10), null);
+        ActionRequestValidationException exception = request.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(exception.getMessage(), containsString(UpdateConnectorSyncJobErrorAction.ERROR_EMPTY_MESSAGE));
+    }
 }

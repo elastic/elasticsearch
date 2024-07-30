@@ -47,7 +47,7 @@ DELETE /_internal/desired_nodes
 [[update-desired-nodes-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `dry_run`::
     (Optional, Boolean) If `true`, then the request simulates the update and

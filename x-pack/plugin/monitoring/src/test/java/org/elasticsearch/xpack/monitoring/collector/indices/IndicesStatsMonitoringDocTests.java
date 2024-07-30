@@ -180,7 +180,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
 
     private CommonStats mockCommonStats() {
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
-        commonStats.getDocs().add(new DocsStats(1L, 0L, randomNonNegativeLong()));
+        commonStats.getDocs().add(new DocsStats(1L, 0L, randomNonNegativeLong() >> 8)); // >> 8 to avoid overflow - we add these things up
         commonStats.getStore().add(new StoreStats(2L, 0L, 0L));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L, 0, 0);

@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -41,11 +41,13 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
     private final PostStartTrialRequest request;
     private final ActionListener<PostStartTrialResponse> listener;
     private final Clock clock;
+    private final FeatureService featureService;
 
     StartTrialClusterTask(
         Logger logger,
         String clusterName,
         Clock clock,
+        FeatureService featureService,
         PostStartTrialRequest request,
         ActionListener<PostStartTrialResponse> listener
     ) {
@@ -54,22 +56,17 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         this.request = request;
         this.listener = listener;
         this.clock = clock;
+        this.featureService = featureService;
     }
 
     private LicensesMetadata execute(
         LicensesMetadata currentLicensesMetadata,
-        DiscoveryNodes discoveryNodes,
+        ClusterState state,
         ClusterStateTaskExecutor.TaskContext<StartTrialClusterTask> taskContext
     ) {
         assert taskContext.getTask() == this;
-        if (discoveryNodes.getMaxNodeVersion().after(discoveryNodes.getSmallestNonClientNodeVersion())) {
-            throw new IllegalStateException(
-                "Please ensure all nodes are on the same version before starting your trial, the highest node version in this cluster is ["
-                    + discoveryNodes.getMaxNodeVersion()
-                    + "] and the lowest node version is ["
-                    + discoveryNodes.getMinNodeVersion()
-                    + "]"
-            );
+        if (featureService.clusterHasFeature(state, License.INDEPENDENT_TRIAL_VERSION_FEATURE) == false) {
+            throw new IllegalStateException("Please ensure all nodes are up to date before starting your trial");
         }
         final var listener = ActionListener.runBefore(this.listener, () -> {
             logger.debug("started self generated trial license: {}", currentLicensesMetadata);
@@ -96,7 +93,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
             } else {
                 specBuilder.maxNodes(LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES);
             }
-            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, discoveryNodes);
+            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
             LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, TrialLicenseVersion.CURRENT);
             taskContext.success(() -> listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL)));
             return newLicensesMetadata;
@@ -124,7 +121,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
             var currentLicensesMetadata = originalLicensesMetadata;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
-                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
+                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState, taskContext);
                 }
             }
             if (currentLicensesMetadata == originalLicensesMetadata) {

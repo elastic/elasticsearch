@@ -34,7 +34,7 @@ public class FieldAliasMapperTests extends MapperServiceTestCase {
         );
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(mapping, mapper.mappingSource().toString());
-        assertEquals(2, mapper.mapping().getRoot().mapperSize());
+        assertEquals(2, mapper.mapping().getRoot().getTotalFieldsCount());
     }
 
     public void testParsingWithMissingPath() {

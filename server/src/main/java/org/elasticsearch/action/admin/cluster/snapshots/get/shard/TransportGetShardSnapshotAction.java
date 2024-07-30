@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get.shard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +39,8 @@ import java.util.Optional;
 
 public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<GetShardSnapshotRequest, GetShardSnapshotResponse> {
 
+    public static final ActionType<GetShardSnapshotResponse> TYPE = new ActionType<>("internal:admin/snapshot/get_shard");
+
     private final IndexSnapshotsService indexSnapshotsService;
 
     @Inject
@@ -50,7 +53,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetShardSnapshotAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

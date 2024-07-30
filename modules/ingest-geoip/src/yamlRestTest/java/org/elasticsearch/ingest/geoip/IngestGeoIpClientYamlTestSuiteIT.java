@@ -31,7 +31,6 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,7 +46,12 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         .module("reindex")
         .module("ingest-geoip")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
+        // sets the plain (geoip.elastic.co) downloader endpoint, which is used in these tests
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
+        // also sets the enterprise downloader maxmind endpoint, to make sure we do not accidentally hit the real endpoint from tests
+        // note: it's not important that the downloading actually work at this point -- the rest tests (so far) don't exercise
+        // the downloading code because of license reasons -- but if they did, then it would be important that we're hitting a fixture
+        .systemProperty("ingest.geoip.downloader.maxmind.endpoint.default", () -> fixture.getAddress(), s -> useFixture)
         .build();
 
     @ClassRule
@@ -82,7 +86,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
             List<?> databases = ((List<?>) node.get("databases"));
             assertThat(databases, notNullValue());
-            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).collect(Collectors.toList());
+            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
             assertThat(
                 databaseNames,
                 containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")

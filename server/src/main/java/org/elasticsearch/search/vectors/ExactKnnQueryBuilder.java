@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -32,7 +31,8 @@ import java.util.Objects;
 public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuilder> {
     public static final String NAME = "exact_knn";
     private final String field;
-    private final float[] query;
+    private final VectorData query;
+    private final Float vectorSimilarity;
 
     /**
      * Creates a query builder.
@@ -40,23 +40,38 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
      * @param query    the query vector
      * @param field    the field that was used for the kNN query
      */
-    public ExactKnnQueryBuilder(float[] query, String field) {
+    public ExactKnnQueryBuilder(VectorData query, String field, Float vectorSimilarity) {
         this.query = query;
         this.field = field;
+        this.vectorSimilarity = vectorSimilarity;
     }
 
     public ExactKnnQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        this.query = in.readFloatArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            this.query = in.readOptionalWriteable(VectorData::new);
+        } else {
+            this.query = VectorData.fromFloats(in.readFloatArray());
+        }
         this.field = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
+            this.vectorSimilarity = in.readOptionalFloat();
+        } else {
+            this.vectorSimilarity = null;
+        }
     }
 
     String getField() {
         return field;
     }
 
-    float[] getQuery() {
+    VectorData getQuery() {
         return query;
+    }
+
+    Float vectorSimilarity() {
+        return vectorSimilarity;
     }
 
     @Override
@@ -66,8 +81,16 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeFloatArray(query);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            out.writeOptionalWriteable(query);
+        } else {
+            out.writeFloatArray(query.asFloatVector());
+        }
         out.writeString(field);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
+            out.writeOptionalFloat(vectorSimilarity);
+        }
     }
 
     @Override
@@ -75,6 +98,9 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
         builder.startObject(NAME);
         builder.field("query", query);
         builder.field("field", field);
+        if (vectorSimilarity != null) {
+            builder.field("similarity", vectorSimilarity);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -91,17 +117,17 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
             );
         }
         final DenseVectorFieldMapper.DenseVectorFieldType vectorFieldType = (DenseVectorFieldMapper.DenseVectorFieldType) fieldType;
-        return vectorFieldType.createExactKnnQuery(query);
+        return vectorFieldType.createExactKnnQuery(query, vectorSimilarity);
     }
 
     @Override
     protected boolean doEquals(ExactKnnQueryBuilder other) {
-        return field.equals(other.field) && Arrays.equals(query, other.query);
+        return field.equals(other.field) && Objects.equals(query, other.query) && Objects.equals(vectorSimilarity, other.vectorSimilarity);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, Arrays.hashCode(query));
+        return Objects.hash(field, Objects.hashCode(query), vectorSimilarity);
     }
 
     @Override
@@ -111,6 +137,6 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.NESTED_KNN_MORE_INNER_HITS;
+        return TransportVersions.V_8_13_0;
     }
 }

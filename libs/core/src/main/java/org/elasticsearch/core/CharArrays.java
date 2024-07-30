@@ -21,13 +21,17 @@ public final class CharArrays {
 
     private CharArrays() {}
 
+    public static char[] utf8BytesToChars(byte[] utf8Bytes) {
+        return utf8BytesToChars(utf8Bytes, 0, utf8Bytes.length);
+    }
+
     /**
      * Decodes the provided byte[] to a UTF-8 char[]. This is done while avoiding
      * conversions to String. The provided byte[] is not modified by this method, so
      * the caller needs to take care of clearing the value if it is sensitive.
      */
-    public static char[] utf8BytesToChars(byte[] utf8Bytes) {
-        final ByteBuffer byteBuffer = ByteBuffer.wrap(utf8Bytes);
+    public static char[] utf8BytesToChars(byte[] utf8Bytes, int offset, int len) {
+        final ByteBuffer byteBuffer = ByteBuffer.wrap(utf8Bytes, offset, len);
         final CharBuffer charBuffer = StandardCharsets.UTF_8.decode(byteBuffer);
         final char[] chars;
         if (charBuffer.hasArray()) {

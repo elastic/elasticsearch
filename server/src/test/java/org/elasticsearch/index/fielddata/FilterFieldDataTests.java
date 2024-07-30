@@ -52,10 +52,11 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", createDefaultIndexAnalyzers()).fielddata(true)
-                .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
-                .build(builderContext)
-                .fieldType();
+            MappedFieldType ft = new TextFieldMapper.Builder(
+                "high_freq",
+                createDefaultIndexAnalyzers(),
+                indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+            ).fielddata(true).fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0).build(builderContext).fieldType();
             IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
@@ -67,7 +68,11 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", createDefaultIndexAnalyzers()).fielddata(true)
+            MappedFieldType ft = new TextFieldMapper.Builder(
+                "high_freq",
+                createDefaultIndexAnalyzers(),
+                indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+            ).fielddata(true)
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, 201, 100)
                 .build(builderContext)
                 .fieldType();
@@ -82,7 +87,11 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true);// test # docs with value
-            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", createDefaultIndexAnalyzers()).fielddata(true)
+            MappedFieldType ft = new TextFieldMapper.Builder(
+                "med_freq",
+                createDefaultIndexAnalyzers(),
+                indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+            ).fielddata(true)
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, Integer.MAX_VALUE, 101)
                 .build(builderContext)
                 .fieldType();
@@ -98,7 +107,11 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", createDefaultIndexAnalyzers()).fielddata(true)
+            MappedFieldType ft = new TextFieldMapper.Builder(
+                "med_freq",
+                createDefaultIndexAnalyzers(),
+                indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+            ).fielddata(true)
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, Integer.MAX_VALUE, 101)
                 .build(builderContext)
                 .fieldType();

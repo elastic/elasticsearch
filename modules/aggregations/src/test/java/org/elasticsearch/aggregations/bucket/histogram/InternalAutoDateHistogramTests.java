@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
@@ -421,7 +422,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
 
         InternalAutoDateHistogram reduce() {
             assertThat("finishShardResult must be called before reduce", buckets, empty());
-            return (InternalAutoDateHistogram) results.get(0).reduce(results, emptyReduceContextBuilder().forFinalReduction());
+            return (InternalAutoDateHistogram) InternalAggregationTestCase.reduce(results, emptyReduceContextBuilder().forFinalReduction());
         }
     }
 
@@ -500,7 +501,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
             assertEquals(1, deserialized.getBuckets().size());
             InternalAutoDateHistogram.Bucket bucket = deserialized.getBuckets().iterator().next();
             assertEquals(10, bucket.key);
-            assertEquals(100, bucket.docCount);
+            assertEquals(100, bucket.getDocCount());
         }
     }
 }

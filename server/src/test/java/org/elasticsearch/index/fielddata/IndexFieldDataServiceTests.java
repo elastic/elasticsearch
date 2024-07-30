@@ -141,7 +141,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
         SearchLookup searchLookup = new SearchLookup(null, null, (ctx, doc) -> null);
-        ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH));
+        ifdService.getForField(
+            ft,
+            new FieldDataContext("qualified", null, () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH)
+        );
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }
 
@@ -156,12 +159,16 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
-            .build(context)
-            .fieldType();
-        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
-            .build(context)
-            .fieldType();
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder(
+            "field_1",
+            createDefaultIndexAnalyzers(),
+            indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+        ).fielddata(true).build(context).fieldType();
+        final MappedFieldType mapper2 = new TextFieldMapper.Builder(
+            "field_2",
+            createDefaultIndexAnalyzers(),
+            indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+        ).fielddata(true).build(context).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("field_1", "thisisastring", Store.NO));
@@ -223,9 +230,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
-            .build(context)
-            .fieldType();
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder(
+            "s",
+            createDefaultIndexAnalyzers(),
+            indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+        ).fielddata(true).build(context).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));

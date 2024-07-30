@@ -9,15 +9,28 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -28,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
@@ -37,26 +51,25 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
 
+/**
+ * <p>This class is part of the planner</p>
+ *
+ * <p>Translates the logical plan into a physical plan.  This is where we start to decide what will be executed on the data nodes and what
+ * will be executed on the coordinator nodes.  This step creates {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} instances,
+ * which represent logical plan fragments to be sent to the data nodes and {@link org.elasticsearch.xpack.esql.plan.physical.ExchangeExec}
+ * instances, which represent data being sent back from the data nodes to the coordinating node.</p>
+ */
 public class Mapper {
 
-    private final FunctionRegistry functionRegistry;
-    private final boolean localMode;
+    private final EsqlFunctionRegistry functionRegistry;
+    private final boolean localMode; // non-coordinator (data node) mode
 
-    public Mapper(FunctionRegistry functionRegistry) {
+    public Mapper(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
         localMode = false;
     }
@@ -85,8 +98,8 @@ public class Mapper {
         }
 
         // Commands
-        if (p instanceof ShowFunctions showFunctions) {
-            return new ShowExec(showFunctions.source(), showFunctions.output(), showFunctions.values(functionRegistry));
+        if (p instanceof MetaFunctions metaFunctions) {
+            return new ShowExec(metaFunctions.source(), metaFunctions.output(), metaFunctions.values(functionRegistry));
         }
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
@@ -98,20 +111,43 @@ public class Mapper {
 
         if (p instanceof UnaryPlan ua) {
             var child = map(ua.child());
-            PhysicalPlan plan = null;
-            // in case of a fragment, push to it any current streaming operator
-            if (child instanceof FragmentExec && isPipelineBreaker(p) == false) {
-                plan = new FragmentExec(p);
-            } else {
-                plan = map(ua, child);
+            if (child instanceof FragmentExec) {
+                // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
+                if (p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                    assert localMode == false : "coordinator enrich must not be included to a fragment and re-planned locally";
+                    child = addExchangeForFragment(enrich.child(), child);
+                    return map(enrich, child);
+                }
+                // in case of a fragment, push to it any current streaming operator
+                if (isPipelineBreaker(p) == false) {
+                    return new FragmentExec(p);
+                }
             }
-            return plan;
+            return map(ua, child);
+        }
+
+        if (p instanceof BinaryPlan bp) {
+            var left = map(bp.left());
+            var right = map(bp.right());
+
+            if (left instanceof FragmentExec) {
+                if (right instanceof FragmentExec) {
+                    throw new EsqlIllegalArgumentException("can't plan binary [" + p.nodeName() + "]");
+                }
+                // in case of a fragment, push to it any current streaming operator
+                return new FragmentExec(p);
+            }
+            if (right instanceof FragmentExec) {
+                // in case of a fragment, push to it any current streaming operator
+                return new FragmentExec(p);
+            }
+            return map(bp, left, right);
         }
 
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
     }
 
-    private static boolean isPipelineBreaker(LogicalPlan p) {
+    static boolean isPipelineBreaker(LogicalPlan p) {
         return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy;
     }
 
@@ -144,6 +180,7 @@ public class Mapper {
                 enrich.source(),
                 child,
                 enrich.mode(),
+                enrich.policy().getType(),
                 enrich.matchField(),
                 BytesRefs.toString(enrich.policyName().fold()),
                 enrich.policy().getMatchField(),
@@ -175,7 +212,7 @@ public class Mapper {
             return map(aggregate, child);
         }
 
-        throw new EsqlIllegalArgumentException("unsupported unary logical plan node [" + p.nodeName() + "]");
+        throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
     }
 
     private PhysicalPlan map(Aggregate aggregate, PhysicalPlan child) {
@@ -232,5 +269,34 @@ public class Mapper {
             child = new ExchangeExec(child.source(), child);
         }
         return child;
+    }
+
+    private PhysicalPlan map(BinaryPlan p, PhysicalPlan lhs, PhysicalPlan rhs) {
+        if (p instanceof Join join) {
+            PhysicalPlan hash = tryHashJoin(join, lhs, rhs);
+            if (hash != null) {
+                return hash;
+            }
+        }
+        throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
+    }
+
+    private PhysicalPlan tryHashJoin(Join join, PhysicalPlan lhs, PhysicalPlan rhs) {
+        JoinConfig config = join.config();
+        if (config.type() != JoinType.LEFT) {
+            return null;
+        }
+        if (rhs instanceof LocalSourceExec local) {
+            return new HashJoinExec(
+                join.source(),
+                lhs,
+                local,
+                config.matchFields(),
+                config.leftFields(),
+                config.rightFields(),
+                join.output()
+            );
+        }
+        return null;
     }
 }

@@ -46,7 +46,7 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         Executor nodeExecutor,
         AutodetectProcessManager processManager
     ) {
-        super(actionName, clusterService, transportService, actionFilters, requestReader, responseReader, responseReader, nodeExecutor);
+        super(actionName, clusterService, transportService, actionFilters, requestReader, responseReader, nodeExecutor);
         this.processManager = processManager;
     }
 

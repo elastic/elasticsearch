@@ -53,6 +53,11 @@ following task.
 `<follower_index>`::
   (Required, string) The name of the follower index.
 
+[[ccr-post-pause-follow-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
 [[ccr-post-pause-follow-examples]]
 ==== {api-examples-title}
 

@@ -78,13 +78,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     public final void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         grow(bucketOrd + 1);
-        collectExistingBucket(subCollector, doc, bucketOrd);
-    }
-
-    /**
-     * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
-     */
-    public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         int docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We call the circuit breaker the time to time in order to give it a chance to check available
@@ -94,6 +87,14 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
             }
         }
+        subCollector.collect(doc, bucketOrd);
+    }
+
+    /**
+     * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
+     */
+    public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+        docCounts.increment(bucketOrd, docCountProvider.getDocCount(doc));
         subCollector.collect(doc, bucketOrd);
     }
 

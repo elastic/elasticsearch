@@ -1568,7 +1568,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         })).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testParseToJsonAndParse() throws Exception {
@@ -1581,7 +1581,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = builtDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testSimpleParser() throws Exception {
@@ -1593,7 +1593,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testSimpleParserNoTypeNoId() throws Exception {
@@ -1602,7 +1602,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testAttributes() throws Exception {
@@ -2273,6 +2273,39 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.dynamicMappingsUpdate());
     }
 
+    public void testSubobjectsFalseFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("attributes");
+            {
+                b.field("dynamic", false);
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("simple.attribute");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("complex.attribute");
+                    b.field("type", "flattened");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "attributes": {
+                "complex.attribute": {
+                  "foo" : "bar"
+                },
+                "simple.attribute": "foo"
+              }
+            }
+            """));
+        assertNotNull(doc.rootDoc().getField("attributes.complex.attribute"));
+        assertNotNull(doc.rootDoc().getField("attributes.simple.attribute"));
+    }
+
     public void testWriteToFieldAlias() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("alias-field");
@@ -2572,20 +2605,26 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertTrue(barMapper instanceof ObjectMapper);
         Mapper baz = ((ObjectMapper) barMapper).getMapper("baz");
         assertNotNull(baz);
-        assertEquals("foo.bar.baz", baz.name());
-        assertEquals("baz", baz.simpleName());
+        assertEquals("foo.bar.baz", baz.fullPath());
+        assertEquals("baz", baz.leafName());
         List<IndexableField> fields = doc.rootDoc().getFields("foo.bar.baz");
         assertEquals(2, fields.size());
         String[] fieldStrings = fields.stream().map(Object::toString).toArray(String[]::new);
         assertArrayEquals(new String[] { "LongField <foo.bar.baz:1>", "LongField <foo.bar.baz:2>" }, fieldStrings);
 
         // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
-        Mapping newMapping = MapperService.mergeMappings(mapperService.documentMapper(), mapping, MapperService.MergeReason.MAPPING_UPDATE);
+        Mapping newMapping = MapperService.mergeMappings(
+            mapperService.documentMapper(),
+            mapping,
+            MapperService.MergeReason.MAPPING_UPDATE,
+            mapperService.getIndexSettings()
+        );
         DocumentMapper newDocMapper = new DocumentMapper(
             mapperService.documentParser(),
             newMapping,
             newMapping.toCompressedXContent(),
-            IndexVersion.current()
+            IndexVersion.current(),
+            MapperMetrics.NOOP
         );
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {
@@ -3206,7 +3245,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
             @Override
             public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-                return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+                return new StringStoredFieldFieldLoader(fullPath(), leafName(), null) {
                     @Override
                     protected void write(XContentBuilder b, Object value) throws IOException {
                         BytesRef ref = (BytesRef) value;

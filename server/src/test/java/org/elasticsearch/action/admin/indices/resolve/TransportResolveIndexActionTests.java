@@ -78,7 +78,6 @@ public class TransportResolveIndexActionTests extends ESTestCase {
             ResolveIndexAction.TransportAction action = new ResolveIndexAction.TransportAction(
                 transportService,
                 clusterService,
-                threadPool,
                 actionFilters,
                 null
             );

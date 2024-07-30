@@ -84,7 +84,7 @@ public class Privilege {
     /**
      * Sorts the map of privileges from least-privilege to most-privilege
      */
-    static <T extends Privilege> SortedMap<String, T> sortByAccessLevel(Map<String, T> privileges) {
+    public static <T extends Privilege> SortedMap<String, T> sortByAccessLevel(Map<String, T> privileges) {
         // How many other privileges is this privilege a subset of. Those with a higher count are considered to be a lower privilege
         final Map<String, Long> subsetCount = Maps.newMapWithExpectedSize(privileges.size());
         privileges.forEach(

@@ -117,7 +117,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     if (fetchFields.isEmpty() && randomBoolean()) {
                         fetchFields = null;
                     }
-                    hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields));
+                    hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields, false));
                 }
             }
         }
@@ -297,7 +297,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
     }
 
     public void testEmptyIndexAsMissingEvent() throws IOException {
-        Event event = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null);
+        Event event = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, false);
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersions.V_8_9_X);// 8.9.1
         event.writeTo(out);

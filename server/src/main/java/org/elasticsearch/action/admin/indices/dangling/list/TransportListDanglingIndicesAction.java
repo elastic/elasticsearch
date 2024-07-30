@@ -39,7 +39,6 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
 
     public static final ActionType<ListDanglingIndicesResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/list");
 
-    private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
 
     @Inject
@@ -58,7 +57,6 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
             NodeListDanglingIndicesRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;
     }
 

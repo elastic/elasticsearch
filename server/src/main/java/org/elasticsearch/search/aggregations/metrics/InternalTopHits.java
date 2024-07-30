@@ -21,11 +21,13 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -97,45 +99,57 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        final int from;
-        final int size;
-        if (reduceContext.isFinalReduce()) {
-            from = this.from;
-            size = this.size;
-        } else {
-            // if we are not in the final reduce we need to ensure we maintain all possible elements during reduce
-            // hence for pagination we need to maintain all hits until we are in the final phase.
-            from = 0;
-            size = this.from + this.size;
-        }
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final List<InternalTopHits> aggregations = new ArrayList<>(size);
 
-        final TopDocs reducedTopDocs;
-        final TopDocs[] shardDocs;
-        final float maxScore;
-        if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
-            shardDocs = new TopFieldDocs[aggregations.size()];
-            maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
-            reducedTopDocs = TopDocs.merge(new Sort(topFieldDocs.fields), from, size, (TopFieldDocs[]) shardDocs);
-        } else {
-            shardDocs = new TopDocs[aggregations.size()];
-            maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
-            reducedTopDocs = TopDocs.merge(from, size, shardDocs);
-        }
-        assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                // TODO: Can we do this better?
+                aggregations.add((InternalTopHits) aggregation);
+            }
 
-        return new InternalTopHits(
-            name,
-            this.from,
-            this.size,
-            new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            extractSearchHits(aggregations, reducedTopDocs, shardDocs, maxScore),
-            getMetadata()
-        );
+            @Override
+            public InternalAggregation get() {
+                final int from;
+                final int size;
+                if (reduceContext.isFinalReduce()) {
+                    from = getFrom();
+                    size = getSize();
+                } else {
+                    // if we are not in the final reduce we need to ensure we maintain all possible elements during reduce
+                    // hence for pagination we need to maintain all hits until we are in the final phase.
+                    from = 0;
+                    size = getFrom() + getSize();
+                }
+                final TopDocs reducedTopDocs;
+                final TopDocs[] shardDocs;
+                final float maxScore;
+                if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
+                    shardDocs = new TopFieldDocs[aggregations.size()];
+                    maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
+                    reducedTopDocs = TopDocs.merge(new Sort(topFieldDocs.fields), from, size, (TopFieldDocs[]) shardDocs);
+                } else {
+                    shardDocs = new TopDocs[aggregations.size()];
+                    maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
+                    reducedTopDocs = TopDocs.merge(from, size, shardDocs);
+                }
+                assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
+
+                return new InternalTopHits(
+                    getName(),
+                    getFrom(),
+                    getSize(),
+                    new TopDocsAndMaxScore(reducedTopDocs, maxScore),
+                    extractSearchHits(aggregations, reducedTopDocs, shardDocs, maxScore),
+                    getMetadata()
+                );
+            }
+        };
     }
 
     private static SearchHits extractSearchHits(
-        List<InternalAggregation> aggregations,
+        List<InternalTopHits> aggregations,
         TopDocs reducedTopDocs,
         TopDocs[] shardDocs,
         float maxScore
@@ -151,16 +165,16 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             do {
                 position = tracker[shardIndex]++;
             } while (topDocsForShard.scoreDocs[position] != scoreDoc);
-            hits[i] = ((InternalTopHits) aggregations.get(shardIndex)).searchHits.getAt(position);
+            hits[i] = aggregations.get(shardIndex).searchHits.getAt(position);
             assert hits[i].isPooled() == false;
         }
         return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);
     }
 
-    private static float reduceAndFindMaxScore(List<InternalAggregation> aggregations, TopDocs[] shardDocs) {
+    private static float reduceAndFindMaxScore(List<InternalTopHits> aggregations, TopDocs[] shardDocs) {
         float maxScore = Float.NaN;
         for (int i = 0; i < shardDocs.length; i++) {
-            InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+            InternalTopHits topHitsAgg = aggregations.get(i);
             shardDocs[i] = topHitsAgg.topDocs.topDocs;
             for (ScoreDoc doc : shardDocs[i].scoreDocs) {
                 doc.shardIndex = i;

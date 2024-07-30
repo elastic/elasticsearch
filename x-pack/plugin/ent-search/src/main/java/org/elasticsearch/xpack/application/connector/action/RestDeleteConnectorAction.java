@@ -23,6 +23,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteConnectorAction extends BaseRestHandler {
 
+    private static final String CONNECTOR_ID_PARAM = "connector_id";
+
     @Override
     public String getName() {
         return "connector_delete_action";
@@ -30,12 +32,16 @@ public class RestDeleteConnectorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}"));
+        return List.of(new Route(DELETE, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{" + CONNECTOR_ID_PARAM + "}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        DeleteConnectorAction.Request request = new DeleteConnectorAction.Request(restRequest.param("connector_id"));
+
+        String connectorId = restRequest.param(CONNECTOR_ID_PARAM);
+        boolean shouldDeleteSyncJobs = restRequest.paramAsBoolean("delete_sync_jobs", false);
+
+        DeleteConnectorAction.Request request = new DeleteConnectorAction.Request(connectorId, shouldDeleteSyncJobs);
         return channel -> client.execute(DeleteConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

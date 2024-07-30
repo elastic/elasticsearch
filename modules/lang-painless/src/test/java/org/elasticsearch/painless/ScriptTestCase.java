@@ -34,6 +34,9 @@ import static org.hamcrest.Matchers.hasSize;
  * Typically just asserts the output of {@code exec()}
  */
 public abstract class ScriptTestCase extends ESTestCase {
+
+    protected static final List<Whitelist> PAINLESS_BASE_WHITELIST = PainlessPlugin.baseWhiteList();
+
     protected PainlessScriptEngine scriptEngine;
 
     @Before
@@ -53,7 +56,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.test"));
         contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;

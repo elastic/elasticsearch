@@ -160,7 +160,7 @@ public class TextSimilarityConfig implements NlpConfig {
                 Optional.ofNullable(configUpdate.getSpanScoreFunction()).orElse(spanScoreFunction)
             );
         } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
-            var updatedTokenization = getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings());
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
             return new TextSimilarityConfig(text, vocabularyConfig, updatedTokenization, resultsField, spanScoreFunction);
         } else {
             throw incompatibleUpdateException(update.getName());

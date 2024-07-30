@@ -47,6 +47,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
 
         public Request(String... names) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = Objects.requireNonNull(names);
             this.wildcardExpressionsOriginallySpecified = Arrays.stream(names).anyMatch(Regex::isSimpleMatchPattern);
         }

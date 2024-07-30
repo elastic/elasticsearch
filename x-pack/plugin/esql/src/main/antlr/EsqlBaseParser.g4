@@ -23,13 +23,16 @@ sourceCommand
     : explainCommand
     | fromCommand
     | rowCommand
+    | metricsCommand
     | showCommand
+    | metaCommand
     ;
 
 processingCommand
     : evalCommand
     | inlinestatsCommand
     | limitCommand
+    | lookupCommand
     | keepCommand
     | sortCommand
     | statsCommand
@@ -50,6 +53,7 @@ booleanExpression
     : NOT booleanExpression                                                      #logicalNot
     | valueExpression                                                            #booleanDefault
     | regexBooleanExpression                                                     #regexExpression
+    | matchBooleanExpression                                                     #matchExpression
     | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
@@ -59,6 +63,10 @@ booleanExpression
 regexBooleanExpression
     : valueExpression (NOT)? kind=LIKE pattern=string
     | valueExpression (NOT)? kind=RLIKE pattern=string
+    ;
+
+matchBooleanExpression
+    : qualifiedName MATCH queryString=string
     ;
 
 valueExpression
@@ -78,10 +86,15 @@ primaryExpression
     | qualifiedName                                                                     #dereference
     | functionExpression                                                                #function
     | LP booleanExpression RP                                                           #parenthesizedExpression
+    | primaryExpression CAST_OP dataType                                                #inlineCast
     ;
 
 functionExpression
     : identifier LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    ;
+
+dataType
+    : identifier                                                                        #toDataType
     ;
 
 rowCommand
@@ -98,13 +111,39 @@ field
     ;
 
 fromCommand
-    : FROM fromIdentifier (COMMA fromIdentifier)* metadata?
+    : FROM indexPattern (COMMA indexPattern)* metadata?
+    ;
+
+indexPattern
+    : clusterString COLON indexString
+    | indexString
+    ;
+
+clusterString
+    : UNQUOTED_SOURCE
+    ;
+
+indexString
+    : UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 metadata
-    : OPENING_BRACKET METADATA fromIdentifier (COMMA fromIdentifier)* CLOSING_BRACKET
+    : metadataOption
+    | deprecated_metadata
     ;
 
+metadataOption
+    : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
+    ;
+
+deprecated_metadata
+    : OPENING_BRACKET metadataOption CLOSING_BRACKET
+    ;
+
+metricsCommand
+    : METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
+    ;
 
 evalCommand
     : EVAL fields
@@ -118,10 +157,6 @@ inlinestatsCommand
     : INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
-fromIdentifier
-    : FROM_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
-    ;
 
 qualifiedName
     : identifier (DOT identifier)*
@@ -131,14 +166,17 @@ qualifiedNamePattern
     : identifierPattern (DOT identifierPattern)*
     ;
 
+qualifiedNamePatterns
+    : qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    ;
+
 identifier
     : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
     ;
 
 identifierPattern
-    : UNQUOTED_ID_PATTERN
-    | QUOTED_IDENTIFIER
+    : ID_PATTERN
     ;
 
 constant
@@ -147,11 +185,16 @@ constant
     | decimalValue                                                                      #decimalLiteral
     | integerValue                                                                      #integerLiteral
     | booleanValue                                                                      #booleanLiteral
-    | PARAM                                                                             #inputParam
+    | params                                                                            #inputParams
     | string                                                                            #stringLiteral
     | OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET                #numericArrayLiteral
     | OPENING_BRACKET booleanValue (COMMA booleanValue)* CLOSING_BRACKET                #booleanArrayLiteral
     | OPENING_BRACKET string (COMMA string)* CLOSING_BRACKET                            #stringArrayLiteral
+    ;
+
+params
+    : PARAM                        #inputParam
+    | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
     ;
 
 limitCommand
@@ -167,12 +210,11 @@ orderExpression
     ;
 
 keepCommand
-    :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
-    |  PROJECT qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    :  KEEP qualifiedNamePatterns
     ;
 
 dropCommand
-    : DROP qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    : DROP qualifiedNamePatterns
     ;
 
 renameCommand
@@ -221,11 +263,11 @@ integerValue
     ;
 
 string
-    : STRING
+    : QUOTED_STRING
     ;
 
 comparisonOperator
-    : EQ | CIEQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 explainCommand
@@ -238,17 +280,20 @@ subqueryExpression
 
 showCommand
     : SHOW INFO                                                           #showInfo
-    | SHOW FUNCTIONS                                                      #showFunctions
+    ;
+
+metaCommand
+    : META FUNCTIONS                                                      #metaFunctions
     ;
 
 enrichCommand
-    : ENRICH setting* policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
-setting
-    : OPENING_BRACKET name=SETTING COLON value=SETTING CLOSING_BRACKET
+lookupCommand
+    : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;

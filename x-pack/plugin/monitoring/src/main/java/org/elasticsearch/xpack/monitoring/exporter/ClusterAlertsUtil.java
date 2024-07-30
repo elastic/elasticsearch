@@ -16,7 +16,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.monitoring.exporter.Exporter.CLUSTER_ALERTS_BLACKLIST_SETTING;
@@ -34,24 +33,24 @@ public class ClusterAlertsUtil {
     /**
      * Replace the <code>${monitoring.watch.cluster_uuid}</code> field in the watches.
      */
-    private static final Pattern CLUSTER_UUID_PROPERTY = Pattern.compile(Pattern.quote("${monitoring.watch.cluster_uuid}"));
+    private static final String CLUSTER_UUID_PROPERTY = "${monitoring.watch.cluster_uuid}";
     /**
      * Replace the <code>${monitoring.watch.id}</code> field in the watches.
      */
-    private static final Pattern WATCH_ID_PROPERTY = Pattern.compile(Pattern.quote("${monitoring.watch.id}"));
+    private static final String WATCH_ID_PROPERTY = "${monitoring.watch.id}";
     /**
      * Replace the <code>${monitoring.watch.unique_id}</code> field in the watches.
      *
      * @see #createUniqueWatchId(ClusterService, String)
      */
-    private static final Pattern UNIQUE_WATCH_ID_PROPERTY = Pattern.compile(Pattern.quote("${monitoring.watch.unique_id}"));
+    private static final String UNIQUE_WATCH_ID_PROPERTY = "${monitoring.watch.unique_id}";
 
     /**
      * Replace the <code>${monitoring.watch.unique_id}</code> field in the watches.
      *
      * @see #createUniqueWatchId(ClusterService, String)
      */
-    private static final Pattern VERSION_CREATED_PROPERTY = Pattern.compile(Pattern.quote("${monitoring.version_created}"));
+    private static final String VERSION_CREATED_PROPERTY = "${monitoring.version_created}";
 
     /**
      * The last time that all watches were updated. For now, all watches have been updated in the same version and should all be replaced
@@ -113,10 +112,10 @@ public class ClusterAlertsUtil {
             // load the resource as-is
             String source = loadResource(resource).utf8ToString();
 
-            source = CLUSTER_UUID_PROPERTY.matcher(source).replaceAll(clusterUuid);
-            source = WATCH_ID_PROPERTY.matcher(source).replaceAll(watchId);
-            source = UNIQUE_WATCH_ID_PROPERTY.matcher(source).replaceAll(uniqueWatchId);
-            source = VERSION_CREATED_PROPERTY.matcher(source).replaceAll(Integer.toString(LAST_UPDATED_VERSION));
+            source = source.replace(CLUSTER_UUID_PROPERTY, clusterUuid);
+            source = source.replace(WATCH_ID_PROPERTY, watchId);
+            source = source.replace(UNIQUE_WATCH_ID_PROPERTY, uniqueWatchId);
+            source = source.replace(VERSION_CREATED_PROPERTY, Integer.toString(LAST_UPDATED_VERSION));
 
             return source;
         } catch (final IOException e) {

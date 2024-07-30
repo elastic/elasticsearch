@@ -109,11 +109,11 @@ public class EnrichCoordinatorDocTests extends BaseMonitoringDocTestCase<EnrichC
                         DATE_TIME_FORMATTER.formatMillis(timestamp),
                         intervalMillis,
                         DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
-                        stats.getNodeId(),
-                        stats.getQueueSize(),
-                        stats.getRemoteRequestsCurrent(),
-                        stats.getRemoteRequestsTotal(),
-                        stats.getExecutedSearchesTotal()
+                        stats.nodeId(),
+                        stats.queueSize(),
+                        stats.remoteRequestsCurrent(),
+                        stats.remoteRequestsTotal(),
+                        stats.executedSearchesTotal()
                     )
                 )
             )

@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -583,7 +585,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareOpen(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareClose(dataStreamName), true);
         verifyResolvability(aliasToDataStream, indicesAdmin().prepareClose(aliasToDataStream), true);
-        verifyResolvability(dataStreamName, clusterAdmin().prepareSearchShards(dataStreamName), false);
+        verifyResolvability(client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest(dataStreamName)));
         verifyResolvability(client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(dataStreamName)));
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
@@ -627,7 +629,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetIndex().addIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareOpen(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClose(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, clusterAdmin().prepareSearchShards(wildcardExpression), false);
+        verifyResolvability(client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest(wildcardExpression)));
         verifyResolvability(client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(wildcardExpression)));
     }
 
@@ -1281,7 +1283,7 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
         DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
-        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle);
+        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle, false);
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
 
@@ -1642,7 +1644,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 Map.of("my-alias", AliasMetadata.builder("my-alias").build()),
-                null
+                null,
+                false
             );
             var request = new CreateDataStreamAction.Request("my-ds");
             assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
@@ -1675,7 +1678,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 Map.of("logs", AliasMetadata.builder("logs").build()),
-                null
+                null,
+                false
             );
 
             var request = new CreateDataStreamAction.Request("logs-es");
@@ -1712,7 +1716,8 @@ public class DataStreamIT extends ESIntegTestCase {
                     null,
                     null,
                     Map.of("logs", AliasMetadata.builder("logs").build()),
-                    null
+                    null,
+                    false
                 )
             );
             assertThat(
@@ -1778,20 +1783,16 @@ public class DataStreamIT extends ESIntegTestCase {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
-                    DataStream broken = new DataStream(
-                        original.getName(),
-                        List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)),
-                        original.getGeneration(),
-                        original.getMetadata(),
-                        original.isHidden(),
-                        original.isReplicated(),
-                        original.isSystem(),
-                        original.isAllowCustomRouting(),
-                        original.getIndexMode(),
-                        original.getLifecycle(),
-                        original.isFailureStore(),
-                        original.getFailureIndices()
-                    );
+                    DataStream broken = original.copy()
+                        .setBackingIndices(
+                            original.getBackingIndices()
+                                .copy()
+                                .setIndices(
+                                    List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1))
+                                )
+                                .build()
+                        )
+                        .build();
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
                         .metadata(Metadata.builder(currentState.getMetadata()).put(broken).build())
@@ -1906,7 +1907,11 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public static void putComposableIndexTemplate(String id, List<String> patterns) throws IOException {
-        putComposableIndexTemplate(id, null, patterns, null, null);
+        putComposableIndexTemplate(id, patterns, false);
+    }
+
+    public static void putComposableIndexTemplate(String id, List<String> patterns, boolean withFailureStore) throws IOException {
+        putComposableIndexTemplate(id, null, patterns, null, null, null, null, withFailureStore);
     }
 
     public void testPartitionedTemplate() throws IOException {
@@ -2281,7 +2286,7 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
-        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, null, null);
+        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, null, null, false);
     }
 
     static void putComposableIndexTemplate(
@@ -2291,7 +2296,8 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
         @Nullable Map<String, AliasMetadata> aliases,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle,
+        boolean withFailureStore
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -2299,7 +2305,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 .indexPatterns(patterns)
                 .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases, lifecycle))
                 .metadata(metadata)
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, withFailureStore))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();

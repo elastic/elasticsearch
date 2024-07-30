@@ -100,8 +100,8 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
                 assertThat(getTranslogStats().getUncommittedOperations(), equalTo(0));
                 Map<String, String> userData = new HashMap<>(getLastCommittedSegmentInfos().userData);
                 SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
-                assertThat(commitInfo.localCheckpoint, equalTo(getLastSyncedGlobalCheckpoint()));
-                assertThat(commitInfo.maxSeqNo, equalTo(getLastSyncedGlobalCheckpoint()));
+                assertThat(commitInfo.localCheckpoint(), equalTo(getLastSyncedGlobalCheckpoint()));
+                assertThat(commitInfo.maxSeqNo(), equalTo(getLastSyncedGlobalCheckpoint()));
                 userData.put(Engine.SYNC_COMMIT_ID, syncId);
                 indexWriter.setLiveCommitData(userData.entrySet());
                 indexWriter.commit();

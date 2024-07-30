@@ -55,7 +55,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
     protected void executeInitialPhase(
         Transport.Connection connection,
         InternalScrollSearchRequest internalRequest,
-        SearchActionListener<ScrollQuerySearchResult> searchActionListener
+        ActionListener<ScrollQuerySearchResult> searchActionListener
     ) {
         searchTransportService.sendExecuteScrollQuery(connection, internalRequest, task, searchActionListener);
     }
@@ -73,7 +73,10 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     sendResponse(reducedQueryPhase, fetchResults);
                     return;
                 }
+                doRun(scoreDocs, reducedQueryPhase);
+            }
 
+            private void doRun(ScoreDoc[] scoreDocs, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
                 final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
                 final ScoreDoc[] lastEmittedDocPerShard = SearchPhaseController.getLastEmittedDocPerShard(
                     reducedQueryPhase,

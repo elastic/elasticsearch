@@ -12,14 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
@@ -37,6 +36,7 @@ import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
@@ -54,6 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
+import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
  * This class starts elasticsearch.
@@ -184,6 +185,8 @@ class Elasticsearch {
         IfConfig.logIfNecessary();
 
         ensureInitialized(
+            // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            ReleaseVersions.class,
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             ReferenceDocs.class,
             // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
@@ -276,9 +279,10 @@ class Elasticsearch {
      */
     static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
+        var nativeAccess = NativeAccess.instance();
 
         // check if the user is running as root, and bail
-        if (Natives.definitelyRunningAsRoot()) {
+        if (nativeAccess.definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
@@ -288,49 +292,31 @@ class Elasticsearch {
              *
              * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
              */
-            Natives.tryInstallSystemCallFilter(tmpFile);
+            nativeAccess.tryInstallExecSandbox();
         }
 
         // mlockall if requested
         if (mlockAll) {
-            if (Constants.WINDOWS) {
-                Natives.tryVirtualLock();
-            } else {
-                Natives.tryMlockall();
-            }
+            nativeAccess.tryLockMemory();
         }
 
         // listener for windows close event
         if (ctrlHandler) {
-            Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
-                @Override
-                public boolean handle(int code) {
+            var windowsFunctions = nativeAccess.getWindowsFunctions();
+            if (windowsFunctions != null) {
+                windowsFunctions.addConsoleCtrlHandler(code -> {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
                         shutdown();
                         return true;
                     }
                     return false;
-                }
-            });
+                });
+            }
         }
-
-        // force remainder of JNA to be loaded (if available).
-        try {
-            JNAKernel32Library.getInstance();
-        } catch (Exception ignored) {
-            // we've already logged this.
-        }
-
-        Natives.trySetMaxNumberOfThreads();
-        Natives.trySetMaxSizeVirtualMemory();
-        Natives.trySetMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
-
-        // init filesystem natives
-        FileSystemNatives.init();
     }
 
     static void initializeProbes() {

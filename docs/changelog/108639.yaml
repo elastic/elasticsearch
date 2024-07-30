@@ -1,0 +1,5 @@
+pr: 108639
+summary: Add support for the 'Domain' database to the geoip processor
+area: Ingest Node
+type: enhancement
+issues: []

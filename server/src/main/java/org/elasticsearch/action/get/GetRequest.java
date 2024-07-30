@@ -64,7 +64,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     public GetRequest() {}
 
-    GetRequest(StreamInput in) throws IOException {
+    public GetRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readString();

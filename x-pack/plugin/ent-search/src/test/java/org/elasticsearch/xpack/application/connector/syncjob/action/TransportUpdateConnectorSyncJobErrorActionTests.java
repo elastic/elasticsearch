@@ -46,7 +46,7 @@ public class TransportUpdateConnectorSyncJobErrorActionTests extends ESSingleNod
             Collections.emptySet()
         );
 
-        action = new TransportUpdateConnectorSyncJobErrorAction(transportService, clusterService, mock(ActionFilters.class), client());
+        action = new TransportUpdateConnectorSyncJobErrorAction(transportService, mock(ActionFilters.class), client());
     }
 
     @Override

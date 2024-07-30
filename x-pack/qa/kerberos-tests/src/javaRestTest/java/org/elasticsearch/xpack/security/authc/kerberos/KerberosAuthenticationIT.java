@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
@@ -22,12 +24,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.fixtures.krb5kdc.Krb5kDcContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.ietf.jgss.GSSException;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -56,15 +62,16 @@ import static org.hamcrest.Matchers.nullValue;
  * Demonstrates login by keytab and login by password for given user principal
  * name using rest client.
  */
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class KerberosAuthenticationIT extends ESRestTestCase {
     private static final String ENABLE_KERBEROS_DEBUG_LOGS_KEY = "test.krb.debug";
-    private static final String TEST_USER_WITH_KEYTAB_KEY = "test.userkt";
-    private static final String TEST_USER_WITH_KEYTAB_PATH_KEY = "test.userkt.keytab";
-    private static final String TEST_USER_WITH_PWD_KEY = "test.userpwd";
-    private static final String TEST_USER_WITH_PWD_PASSWD_KEY = "test.userpwd.password";
+    private static final String TEST_USER_WITH_KEYTAB_KEY = "peppa@BUILD.ELASTIC.CO";
+    private static final String TEST_USER_WITH_PWD_KEY = "george@BUILD.ELASTIC.CO";
+    private static final String TEST_USER_WITH_PWD_PASSWD_KEY = "dino_but_longer_than_14_chars";
     private static final String TEST_KERBEROS_REALM_NAME = "kerberos";
 
-    @ClassRule
+    public static Krb5kDcContainer krb5Fixture = new Krb5kDcContainer(Krb5kDcContainer.ProvisioningId.PEPPA);
+
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the
@@ -81,12 +88,15 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         .setting("xpack.security.authc.realms.kerberos.kerberos.keytab.path", "es.keytab")
         .setting("xpack.security.authc.realms.kerberos.kerberos.krb.debug", "true")
         .setting("xpack.security.authc.realms.kerberos.kerberos.remove_realm_name", "false")
-        .systemProperty("java.security.krb5.conf", System.getProperty("test.krb5.conf"))
+        .systemProperty("java.security.krb5.conf", () -> krb5Fixture.getConfPath().toString())
         .systemProperty("sun.security.krb5.debug", "true")
         .user("test_admin", "x-pack-test-password")
         .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
-        .configFile("es.keytab", Resource.fromClasspath("HTTP_localhost.keytab"))
+        .configFile("es.keytab", Resource.fromFile(() -> krb5Fixture.getEsKeytab()))
         .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(krb5Fixture).around(cluster);
 
     @Override
     protected String getTestRestCluster() {
@@ -130,20 +140,19 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
-        final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
-        final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
-        final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
+        final String keytabPath = krb5Fixture.getKeytab().toString();
+        final boolean enabledDebugLogs = Boolean.parseBoolean(ENABLE_KERBEROS_DEBUG_LOGS_KEY);
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
-            userPrincipalName,
+            krb5Fixture.getPrincipal(),
             keytabPath,
             enabledDebugLogs
         );
-        executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
+        executeRequestAndVerifyResponse(krb5Fixture.getPrincipal(), callbackHandler);
     }
 
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
-        final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
-        final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
+        final String userPrincipalName = TEST_USER_WITH_PWD_KEY;
+        final String password = TEST_USER_WITH_PWD_PASSWD_KEY;
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
             userPrincipalName,
@@ -154,8 +163,8 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
-        final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
-        final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
+        final String userPrincipalName = TEST_USER_WITH_PWD_KEY;
+        final String password = TEST_USER_WITH_PWD_PASSWD_KEY;
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
             userPrincipalName,

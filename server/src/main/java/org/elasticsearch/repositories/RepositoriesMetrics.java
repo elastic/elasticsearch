@@ -13,8 +13,10 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 public record RepositoriesMetrics(
+    MeterRegistry meterRegistry,
     LongCounter requestCounter,
     LongCounter exceptionCounter,
+    LongCounter requestRangeNotSatisfiedExceptionCounter,
     LongCounter throttleCounter,
     LongCounter operationCounter,
     LongCounter unsuccessfulOperationCounter,
@@ -27,6 +29,8 @@ public record RepositoriesMetrics(
 
     public static final String METRIC_REQUESTS_TOTAL = "es.repositories.requests.total";
     public static final String METRIC_EXCEPTIONS_TOTAL = "es.repositories.exceptions.total";
+    public static final String METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL =
+        "es.repositories.exceptions.request_range_not_satisfied.total";
     public static final String METRIC_THROTTLES_TOTAL = "es.repositories.throttles.total";
     public static final String METRIC_OPERATIONS_TOTAL = "es.repositories.operations.total";
     public static final String METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL = "es.repositories.operations.unsuccessful.total";
@@ -36,8 +40,14 @@ public record RepositoriesMetrics(
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
         this(
+            meterRegistry,
             meterRegistry.registerLongCounter(METRIC_REQUESTS_TOTAL, "repository request counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_EXCEPTIONS_TOTAL, "repository request exception counter", "unit"),
+            meterRegistry.registerLongCounter(
+                METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL,
+                "repository request RequestedRangeNotSatisfiedException counter",
+                "unit"
+            ),
             meterRegistry.registerLongCounter(METRIC_THROTTLES_TOTAL, "repository request throttle counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_OPERATIONS_TOTAL, "repository operation counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, "repository unsuccessful operation counter", "unit"),

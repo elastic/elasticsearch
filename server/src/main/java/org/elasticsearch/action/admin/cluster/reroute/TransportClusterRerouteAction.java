@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
@@ -51,6 +52,7 @@ import java.util.Map;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
+    public static final ActionType<ClusterRerouteResponse> TYPE = new ActionType<>("cluster:admin/reroute");
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
     private final AllocationService allocationService;
@@ -65,7 +67,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClusterRerouteAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

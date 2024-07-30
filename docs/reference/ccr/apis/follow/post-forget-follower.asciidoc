@@ -100,6 +100,12 @@ the <<ccr-post-unfollow,unfollow API>> is invoked.
 `<leader_index>`::
   (Required, string) The name of the leader index.
 
+[[ccr-post-forget-follower-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, time) Controls the amount of time to wait for results. Defaults to unlimited.
+
 [[ccr-post-forget-follower-request-body]]
 ==== {api-request-body-title}
 

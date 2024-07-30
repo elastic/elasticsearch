@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -33,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -172,8 +174,12 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         if (future == null || future.isDone() == false) {
             return null;
         }
-        // call non-blocking actionResult() as we could be on a network or scheduler thread which we must not block
-        return future.actionResult();
+        // call non-blocking result() as we could be on a network or scheduler thread which we must not block
+        try {
+            return future.result();
+        } catch (ExecutionException e) {
+            throw new UncategorizedExecutionException("An error occurred fetching timestamp field type for " + index, e);
+        }
     }
 
 }

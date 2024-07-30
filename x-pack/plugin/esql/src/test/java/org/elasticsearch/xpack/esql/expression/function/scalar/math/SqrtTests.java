@@ -10,19 +10,21 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class SqrtTests extends AbstractFunctionTestCase {
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
+
+public class SqrtTests extends AbstractScalarFunctionTestCase {
     public SqrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -35,7 +37,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "SqrtIntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::sqrt,
             0,
             Integer.MAX_VALUE,
@@ -44,7 +46,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "SqrtLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::sqrt,
             0,
             Long.MAX_VALUE,
@@ -53,8 +55,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "SqrtUnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            ul -> Math.sqrt(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
+            DataType.DOUBLE,
+            ul -> Math.sqrt(ul == null ? null : unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()
@@ -62,7 +64,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "SqrtDoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::sqrt,
             -0d,
             Double.MAX_VALUE,
@@ -74,7 +76,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "SqrtIntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Integer.MIN_VALUE,
             -1,
@@ -86,7 +88,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "SqrtLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Long.MIN_VALUE,
             -1,
@@ -98,7 +100,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "SqrtDoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Double.NEGATIVE_INFINITY,
             -Double.MIN_VALUE,
@@ -107,7 +109,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
                 "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
     }
 
     @Override

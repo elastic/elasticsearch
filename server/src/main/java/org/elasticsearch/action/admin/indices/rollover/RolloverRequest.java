@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
@@ -101,6 +102,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
@@ -109,16 +111,22 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         dryRun = in.readBoolean();
         conditions = new RolloverConditions(in);
         createIndexRequest = new CreateIndexRequest(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             lazy = in.readBoolean();
         } else {
             lazy = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
     }
 
-    RolloverRequest() {}
+    RolloverRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     public RolloverRequest(String rolloverTarget, String newIndexName) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.rolloverTarget = rolloverTarget;
         this.newIndexName = newIndexName;
     }
@@ -138,6 +146,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
+        var failureStoreOptions = indicesOptions.failureStoreOptions();
+        if (failureStoreOptions.includeRegularIndices() && failureStoreOptions.includeFailureIndices()) {
+            validationException = addValidationError(
+                "rollover cannot be applied to both regular and failure indices at the same time",
+                validationException
+            );
+        }
+
         return validationException;
     }
 
@@ -149,8 +165,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeBoolean(dryRun);
         conditions.writeTo(out);
         createIndexRequest.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(lazy);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            indicesOptions.writeIndicesOptions(out);
         }
     }
 
@@ -161,7 +180,18 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return indicesOptions;
+    }
+
+    /**
+     * @return true of the rollover request targets the failure store, false otherwise.
+     */
+    public boolean targetsFailureStore() {
+        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.failureStoreOptions().includeFailureIndices();
+    }
+
+    public void setIndicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
     }
 
     @Override
@@ -170,14 +200,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the rollover target to rollover to another index
+     * Sets the rollover target to roll over to another index
      */
     public void setRolloverTarget(String rolloverTarget) {
         this.rolloverTarget = rolloverTarget;
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Sets the alias to roll over to another index
      */
     public void setNewIndexName(String newIndexName) {
         this.newIndexName = newIndexName;
@@ -282,11 +312,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             && Objects.equals(rolloverTarget, that.rolloverTarget)
             && Objects.equals(newIndexName, that.newIndexName)
             && Objects.equals(conditions, that.conditions)
-            && Objects.equals(createIndexRequest, that.createIndexRequest);
+            && Objects.equals(createIndexRequest, that.createIndexRequest)
+            && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy);
+        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy, indicesOptions);
     }
 }

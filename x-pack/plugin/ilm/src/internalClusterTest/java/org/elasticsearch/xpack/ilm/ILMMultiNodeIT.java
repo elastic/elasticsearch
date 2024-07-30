@@ -70,13 +70,13 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
 
         RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
-        ShrinkAction shrinkAction = new ShrinkAction(1, null);
+        ShrinkAction shrinkAction = new ShrinkAction(1, null, false);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));
         Map<String, Phase> phases = new HashMap<>();
         phases.put(hotPhase.getName(), hotPhase);
         phases.put(warmPhase.getName(), warmPhase);
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", phases);
-        client().execute(ILMActions.PUT, new PutLifecycleRequest(lifecyclePolicy)).get();
+        client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get();
 
         Template t = new Template(
             Settings.builder()

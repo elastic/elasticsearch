@@ -56,7 +56,7 @@ public class DistanceFunctionBenchmark {
     @Param({ "96" })
     private int dims;
 
-    @Param({ "dot", "cosine", "l1", "l2" })
+    @Param({ "dot", "cosine", "l1", "l2", "hamming" })
     private String function;
 
     @Param({ "knn", "binary" })
@@ -330,6 +330,18 @@ public class DistanceFunctionBenchmark {
         }
     }
 
+    private static class HammingKnnByteBenchmarkFunction extends KnnByteBenchmarkFunction {
+
+        private HammingKnnByteBenchmarkFunction(int dims) {
+            super(dims);
+        }
+
+        @Override
+        public void execute(Consumer<Object> consumer) {
+            new ByteKnnDenseVector(docVector).hamming(queryVector);
+        }
+    }
+
     private static class L1BinaryFloatBenchmarkFunction extends BinaryFloatBenchmarkFunction {
 
         private L1BinaryFloatBenchmarkFunction(int dims) {
@@ -351,6 +363,18 @@ public class DistanceFunctionBenchmark {
         @Override
         public void execute(Consumer<Object> consumer) {
             new ByteBinaryDenseVector(vectorValue, docVector, dims).l1Norm(queryVector);
+        }
+    }
+
+    private static class HammingBinaryByteBenchmarkFunction extends BinaryByteBenchmarkFunction {
+
+        private HammingBinaryByteBenchmarkFunction(int dims) {
+            super(dims);
+        }
+
+        @Override
+        public void execute(Consumer<Object> consumer) {
+            new ByteBinaryDenseVector(vectorValue, docVector, dims).hamming(queryVector);
         }
     }
 
@@ -452,6 +476,11 @@ public class DistanceFunctionBenchmark {
                     case "l2" -> benchmarkFunction = switch (type) {
                         case "knn" -> new L2KnnByteBenchmarkFunction(dims);
                         case "binary" -> new L2BinaryByteBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
+                    case "hamming" -> benchmarkFunction = switch (type) {
+                        case "knn" -> new HammingKnnByteBenchmarkFunction(dims);
+                        case "binary" -> new HammingBinaryByteBenchmarkFunction(dims);
                         default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
                     };
                     default -> throw new UnsupportedOperationException("unexpected function [" + function + "]");

@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,7 @@ public abstract class InternalMultiBucketAggregation<
      * buckets is plenty fast to fail this quickly in pathological cases and
      * plenty large to keep the overhead minimal.
      */
-    protected static final int REPORT_EMPTY_EVERY = 10_000;
+    public static final int REPORT_EMPTY_EVERY = 10_000;
 
     public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
         super(name, metadata);
@@ -71,11 +72,24 @@ public abstract class InternalMultiBucketAggregation<
      */
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
-    /**
-     * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
-     * requires all buckets to have the same key.
-     */
-    protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
+    /** Helps to lazily construct the aggregation list for reduction */
+    protected static class BucketAggregationList<B extends Bucket> extends AbstractList<InternalAggregations> {
+        private final List<B> buckets;
+
+        public BucketAggregationList(List<B> buckets) {
+            this.buckets = buckets;
+        }
+
+        @Override
+        public InternalAggregations get(int index) {
+            return buckets.get(index).getAggregations();
+        }
+
+        @Override
+        public int size() {
+            return buckets.size();
+        }
+    }
 
     @Override
     public abstract List<B> getBuckets();
@@ -118,7 +132,7 @@ public abstract class InternalMultiBucketAggregation<
      */
     public static int countInnerBucket(InternalBucket bucket) {
         int count = 0;
-        for (Aggregation agg : bucket.getAggregations().asList()) {
+        for (Aggregation agg : bucket.getAggregations()) {
             count += countInnerBucket(agg);
         }
         return count;
@@ -132,12 +146,12 @@ public abstract class InternalMultiBucketAggregation<
         if (agg instanceof MultiBucketsAggregation multi) {
             for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
                 ++size;
-                for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
+                for (Aggregation bucketAgg : bucket.getAggregations()) {
                     size += countInnerBucket(bucketAgg);
                 }
             }
         } else if (agg instanceof SingleBucketAggregation single) {
-            for (Aggregation bucketAgg : single.getAggregations().asList()) {
+            for (Aggregation bucketAgg : single.getAggregations()) {
                 size += countInnerBucket(bucketAgg);
             }
         }
@@ -193,16 +207,31 @@ public abstract class InternalMultiBucketAggregation<
     }
 
     private List<B> reducePipelineBuckets(AggregationReduceContext reduceContext, PipelineTree pipelineTree) {
-        List<B> reducedBuckets = new ArrayList<>();
-        for (B bucket : getBuckets()) {
-            List<InternalAggregation> aggs = new ArrayList<>();
-            for (Aggregation agg : bucket.getAggregations()) {
+        List<B> reducedBuckets = null;
+        var buckets = getBuckets();
+        for (int bucketIndex = 0; bucketIndex < buckets.size(); bucketIndex++) {
+            B bucket = buckets.get(bucketIndex);
+            List<InternalAggregation> aggs = null;
+            int aggIndex = 0;
+            for (InternalAggregation agg : bucket.getAggregations()) {
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
-                aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
+                var reduced = agg.reducePipelines(agg, reduceContext, subTree);
+                if (reduced.equals(agg) == false) {
+                    if (aggs == null) {
+                        aggs = bucket.getAggregations().copyResults();
+                    }
+                    aggs.set(aggIndex, reduced);
+                }
+                aggIndex++;
             }
-            reducedBuckets.add(createBucket(InternalAggregations.from(aggs), bucket));
+            if (aggs != null) {
+                if (reducedBuckets == null) {
+                    reducedBuckets = new ArrayList<>(buckets);
+                }
+                reducedBuckets.set(bucketIndex, createBucket(InternalAggregations.from(aggs), bucket));
+            }
         }
-        return reducedBuckets;
+        return reducedBuckets == null ? buckets : reducedBuckets;
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {

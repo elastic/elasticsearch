@@ -19,24 +19,32 @@ import java.io.IOException;
 
 public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDocValuesSyntheticFieldLoader {
     private DocValuesFieldValues docValues = NO_VALUES;
-    private final String name;
-    private final String simpleName;
+    private final String fieldFullPath;
+    private final String keyedFieldFullPath;
+    private final String leafName;
 
     /**
      * Build a loader for flattened fields from doc values.
      *
-     * @param name                      the name of the field to load from doc values
-     * @param simpleName                the name to give the field in the rendered {@code _source}
+     * @param fieldFullPath           full path to the original field
+     * @param keyedFieldFullPath      full path to the keyed field to load doc values from
+     * @param leafName                the name of the leaf field to use in the rendered {@code _source}
      */
-    public FlattenedSortedSetDocValuesSyntheticFieldLoader(String name, String simpleName) {
-        super(name, simpleName, null, false);
-        this.name = name;
-        this.simpleName = simpleName;
+    public FlattenedSortedSetDocValuesSyntheticFieldLoader(String fieldFullPath, String keyedFieldFullPath, String leafName) {
+        super(fieldFullPath, leafName, null, false);
+        this.fieldFullPath = fieldFullPath;
+        this.keyedFieldFullPath = keyedFieldFullPath;
+        this.leafName = leafName;
+    }
+
+    @Override
+    public String fieldName() {
+        return fieldFullPath;
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-        final SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
+        final SortedSetDocValues dv = DocValues.getSortedSet(reader, keyedFieldFullPath);
         if (dv.getValueCount() == 0) {
             docValues = NO_VALUES;
             return null;
@@ -56,7 +64,7 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDo
         if (docValues.count() == 0) {
             return;
         }
-        b.startObject(simpleName);
+        b.startObject(leafName);
         docValues.write(b);
         b.endObject();
     }

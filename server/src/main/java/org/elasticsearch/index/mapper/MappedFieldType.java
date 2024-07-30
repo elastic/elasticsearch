@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -48,6 +50,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -195,6 +198,13 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * @return true if field has script values.
+     */
+    public boolean hasScriptValues() {
+        return false;
+    }
+
+    /**
      * @return a list of dimension fields. Expected to be used by fields that have
      * nested fields or that, in some way, identify a collection of fields by means
      * of a top level field (like flattened fields).
@@ -233,8 +243,9 @@ public abstract class MappedFieldType {
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+        Set<?> dedupe = new HashSet<>(values);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (Object value : values) {
+        for (Object value : dedupe) {
             builder.add(termQuery(value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
@@ -620,16 +631,39 @@ public abstract class MappedFieldType {
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
     public void validateMatchedRoutingPath(String routingPath) {
-        throw new IllegalArgumentException(
-            "All fields that match routing_path "
-                + "must be keywords with [time_series_dimension: true] "
-                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                + "without the [script] parameter. ["
-                + name()
-                + "] was ["
-                + typeName()
-                + "]."
-        );
+        if (hasScriptValues()) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] has a [script] parameter."
+            );
+        }
+
+        if (isDimension() == false) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path "
+                    + "must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] was not a dimension."
+            );
+        }
+    }
+
+    /**
+     * This method is used to support _field_caps when include_empty_fields is set to
+     * {@code false}. In that case we return only fields with value in an index. This method
+     * gets as input FieldInfos and returns if the field is non-empty. This method needs to
+     * be overwritten where fields don't have footprint in Lucene or their name differs from
+     * {@link MappedFieldType#name()}
+     * @param fieldInfos field information
+     * @return {@code true} if field is present in fieldInfos {@code false} otherwise
+     */
+    public boolean fieldHasValue(FieldInfos fieldInfos) {
+        return fieldInfos.fieldInfo(name()) != null;
     }
 
     /**
@@ -659,6 +693,11 @@ public abstract class MappedFieldType {
          * The name of the index.
          */
         String indexName();
+
+        /**
+         * The index settings of the index
+         */
+        IndexSettings indexSettings();
 
         /**
          * How the field should be extracted into the BlockLoader. The default is {@link FieldExtractPreference#NONE}, which means

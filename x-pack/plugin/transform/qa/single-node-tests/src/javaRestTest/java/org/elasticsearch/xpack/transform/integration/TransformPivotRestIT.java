@@ -28,6 +28,7 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -920,7 +921,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
         // get and check some term results
-        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        Map<String, Object> searchResult = getAsOrderedMap(transformIndex + "/_search?q=every_2:2.0");
 
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Map<String, Integer> commonUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
@@ -944,9 +945,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             searchResult
         )).get(0);
         assertThat(commonUsersDesc, is(not(nullValue())));
-        // 3 user names latest in lexicographic order (user_7, user_8, user_9) are selected properly but their order is not preserved.
-        // See https://github.com/elastic/elasticsearch/issues/104847 for more information.
-        assertThat(commonUsersDesc, equalTo(Map.of("user_7", 6, "user_9", 2, "user_8", 8)));
+        // 3 user names latest in lexicographic order (user_9, user_8, user_7) are selected properly and their order is preserved.
+        assertThat(commonUsersDesc.keySet(), containsInRelativeOrder("user_9", "user_8", "user_7"));
         Map<String, Integer> rareUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
             "hits.hits._source.rare_users",
             searchResult

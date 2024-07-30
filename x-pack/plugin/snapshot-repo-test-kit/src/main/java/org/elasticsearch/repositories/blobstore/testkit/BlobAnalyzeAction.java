@@ -716,7 +716,9 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWrite);
             } else if (abortWrite) {
-                throw new IllegalStateException("cannot send abortWrite request on transport version [" + out.getTransportVersion() + "]");
+                throw new IllegalStateException(
+                    "cannot send abortWrite request on transport version [" + out.getTransportVersion().toReleaseVersion() + "]"
+                );
             }
         }
 

@@ -81,7 +81,7 @@ public class JoinRequest extends TransportRequest {
                 Map.of()
             );
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             features = in.readCollectionAsSet(StreamInput::readString);
         } else {
             features = Set.of();
@@ -97,7 +97,7 @@ public class JoinRequest extends TransportRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             compatibilityVersions.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeCollection(features, StreamOutput::writeString);
         }
         out.writeLong(minimumTerm);

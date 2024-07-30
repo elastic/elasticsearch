@@ -35,7 +35,7 @@ separated list.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-reset-job-query-parms]]
 == {api-query-parms-title}

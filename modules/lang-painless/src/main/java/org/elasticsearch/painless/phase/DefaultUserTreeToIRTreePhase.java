@@ -1076,7 +1076,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irBinaryMathNode.attachDecoration(new IRDOperation(operation));
 
             if (operation == Operation.MATCH || operation == Operation.FIND) {
-                irBinaryMathNode.attachDecoration(new IRDRegexLimit(scriptScope.getCompilerSettings().getRegexLimitFactor()));
+                irBinaryMathNode.attachDecoration(new IRDRegexLimit(scriptScope.getCompilerSettings().getAppliedRegexLimitFactor()));
             }
 
             irBinaryMathNode.attachDecoration(new IRDBinaryType(binaryType));

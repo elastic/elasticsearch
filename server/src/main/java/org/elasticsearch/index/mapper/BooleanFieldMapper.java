@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -115,7 +116,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new BooleanFieldType(
-                context.buildFullName(name),
+                context.buildFullName(leafName()),
                 indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
@@ -123,7 +124,14 @@ public class BooleanFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue()
             );
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
+            return new BooleanFieldMapper(
+                leafName(),
+                ft,
+                multiFieldsBuilder.build(this, context),
+                copyTo,
+                context.isSourceSynthetic(),
+                this
+            );
         }
 
         private FieldValues<Boolean> scriptValues() {
@@ -133,7 +141,7 @@ public class BooleanFieldMapper extends FieldMapper {
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -275,7 +283,9 @@ public class BooleanFieldMapper extends FieldMapper {
             }
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new);
+                // boolean fields are indexed, but not with points
+                boolean indexed = false;
+                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new, indexed);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
@@ -317,8 +327,9 @@ public class BooleanFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.termsQuery(values, context);
             } else {
+                Set<?> dedupe = new HashSet<>(values);
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (Object value : values) {
+                for (Object value : dedupe) {
                     builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
                 }
                 return new ConstantScoreQuery(builder.build());
@@ -430,7 +441,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                     }
                 } else {
                     throw e;
@@ -469,7 +480,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
     @Override
@@ -483,21 +494,30 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+                "field ["
+                    + fullPath()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed.value()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
             @Override
             protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(value == 1);

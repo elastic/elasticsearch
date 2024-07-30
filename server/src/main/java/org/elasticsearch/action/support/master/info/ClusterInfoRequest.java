@@ -26,7 +26,15 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public ClusterInfoRequest() {}
+    public ClusterInfoRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
+
+    // So subclasses can override the default indices options, if needed
+    protected ClusterInfoRequest(IndicesOptions indicesOptions) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        this.indicesOptions = indicesOptions;
+    }
 
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);

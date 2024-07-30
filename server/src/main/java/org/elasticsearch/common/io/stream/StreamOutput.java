@@ -191,6 +191,15 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an int as four bytes, least significant bytes first.
+     */
+    public void writeIntLE(int i) throws IOException {
+        final byte[] buffer = scratch.get();
+        ByteUtils.writeIntLE(i, buffer, 0);
+        writeBytes(buffer, 0, 4);
+    }
+
+    /**
      * Writes an int in a variable-length format.  Writes between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized
@@ -216,7 +225,7 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(buffer, 0, index);
     }
 
-    private static int putVInt(byte[] buffer, int i, int off) {
+    public static int putVInt(byte[] buffer, int i, int off) {
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             buffer[off] = (byte) i;
             return 1;
@@ -240,6 +249,15 @@ public abstract class StreamOutput extends OutputStream {
     public void writeLong(long i) throws IOException {
         final byte[] buffer = scratch.get();
         ByteUtils.writeLongBE(i, buffer, 0);
+        writeBytes(buffer, 0, 8);
+    }
+
+    /**
+     * Writes a long as eight bytes.
+     */
+    public void writeLongLE(long i) throws IOException {
+        final byte[] buffer = scratch.get();
+        ByteUtils.writeLongLE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
 
@@ -370,11 +388,12 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private final BytesRefBuilder spare = new BytesRefBuilder();
+    private static final ThreadLocal<BytesRefBuilder> spareBytesRefBuilder = ThreadLocal.withInitial(BytesRefBuilder::new);
 
     public void writeText(Text text) throws IOException {
         if (text.hasBytes() == false) {
             final String string = text.string();
+            var spare = spareBytesRefBuilder.get();
             spare.copyChars(string);
             writeInt(spare.length());
             write(spare.bytes(), 0, spare.length());
@@ -439,6 +458,10 @@ public abstract class StreamOutput extends OutputStream {
 
     public void writeDouble(double v) throws IOException {
         writeLong(Double.doubleToLongBits(v));
+    }
+
+    public void writeDoubleLE(double v) throws IOException {
+        writeLongLE(Double.doubleToLongBits(v));
     }
 
     public void writeOptionalDouble(@Nullable Double v) throws IOException {
@@ -534,6 +557,19 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes a float array, for null arrays it writes false.
+     * @param array an array or null
+     */
+    public void writeOptionalFloatArray(@Nullable float[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeFloatArray(array);
+        }
+    }
+
     public void writeGenericMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
@@ -596,10 +632,13 @@ public abstract class StreamOutput extends OutputStream {
      * @param valueWriter The value writer
      */
     public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
-        writeVInt(map.size());
-        for (final Map.Entry<K, V> entry : map.entrySet()) {
-            keyWriter.write(this, entry.getKey());
-            valueWriter.write(this, entry.getValue());
+        int size = map.size();
+        writeVInt(size);
+        if (size > 0) {
+            for (final Map.Entry<K, V> entry : map.entrySet()) {
+                keyWriter.write(this, entry.getKey());
+                valueWriter.write(this, entry.getValue());
+            }
         }
     }
 
@@ -784,8 +823,10 @@ public abstract class StreamOutput extends OutputStream {
         })
     );
 
+    public static final byte GENERIC_LIST_HEADER = (byte) 7;
+
     public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
-        writeByte((byte) 7);
+        writeByte(GENERIC_LIST_HEADER);
         writeCollection(v, writer);
     }
 
@@ -1094,7 +1135,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an enum with type E based on its ordinal value
+     * Writes an enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding test
+     * which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
@@ -1102,7 +1144,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an optional enum with type E based on its ordinal value
+     * Writes an optional enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a
+     * corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeOptionalEnum(@Nullable E enumValue) throws IOException {
         if (enumValue == null) {
@@ -1115,7 +1158,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an EnumSet with type E that by serialized it based on it's ordinal value
+     * Writes a set of enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding
+     * test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {
         writeVInt(enumSet.size());

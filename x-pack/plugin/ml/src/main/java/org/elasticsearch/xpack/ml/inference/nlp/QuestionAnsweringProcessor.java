@@ -66,10 +66,18 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
     record RequestBuilder(NlpTokenizer tokenizer, String question) implements NlpTask.RequestBuilder {
 
         @Override
-        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span)
-            throws IOException {
+        public NlpTask.Request buildRequest(
+            List<String> inputs,
+            String requestId,
+            Tokenization.Truncate truncate,
+            int span,
+            Integer windowSize
+        ) throws IOException {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do question answering on more than one text input at a time");
+            }
+            if (question == null) {
+                throw ExceptionsHelper.badRequestException("Question is required for question answering");
             }
             String context = inputs.get(0);
             List<TokenizationResult.Tokens> tokenizations = tokenizer.tokenize(question, context, truncate, span, 0);
@@ -83,7 +91,11 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             NlpTask.ResultProcessor {
 
         @Override
-        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
+            if (chunkResult) {
+                throw chunkingNotSupportedException(TaskType.NER);
+            }
+
             if (pyTorchResult.getInferenceResult().length < 1) {
                 throw new ElasticsearchStatusException("question answering result has no data", RestStatus.INTERNAL_SERVER_ERROR);
             }

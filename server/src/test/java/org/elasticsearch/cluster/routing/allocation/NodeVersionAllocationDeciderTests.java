@@ -625,9 +625,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "max supported index version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] is older than the snapshot version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -642,9 +642,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "max supported index version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] is the same or newer than snapshot version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -653,7 +653,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         };
         final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
         final ShardRouting startedPrimary = routingNodes.startShard(
-            logger,
             routingNodes.initializeShard(primaryShard, "newNode", null, 0, routingChangesObserver),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
@@ -675,8 +674,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         routingNodes.startShard(
-            logger,
-            routingNodes.relocateShard(startedPrimary, "oldNode", 0, routingChangesObserver).v2(),
+            routingNodes.relocateShard(startedPrimary, "oldNode", 0, "test", routingChangesObserver).v2(),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -308,7 +309,7 @@ public final class MlTasks {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(JOB_TASK_NAME, task -> true);
+        return tasks.findTasks(JOB_TASK_NAME, Predicates.always());
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> datafeedTasksOnNode(
@@ -360,7 +361,7 @@ public final class MlTasks {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> true);
+        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, Predicates.always());
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasksOnNode(
@@ -439,7 +440,7 @@ public final class MlTasks {
             return Collections.emptySet();
         }
 
-        return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)
+        return tasks.findTasks(DATAFEED_TASK_NAME, Predicates.always())
             .stream()
             .map(t -> t.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
             .collect(Collectors.toSet());

@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -59,6 +60,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -100,6 +102,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private QueryBuilder aliasFilter;
     private boolean rewriteToNamedQueries = false;
 
+    private final Integer requestSize;
+    private final MapperMetrics mapperMetrics;
+
     /**
      * Build a {@linkplain SearchExecutionContext}.
      */
@@ -122,7 +127,56 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Predicate<String> indexNameMatcher,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        MapperMetrics mapperMetrics
+    ) {
+        this(
+            shardId,
+            shardRequestIndex,
+            indexSettings,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            mappingLookup,
+            similarityService,
+            scriptService,
+            parserConfiguration,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            runtimeMappings,
+            null,
+            mapperMetrics
+        );
+    }
+
+    public SearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSettings indexSettings,
+        BitsetFilterCache bitsetFilterCache,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        MappingLookup mappingLookup,
+        SimilarityService similarityService,
+        ScriptCompiler scriptService,
+        XContentParserConfiguration parserConfiguration,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, Object> runtimeMappings,
+        Integer requestSize,
+        MapperMetrics mapperMetrics
     ) {
         this(
             shardId,
@@ -147,7 +201,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
-            null
+            requestSize,
+            mapperMetrics
         );
     }
 
@@ -172,7 +227,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.allowExpensiveQueries,
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
-            source.allowedFields
+            source.requestSize,
+            source.mapperMetrics
         );
     }
 
@@ -196,7 +252,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
-        Predicate<String> allowedFields
+        Integer requestSize,
+        MapperMetrics mapperMetrics
     ) {
         super(
             parserConfig,
@@ -205,14 +262,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mapperService,
             mappingLookup,
             runtimeMappings,
-            allowedFields,
             indexSettings,
             fullyQualifiedIndex,
             indexNameMatcher,
             namedWriteableRegistry,
             valuesSourceRegistry,
             allowExpensiveQueries,
-            scriptService
+            scriptService,
+            null,
+            null
         );
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -221,6 +279,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
         this.searcher = searcher;
+        this.requestSize = requestSize;
+        this.mapperMetrics = mapperMetrics;
     }
 
     private void reset() {
@@ -279,6 +339,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             fieldType,
             new FieldDataContext(
                 getFullyQualifiedIndex().getName(),
+                getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
                 fielddataOperation
@@ -334,6 +395,19 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.isMultiField(field);
     }
 
+    public Iterable<MappedFieldType> dimensionFields() {
+        List<MappedFieldType> dimensionFields = new ArrayList<>();
+        for (var mapper : mapperService.mappingLookup().fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                var fieldType = fieldMapper.fieldType();
+                if (fieldType.isDimension()) {
+                    dimensionFields.add(fieldType);
+                }
+            }
+        }
+        return dimensionFields;
+    }
+
     public Set<String> sourcePath(String fullName) {
         return mappingLookup.sourcePaths(fullName);
     }
@@ -364,9 +438,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
-            return new SourceLoader.Synthetic(mappingLookup.getMapping());
+            return new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics());
         }
-        return mappingLookup.newSourceLoader();
+        return mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
     }
 
     /**
@@ -419,7 +493,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             SourceProvider sourceProvider = isSourceSynthetic()
-                ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping())
+                ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics())
                 : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
@@ -442,7 +516,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
             this::getFieldType,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                 fieldType,
-                new FieldDataContext(getFullyQualifiedIndex().getName(), searchLookup, this::sourcePath, fielddataOperation)
+                new FieldDataContext(
+                    getFullyQualifiedIndex().getName(),
+                    getIndexSettings(),
+                    searchLookup,
+                    this::sourcePath,
+                    fielddataOperation
+                )
             ),
             sourceProvider,
             fieldLookupProvider
@@ -592,6 +672,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public IndexSearcher searcher() {
         return searcher;
+    }
+
+    public Integer requestSize() {
+        return requestSize;
     }
 
     /**

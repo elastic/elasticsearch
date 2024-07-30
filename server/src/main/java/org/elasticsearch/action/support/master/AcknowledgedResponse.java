@@ -40,7 +40,7 @@ public class AcknowledgedResponse extends ActionResponse implements IsAcknowledg
     public static final String ACKNOWLEDGED_KEY = "acknowledged";
     private static final ParseField ACKNOWLEDGED = new ParseField(ACKNOWLEDGED_KEY);
 
-    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
+    public static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
         objectParser.declareField(
             constructorArg(),
             (parser, context) -> parser.booleanValue(),

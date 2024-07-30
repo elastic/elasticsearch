@@ -57,7 +57,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this(indices, responseMap, Collections.emptyList(), Collections.emptyList());
     }
 
-    FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
+    public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
         this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures);
     }
 
@@ -117,7 +117,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     /**
      * Returns the actual per-index field caps responses
      */
-    List<FieldCapabilitiesIndexResponse> getIndexResponses() {
+    public List<FieldCapabilitiesIndexResponse> getIndexResponses() {
         return indexResponses;
     }
 

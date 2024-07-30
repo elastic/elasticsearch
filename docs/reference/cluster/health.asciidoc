@@ -61,9 +61,9 @@ To target all data streams and indices in a cluster, omit this parameter or use
     (Optional, string) Can be one of `cluster`, `indices` or `shards`. Controls 
     the details level of the health information returned. Defaults to `cluster`.
     
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
     
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `wait_for_active_shards`::
     (Optional, string) A number controlling to how many active shards to wait 
@@ -104,7 +104,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     (string) The name of the cluster.
 
 `status`::
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 
 `timed_out`::
     (Boolean) If `false` the response returned within the period of 

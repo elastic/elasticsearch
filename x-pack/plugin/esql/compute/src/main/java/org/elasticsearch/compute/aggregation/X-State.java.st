@@ -19,7 +19,11 @@ final class $Type$State implements AggregatorState {
     private boolean seen;
 
     $Type$State() {
+$if(boolean)$
+        this(false);
+$else$
         this(0);
+$endif$
     }
 
     $Type$State($type$ init) {

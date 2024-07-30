@@ -92,8 +92,8 @@ setup:
 
 ---
 "ignored_field_values is returned by default":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: ignored_field_values was added in 8.0
 
   - do:

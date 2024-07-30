@@ -29,7 +29,6 @@ import java.util.List;
  * <li>This {@link Injector} instance itself
  * <li>A {@code Provider<T>} for each binding of type {@code T}
  * <li>The {@link java.util.logging.Logger} for the class being injected
- * <li>The {@link Stage} in which the Injector was created
  * </ul>
  * <p>
  * Injectors are created using the facade class {@link Guice}.

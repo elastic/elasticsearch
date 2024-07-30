@@ -9,9 +9,9 @@
 package org.elasticsearch.geometry.simplify;
 
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import static java.lang.Math.toRadians;
 import static org.elasticsearch.geometry.simplify.SimplificationErrorCalculator.Point3D.from;
@@ -238,7 +238,7 @@ public class Vector3DTests extends ESTestCase {
         return new TestPoint3DMatcher(expected, 1e-15);
     }
 
-    private static class TestPoint3DMatcher extends BaseMatcher<SimplificationErrorCalculator.Point3D> {
+    private static class TestPoint3DMatcher extends TypeSafeMatcher<SimplificationErrorCalculator.Point3D> {
         private final Matcher<Double> xMatcher;
         private final Matcher<Double> yMatcher;
         private final Matcher<Double> zMatcher;
@@ -252,11 +252,8 @@ public class Vector3DTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object actual) {
-            if (actual instanceof SimplificationErrorCalculator.Point3D point3D) {
-                return xMatcher.matches(point3D.x()) && yMatcher.matches(point3D.y()) && zMatcher.matches(point3D.z());
-            }
-            return false;
+        public boolean matchesSafely(SimplificationErrorCalculator.Point3D point3D) {
+            return xMatcher.matches(point3D.x()) && yMatcher.matches(point3D.y()) && zMatcher.matches(point3D.z());
         }
 
         @Override

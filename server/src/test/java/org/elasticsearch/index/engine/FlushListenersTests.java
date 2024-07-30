@@ -29,8 +29,8 @@ public class FlushListenersTests extends ESTestCase {
             );
             flushListeners.afterFlush(generation, lastWriteLocation);
             Translog.Location waitLocation = new Translog.Location(
-                lastWriteLocation.generation - randomLongBetween(0, 2),
-                lastWriteLocation.generation - randomLongBetween(10, 90),
+                lastWriteLocation.generation() - randomLongBetween(0, 2),
+                lastWriteLocation.generation() - randomLongBetween(10, 90),
                 2
             );
             PlainActionFuture<Long> future = new PlainActionFuture<>();
@@ -48,8 +48,8 @@ public class FlushListenersTests extends ESTestCase {
                 Integer.MAX_VALUE
             );
             Translog.Location waitLocation = new Translog.Location(
-                lastWriteLocation.generation - randomLongBetween(0, 2),
-                lastWriteLocation.generation - randomLongBetween(10, 90),
+                lastWriteLocation.generation() - randomLongBetween(0, 2),
+                lastWriteLocation.generation() - randomLongBetween(10, 90),
                 2
             );
             PlainActionFuture<Long> future = new PlainActionFuture<>();
@@ -61,13 +61,13 @@ public class FlushListenersTests extends ESTestCase {
 
             long generation2 = generation + 1;
             Translog.Location secondLastWriteLocation = new Translog.Location(
-                lastWriteLocation.generation,
-                lastWriteLocation.translogLocation + 10,
+                lastWriteLocation.generation(),
+                lastWriteLocation.translogLocation() + 10,
                 Integer.MAX_VALUE
             );
             Translog.Location waitLocation2 = new Translog.Location(
-                lastWriteLocation.generation,
-                lastWriteLocation.translogLocation + 4,
+                lastWriteLocation.generation(),
+                lastWriteLocation.translogLocation() + 4,
                 2
             );
 

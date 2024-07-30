@@ -8,7 +8,9 @@ admin:
     - names: [
         # indices and search applications
         "test-*",
-        "another-test-search-application"
+        "another-test-search-application",
+        ".elastic-connectors-v1",
+        ".elastic-connectors-sync-jobs-v1"
     ]
       privileges: [ "manage", "write", "read" ]
 
@@ -23,8 +25,11 @@ user:
       "test-index1",
       "test-search-application",
       "test-search-application-1",
+      "test-search-application-with-aggs",
       "test-search-application-with-list",
-      "test-search-application-with-list-invalid"
+      "test-search-application-with-list-invalid",
+      ".elastic-connectors-v1",
+      ".elastic-connectors-sync-jobs-v1"
     ]
       privileges: [ "read" ]
 

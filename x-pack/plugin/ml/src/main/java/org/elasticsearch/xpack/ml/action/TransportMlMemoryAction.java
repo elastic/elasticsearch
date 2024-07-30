@@ -95,38 +95,34 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
 
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
 
-        ActionListener<NodesStatsResponse> nodeStatsListener = ActionListener.wrap(nodesStatsResponse -> {
-            TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
-                nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
-            ).timeout(request.timeout());
-
-            parentTaskClient.execute(
-                TrainedModelCacheInfoAction.INSTANCE,
-                trainedModelCacheInfoRequest,
-                ActionListener.wrap(
-                    trainedModelCacheInfoResponse -> handleResponses(
-                        state,
-                        clusterSettings,
-                        nodesStatsResponse,
-                        trainedModelCacheInfoResponse,
-                        listener
-                    ),
-                    listener::onFailure
-                )
-            );
-        }, listener::onFailure);
-
         // Next get node stats related to the OS and JVM
-        ActionListener<Void> memoryTrackerRefreshListener = ActionListener.wrap(
-            r -> parentTaskClient.admin()
+        ActionListener<Void> memoryTrackerRefreshListener = listener.delegateFailureAndWrap(
+            (delegate, r) -> parentTaskClient.admin()
                 .cluster()
                 .prepareNodesStats(nodeIds)
                 .clear()
                 .setOs(true)
                 .setJvm(true)
-                .setTimeout(request.timeout())
-                .execute(nodeStatsListener),
-            listener::onFailure
+                .setTimeout(request.ackTimeout())
+                .execute(delegate.delegateFailureAndWrap((delegate2, nodesStatsResponse) -> {
+                    TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
+                        nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
+                    ).timeout(request.ackTimeout());
+
+                    parentTaskClient.execute(
+                        TrainedModelCacheInfoAction.INSTANCE,
+                        trainedModelCacheInfoRequest,
+                        delegate2.delegateFailureAndWrap(
+                            (l, trainedModelCacheInfoResponse) -> handleResponses(
+                                state,
+                                clusterSettings,
+                                nodesStatsResponse,
+                                trainedModelCacheInfoResponse,
+                                l
+                            )
+                        )
+                    );
+                }))
         );
 
         // If the memory tracker has never been refreshed, do that first

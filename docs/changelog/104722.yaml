@@ -1,6 +1,0 @@
-pr: 104722
-summary: Avoid possible datafeed infinite loop with filtering aggregations
-area: Machine Learning
-type: bug
-issues:
- - 104699

@@ -46,8 +46,9 @@ for each field.
 The `unified` highlighter uses the Lucene Unified Highlighter. This
 highlighter breaks the text into sentences and uses the BM25 algorithm to score
 individual sentences as if they were documents in the corpus. It also supports
-accurate phrase and multi-term (fuzzy, prefix, regex) highlighting. This is the
-default highlighter.
+accurate phrase and multi-term (fuzzy, prefix, regex) highlighting. The `unified`
+highlighter can combine matches from multiple fields into one result (see
+`matched_fields`). This is the default highlighter.
 
 [discrete]
 [[plain-highlighter]]
@@ -199,10 +200,27 @@ include the search query as part of the `highlight_query`.
 
 matched_fields:: Combine matches on multiple fields to highlight a single field.
 This is most intuitive for multifields that analyze the same string in different
-ways. All `matched_fields` must have `term_vector` set to
-`with_positions_offsets`, but only the field to which
-the matches are combined is loaded so only that field benefits from having
-`store` set to `yes`. Only valid for the `fvh` highlighter.
+ways. Valid for the `unified` and fvh` highlighters, but the behavior of this
+option is different for each highlighter.
+
+For the `unified` highlighter:
+
+- `matched_fields` array should **not** contain the original field that you want to highlight. The
+original field will be automatically added to the `matched_fields`, and there is no
+way to exclude its matches when highlighting.
+- `matched_fields` and the original field can be indexed with different strategies (with or
+without `offsets`, with or without `term_vectors`).
+- only the original field to which the matches are combined is loaded so only that field
+benefits from having `store` set to `yes`
+
+For the `fvh` highlighter:
+
+- `matched_fields` array may or may not contain the original field
+depending on your needs. If you want to include the original field's matches in
+highlighting, add it to the `matched_fields` array.
+- all `matched_fields` must have `term_vector` set to `with_positions_offsets`
+- only the original field to which the matches are combined is loaded so only that field
+benefits from having `store` set to `yes`.
 
 no_match_size:: The amount of text you want to return from the beginning
 of the field if there are no matching fragments to highlight. Defaults
@@ -498,100 +516,14 @@ GET /_search
 [discrete]
 === Combine matches on multiple fields
 
-WARNING: This is only supported by the `fvh` highlighter
+WARNING: Supported by the `unified` and `fvh` highlighters.
 
-The Fast Vector Highlighter can combine matches on multiple fields to
+The Unified and Fast Vector Highlighter can combine matches on multiple fields to
 highlight a single field. This is most intuitive for multifields that
-analyze the same string in different ways. All `matched_fields` must have
-`term_vector` set to `with_positions_offsets` but only the field to which
-the matches are combined is loaded so only that field would benefit from having
-`store` set to `yes`.
+analyze the same string in different ways.
 
-In the following examples, `comment` is analyzed by the `english`
-analyzer and `comment.plain` is analyzed by the `standard` analyzer.
+include::{es-ref-dir}/tab-widgets/highlighting-multi-fields-widget.asciidoc[]
 
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "query": {
-    "query_string": {
-      "query": "comment.plain:running scissors",
-      "fields": [ "comment" ]
-    }
-  },
-  "highlight": {
-    "order": "score",
-    "fields": {
-      "comment": {
-        "matched_fields": [ "comment", "comment.plain" ],
-        "type": "fvh"
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[setup:my_index]
-
-The above matches both "run with scissors" and "running with scissors"
-and would highlight "running" and "scissors" but not "run". If both
-phrases appear in a large document then "running with scissors" is
-sorted above "run with scissors" in the fragments list because there
-are more matches in that fragment.
-
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "query": {
-    "query_string": {
-      "query": "running scissors",
-      "fields": ["comment", "comment.plain^10"]
-    }
-  },
-  "highlight": {
-    "order": "score",
-    "fields": {
-      "comment": {
-        "matched_fields": ["comment", "comment.plain"],
-        "type" : "fvh"
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[setup:my_index]
-
-The above highlights "run" as well as "running" and "scissors" but
-still sorts "running with scissors" above "run with scissors" because
-the plain match ("running") is boosted.
-
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "query": {
-    "query_string": {
-      "query": "running scissors",
-      "fields": [ "comment", "comment.plain^10" ]
-    }
-  },
-  "highlight": {
-    "order": "score",
-    "fields": {
-      "comment": {
-        "matched_fields": [ "comment.plain" ],
-        "type": "fvh"
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[setup:my_index]
-
-The above query wouldn't highlight "run" or "scissor" but shows that
-it is just fine not to list the field to which the matches are combined
-(`comment`) in the matched fields.
 
 [NOTE]
 Technically it is also fine to add fields to `matched_fields` that
@@ -599,32 +531,6 @@ don't share the same underlying string as the field to which the matches
 are combined. The results might not make much sense and if one of the
 matches is off the end of the text then the whole query will fail.
 
-[NOTE]
-===================================================================
-There is a small amount of overhead involved with setting
-`matched_fields` to a non-empty array so always prefer
-[source,js]
---------------------------------------------------
-    "highlight": {
-        "fields": {
-            "comment": {}
-        }
-    }
---------------------------------------------------
-// NOTCONSOLE
-to
-[source,js]
---------------------------------------------------
-    "highlight": {
-        "fields": {
-            "comment": {
-                "matched_fields": ["comment"],
-                "type" : "fvh"
-            }
-        }
-    }
---------------------------------------------------
-// NOTCONSOLE
 ===================================================================
 
 

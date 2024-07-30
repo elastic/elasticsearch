@@ -10,9 +10,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent.MapParams;
@@ -23,10 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +38,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         String repo = randomAlphaOfLength(5);
         String snap = randomAlphaOfLength(10);
 
-        CreateSnapshotRequest original = new CreateSnapshotRequest(repo, snap);
+        CreateSnapshotRequest original = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repo, snap);
 
         if (randomBoolean()) {
             List<String> indices = new ArrayList<>();
@@ -79,14 +75,20 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
-            Collection<Option> options = randomSubsetOf(Arrays.asList(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE));
-
+            boolean defaultResolveAliasForThisRequest = original.indicesOptions().ignoreAliases() == false;
             original.indicesOptions(
-                new IndicesOptions(
-                    options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-                )
+                IndicesOptions.builder()
+                    .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
+                    .wildcardOptions(
+                        new IndicesOptions.WildcardOptions(
+                            randomBoolean(),
+                            randomBoolean(),
+                            randomBoolean(),
+                            defaultResolveAliasForThisRequest,
+                            randomBoolean()
+                        )
+                    )
+                    .build()
             );
         }
 
@@ -95,7 +97,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            original.masterNodeTimeout("60s");
+            original.masterNodeTimeout(TimeValue.timeValueMinutes(1));
         }
 
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
@@ -104,7 +106,11 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                 .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
         ) {
             Map<String, Object> map = parser.mapOrdered();
-            CreateSnapshotRequest processed = new CreateSnapshotRequest((String) map.get("repository"), (String) map.get("snapshot"));
+            CreateSnapshotRequest processed = new CreateSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
+                (String) map.get("repository"),
+                (String) map.get("snapshot")
+            );
             processed.waitForCompletion(original.waitForCompletion());
             processed.masterNodeTimeout(original.masterNodeTimeout());
             processed.source(map);
@@ -160,7 +166,8 @@ public class CreateSnapshotRequestTests extends ESTestCase {
     }
 
     private CreateSnapshotRequest createSnapshotRequestWithMetadata(Map<String, Object> metadata) {
-        return new CreateSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)).indices(randomAlphaOfLength(5))
-            .userMetadata(metadata);
+        return new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(5), randomAlphaOfLength(5)).indices(
+            randomAlphaOfLength(5)
+        ).userMetadata(metadata);
     }
 }

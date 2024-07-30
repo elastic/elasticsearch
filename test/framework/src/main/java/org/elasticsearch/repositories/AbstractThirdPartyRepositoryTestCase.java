@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -19,31 +20,41 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
+import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeTestCase {
@@ -69,7 +80,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     @Override
     public void tearDown() throws Exception {
         deleteAndAssertEmpty(getRepository().basePath());
-        clusterAdmin().prepareDeleteRepository(TEST_REPO_NAME).get();
+        clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME).get();
         super.tearDown();
     }
 
@@ -103,10 +114,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final String snapshotName = "test-snap-" + System.currentTimeMillis();
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, snapshotName)
-            .setWaitForCompletion(true)
-            .setIndices("test-idx-*", "-test-idx-3")
-            .get();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REPO_NAME,
+            snapshotName
+        ).setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(
             createSnapshotResponse.getSnapshotInfo().successfulShards(),
@@ -114,14 +126,19 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         );
 
         assertThat(
-            clusterAdmin().prepareGetSnapshots(TEST_REPO_NAME).setSnapshots(snapshotName).get().getSnapshots().get(0).state(),
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .setSnapshots(snapshotName)
+                .get()
+                .getSnapshots()
+                .get(0)
+                .state(),
             equalTo(SnapshotState.SUCCESS)
         );
 
-        assertTrue(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, snapshotName).get().isAcknowledged());
+        assertTrue(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName).get().isAcknowledged());
     }
 
-    public void testListChildren() throws Exception {
+    public void testListChildren() {
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final Executor genericExec = repo.threadPool().generic();
@@ -176,10 +193,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final String snapshotName = "test-snap-" + System.currentTimeMillis();
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, snapshotName)
-            .setWaitForCompletion(true)
-            .setIndices("test-idx-*", "-test-idx-3")
-            .get();
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REPO_NAME,
+            snapshotName
+        ).setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(
             createSnapshotResponse.getSnapshotInfo().successfulShards(),
@@ -187,7 +205,12 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         );
 
         assertThat(
-            clusterAdmin().prepareGetSnapshots(TEST_REPO_NAME).setSnapshots(snapshotName).get().getSnapshots().get(0).state(),
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .setSnapshots(snapshotName)
+                .get()
+                .getSnapshots()
+                .get(0)
+                .state(),
             equalTo(SnapshotState.SUCCESS)
         );
 
@@ -199,7 +222,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> deleting a snapshot to trigger repository cleanup");
-        clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, snapshotName).get();
+        clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName).get();
 
         BlobStoreTestUtil.assertConsistency(repo);
 
@@ -207,7 +230,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> Execute repository cleanup");
-        final CleanupRepositoryResponse response = clusterAdmin().prepareCleanupRepository(TEST_REPO_NAME).get();
+        final CleanupRepositoryResponse response = clusterAdmin().prepareCleanupRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REPO_NAME
+        ).get();
         assertCleanupResponse(response, 3L, 1L);
     }
 
@@ -226,24 +253,147 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final var repository = getRepository();
         final var blobContents = new HashSet<BytesReference>();
 
-        final var createSnapshot1Response = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, randomIdentifier())
+        final var createSnapshot1Response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, randomIdentifier())
             .setWaitForCompletion(true)
             .get();
         assertTrue(blobContents.add(readIndexLatest(repository)));
 
-        clusterAdmin().prepareGetSnapshots(TEST_REPO_NAME).get();
+        clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME).get();
         assertFalse(blobContents.add(readIndexLatest(repository)));
 
-        final var createSnapshot2Response = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, randomIdentifier())
+        final var createSnapshot2Response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, randomIdentifier())
             .setWaitForCompletion(true)
             .get();
         assertTrue(blobContents.add(readIndexLatest(repository)));
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, createSnapshot1Response.getSnapshotInfo().snapshotId().getName()));
+        assertAcked(
+            clusterAdmin().prepareDeleteSnapshot(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REPO_NAME,
+                createSnapshot1Response.getSnapshotInfo().snapshotId().getName()
+            )
+        );
         assertTrue(blobContents.add(readIndexLatest(repository)));
 
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, createSnapshot2Response.getSnapshotInfo().snapshotId().getName()));
+        assertAcked(
+            clusterAdmin().prepareDeleteSnapshot(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REPO_NAME,
+                createSnapshot2Response.getSnapshotInfo().snapshotId().getName()
+            )
+        );
         assertTrue(blobContents.add(readIndexLatest(repository)));
+    }
+
+    public void testReadFromPositionWithLength() {
+        final var blobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+
+        final var repository = getRepository();
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
+            return null;
+        });
+
+        {
+            assertThat("Exact Range", readBlob(repository, blobName, 0L, blobBytes.length()), equalTo(blobBytes));
+        }
+        {
+            int position = randomIntBetween(0, blobBytes.length() - 1);
+            int length = randomIntBetween(1, blobBytes.length() - position);
+            assertThat(
+                "Random Range: " + position + '-' + (position + length),
+                readBlob(repository, blobName, position, length),
+                equalTo(blobBytes.slice(position, length))
+            );
+        }
+        {
+            int position = randomIntBetween(0, blobBytes.length() - 1);
+            long length = randomLongBetween(1L, Long.MAX_VALUE - position - 1L);
+            assertThat(
+                "Random Larger Range: " + position + '-' + (position + length),
+                readBlob(repository, blobName, position, length),
+                equalTo(blobBytes.slice(position, Math.toIntExact(Math.min(length, blobBytes.length() - position))))
+            );
+        }
+    }
+
+    public void testSkipBeyondBlobLengthShouldThrowEOFException() throws IOException {
+        final var blobName = randomIdentifier();
+        final int blobLength = randomIntBetween(100, 2_000);
+        final var blobBytes = randomBytesReference(blobLength);
+
+        final var repository = getRepository();
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
+            return null;
+        });
+
+        var blobContainer = repository.blobStore().blobContainer(repository.basePath());
+        try (var input = blobContainer.readBlob(randomPurpose(), blobName, 0, blobLength); var output = new BytesStreamOutput()) {
+            Streams.copy(input, output, false);
+            expectThrows(EOFException.class, () -> input.skipNBytes(randomLongBetween(1, 1000)));
+        }
+
+        try (var input = blobContainer.readBlob(randomPurpose(), blobName, 0, blobLength); var output = new BytesStreamOutput()) {
+            final int capacity = between(1, blobLength);
+            final ByteBuffer byteBuffer = randomBoolean() ? ByteBuffer.allocate(capacity) : ByteBuffer.allocateDirect(capacity);
+            Streams.read(input, byteBuffer, capacity);
+            expectThrows(EOFException.class, () -> input.skipNBytes((blobLength - capacity) + randomLongBetween(1, 1000)));
+        }
+    }
+
+    protected void testReadFromPositionLargerThanBlobLength(Predicate<RequestedRangeNotSatisfiedException> responseCodeChecker) {
+        final var blobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+
+        final var repository = getRepository();
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
+            return null;
+        });
+
+        long position = randomLongBetween(blobBytes.length(), Long.MAX_VALUE - 1L);
+        long length = randomLongBetween(1L, Long.MAX_VALUE - position);
+
+        var exception = expectThrows(UncategorizedExecutionException.class, () -> readBlob(repository, blobName, position, length));
+        assertThat(exception.getCause(), instanceOf(ExecutionException.class));
+        assertThat(exception.getCause().getCause(), instanceOf(RequestedRangeNotSatisfiedException.class));
+        assertThat(
+            exception.getCause().getCause().getMessage(),
+            containsString(
+                "Requested range [position="
+                    + position
+                    + ", length="
+                    + length
+                    + "] cannot be satisfied for ["
+                    + repository.basePath().buildAsString()
+                    + blobName
+                    + ']'
+            )
+        );
+        var rangeNotSatisfiedException = (RequestedRangeNotSatisfiedException) exception.getCause().getCause();
+        assertThat(rangeNotSatisfiedException.getPosition(), equalTo(position));
+        assertThat(rangeNotSatisfiedException.getLength(), equalTo(length));
+        assertThat(responseCodeChecker.test(rangeNotSatisfiedException), is(true));
+    }
+
+    protected static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
+        final var future = new PlainActionFuture<T>();
+        repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
+            var blobContainer = repository.blobStore().blobContainer(repository.basePath());
+            return fn.apply(blobContainer);
+        }));
+        return future.actionGet();
+    }
+
+    protected static BytesReference readBlob(BlobStoreRepository repository, String blobName, long position, long length) {
+        return executeOnBlobStore(repository, blobContainer -> {
+            try (var input = blobContainer.readBlob(randomPurpose(), blobName, position, length); var output = new BytesStreamOutput()) {
+                Streams.copy(input, output);
+                return output.bytes();
+            }
+        });
     }
 
     private static BytesReference readIndexLatest(BlobStoreRepository repository) throws IOException {

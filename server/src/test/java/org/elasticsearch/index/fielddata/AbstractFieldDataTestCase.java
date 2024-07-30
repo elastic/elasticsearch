@@ -90,9 +90,11 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             if (docValues) {
                 fieldType = new KeywordFieldMapper.Builder(fieldName, IndexVersion.current()).build(context).fieldType();
             } else {
-                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
-                    .build(context)
-                    .fieldType();
+                fieldType = new TextFieldMapper.Builder(
+                    fieldName,
+                    createDefaultIndexAnalyzers(),
+                    indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+                ).fielddata(true).build(context).fieldType();
             }
         } else if (type.equals("float")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -159,7 +161,10 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 docValues
             ).build(context).fieldType();
         } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(context).fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName, indexService.getIndexSettings().getMode().isSyntheticSourceEnabled())
+                .docValues(docValues)
+                .build(context)
+                .fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }

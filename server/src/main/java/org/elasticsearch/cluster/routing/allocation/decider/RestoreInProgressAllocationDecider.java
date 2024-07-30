@@ -55,7 +55,7 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
                 + "to restore the snapshot again or use the reroute API to force the allocation of an empty primary shard. Details: [%s]",
             source.snapshot(),
             shardRouting.getIndexName(),
-            shardRouting.unassignedInfo().getDetails()
+            shardRouting.unassignedInfo().details()
         );
     }
 

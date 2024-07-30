@@ -44,8 +44,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
     TransportVerifyShardIndexBlockAction.ShardRequest,
     ReplicationResponse> {
 
-    public static final String NAME = AddIndexBlockAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(TransportAddIndexBlockAction.TYPE.name() + "[s]");
 
     @Inject
     public TransportVerifyShardIndexBlockAction(
@@ -59,7 +58,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
     ) {
         super(
             settings,
-            NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             indicesService,
@@ -68,7 +67,10 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             actionFilters,
             ShardRequest::new,
             ShardRequest::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

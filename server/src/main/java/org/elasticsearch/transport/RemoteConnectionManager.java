@@ -151,7 +151,7 @@ public class RemoteConnectionManager implements ConnectionManager {
                 // Ignore. We will try the next one until all are exhausted.
             }
         }
-        throw new NoSuchRemoteClusterException(clusterAlias);
+        throw new ConnectTransportException(null, "Unable to connect to [" + clusterAlias + "]");
     }
 
     @Override

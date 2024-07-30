@@ -467,9 +467,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
         Exception ex = expectThrows(IllegalArgumentException.class, () -> mapper.documentMapper().validate(settings, false));
         assertEquals(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+            "All fields that match routing_path must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                + "without the [script] parameter. [field.key3] was [flattened].",
+                + "without the [script] parameter. [field._keyed] was not a dimension.",
             ex.getMessage()
         );
     }
@@ -698,12 +698,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             int j = depth >= maxDepth ? randomIntBetween(1, 2) : randomIntBetween(1, 3);
             switch (j) {
-                case 1 -> example.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+                case 1 -> example.put(randomAlphaOfLength(10), randomAlphaOfLengthBetween(1, 10));
                 case 2 -> {
                     int size = randomIntBetween(2, 10);
                     final Set<String> stringSet = new HashSet<>();
                     while (stringSet.size() < size) {
-                        stringSet.add(String.valueOf(randomIntBetween(10_000, 20_000)));
+                        stringSet.add(String.valueOf(randomIntBetween(10_000, 2_000_000)));
                     }
                     final List<String> randomList = new ArrayList<>(stringSet);
                     Collections.sort(randomList);
@@ -720,10 +720,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     private static class FlattenedFieldSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final Integer ignoreAbove = randomBoolean() ? randomIntBetween(4, 10) : null;
 
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
-
             // NOTE: values must be keywords and we use a TreeMap to preserve order (doc values are sorted and the result
             // is created with keys and nested keys in sorted order).
             final TreeMap<Object, Object> map = new TreeMap<>();
@@ -743,6 +743,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "flattened");
+            if (ignoreAbove != null) {
+                b.field("ignore_above", ignoreAbove);
+            }
         }
     }
 

@@ -341,58 +341,25 @@ public final class BulkRequestParser {
 
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
-                    if ("index".equals(action)) {
-                        if (opType == null) {
-                            indexRequestConsumer.accept(
-                                new IndexRequest(index).id(id)
-                                    .routing(routing)
-                                    .version(version)
-                                    .versionType(versionType)
-                                    .setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo)
-                                    .setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias)
-                                    .setRequireDataStream(requireDataStream)
-                                    .setListExecutedPipelines(listExecutedPipelines),
-                                type
-                            );
-                        } else {
-                            indexRequestConsumer.accept(
-                                new IndexRequest(index).id(id)
-                                    .routing(routing)
-                                    .version(version)
-                                    .versionType(versionType)
-                                    .create("create".equals(opType))
-                                    .setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo)
-                                    .setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias)
-                                    .setRequireDataStream(requireDataStream)
-                                    .setListExecutedPipelines(listExecutedPipelines),
-                                type
-                            );
+                    if ("index".equals(action) || "create".equals(action)) {
+                        var indexRequest = new IndexRequest(index).id(id)
+                            .routing(routing)
+                            .version(version)
+                            .versionType(versionType)
+                            .setPipeline(pipeline)
+                            .setIfSeqNo(ifSeqNo)
+                            .setIfPrimaryTerm(ifPrimaryTerm)
+                            .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                            .setDynamicTemplates(dynamicTemplates)
+                            .setRequireAlias(requireAlias)
+                            .setRequireDataStream(requireDataStream)
+                            .setListExecutedPipelines(listExecutedPipelines);
+                        if ("create".equals(action)) {
+                            indexRequest = indexRequest.create(true);
+                        } else if (opType != null) {
+                            indexRequest = indexRequest.create("create".equals(opType));
                         }
-                    } else if ("create".equals(action)) {
-                        indexRequestConsumer.accept(
-                            new IndexRequest(index).id(id)
-                                .routing(routing)
-                                .version(version)
-                                .versionType(versionType)
-                                .create(true)
-                                .setPipeline(pipeline)
-                                .setIfSeqNo(ifSeqNo)
-                                .setIfPrimaryTerm(ifPrimaryTerm)
-                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                .setDynamicTemplates(dynamicTemplates)
-                                .setRequireAlias(requireAlias)
-                                .setRequireDataStream(requireDataStream)
-                                .setListExecutedPipelines(listExecutedPipelines),
-                            type
-                        );
+                        indexRequestConsumer.accept(indexRequest, type);
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(

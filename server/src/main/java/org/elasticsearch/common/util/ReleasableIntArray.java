@@ -44,7 +44,12 @@ class ReleasableIntArray implements IntArray {
     }
 
     @Override
-    public int set(long index, int value) {
+    public int getAndSet(long index, int value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void set(long index, int value) {
         throw new UnsupportedOperationException();
     }
 
@@ -55,6 +60,11 @@ class ReleasableIntArray implements IntArray {
 
     @Override
     public void fill(long fromIndex, long toIndex, int value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void fillWith(StreamInput in) throws IOException {
         throw new UnsupportedOperationException();
     }
 

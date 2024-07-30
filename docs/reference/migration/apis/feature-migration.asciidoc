@@ -5,7 +5,7 @@
 <titleabbrev>Feature migration</titleabbrev>
 ++++
 
-include::{es-repo-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
+include::{es-ref-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
 
 Version upgrades sometimes require changes to how features store configuration
 information and data in system indices. The feature migration APIs enable you to

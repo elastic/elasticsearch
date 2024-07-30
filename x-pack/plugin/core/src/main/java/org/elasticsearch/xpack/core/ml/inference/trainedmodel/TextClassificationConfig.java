@@ -160,7 +160,7 @@ public class TextClassificationConfig implements NlpConfig {
 
             return builder.build();
         } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
-            var updatedTokenization = getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings());
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
             return new TextClassificationConfig.Builder(this).setTokenization(updatedTokenization).build();
         } else {
             throw incompatibleUpdateException(update.getName());

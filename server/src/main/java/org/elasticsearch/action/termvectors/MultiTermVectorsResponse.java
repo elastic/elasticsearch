@@ -91,11 +91,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         this.responses = responses;
     }
 
-    public MultiTermVectorsResponse(StreamInput in) throws IOException {
-        super(in);
-        responses = in.readArray(MultiTermVectorsItemResponse::new, MultiTermVectorsItemResponse[]::new);
-    }
-
     public MultiTermVectorsItemResponse[] getResponses() {
         return this.responses;
     }

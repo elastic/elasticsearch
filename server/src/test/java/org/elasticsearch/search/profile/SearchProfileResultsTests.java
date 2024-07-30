@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -114,7 +115,7 @@ public class SearchProfileResultsTests extends AbstractXContentSerializingTestCa
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         ensureFieldName(parser, parser.nextToken(), SearchProfileResults.PROFILE_FIELD);
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        SearchProfileResults result = SearchProfileResults.fromXContent(parser);
+        SearchProfileResults result = SearchResponseUtils.parseSearchProfileResults(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         return result;

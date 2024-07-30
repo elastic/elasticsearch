@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
 /**
@@ -96,6 +98,11 @@ public abstract class AggregationBuilder
         return factoriesBuilder.getAggregatorFactories();
     }
 
+    /** Return the aggregation's query if it's different from the search query, or null otherwise. */
+    public QueryBuilder getQuery() {
+        return null;
+    }
+
     /** Return the configured set of pipeline aggregations **/
     public Collection<PipelineAggregationBuilder> getPipelineAggregations() {
         return factoriesBuilder.getPipelineAggregatorFactories();
@@ -116,9 +123,25 @@ public abstract class AggregationBuilder
 
     /**
      * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metadata</code>.
-     * Used by {@link #rewrite(QueryRewriteContext)}.
      */
     protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
+
+    /**
+     * Creates a deep copy of {@param original} by recursively invoking {@code #shallowCopy} on the sub aggregations.
+     * Each copied agg is passed through the {@param visitor} function that returns a possibly modified "copy".
+     */
+    public static AggregationBuilder deepCopy(AggregationBuilder original, Function<AggregationBuilder, AggregationBuilder> visitor) {
+        AggregatorFactories.Builder subAggregations = new AggregatorFactories.Builder();
+        // recursively copy sub aggs first
+        for (AggregationBuilder subAggregation : original.getSubAggregations()) {
+            subAggregations.addAggregator(deepCopy(subAggregation, visitor));
+        }
+        // pipeline aggs do not themselves contain sub aggs, and don't have a copy method, hence are simply copied by reference
+        for (PipelineAggregationBuilder subPipelineAggregation : original.getPipelineAggregations()) {
+            subAggregations.addPipelineAggregator(subPipelineAggregation);
+        }
+        return visitor.apply(original.shallowCopy(subAggregations, original.getMetadata()));
+    }
 
     @Override
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {

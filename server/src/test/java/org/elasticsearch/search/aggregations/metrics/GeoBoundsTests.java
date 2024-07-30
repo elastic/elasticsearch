@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -53,7 +52,7 @@ public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregation
             """;
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parser));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Aggregator [viewport] of type [geo_bounds] cannot accept sub-aggregations"));
     }
 

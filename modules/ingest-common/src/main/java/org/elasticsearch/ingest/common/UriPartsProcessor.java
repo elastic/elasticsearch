@@ -140,9 +140,16 @@ public class UriPartsProcessor extends AbstractProcessor {
         }
         if (path != null) {
             uriParts.put("path", path);
-            if (path.contains(".")) {
-                int periodIndex = path.lastIndexOf('.');
-                uriParts.put("extension", periodIndex < path.length() ? path.substring(periodIndex + 1) : "");
+            // To avoid any issues with extracting the extension from a path that contains a dot, we explicitly extract the extension
+            // from the last segment in the path.
+            var lastSegmentIndex = path.lastIndexOf('/');
+            if (lastSegmentIndex >= 0) {
+                var lastSegment = path.substring(lastSegmentIndex);
+                int periodIndex = lastSegment.lastIndexOf('.');
+                if (periodIndex >= 0) {
+                    // Don't include the dot in the extension field.
+                    uriParts.put("extension", lastSegment.substring(periodIndex + 1));
+                }
             }
         }
         if (port != -1) {
@@ -155,7 +162,7 @@ public class UriPartsProcessor extends AbstractProcessor {
         if (userInfo != null) {
             uriParts.put("user_info", userInfo);
             if (userInfo.contains(":")) {
-                int colonIndex = userInfo.indexOf(":");
+                int colonIndex = userInfo.indexOf(':');
                 uriParts.put("username", userInfo.substring(0, colonIndex));
                 uriParts.put("password", colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
             }

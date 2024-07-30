@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
@@ -187,6 +188,15 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         AggregationBuilder clone = original.shallowCopy(original.factoriesBuilder, original.metadata);
         assertNotSame(original, clone);
         assertEquals(original, clone);
+    }
+
+    public void testPlainDeepCopyEquivalentToStreamCopy() throws IOException {
+        AB original = createTestAggregatorBuilder();
+        AggregationBuilder deepClone = AggregationBuilder.deepCopy(original, Function.identity());
+        assertNotSame(deepClone, original);
+        AggregationBuilder streamClone = copyAggregation(original);
+        assertNotSame(streamClone, original);
+        assertEquals(streamClone, deepClone);
     }
 
     // we use the streaming infra to create a copy of the query provided as

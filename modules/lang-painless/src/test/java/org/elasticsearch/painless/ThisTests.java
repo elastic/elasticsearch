@@ -76,7 +76,7 @@ public class ThisTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.this"));
         contexts.put(ThisScript.CONTEXT, whitelists);
         return contexts;

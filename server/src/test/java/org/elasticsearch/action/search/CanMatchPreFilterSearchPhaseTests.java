@@ -30,21 +30,24 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.search.CanMatchShardResponse;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -497,14 +500,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
+            List.of(),
+            null,
             (updatedSearchShardIterators, requests) -> {
                 List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-                ;
 
                 List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
-                ;
 
                 int regularIndexShardCount = (int) updatedSearchShardIterators.stream()
                     .filter(s -> regularIndices.contains(s.shardId().getIndex()))
@@ -568,6 +571,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
+            List.of(),
+            null,
             this::assertAllShardsAreQueried
         );
     }
@@ -624,6 +629,99 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
+            List.of(),
+            null,
+            this::assertAllShardsAreQueried
+        );
+    }
+
+    public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withDefaultBackgroundFilter() throws Exception {
+        Index index1 = new Index("index1", UUIDs.base64UUID());
+        Index index2 = new Index("index2", UUIDs.base64UUID());
+        Index index3 = new Index("index3", UUIDs.base64UUID());
+
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2100).to(2200));
+        AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms");
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(),
+            List.of(index1, index2, index3),
+            contextProviderBuilder.build(),
+            query,
+            List.of(aggregation),
+            null,
+            // The default background filter matches the whole index, so all shards must be queried.
+            this::assertAllShardsAreQueried
+        );
+    }
+
+    public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withBackgroundFilter() throws Exception {
+        Index index1 = new Index("index1", UUIDs.base64UUID());
+        Index index2 = new Index("index2", UUIDs.base64UUID());
+        Index index3 = new Index("index3", UUIDs.base64UUID());
+        Index index4 = new Index("index4", UUIDs.base64UUID());
+
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index4, DataStream.TIMESTAMP_FIELD_NAME, 3000, 3999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(3100).to(3200));
+        AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms").backgroundFilter(
+            new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(0).to(1999)
+        );
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(),
+            List.of(index1, index2, index3),
+            contextProviderBuilder.build(),
+            query,
+            List.of(aggregation),
+            null,
+            (updatedSearchShardIterators, requests) -> {
+                // The search query matches index4, the background query matches index1 and index2,
+                // so index3 is the only one that must be skipped.
+                for (SearchShardIterator shard : updatedSearchShardIterators) {
+                    if (shard.shardId().getIndex().getName().equals("index3")) {
+                        assertTrue(shard.skip());
+                    } else {
+                        assertFalse(shard.skip());
+                    }
+                }
+            }
+        );
+    }
+
+    public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withSuggest() throws Exception {
+        Index index1 = new Index("index1", UUIDs.base64UUID());
+        Index index2 = new Index("index2", UUIDs.base64UUID());
+        Index index3 = new Index("index3", UUIDs.base64UUID());
+
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2100).to(2200));
+        AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms").backgroundFilter(
+            new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2000).to(2300)
+        );
+        SuggestBuilder suggest = new SuggestBuilder().setGlobalText("test");
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(),
+            List.of(index1, index2, index3),
+            contextProviderBuilder.build(),
+            query,
+            List.of(aggregation),
+            suggest,
+            // The query and aggregation and match only index3, but suggest should match everything.
             this::assertAllShardsAreQueried
         );
     }
@@ -669,6 +767,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             List.of(),
             contextProviderBuilder.build(),
             queryBuilder,
+            List.of(),
+            null,
             (updatedSearchShardIterators, requests) -> {
                 var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
                 var nonSkippedShards = updatedSearchShardIterators.stream()
@@ -713,11 +813,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         assertThat(requests.size(), equalTo(shardsWithPrimariesAssigned));
     }
 
-    private <QB extends AbstractQueryBuilder<QB>> void assignShardsAndExecuteCanMatchPhase(
+    private void assignShardsAndExecuteCanMatchPhase(
         List<DataStream> dataStreams,
         List<Index> regularIndices,
         CoordinatorRewriteContextProvider contextProvider,
-        AbstractQueryBuilder<QB> query,
+        QueryBuilder query,
+        List<AggregationBuilder> aggregations,
+        SuggestBuilder suggest,
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
@@ -764,14 +866,20 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(true);
 
         final AliasFilter aliasFilter;
-        if (randomBoolean()) {
+        if (aggregations.isEmpty() == false || randomBoolean()) {
             // Apply the query on the request body
             SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
             searchSourceBuilder.query(query);
+            for (AggregationBuilder aggregation : aggregations) {
+                searchSourceBuilder.aggregation(aggregation);
+            }
+            if (suggest != null) {
+                searchSourceBuilder.suggest(suggest);
+            }
             searchRequest.source(searchSourceBuilder);
 
             // Sometimes apply the same query in the alias filter too
-            aliasFilter = AliasFilter.of(randomBoolean() ? query : null, Strings.EMPTY_ARRAY);
+            aliasFilter = AliasFilter.of(aggregations.isEmpty() && randomBoolean() ? query : null, Strings.EMPTY_ARRAY);
         } else {
             // Apply the query as an alias filter
             aliasFilter = AliasFilter.of(query, Strings.EMPTY_ARRAY);

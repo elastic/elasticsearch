@@ -239,6 +239,7 @@ setup:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.lifecycle.enabled: true }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-.kibana-reporting-foo-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
 
   - set: { data_streams.0.indices.0.index_name: idx0name }

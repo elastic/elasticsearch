@@ -16,11 +16,11 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
@@ -69,11 +70,11 @@ public class RestSearchAction extends BaseRestHandler {
     public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, INCLUDE_NAMED_QUERIES_SCORE_PARAM);
 
     private final SearchUsageHolder searchUsageHolder;
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestSearchAction(SearchUsageHolder searchUsageHolder, NamedWriteableRegistry namedWriteableRegistry) {
+    public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
         this.searchUsageHolder = searchUsageHolder;
-        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -116,7 +117,7 @@ public class RestSearchAction extends BaseRestHandler {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(searchRequest, request, parser, namedWriteableRegistry, setSize, searchUsageHolder)
+            parser -> parseSearchRequest(searchRequest, request, parser, clusterSupportsFeature, setSize, searchUsageHolder)
         );
 
         return channel -> {
@@ -132,17 +133,17 @@ public class RestSearchAction extends BaseRestHandler {
      * @param request the rest request to read from
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
-     * @param namedWriteableRegistry the registry of named writeables
+     * @param clusterSupportsFeature used to check if certain features are available in this cluster
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      */
     public static void parseSearchRequest(
         SearchRequest searchRequest,
         RestRequest request,
         XContentParser requestContentParser,
-        NamedWriteableRegistry namedWriteableRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature,
         IntConsumer setSize
     ) throws IOException {
-        parseSearchRequest(searchRequest, request, requestContentParser, namedWriteableRegistry, setSize, null);
+        parseSearchRequest(searchRequest, request, requestContentParser, clusterSupportsFeature, setSize, null);
     }
 
     /**
@@ -152,7 +153,7 @@ public class RestSearchAction extends BaseRestHandler {
      * @param request the rest request to read from
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter, will be null when there is no request body to parse
-     * @param namedWriteableRegistry the registry of named writeables
+     * @param clusterSupportsFeature used to check if certain features are available in this cluster
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      * @param searchUsageHolder the holder of search usage stats
      */
@@ -160,7 +161,7 @@ public class RestSearchAction extends BaseRestHandler {
         SearchRequest searchRequest,
         RestRequest request,
         @Nullable XContentParser requestContentParser,
-        NamedWriteableRegistry namedWriteableRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature,
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder
     ) throws IOException {
@@ -175,9 +176,9 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
             if (searchUsageHolder == null) {
-                searchRequest.source().parseXContent(requestContentParser, true);
+                searchRequest.source().parseXContent(requestContentParser, true, clusterSupportsFeature);
             } else {
-                searchRequest.source().parseXContent(requestContentParser, true, searchUsageHolder);
+                searchRequest.source().parseXContent(requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
             }
         }
 
@@ -314,7 +315,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (sSorts != null) {
             String[] sorts = Strings.splitStringByCommaToArray(sSorts);
             for (String sort : sorts) {
-                int delimiter = sort.lastIndexOf(":");
+                int delimiter = sort.lastIndexOf(':');
                 if (delimiter != -1) {
                     String sortField = sort.substring(0, delimiter);
                     String reverse = sort.substring(delimiter + 1);

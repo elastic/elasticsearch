@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -43,6 +44,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
@@ -260,8 +262,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         private final boolean missing;
 
-        public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields) {
-            this(index, id, source, fetchFields, false);
+        public Event(SearchHit hit) {
+            this(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields(), false);
         }
 
         public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields, Boolean missing) {
@@ -275,6 +277,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private Event(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
+            // TODO: make this pooled?
             source = in.readBytesReference();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0) && in.readBoolean()) {
                 fetchFields = in.readMap(DocumentField::new);

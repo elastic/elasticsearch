@@ -29,7 +29,7 @@ For more information, see
 
 `<calendar_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-put-calendar-request-body]]
 == {api-request-body-title}

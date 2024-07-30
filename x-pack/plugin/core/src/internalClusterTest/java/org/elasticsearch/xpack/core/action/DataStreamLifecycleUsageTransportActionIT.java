@@ -122,19 +122,22 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     indices.add(index);
                 }
                 boolean systemDataStream = randomBoolean();
+                boolean replicated = randomBoolean();
                 DataStream dataStream = new DataStream(
                     randomAlphaOfLength(50),
                     indices,
                     randomLongBetween(0, 1000),
                     Map.of(),
                     systemDataStream || randomBoolean(),
-                    randomBoolean(),
+                    replicated,
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
                     lifecycle,
                     false,
-                    List.of()
+                    List.of(),
+                    replicated == false && randomBoolean(),
+                    null
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }
@@ -166,7 +169,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         double averageRetention,
         boolean defaultRolloverUsed
     ) throws Exception {
-        XPackUsageFeatureResponse response = client().execute(DATA_STREAM_LIFECYCLE, new XPackUsageRequest()).get();
+        XPackUsageFeatureResponse response = safeGet(client().execute(DATA_STREAM_LIFECYCLE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder = response.getUsage().toXContent(builder, ToXContent.EMPTY_PARAMS);
         Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(

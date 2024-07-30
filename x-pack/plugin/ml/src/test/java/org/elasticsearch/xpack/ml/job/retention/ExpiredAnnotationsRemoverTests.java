@@ -60,6 +60,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
     }
 
     public void testRemove_GivenNoJobs() {
@@ -143,6 +144,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         List<Job> jobs = Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build());
 
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
+        when(cutoffListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         createExpiredAnnotationsRemover(jobs.iterator()).calcCutoffEpochMs(jobId, 1L, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;

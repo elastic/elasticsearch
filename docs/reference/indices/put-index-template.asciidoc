@@ -12,7 +12,7 @@ that can be applied automatically to new indices.
 --------------------------------------------------
 PUT /_index_template/template_1
 {
-  "index_patterns" : ["te*"],
+  "index_patterns" : ["template*"],
   "priority" : 1,
   "template": {
     "settings" : {
@@ -156,7 +156,7 @@ aliases. Otherwise, these are index aliases. Data stream aliases ignore the
 `index_routing`, `routing`, and `search_routing` options.
 // end::template-ds-alias[]
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
 
@@ -186,7 +186,7 @@ You can include <<aliases,index aliases>> in an index template.
 --------------------------------------------------
 PUT _index_template/template_1
 {
-  "index_patterns" : ["te*"],
+  "index_patterns" : ["template*"],
   "template": {
     "settings" : {
         "number_of_shards" : 1
@@ -218,7 +218,7 @@ the template with the highest priority is used. For example:
 --------------------------------------------------
 PUT /_index_template/template_1
 {
-  "index_patterns" : ["t*"],
+  "index_patterns" : ["temp*"],
   "priority" : 0,
   "template": {
     "settings" : {
@@ -233,7 +233,7 @@ PUT /_index_template/template_1
 
 PUT /_index_template/template_2
 {
-  "index_patterns" : ["te*"],
+  "index_patterns" : ["template*"],
   "priority" : 1,
   "template": {
     "settings" : {
@@ -246,7 +246,7 @@ PUT /_index_template/template_2
 }
 --------------------------------------------------
 
-For indices that start with `te*`, `_source` will enabled, and the index will have two primary
+For indices that start with `template*`, `_source` will enabled, and the index will have two primary
 shards and one replica, because only `template_2` will be applied.
 
 NOTE: Multiple templates with overlapping index patterns at the same priority are not allowed, and

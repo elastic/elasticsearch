@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
@@ -232,6 +233,27 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
+
+        assert compatibilityVersions.isEmpty()
+            || blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            || assertEventIngestedIsUnknownInMixedClusters(metadata, this.minVersions);
+    }
+
+    private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
+        if (compatibilityVersions.transportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+            && metadata != null
+            && metadata.indices() != null) {
+            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+                assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
+                    : "event.ingested range should be UNKNOWN but is "
+                        + indexMetadata.getEventIngestedRange()
+                        + " for index: "
+                        + indexMetadata.getIndex()
+                        + " minTransportVersion: "
+                        + compatibilityVersions.transportVersion();
+            }
+        }
+        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -862,6 +884,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return Collections.unmodifiableMap(this.nodeFeatures);
         }
 
+        public Builder putNodeFeatures(String node, Set<String> features) {
+            this.nodeFeatures.put(node, features);
+            return this;
+        }
+
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
             return routingTable(routingTableBuilder.build());
         }
@@ -1010,7 +1037,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 .values()
                 .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             builder.nodeFeatures(ClusterFeatures.readFrom(in));
         }
         builder.blocks = ClusterBlocks.readFrom(in);
@@ -1056,7 +1083,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeMap(compatibilityVersions, (streamOutput, versions) -> versions.writeTo(streamOutput));
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             clusterFeatures.writeTo(out);
         }
         blocks.writeTo(out);
@@ -1125,7 +1152,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             } else {
                 versions = null;   // infer at application time
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 features = ClusterFeatures.readDiffFrom(in);
             } else {
                 features = null;    // fill in when nodes re-register with a master that understands features
@@ -1149,7 +1176,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeOptionalWriteable(versions);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 features.writeTo(out);
             }
             metadata.writeTo(out);

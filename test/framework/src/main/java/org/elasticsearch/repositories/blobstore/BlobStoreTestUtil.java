@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -254,34 +253,26 @@ public final class BlobStoreTestUtil {
         }
         // Assert that for each snapshot, the relevant metadata was written to index and shard folders
         final List<SnapshotInfo> snapshotInfos = Collections.synchronizedList(new ArrayList<>());
-        repository.getSnapshotInfo(
-            new GetSnapshotInfoContext(
-                List.copyOf(snapshotIds),
-                true,
-                () -> false,
-                (ctx, sni) -> snapshotInfos.add(sni),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        try {
-                            assertSnapshotInfosConsistency(repository, repositoryData, indices, snapshotInfos);
-                        } catch (Exception e) {
-                            listener.onResponse(new AssertionError(e));
-                            return;
-                        } catch (AssertionError e) {
-                            listener.onResponse(e);
-                            return;
-                        }
-                        listener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onResponse(new AssertionError(e));
-                    }
+        repository.getSnapshotInfo(List.copyOf(snapshotIds), true, () -> false, snapshotInfos::add, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                try {
+                    assertSnapshotInfosConsistency(repository, repositoryData, indices, snapshotInfos);
+                } catch (Exception e) {
+                    listener.onResponse(new AssertionError(e));
+                    return;
+                } catch (AssertionError e) {
+                    listener.onResponse(e);
+                    return;
                 }
-            )
-        );
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onResponse(new AssertionError(e));
+            }
+        });
     }
 
     private static void assertSnapshotInfosConsistency(

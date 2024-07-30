@@ -107,7 +107,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             }
             return cmp;
         });
-        int requestedSize = inputs.get(0).getRequiredSize();
+        int requestedSize = reduced.getRequiredSize();
         expectedBuckets = expectedBuckets.subList(0, Math.min(requestedSize, expectedBuckets.size()));
         assertEquals(expectedBuckets.size(), reduced.getBuckets().size());
         for (int i = 0; i < reduced.getBuckets().size(); i++) {

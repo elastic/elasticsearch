@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -1062,7 +1063,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 agg.preCollection();
                 context.searcher().search(context.query(), agg.asCollector());
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
-                result = (InternalDateHistogram) result.reduce(
+                result = (InternalDateHistogram) InternalAggregationTestCase.reduce(
                     List.of(result),
                     new AggregationReduceContext.ForFinal(
                         context.bigArrays(),

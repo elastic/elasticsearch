@@ -22,7 +22,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class SnapshotRequestsTests extends ESTestCase {
     public void testRestoreSnapshotRequestParsing() throws IOException {
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest("test-repo", "test-snap");
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap");
 
         XContentBuilder builder = jsonBuilder().startObject();
 
@@ -87,7 +87,7 @@ public class SnapshotRequestsTests extends ESTestCase {
     }
 
     public void testCreateSnapshotRequestParsing() throws IOException {
-        CreateSnapshotRequest request = new CreateSnapshotRequest("test-repo", "test-snap");
+        CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap");
 
         XContentBuilder builder = jsonBuilder().startObject();
 

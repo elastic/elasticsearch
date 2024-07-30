@@ -190,7 +190,7 @@ version of a major version to a remote cluster running any minor version in the
 following major version. For example, a local 7.17 cluster can search any
 remote 8.x cluster.
 
-include::{es-repo-dir}/search/search-your-data/ccs-version-compat-matrix.asciidoc[]
+include::{es-ref-dir}/search/search-your-data/ccs-version-compat-matrix.asciidoc[]
 
 IMPORTANT: For the {ref}/eql-search-api.html[EQL search API], the local and
 remote clusters must use the same {es} version if they have versions prior to 7.17.7 (included) or prior to 8.5.1 (included).

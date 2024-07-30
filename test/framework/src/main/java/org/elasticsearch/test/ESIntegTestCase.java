@@ -23,8 +23,13 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -80,6 +85,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -98,6 +105,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -117,6 +125,7 @@ import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.node.NodeMocksPlugin;
@@ -177,6 +186,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -660,6 +670,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return client;
     }
 
+    /**
+     * Execute the given {@link ActionRequest} using the given {@link ActionType} and a default node client, wait for it to complete with
+     * a timeout of {@link #SAFE_AWAIT_TIMEOUT}, and then return the result. An exceptional response, timeout or interrupt triggers a test
+     * failure.
+     */
+    public static <T extends ActionResponse> T safeExecute(ActionType<T> action, ActionRequest request) {
+        return safeExecute(client(), action, request);
+    }
+
     public static Iterable<Client> clients() {
         return cluster().getClients();
     }
@@ -957,7 +976,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
+            .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -971,7 +991,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
-        final ClusterHealthResponse clusterHealthResponse = clusterAdmin().health(healthRequest).actionGet();
+        final ClusterHealthResponse clusterHealthResponse;
+        try {
+            clusterHealthResponse = clusterAdmin().health(healthRequest).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("interrupted while waiting for health response", e);
+            throw new AssertionError("interrupted while waiting for health response", e);
+        } catch (ExecutionException e) {
+            logger.error("failed to get health response", e);
+            throw new AssertionError("failed to get health response", e);
+        }
         if (clusterHealthResponse.isTimedOut()) {
             final var allocationExplainRef = new AtomicReference<ClusterAllocationExplainResponse>();
             final var clusterStateRef = new AtomicReference<ClusterStateResponse>();
@@ -980,7 +1010,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             final var detailsFuture = new PlainActionFuture<Void>();
             try (var listeners = new RefCountingListener(detailsFuture)) {
-                clusterAdmin().prepareAllocationExplain().execute(listeners.acquire(allocationExplainRef::set));
+                client().execute(
+                    TransportClusterAllocationExplainAction.TYPE,
+                    new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT),
+                    listeners.acquire(allocationExplainRef::set)
+                );
                 clusterAdmin().prepareState().execute(listeners.acquire(clusterStateRef::set));
                 client().execute(
                     TransportPendingClusterTasksAction.TYPE,
@@ -1080,6 +1114,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
+    }
+
+    public static String getNodeId(String nodeName) {
+        return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
     }
 
     /**
@@ -1649,7 +1687,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Set<String> indices = new HashSet<>();
         builders = new ArrayList<>(builders);
         for (IndexRequestBuilder builder : builders) {
-            indices.add(builder.request().index());
+            indices.add(builder.getIndex());
         }
         Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && builders.isEmpty() == false && dummyDocuments) {
@@ -2520,5 +2558,42 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
+    }
+
+    /**
+     * Allocate the entire capacity of a circuit breaker on a specific node
+     *
+     * @param targetNode The node on which to allocate
+     * @param breakerName The circuit breaker to allocate
+     * @return A {@link Releasable} which will de-allocate the amount allocated
+     */
+    protected static Releasable fullyAllocateCircuitBreakerOnNode(String targetNode, String breakerName) {
+        final var circuitBreaker = internalCluster().getInstance(CircuitBreakerService.class, targetNode).getBreaker(breakerName);
+        final long totalAllocated = fullyAllocate(circuitBreaker);
+        return () -> circuitBreaker.addWithoutBreaking(-totalAllocated);
+    }
+
+    /**
+     * Fully allocate a circuit breaker
+     *
+     * @param circuitBreaker The circuit breaker to allocate
+     * @return the amount of bytes allocated
+     */
+    private static long fullyAllocate(CircuitBreaker circuitBreaker) {
+        long allocationSize = 1;
+        long totalAllocated = 0;
+        while (true) {
+            try {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(allocationSize, "test");
+                totalAllocated += allocationSize;
+            } catch (CircuitBreakingException e) {
+                circuitBreaker.addWithoutBreaking(allocationSize);
+                totalAllocated += allocationSize;
+                break;
+            }
+            allocationSize <<= 1;
+            assert 0 <= allocationSize;
+        }
+        return totalAllocated;
     }
 }

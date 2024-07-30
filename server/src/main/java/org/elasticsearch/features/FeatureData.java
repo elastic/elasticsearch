@@ -38,9 +38,12 @@ public class FeatureData {
     public static FeatureData createFromSpecifications(List<? extends FeatureSpecification> specs) {
         Map<String, FeatureSpecification> allFeatures = new HashMap<>();
 
-        NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>();
+        // Initialize historicalFeatures with empty version to guarantee there's a floor entry for every version
+        NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>(Map.of(Version.V_EMPTY, Set.of()));
         Map<String, NodeFeature> nodeFeatures = new HashMap<>();
         for (FeatureSpecification spec : specs) {
+            var specFeatures = spec.getFeatures();
+
             for (var hfe : spec.getHistoricalFeatures().entrySet()) {
                 FeatureSpecification existing = allFeatures.putIfAbsent(hfe.getKey().id(), spec);
                 // the same SPI class can be loaded multiple times if it's in the base classloader
@@ -61,10 +64,20 @@ public class FeatureData {
                     );
                 }
 
+                if (specFeatures.contains(hfe.getKey())) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "Feature [%s] cannot be declared as both a regular and historical feature by [%s]",
+                            hfe.getKey().id(),
+                            spec
+                        )
+                    );
+                }
+
                 historicalFeatures.computeIfAbsent(hfe.getValue(), k -> new HashSet<>()).add(hfe.getKey().id());
             }
 
-            for (NodeFeature f : spec.getFeatures()) {
+            for (NodeFeature f : specFeatures) {
                 FeatureSpecification existing = allFeatures.putIfAbsent(f.id(), spec);
                 if (existing != null && existing.getClass() != spec.getClass()) {
                     throw new IllegalArgumentException(

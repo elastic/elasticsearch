@@ -1285,9 +1285,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> newOutput = new ArrayList<>(output.size());
 
             for (Attribute attr : output) {
-                if (attr.synthetic() == false) {
-                    newOutput.add(attr);
+                // Do not let the synthetic union type field attributes end up in the final output.
+                if (attr.synthetic() && attr instanceof FieldAttribute) {
+                    continue;
                 }
+                newOutput.add(attr);
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);

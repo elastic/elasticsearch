@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 
@@ -23,7 +25,7 @@ public class ReferenceAttribute extends TypedAttribute {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "ReferenceAttribute",
-        ReferenceAttribute::new
+        ReferenceAttribute::readFrom
     );
 
     public ReferenceAttribute(Source source, String name, DataType dataType) {
@@ -43,7 +45,7 @@ public class ReferenceAttribute extends TypedAttribute {
     }
 
     @SuppressWarnings("unchecked")
-    public ReferenceAttribute(StreamInput in) throws IOException {
+    private ReferenceAttribute(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -65,6 +67,23 @@ public class ReferenceAttribute extends TypedAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert out instanceof PlanStreamOutput;
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            Integer cacheId = ((PlanStreamOutput) out).fromAttributeCache(this);
+            if (cacheId != null) {
+                out.writeByte(PlanStreamOutput.CACHED);
+                out.writeZLong(cacheId);
+                return;
+            }
+
+            cacheId = ((PlanStreamOutput) out).addToAttributeCache(this);
+            if (cacheId == null) {
+                out.writeByte(PlanStreamOutput.NO_CACHE);
+            } else {
+                out.writeByte(PlanStreamOutput.NEW);
+                out.writeZLong(cacheId);
+            }
+        }
         Source.EMPTY.writeTo(out);
         out.writeString(name());
         dataType().writeTo(out);
@@ -72,6 +91,29 @@ public class ReferenceAttribute extends TypedAttribute {
         out.writeEnum(nullable());
         id().writeTo(out);
         out.writeBoolean(synthetic());
+    }
+
+    public static ReferenceAttribute readFrom(StreamInput in) throws IOException {
+        assert in instanceof PlanStreamInput;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            byte cacheStatus = in.readByte();
+            return switch (cacheStatus) {
+                case PlanStreamOutput.NEW -> {
+                    int cacheId = Math.toIntExact(in.readZLong());
+                    ReferenceAttribute result = new ReferenceAttribute(in);
+                    ((PlanStreamInput) in).cacheAttribute(cacheId, result);
+                    yield result;
+                }
+                case PlanStreamOutput.CACHED -> {
+                    int cacheId = Math.toIntExact(in.readZLong());
+                    yield (ReferenceAttribute) ((PlanStreamInput) in).attributeFromCache(cacheId);
+                }
+                case PlanStreamOutput.NO_CACHE -> new ReferenceAttribute(in);
+                default -> throw new IllegalStateException("Invalid cache state for attribute: " + cacheStatus);
+            };
+        } else {
+            return new ReferenceAttribute(in);
+        }
     }
 
     @Override

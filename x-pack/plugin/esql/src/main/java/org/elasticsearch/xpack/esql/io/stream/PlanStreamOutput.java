@@ -57,10 +57,10 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      * Field attributes can be a significant part of the query execution plan, especially
      * for queries like `from *`, that can have thousands of output columns.
      * Attributes can be shared by many plan nodes (eg. ExcahngeSink output, Project output, EsRelation fields);
-     * in addition, multiple FieldAttributes can share the same parent field.
+     * in addition, multiple Attributes can share the same parent field.
      * This cache allows to send each attribute only once; from the second occurrence, only an id will be sent
      */
-    protected final Map<Attribute, Integer> cachedFieldAttributes = new IdentityHashMap<>();
+    protected final Map<Attribute, Integer> cachedAttributes = new IdentityHashMap<>();
 
     private final StreamOutput delegate;
     private final PlanNameRegistry registry;
@@ -182,19 +182,19 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public Integer fromAttributeCache(Attribute attr) {
-        return cachedFieldAttributes.get(attr);
+        return cachedAttributes.get(attr);
     }
 
     @Override
     public Integer addToAttributeCache(Attribute attr) {
-        if (cachedFieldAttributes.containsKey(attr)) {
+        if (cachedAttributes.containsKey(attr)) {
             throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
         }
-        int id = cachedFieldAttributes.size();
+        int id = cachedAttributes.size();
         if (id >= maxAttributeCacheSize) {
             return null;
         }
-        cachedFieldAttributes.put(attr, id);
+        cachedAttributes.put(attr, id);
         return id;
     }
 

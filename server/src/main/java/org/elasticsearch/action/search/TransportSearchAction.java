@@ -377,8 +377,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (client != null) {
                         tl.setClient(client);
                     }
-                    // TODO: is this the right way to check for wildcards?
-                    if (Arrays.stream(original.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
+                    // Check if any of the index patterns are wildcard patterns
+                    var localIndices = resolvedIndices.getLocalIndices();
+                    if (localIndices != null && Arrays.stream(localIndices.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
+                        tl.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
+                    }
+                    if (resolvedIndices.getRemoteClusterIndices()
+                        .values()
+                        .stream()
+                        .anyMatch(originalIndices -> Arrays.stream(originalIndices.indices()).anyMatch(Regex::isSimpleMatchPattern))) {
                         tl.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
                     }
                 }
@@ -1939,10 +1946,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // TODO: what happens with the local cluster there? Are we tracking it too just like the others?
             for (String clusterAlias : searchResponse.getClusters().getClusterAliases()) {
                 SearchResponse.Cluster cluster = searchResponse.getClusters().getCluster(clusterAlias);
-                // TODO: check if getTook is meaningful if cluster was skipped
-                usageBuilder.perClusterUsage(clusterAlias, cluster.getTook());
                 if (cluster.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
                     usageBuilder.skipRemote(clusterAlias);
+                } else {
+                    usageBuilder.perClusterUsage(clusterAlias, cluster.getTook());
                 }
             }
 

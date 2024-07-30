@@ -60,9 +60,6 @@ public class CCSUsageTelemetry {
     public static final String MRT_FEATURE = "mrt_on";
     public static final String ASYNC_FEATURE = "async";
     public static final String WILDCARD_FEATURE = "wildcards";
-    // TODO: Do we need to count unknown clients separately?
-    // Again, total - known = unknown
-    private static final String CLIENT_UNKNOWN = "unknown";
 
     // TODO: do we need LongAdder here or long is enough? Since updateUsage is synchronized, worst that can happen is
     // we may miss a count on read.
@@ -96,10 +93,7 @@ public class CCSUsageTelemetry {
     }
 
     public void updateUsage(CCSUsage ccsUsage) {
-        // Ignore empty usage objects, we only care for true cross-cluster requests
-        if (ccsUsage.getRemotesCount() == 0) {
-            return;
-        }
+        assert ccsUsage.getRemotesCount() > 0 : "Expected at least one remote cluster in CCSUsage";
         // TODO: fork this to a background thread? if yes, could just pass in the SearchResponse to parse it off the response thread
         doUpdate(ccsUsage);
     }
@@ -110,14 +104,12 @@ public class CCSUsageTelemetry {
         long searchTook = ccsUsage.getTook();
         if (isSuccess(ccsUsage)) {
             successCount.increment();
-            // TODO: do we need to count latencies for failed requests? Right now the code doesn't collect it without SearchResponse
             took.record(searchTook);
             if (isMRT(ccsUsage)) {
                 tookMrtTrue.record(searchTook);
             } else {
                 tookMrtFalse.record(searchTook);
             }
-            // TODO: can we do it on failure? Not sure what "took" values contain in that case if at all.
             ccsUsage.getPerClusterUsage().forEach((r, u) -> byRemoteCluster.computeIfAbsent(r, PerClusterCCSTelemetry::new).update(u));
         } else {
             failureReasons.computeIfAbsent(ccsUsage.getStatus(), k -> new LongAdder()).increment();
@@ -131,8 +123,6 @@ public class CCSUsageTelemetry {
         ccsUsage.getFeatures().forEach(f -> featureCounts.computeIfAbsent(f, k -> new LongAdder()).increment());
         if (ccsUsage.getClient() != null) {
             clientCounts.computeIfAbsent(ccsUsage.getClient(), k -> new LongAdder()).increment();
-        } else {
-            clientCounts.computeIfAbsent(CLIENT_UNKNOWN, k -> new LongAdder()).increment();
         }
     }
 
@@ -154,6 +144,8 @@ public class CCSUsageTelemetry {
     public static class PerClusterCCSTelemetry {
         private final String clusterAlias;
         // TODO: are we OK to use long and not LongAdder here?
+        // Right now, this is the number of successful (not skipped) requests to this cluster.
+        // We need to make it clear in the docs that it does not count skipped requests.
         private long count;
         private long skippedCount;
         private final LongMetric took;

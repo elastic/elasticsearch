@@ -48,7 +48,7 @@ public class AzureHttpFixture extends ExternalResource {
     private HttpServer metadataServer;
     private HttpServer oauthTokenServiceServer;
 
-    // JWT-looking value for workload identify authentication -- the exact value has no inherent meaning
+    // JWT-looking value for workload identity authentication -- the exact value has no inherent meaning
     private final String federatedToken = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9";
 
     public enum Protocol {

@@ -8,16 +8,25 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.usage.SearchUsage;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Container class for aggregated metrics about search responses.
  */
 public class SearchResponseMetrics {
+
+    private static final Logger logger = LogManager.getLogger(SearchResponseMetrics.class);
+    public static final String QUERY_USAGE_SUFFIX = "_query";
+    public static final String SECTION_USAGE_SUFFIX = "_section";
+    public static final String RESCORER_USAGE_SUFFIX = "_rescorer";
 
     public enum ResponseCountTotalStatus {
         SUCCESS("success"),
@@ -65,15 +74,35 @@ public class SearchResponseMetrics {
         this.responseCountTotalCounter = responseCountTotalCounter;
     }
 
-    public long recordTookTime(long tookTime) {
-        tookDurationTotalMillisHistogram.record(tookTime);
+    public long recordTookTime(long tookTime, SearchUsage searchUsage) {
+        tookDurationTotalMillisHistogram.record(tookTime, getAttributes(searchUsage));
         return tookTime;
     }
 
-    public void incrementResponseCount(ResponseCountTotalStatus responseCountTotalStatus) {
-        responseCountTotalCounter.incrementBy(
-            1L,
-            Map.of(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, responseCountTotalStatus.getDisplayName())
-        );
+    public void incrementResponseCount(ResponseCountTotalStatus responseCountTotalStatus, SearchUsage searchUsage) {
+        responseCountTotalCounter.incrementBy(1L, getAttributes(searchUsage, responseCountTotalStatus));
+    }
+
+    private Map<String, Object> getAttributes(SearchUsage searchUsage) {
+        return getAttributes(searchUsage, null);
+    }
+
+    private Map<String, Object> getAttributes(SearchUsage searchUsage, ResponseCountTotalStatus status) {
+        if (searchUsage == null && status == null) {
+            return Map.of();
+        }
+
+        Map<String, Object> attributes = new HashMap<>(2);
+        if (status != null) {
+            attributes.put(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, status.getDisplayName());
+        }
+        if (searchUsage != null) {
+            searchUsage.getQueryUsage().forEach(q -> attributes.put(q + QUERY_USAGE_SUFFIX, true));
+            searchUsage.getSectionsUsage().forEach(q -> attributes.put(q + SECTION_USAGE_SUFFIX, true));
+            searchUsage.getRescorerUsage().forEach(q -> attributes.put(q + RESCORER_USAGE_SUFFIX, true));
+        }
+
+        logger.info("Attributes :" + attributes);
+        return attributes;
     }
 }

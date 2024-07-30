@@ -59,7 +59,8 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
-                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    // TODO is there a way of retrieving the original SearchSourceBuilder?
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), null);
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                     if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
@@ -76,7 +77,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     listener.onResponse(searchResponse);
                     // increment after the delegated onResponse to ensure we don't
                     // record both a success and a failure if there is an exception
-                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, null);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -84,7 +85,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
             @Override
             public void onFailure(Exception e) {
-                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE, null);
                 listener.onFailure(e);
             }
         };

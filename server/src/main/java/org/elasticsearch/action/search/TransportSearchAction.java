@@ -82,6 +82,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -303,11 +304,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        SearchUsage searchUsage = searchRequest.source().searchUsage();
         ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
-                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), searchUsage);
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                     if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
@@ -328,7 +330,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener.onResponse(searchResponse);
                     // increment after the delegated onResponse to ensure we don't
                     // record both a success and a failure if there is an exception
-                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, searchUsage);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -336,7 +338,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             @Override
             public void onFailure(Exception e) {
-                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE, searchUsage);
                 listener.onFailure(e);
             }
         };

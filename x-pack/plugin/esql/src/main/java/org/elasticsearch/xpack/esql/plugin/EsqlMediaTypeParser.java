@@ -43,6 +43,14 @@ public class EsqlMediaTypeParser {
         return validateColumnarRequest(esqlRequest.columnar(), mediaType, request);
     }
 
+    /*
+     *  Get requests do not have a Content-Type in headers, default to json
+     */
+    public static MediaType getResponseMediaType(RestRequest request) {
+        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : XContentType.JSON;
+        return checkNonNullMediaType(mediaType, request);
+    }
+
     private static MediaType mediaTypeFromHeaders(RestRequest request) {
         ParsedMediaType acceptType = request.getParsedAccept();
         MediaType mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();

@@ -58,6 +58,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -417,12 +419,14 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(dissect.extractedFields());
         final Expression expr = dissect.inputExpression();
-        String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
+        // Names in the pattern and layout can differ.
+        // Attributes need to be rename-able to avoid problems with shadowing - see GeneratingPlan resp. PushDownRegexExtract.
+        String[] patternNames = Expressions.names(dissect.parser().keyAttributes(Source.EMPTY)).toArray(new String[0]);
 
         Layout layout = layoutBuilder.build();
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
-                attributeNames,
+                patternNames,
                 EvalMapper.toEvaluator(expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
@@ -439,11 +443,15 @@ public class LocalExecutionPlanner {
         Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
         Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
+        List<Attribute> extractedFieldsFromPattern = grok.pattern().extractedFields();
         for (int i = 0; i < extractedFields.size(); i++) {
-            Attribute extractedField = extractedFields.get(i);
-            ElementType type = PlannerUtils.toElementType(extractedField.dataType());
-            fieldToPos.put(extractedField.name(), i);
-            fieldToType.put(extractedField.name(), type);
+            DataType extractedFieldType = extractedFields.get(i).dataType();
+            // Names in pattern and layout can differ.
+            // Attributes need to be rename-able to avoid problems with shadowing - see GeneratingPlan resp. PushDownRegexExtract.
+            String patternName = extractedFieldsFromPattern.get(i).name();
+            ElementType type = PlannerUtils.toElementType(extractedFieldType);
+            fieldToPos.put(patternName, i);
+            fieldToType.put(patternName, type);
             types[i] = type;
         }
 

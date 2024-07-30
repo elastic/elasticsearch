@@ -332,10 +332,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (mapperService == null) {
             return null;
         }
-        long totalCount = mapperService().mappingLookup().getTotalMapperCount();
-        long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
-        NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
-        return indexNodeMappingStats;
+        long numFields = mapperService().mappingLookup().getTotalMapperCount();
+        long totalEstimatedOverhead = numFields * 1024L; // 1KiB estimated per mapping
+        // Assume all segments have the same mapping; otherwise, we need to acquire searchers to count the actual fields.
+        int numLeaves = 0;
+        for (IndexShard shard : shards.values()) {
+            try {
+                numLeaves += shard.commitStats().getNumLeaves();
+            } catch (AlreadyClosedException ignored) {
+
+            }
+        }
+        return new NodeMappingStats(numFields, totalEstimatedOverhead, numLeaves, numLeaves * numFields);
     }
 
     public Set<Integer> shardIds() {
@@ -791,6 +799,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
+            null,
             null
         );
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -19,8 +20,10 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -42,7 +45,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -56,7 +58,12 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 
+/**
+ * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
+ * step does type resolution and fails queries based on invalid type expressions.
+ */
 public class Verifier {
 
     private final Metrics metrics;
@@ -167,6 +174,8 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkForSortOnSpatialTypes(p, failures);
+
+            checkFilterMatchConditions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -360,7 +369,7 @@ public class Verifier {
     private static void checkRow(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Row row) {
             row.fields().forEach(a -> {
-                if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
+                if (DataType.isRepresentable(a.dataType()) == false) {
                     failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
                 }
             });
@@ -372,7 +381,7 @@ public class Verifier {
             eval.fields().forEach(field -> {
                 // check supported types
                 DataType dataType = field.dataType();
-                if (EsqlDataTypes.isRepresentable(dataType) == false) {
+                if (DataType.isRepresentable(dataType) == false) {
                     failures.add(
                         fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
                     );
@@ -385,6 +394,11 @@ public class Verifier {
                         failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                     }
                 });
+                // check no MATCH expressions are used
+                field.forEachDown(
+                    MatchQueryPredicate.class,
+                    mqp -> { failures.add(fail(mqp, "EVAL does not support MATCH expressions")); }
+                );
             });
         }
     }
@@ -524,7 +538,7 @@ public class Verifier {
         if (p instanceof OrderBy ob) {
             ob.forEachExpression(Attribute.class, attr -> {
                 DataType dataType = attr.dataType();
-                if (EsqlDataTypes.isSpatial(dataType)) {
+                if (DataType.isSpatial(dataType)) {
                     localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
                 }
             });
@@ -569,5 +583,46 @@ public class Verifier {
                 }
             }
         });
+    }
+
+    /**
+     * Currently any filter condition using MATCH needs to be pushed down to the Lucene query.
+     * Conditions that use a combination of MATCH and ES|QL functions (e.g. `title MATCH "anna" OR DATE_EXTRACT("year", date) > 2010)
+     * cannot be pushed down to Lucene.
+     * Another condition is for MATCH to use index fields that have been mapped as text or keyword.
+     * We are using canPushToSource at the Verifier level because we want to detect any condition that cannot be pushed down
+     * early in the execution, rather than fail at the compute engine level.
+     * In the future we will be able to handle MATCH at the compute and we will no longer need these checks.
+     */
+    private static void checkFilterMatchConditions(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Filter f) {
+            Expression condition = f.condition();
+
+            Holder<Boolean> hasMatch = new Holder<>(false);
+            condition.forEachDown(MatchQueryPredicate.class, mqp -> {
+                hasMatch.set(true);
+                var field = mqp.field();
+                if (field instanceof FieldAttribute == false) {
+                    failures.add(fail(mqp, "MATCH requires a mapped index field, found [" + field.sourceText() + "]"));
+                }
+
+                if (DataType.isString(field.dataType()) == false) {
+                    var message = LoggerMessageFormat.format(
+                        null,
+                        "MATCH requires a text or keyword field, but [{}] has type [{}]",
+                        field.sourceText(),
+                        field.dataType().esType()
+                    );
+                    failures.add(fail(mqp, message));
+                }
+            });
+
+            if (canPushToSource(condition, x -> false)) {
+                return;
+            }
+            if (hasMatch.get()) {
+                failures.add(fail(condition, "Invalid condition using MATCH"));
+            }
+        }
     }
 }

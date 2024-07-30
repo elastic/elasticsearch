@@ -19,7 +19,7 @@ synopsis:keyword
 "double cos(angle:double|integer|long|unsigned_long)"
 "double cosh(angle:double|integer|long|unsigned_long)"
 "long count(?field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
-"long count_distinct(field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version, ?precision:integer)"
+"long count_distinct(field:boolean|date|double|integer|ip|keyword|long|text|version, ?precision:integer|long|unsigned_long)"
 "integer date_diff(unit:keyword|text, startTimestamp:date, endTimestamp:date)"
 "long date_extract(datePart:keyword|text, date:date)"
 "keyword date_format(?dateFormat:keyword|text, date:date)"
@@ -39,10 +39,10 @@ double e()
 "double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
-"boolean|double|integer|long|date max(field:boolean|double|integer|long|date)"
-"double|integer|long median(number:double|integer|long)"
-"double|integer|long median_absolute_deviation(number:double|integer|long)"
-"boolean|double|integer|long|date min(field:boolean|double|integer|long|date)"
+"boolean|double|integer|long|date|ip max(field:boolean|double|integer|long|date|ip)"
+"double median(number:double|integer|long)"
+"double median_absolute_deviation(number:double|integer|long)"
+"boolean|double|integer|long|date|ip min(field:boolean|double|integer|long|date|ip)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(field1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, field2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "double mv_avg(number:double|integer|long|unsigned_long)"
 "keyword mv_concat(string:text|keyword, delim:text|keyword)"
@@ -58,7 +58,7 @@ double e()
 "double|integer|long|unsigned_long mv_sum(number:double|integer|long|unsigned_long)"
 "keyword mv_zip(string1:keyword|text, string2:keyword|text, ?delim:keyword|text)"
 date now()
-"double|integer|long percentile(number:double|integer|long, percentile:double|integer|long)"
+"double percentile(number:double|integer|long, percentile:double|integer|long)"
 double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
 "keyword repeat(string:keyword|text, number:integer)"
@@ -81,7 +81,7 @@ double pi()
 "double st_y(point:geo_point|cartesian_point)"
 "boolean starts_with(str:keyword|text, prefix:keyword|text)"
 "keyword substring(string:keyword|text, start:integer, ?length:integer)"
-"long sum(number:double|integer|long)"
+"long|double sum(number:double|integer|long)"
 "double tan(angle:double|integer|long|unsigned_long)"
 "double tanh(angle:double|integer|long|unsigned_long)"
 double tau()
@@ -111,7 +111,7 @@ double tau()
 "keyword|text to_upper(str:keyword|text)"
 "version to_ver(field:keyword|text|version)"
 "version to_version(field:keyword|text|version)"
-"boolean|double|integer|long|date top(field:boolean|double|integer|long|date, limit:integer, order:keyword)"
+"boolean|double|integer|long|date|ip top(field:boolean|double|integer|long|date|ip, limit:integer, order:keyword)"
 "keyword|text trim(string:keyword|text)"
 "boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 "double weighted_avg(number:double|integer|long, weight:double|integer|long)"
@@ -139,8 +139,8 @@ coalesce      |first                               |"boolean|cartesian_point|car
 concat        |[string1, string2]                  |["keyword|text", "keyword|text"]                                                                                                  |[Strings to concatenate., Strings to concatenate.]
 cos           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 cosh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
-count         |field                               |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                                |Column or literal for which to count the number of values.
-count_distinct|[field, precision]                  |["boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version", integer]                                   |[Column or literal for which to count the number of distinct values., ]
+count         |field                               |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                                |Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows).
+count_distinct|[field, precision]                  |["boolean|date|double|integer|ip|keyword|long|text|version", "integer|long|unsigned_long"]                                        |[Column or literal for which to count the number of distinct values., Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000.]
 date_diff     |[unit, startTimestamp, endTimestamp]|["keyword|text", date, date]                                                                                                      |[Time difference unit, A string representing a start timestamp, A string representing an end timestamp]
 date_extract  |[datePart, date]                    |["keyword|text", date]                                                                                                            |[Part of the date to extract.  Can be: `aligned_day_of_week_in_month`\, `aligned_day_of_week_in_year`\, `aligned_week_of_month`\, `aligned_week_of_year`\, `ampm_of_day`\, `clock_hour_of_ampm`\, `clock_hour_of_day`\, `day_of_month`\, `day_of_week`\, `day_of_year`\, `epoch_day`\, `era`\, `hour_of_ampm`\, `hour_of_day`\, `instant_seconds`\, `micro_of_day`\, `micro_of_second`\, `milli_of_day`\, `milli_of_second`\, `minute_of_day`\, `minute_of_hour`\, `month_of_year`\, `nano_of_day`\, `nano_of_second`\, `offset_seconds`\, `proleptic_month`\, `second_of_day`\, `second_of_minute`\, `year`\, or `year_of_era`. Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField] for a description of these values.  If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
 date_format   |[dateFormat, date]                  |["keyword|text", date]                                                                                                            |[Date format (optional).  If no format is specified\, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used. If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
@@ -160,10 +160,10 @@ locate        |[string, substring, start]          |["keyword|text", "keyword|te
 log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
 log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 ltrim         |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
-max           |field                               |"boolean|double|integer|long|date"                                                                                                |[""]
+max           |field                               |"boolean|double|integer|long|date|ip"                                                                                             |[""]
 median        |number                              |"double|integer|long"                                                                                                             |[""]
 median_absolut|number                              |"double|integer|long"                                                                                                             |[""]
-min           |field                               |"boolean|double|integer|long|date"                                                                                                |[""]
+min           |field                               |"boolean|double|integer|long|date|ip"                                                                                             |[""]
 mv_append     |[field1, field2]                    |["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"]                 | ["", ""]
 mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[Multivalue expression., Delimiter.]
@@ -232,7 +232,7 @@ to_unsigned_lo|field                               |"boolean|date|keyword|text|d
 to_upper      |str                                 |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 to_ver        |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
 to_version    |field                               |"keyword|text|version"                                                                                                            |Input value. The input can be a single- or multi-valued column or an expression.
-top           |[field, limit, order]               |["boolean|double|integer|long|date", integer, keyword]                                                                            |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
+top           |[field, limit, order]               |["boolean|double|integer|long|date|ip", integer, keyword]                                                                         |[The field to collect the top values for.,The maximum number of values to collect.,The order to calculate the top values. Either `asc` or `desc`.]
 trim          |string                              |"keyword|text"                                                                                                                    |String expression. If `null`, the function returns `null`.
 values        |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |[""]
 weighted_avg  |[number, weight]                    |["double|integer|long", "double|integer|long"]                                                                                    |[A numeric value., A numeric weight.]
@@ -283,8 +283,8 @@ log           |Returns the logarithm of a value to a base. The input can be any 
 log10         |Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.  Logs of 0 and negative numbers return `null` as well as a warning.
 ltrim         |Removes leading whitespaces from a string.
 max           |The maximum value of a field.
-median        |The value that is greater than half of all values and less than half of all values.
-median_absolut|The median absolute deviation, a measure of variability.
+median        |The value that is greater than half of all values and less than half of all values, also known as the 50% <<esql-percentile>>.
+median_absolut|"Returns the median absolute deviation, a measure of variability. It is a robust statistic, meaning that it is useful for describing data that may have outliers, or may not be normally distributed. For such data it can be more descriptive than standard deviation.  It is calculated as the median of each data point's deviation from the median of the entire sample. That is, for a random variable `X`, the median absolute deviation is `median(|median(X) - X|)`."
 min           |The minimum value of a field.
 mv_append     |Concatenates values of two multi-value fields.
 mv_avg        |Converts a multivalued field into a single valued field containing the average of all of the values.
@@ -301,7 +301,7 @@ mv_sort       |Sorts a multivalued field in lexicographical order.
 mv_sum        |Converts a multivalued field into a single valued field containing the sum of all of the values.
 mv_zip        |Combines the values from two multivalued fields with a delimiter that joins them together.
 now           |Returns current date and time.
-percentile    |The value at which a certain percentage of observed values occur.
+percentile    |Returns the value at which a certain percentage of observed values occur. For example, the 95th percentile is the value which is greater than 95% of the observed values and the 50th percentile is the `MEDIAN`.
 pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.
 pow           |Returns the value of `base` raised to the power of `exponent`.
 repeat        |Returns a string constructed by concatenating `string` with itself the specified `number` of times.
@@ -314,7 +314,7 @@ sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric funct
 sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
 split         |Split a single valued string into multiple strings.
 sqrt          |Returns the square root of a number. The input can be any numeric value, the return value is always a double. Square roots of negative numbers and infinities are null.
-st_centroid_ag|The centroid of a spatial field.
+st_centroid_ag|Calculate the spatial centroid over a field with spatial point geometry type.
 st_contains   |Returns whether the first geometry contains the second geometry. This is the inverse of the <<esql-st_within,ST_WITHIN>> function.
 st_disjoint   |Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the <<esql-st_intersects,ST_INTERSECTS>> function. In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅
 st_distance   |Computes the distance between two points. For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates. For geographic geometries, this is the circular distance along the great circle in meters.
@@ -324,7 +324,7 @@ st_x          |Extracts the `x` coordinate from the supplied point. If the point
 st_y          |Extracts the `y` coordinate from the supplied point. If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.
 starts_with   |Returns a boolean that indicates whether a keyword string starts with another string.
 substring     |Returns a substring of a string, specified by a start position and an optional length.
-sum           |The sum of a numeric field.
+sum           |The sum of a numeric expression.
 tan           |Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.
 tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
 tau           |Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
@@ -356,7 +356,7 @@ to_ver        |Converts an input string to a version value.
 to_version    |Converts an input string to a version value.
 top           |Collects the top values for a field. Includes repeated values.
 trim          |Removes leading and trailing whitespaces from a string.
-values        |Collect values for a field.
+values        |Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. If you need the values returned in order use <<esql-mv_sort>>.
 weighted_avg  |The weighted average of a numeric field.
 ;
 
@@ -405,10 +405,10 @@ locate        |integer                                                          
 log           |double                                                                                                                      |[true, false]               |false           |false
 log10         |double                                                                                                                      |false                       |false           |false
 ltrim         |"keyword|text"                                                                                                              |false                       |false           |false
-max           |"boolean|double|integer|long|date"                                                                                          |false                       |false           |true
-median        |"double|integer|long"                                                                                                       |false                       |false           |true
-median_absolut|"double|integer|long"                                                                                                       |false                       |false           |true
-min           |"boolean|double|integer|long|date"                                                                                          |false                       |false           |true
+max           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
+median        |double                                                                                                                      |false                       |false           |true
+median_absolut|double                                                                                                                      |false                       |false           |true
+min           |"boolean|double|integer|long|date|ip"                                                                                       |false                       |false           |true
 mv_append     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |[false, false]              |false 		     |false
 mv_avg        |double                                                                                                                      |false                       |false           |false
 mv_concat     |keyword                                                                                                                     |[false, false]              |false           |false
@@ -424,7 +424,7 @@ mv_sort       |"boolean|date|double|integer|ip|keyword|long|text|version"       
 mv_sum        |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
 mv_zip        |keyword                                                                                                                     |[false, false, true]        |false           |false
 now           |date                                                                                                                        |null                        |false           |false
-percentile    |"double|integer|long"                                                                                                       |[false, false]              |false           |true
+percentile    |double                                                                                                                      |[false, false]              |false           |true
 pi            |double                                                                                                                      |null                        |false           |false
 pow           |double                                                                                                                      |[false, false]              |false           |false
 repeat        |keyword                                                                                                                     |[false, false]              |false           |false
@@ -447,7 +447,7 @@ st_x          |double                                                           
 st_y          |double                                                                                                                      |false                       |false           |false
 starts_with   |boolean                                                                                                                     |[false, false]              |false           |false
 substring     |keyword                                                                                                                     |[false, false, true]        |false           |false
-sum           |long                                                                                                                        |false                       |false           |true
+sum           |"long|double"                                                                                                               |false                       |false           |true
 tan           |double                                                                                                                      |false                       |false           |false
 tanh          |double                                                                                                                      |false                       |false           |false
 tau           |double                                                                                                                      |null                        |false           |false
@@ -477,7 +477,7 @@ to_unsigned_lo|unsigned_long                                                    
 to_upper      |"keyword|text"                                                                                                              |false                       |false           |false
 to_ver        |version                                                                                                                     |false                       |false           |false
 to_version    |version                                                                                                                     |false                       |false           |false
-top           |"boolean|double|integer|long|date"                                                                                          |[false, false, false]       |false           |true
+top           |"boolean|double|integer|long|date|ip"                                                                                       |[false, false, false]       |false           |true
 trim          |"keyword|text"                                                                                                              |false                       |false           |false
 values        |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |true
 weighted_avg  |"double"                                                                                                                    |[false, false]              |false           |true

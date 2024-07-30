@@ -223,7 +223,7 @@ public enum IndexMode {
             return true;
         }
     },
-    LOGS("logs") {
+    LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             IndexMode.validateTimeSeriesSettings(settings);
@@ -289,7 +289,7 @@ public enum IndexMode {
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
             if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("Indices with with index mode [logs] only support synthetic source");
+                throw new IllegalArgumentException("Indices with with index mode [" + IndexMode.LOGSDB + "] only support synthetic source");
             }
         }
 
@@ -473,7 +473,7 @@ public enum IndexMode {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
-            case "logs" -> IndexMode.LOGS;
+            case "logsdb" -> IndexMode.LOGSDB;
             default -> throw new IllegalArgumentException(
                 "["
                     + value

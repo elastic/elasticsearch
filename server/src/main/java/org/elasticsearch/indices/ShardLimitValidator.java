@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -296,7 +297,8 @@ public class ShardLimitValidator {
             + result.maxShardsInCluster
             + "] maximum "
             + result.group
-            + " shards open";
+            + " shards open; for more information, see "
+            + ReferenceDocs.MAX_SHARDS_PER_NODE;
     }
 
     /**

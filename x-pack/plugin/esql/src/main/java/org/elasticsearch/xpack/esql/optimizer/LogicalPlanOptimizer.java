@@ -371,9 +371,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
                         String tempName = locallyUniqueTemporaryName(a.name(), "temp_name");
-                        // TODO: this should be synthetic
-                        // blocked on https://github.com/elastic/elasticsearch/issues/98703
-                        return new Alias(a.source(), tempName, null, a, null, false);
+                        return new Alias(a.source(), tempName, null, a, null, true);
                     });
                     return renamedAttribute.toAttribute();
                 }

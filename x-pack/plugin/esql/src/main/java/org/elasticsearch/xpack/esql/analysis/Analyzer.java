@@ -1197,12 +1197,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
+            // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
+            // synthetic to work around a bug.
             String unionTypedFieldName = LogicalPlanOptimizer.rawTemporaryName(
                 fa.name(),
                 "converted_to",
                 resolvedField.getDataType().typeName()
             );
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parent(), unionTypedFieldName, resolvedField);
+            FieldAttribute unionFieldAttribute = new FieldAttribute(
+                fa.source(),
+                fa.parent(),
+                unionTypedFieldName,
+                resolvedField,
+                null,
+                Nullability.TRUE,
+                null,
+                true
+            );
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1274,9 +1285,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> newOutput = new ArrayList<>(output.size());
 
             for (Attribute attr : output) {
-                // TODO: this should really use .synthetic()
-                // https://github.com/elastic/elasticsearch/issues/105821
-                if (attr.name().startsWith(FieldAttribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
+                if (attr.synthetic() == false) {
                     newOutput.add(attr);
                 }
             }

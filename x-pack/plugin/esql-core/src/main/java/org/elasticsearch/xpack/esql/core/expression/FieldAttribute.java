@@ -29,8 +29,7 @@ import java.util.Objects;
  * - nestedParent - if nested, what's the parent (which might not be the immediate one)
  */
 public class FieldAttribute extends TypedAttribute {
-    // TODO: This constant should not be used if possible; use .synthetic()
-    // https://github.com/elastic/elasticsearch/issues/105821
+    @Deprecated()
     public static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -140,9 +139,9 @@ public class FieldAttribute extends TypedAttribute {
     public String fieldName() {
         // Before 8.15, the field name was the same as the attribute's name.
         // On later versions, the attribute can be renamed when creating synthetic attributes.
-        // TODO: We should use synthetic() to check for that case.
-        // https://github.com/elastic/elasticsearch/issues/105821
-        if (name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
+        // Because until 8.15, we couldn't set `synthetic` to true due to a bug, in that version such FieldAttributes are marked by their
+        // name starting with `$$`.
+        if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
             return name();
         }
         return Strings.hasText(path) ? path + "." + field.getName() : field.getName();

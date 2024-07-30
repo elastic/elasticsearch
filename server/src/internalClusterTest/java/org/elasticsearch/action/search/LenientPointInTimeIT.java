@@ -9,6 +9,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -17,16 +19,20 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
 public class LenientPointInTimeIT extends ESIntegTestCase {
 
-    public void testBasic() throws IOException {
+    public void testBasic() throws Exception {
         final String index = "my_test_index";
         createIndex(
             index,
@@ -53,7 +59,21 @@ public class LenientPointInTimeIT extends ESIntegTestCase {
                     assertHitCount(resp, numDocs);
                 }
             );
-            internalCluster().stopRandomDataNode();
+
+            final String randomDataNode = internalCluster().getNodeNameThat(
+                settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)
+            );
+
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", randomDataNode));
+            ensureGreen(index);
+
+            assertResponse(
+                prepareSearch().setQuery(new MatchAllQueryBuilder()),
+                resp -> {
+                    assertNotNull(resp.getHits().getTotalHits());
+                    assertThat(resp.getHits().getTotalHits().value, lessThan((long)numDocs));
+                }
+            );
 
             OpenPointInTimeResponse pointInTimeResponseOneNodeDown = openPointInTime(
                 new String[] { index },
@@ -64,6 +84,29 @@ public class LenientPointInTimeIT extends ESIntegTestCase {
                 assertThat(5, equalTo(pointInTimeResponseOneNodeDown.getSuccessfulShards()));
                 assertThat(5, equalTo(pointInTimeResponseOneNodeDown.getFailedShards()));
                 assertThat(0, equalTo(pointInTimeResponseOneNodeDown.getSkippedShards()));
+
+                assertResponse(
+                    prepareSearch().setQuery(new MatchAllQueryBuilder())
+                        .setPointInTime(new PointInTimeBuilder(pointInTimeResponseOneNodeDown.getPointInTimeId())),
+                    resp -> {
+                        assertThat(resp.pointInTimeId(), equalTo(pointInTimeResponseOneNodeDown.getPointInTimeId()));
+                        assertNotNull(resp.getHits().getTotalHits());
+                        assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                    }
+                );
+
+                for (int i = numDocs; i < numDocs * 2; i++) {
+                    String id = Integer.toString(i);
+                    prepareIndex(index).setId(id).setSource("value", i).get();
+                }
+
+                assertResponse(
+                    prepareSearch().setQuery(new MatchAllQueryBuilder()),
+                    resp -> {
+                        assertNotNull(resp.getHits().getTotalHits());
+                        assertThat(resp.getHits().getTotalHits().value, greaterThan((long)numDocs));
+                    }
+                );
 
                 assertResponse(
                     prepareSearch().setQuery(new MatchAllQueryBuilder())

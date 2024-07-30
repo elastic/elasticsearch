@@ -1153,7 +1153,12 @@ non string dimension fields:
         index: $idx0name
         expand_wildcards: hidden
   - match: { .$idx0name.mappings.properties.attributes.properties.string.type: 'keyword' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.string.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.attributes.properties.boolean.type: 'boolean' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.attributes.properties.integer.type: 'long' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.integer.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.attributes.properties.double.type: 'double' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.double.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.time_series_dimension: true }

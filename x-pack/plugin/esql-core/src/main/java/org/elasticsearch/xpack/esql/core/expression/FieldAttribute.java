@@ -107,18 +107,22 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)
-            && out instanceof PlanStreamOutput pso) {
-            Integer inCache = pso.fromCache(this);
-            if (inCache != null) {
-                out.writeBoolean(true);
-                out.writeInt(inCache);
+        assert out instanceof PlanStreamOutput;
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            Integer cacheId = ((PlanStreamOutput) out).fromAttributeCache(this);
+            if (cacheId != null) {
+                out.writeByte(PlanStreamOutput.CACHED);
+                out.writeZLong(cacheId);
                 return;
             }
 
-            Integer newCacheId = pso.addToCache(this);
-            out.writeBoolean(false);
-            out.writeInt(newCacheId);
+            cacheId = ((PlanStreamOutput) out).addToAttributeCache(this);
+            if (cacheId == null) {
+                out.writeByte(PlanStreamOutput.NO_CACHE);
+            } else {
+                out.writeByte(PlanStreamOutput.NEW);
+                out.writeZLong(cacheId);
+            }
         }
         Source.EMPTY.writeTo(out);
         out.writeOptionalWriteable(parent);
@@ -132,18 +136,26 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public static FieldAttribute readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)
-            && in instanceof PlanStreamInput psi) {
-            boolean inCache = in.readBoolean();
-            int cacheId = in.readInt();
-            if (inCache) {
-                return psi.attributeFromCache(cacheId);
-            }
-            FieldAttribute result = new FieldAttribute(in);
-            psi.toCache(result, cacheId);
-            return result;
+        assert in instanceof PlanStreamInput;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            byte cacheStatus = in.readByte();
+            return switch (cacheStatus) {
+                case PlanStreamOutput.NEW -> {
+                    int cacheId = Math.toIntExact(in.readZLong());
+                    FieldAttribute result = new FieldAttribute(in);
+                    ((PlanStreamInput) in).cacheAttribute(cacheId, result);
+                    yield result;
+                }
+                case PlanStreamOutput.CACHED -> {
+                    int cacheId = Math.toIntExact(in.readZLong());
+                    yield (FieldAttribute) ((PlanStreamInput) in).attributeFromCache(cacheId);
+                }
+                case PlanStreamOutput.NO_CACHE -> new FieldAttribute(in);
+                default -> throw new IllegalStateException("Invalid cache state for attribute: " + cacheStatus);
+            };
+        } else {
+            return new FieldAttribute(in);
         }
-        return new FieldAttribute(in);
     }
 
     @Override

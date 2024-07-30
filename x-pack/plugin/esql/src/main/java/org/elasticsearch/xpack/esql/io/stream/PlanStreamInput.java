@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -23,7 +24,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongFunction;
@@ -62,7 +62,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
 
-    private FieldAttribute[] fieldAttributes = new FieldAttribute[64];
+    private Attribute[] attributesCache = new Attribute[64];
 
     private final PlanNameRegistry registry;
 
@@ -211,16 +211,20 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         return nameIdFunction.apply(l);
     }
 
-    public FieldAttribute attributeFromCache(int id) {
-        assert fieldAttributes.length > id && fieldAttributes[id] != null;
-        return fieldAttributes[id];
+    @Override
+    public Attribute attributeFromCache(int id) {
+        if (attributesCache[id] == null) {
+            throw new IllegalArgumentException("Attribute ID not found in serialization cache [" + id + "]");
+        }
+        return attributesCache[id];
     }
 
-    public void toCache(FieldAttribute attr, int id) {
+    @Override
+    public void cacheAttribute(int id, Attribute attr) {
         // IDs are generated and serialized in ascending order
-        if (id >= fieldAttributes.length) {
-            fieldAttributes = Arrays.copyOf(fieldAttributes, fieldAttributes.length * 2);
+        if (id >= attributesCache.length) {
+            attributesCache = ArrayUtil.grow(attributesCache);
         }
-        fieldAttributes[id] = attr;
+        attributesCache[id] = attr;
     }
 }

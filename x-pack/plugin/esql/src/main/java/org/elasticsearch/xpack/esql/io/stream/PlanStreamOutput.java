@@ -19,7 +19,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -38,6 +38,13 @@ import java.util.function.Function;
 public final class PlanStreamOutput extends StreamOutput implements org.elasticsearch.xpack.esql.core.util.PlanStreamOutput {
 
     /**
+     * max number of attributes that can be cached for serialization
+     * <p>
+     * TODO should this be a cluster setting...?
+     */
+    private static final int MAX_ATTRIBUTE_CACHE_SIZE = 100_000;
+
+    /**
      * Cache of written blocks. We use an {@link IdentityHashMap} for this
      * because calculating the {@link Object#hashCode} of a {@link Block}
      * is slow. And so is {@link Object#equals}. So, instead we just use
@@ -53,7 +60,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      * in addition, multiple FieldAttributes can share the same parent field.
      * This cache allows to send each attribute only once; from the second occurrence, only an id will be sent
      */
-    protected final Map<FieldAttribute, Integer> cachedFieldAttributes = new IdentityHashMap<>();
+    protected final Map<Attribute, Integer> cachedFieldAttributes = new IdentityHashMap<>();
 
     private final StreamOutput delegate;
     private final PlanNameRegistry registry;
@@ -62,16 +69,19 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     private int nextCachedBlock = 0;
 
+    private int maxAttributeCacheSize;
+
     public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable EsqlConfiguration configuration)
         throws IOException {
-        this(delegate, registry, configuration, PlanNamedTypes::name);
+        this(delegate, registry, configuration, PlanNamedTypes::name, MAX_ATTRIBUTE_CACHE_SIZE);
     }
 
     public PlanStreamOutput(
         StreamOutput delegate,
         PlanNameRegistry registry,
         @Nullable EsqlConfiguration configuration,
-        Function<Class<?>, String> nameSupplier
+        Function<Class<?>, String> nameSupplier,
+        int maxAttributeCacheSize
     ) throws IOException {
         this.delegate = delegate;
         this.registry = registry;
@@ -83,6 +93,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
                 }
             }
         }
+        this.maxAttributeCacheSize = maxAttributeCacheSize;
     }
 
     public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
@@ -169,13 +180,20 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         nextCachedBlock++;
     }
 
-    public Integer fromCache(FieldAttribute attr) {
+    @Override
+    public Integer fromAttributeCache(Attribute attr) {
         return cachedFieldAttributes.get(attr);
     }
 
-    public Integer addToCache(FieldAttribute attr) {
-        assert cachedFieldAttributes.containsKey(attr) == false;
+    @Override
+    public Integer addToAttributeCache(Attribute attr) {
+        if (cachedFieldAttributes.containsKey(attr)) {
+            throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
+        }
         int id = cachedFieldAttributes.size();
+        if (id >= maxAttributeCacheSize) {
+            return null;
+        }
         cachedFieldAttributes.put(attr, id);
         return id;
     }

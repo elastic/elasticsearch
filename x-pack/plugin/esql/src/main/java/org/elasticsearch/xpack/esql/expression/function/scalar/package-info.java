@@ -191,10 +191,7 @@
  *         all in {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}. Add a new one
  *         for your function. Now add something like {@code required_capability: my_function}
  *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to double
- *         check that they run on the main branch. A spelling mistake here will disable them. Do:
- *         {@code ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ check} and open the test
- *         results and double check that your test ran. You can use a command like this to open
- *         the results: {@code firefox x-pack/plugin/esql/qa/server/single-node/build/reports/tests/javaRestTest/index.html}.
+ *         check that they run on the main branch.
  *     </li>
  *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn

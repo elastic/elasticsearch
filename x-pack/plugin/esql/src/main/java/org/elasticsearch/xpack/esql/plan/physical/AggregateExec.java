@@ -26,6 +26,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
      * The output attributes of {@link AggregatorMode#INITIAL} aggregations, resp.
      * the input attributes of {@link AggregatorMode#FINAL} aggregations.
      */
+    // TODO: For INTERMEDIATE, should the input attributes be the same as the output attributes? Currently, they are.
     private final List<Attribute> intermediateAttributes;
 
     private final AggregatorMode mode;
@@ -102,18 +103,12 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public List<Attribute> output() {
-        return switch (mode) {
-            case FINAL, SINGLE -> Aggregate.outputAttributes(aggregates);
-            case INITIAL, INTERMEDIATE -> intermediateAttributes;
-        };
+        return mode.isOutputPartial() ? intermediateAttributes : Aggregate.outputAttributes(aggregates);
     }
 
     @Override
     public AttributeSet requiredInputSet() {
-        return switch (mode) {
-            case INITIAL, SINGLE -> Aggregate.requiredInputAttributes(aggregates, groupings);
-            case FINAL, INTERMEDIATE -> new AttributeSet(intermediateAttributes);
-        };
+        return mode.isInputPartial() ? new AttributeSet(intermediateAttributes) : Aggregate.requiredInputAttributes(aggregates, groupings);
     }
 
     @Override

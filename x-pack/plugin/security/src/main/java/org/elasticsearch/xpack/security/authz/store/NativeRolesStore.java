@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -546,24 +548,13 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onResponse(null);
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else if (frozenSecurityIndex.areReservedRolesIndexed()) {
+            logger.debug("security index already contains the latest reserved roles indexed");
+            listener.onResponse(null);
         } else {
-            frozenSecurityIndex.checkIndexVersionThenExecute(
-                listener::onFailure,
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    ReservedRolesStore.roleDescriptors(),
-                    listener,
-                    (roles, innerListener) -> putRoles(
-                        frozenSecurityIndex,
-                        WriteRequest.RefreshPolicy.IMMEDIATE,
-                        ReservedRolesStore.roleDescriptors(),
-                        false,
-                        ActionListener.wrap(onResponse -> {
-
-                        }, innerListener::onFailure)
-                    )
-                )
+            indexReservedRoles(
+                frozenSecurityIndex,
+                ActionListener.wrap(onResponse -> frozenSecurityIndex.markReservedRolesAsIndexed(listener), listener::onFailure)
             );
         }
     }
@@ -574,6 +565,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         final ActionListener<BulkRolesResponse> listener
     ) {
         putRoles(securityIndex, refreshPolicy, roles, true, listener);
+    }
+
+    private void indexReservedRoles(SecurityIndexManager frozenSecurityIndex, ActionListener<Void> listener) {
+        putRoles(
+            frozenSecurityIndex,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ReservedRolesStore.roleDescriptors(),
+            false,
+            ActionListener.wrap(onResponse -> {
+                if (onResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
+                    logger.warn("Automatic indexing of builtin reserved roles failed, {}", onResponse);
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Automatic indexing of builtin reserved roles failed",
+                            RestStatus.INTERNAL_SERVER_ERROR
+                        )
+                    );
+                } else {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure)
+        );
     }
 
     private void putRoles(

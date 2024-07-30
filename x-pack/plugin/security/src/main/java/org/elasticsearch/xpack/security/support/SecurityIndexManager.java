@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -43,6 +44,9 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyAction;
+import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyRequest;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 
 import java.time.Instant;
@@ -58,10 +62,12 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 
 /**
@@ -71,7 +77,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 public class SecurityIndexManager implements ClusterStateListener {
 
     public static final String SECURITY_VERSION_STRING = "security-version";
-    private static final String METADATA_PROPERTY_FOR_INDEXED_BUILTIN_ROLES = "indexed-builtin-roles";
+    private static final String METADATA_PROPERTY_FOR_INDEXED_RESERVED_ROLES = "indexed-reserved-roles";
 
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 
@@ -291,18 +297,22 @@ public class SecurityIndexManager implements ClusterStateListener {
             : indexMetadata.getIndex().getName();
         final ClusterHealthStatus indexHealth;
         final IndexMetadata.State indexState;
+        final Map<String, String> indexedReservedRolesVersionMap;
         if (indexMetadata == null) {
             // Index does not exist
             indexState = null;
             indexHealth = null;
+            indexedReservedRolesVersionMap = null;
         } else if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             indexState = IndexMetadata.State.CLOSE;
             indexHealth = null;
+            indexedReservedRolesVersionMap = null;
             logger.warn("Index [{}] is closed. This is likely to prevent security from functioning correctly", concreteIndexName);
         } else {
             indexState = IndexMetadata.State.OPEN;
             final IndexRoutingTable routingTable = event.state().getRoutingTable().index(indexMetadata.getIndex());
             indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
+            indexedReservedRolesVersionMap = indexMetadata.getCustomData(METADATA_PROPERTY_FOR_INDEXED_RESERVED_ROLES);
         }
         final String indexUUID = indexMetadata != null ? indexMetadata.getIndexUUID() : null;
         final State newState = new State(
@@ -321,7 +331,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexUUID,
             allSecurityFeatures.stream()
                 .filter(feature -> featureService.clusterHasFeature(event.state(), feature))
-                .collect(Collectors.toSet())
+                .collect(Collectors.toSet()),
+            indexedReservedRolesVersionMap
         );
         this.state = newState;
 
@@ -480,6 +491,48 @@ public class SecurityIndexManager implements ClusterStateListener {
         return state.concreteIndexName;
     }
 
+    public boolean areReservedRolesIndexed() {
+        return areReservedRolesIndexed(state.indexedReservedRolesVersionMap);
+    }
+
+    private static boolean areReservedRolesIndexed(Map<String, String> reservedRolesVersionMap) {
+        if (reservedRolesVersionMap == null) {
+            return false;
+        }
+        Map<String, String> reservedRolesVersions = ReservedRolesStore.versionMap();
+        if (reservedRolesVersionMap.keySet().equals(reservedRolesVersions.keySet()) == false) {
+            return false;
+        }
+        for (String roleName : reservedRolesVersions.keySet()) {
+            if (Integer.parseInt(reservedRolesVersions.get(roleName)) > Integer.parseInt(reservedRolesVersionMap.get(roleName))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void markReservedRolesAsIndexed(ActionListener<Void> listener) {
+        executeAsyncWithOrigin(
+            client,
+            SECURITY_ORIGIN,
+            SetIndexMetadataPropertyAction.INSTANCE,
+            new SetIndexMetadataPropertyRequest(
+                TimeValue.MINUS_ONE,
+                SECURITY_MAIN_ALIAS,
+                METADATA_PROPERTY_FOR_INDEXED_RESERVED_ROLES,
+                state.indexedReservedRolesVersionMap,
+                ReservedRolesStore.versionMap()
+            ),
+            ActionListener.wrap(response -> {
+                if (areReservedRolesIndexed(response.value()) == false) {
+                    listener.onFailure(new IllegalStateException("Failed to mark reserved roles as indexed"));
+                } else {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure)
+        );
+    }
+
     /**
      * Prepares the index by creating it if it doesn't exist, then executes the runnable.
      * @param consumer a handler for any exceptions that are raised either during preparation or execution
@@ -627,7 +680,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             null,
             null,
             null,
-            Set.of()
+            Set.of(),
+            null
         );
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
@@ -645,6 +699,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final IndexMetadata.State indexState;
         public final String indexUUID;
         public final Set<NodeFeature> securityFeatures;
+        private final Map<String, String> indexedReservedRolesVersionMap;
 
         public State(
             Instant creationTime,
@@ -660,7 +715,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             ClusterHealthStatus indexHealth,
             IndexMetadata.State indexState,
             String indexUUID,
-            Set<NodeFeature> securityFeatures
+            Set<NodeFeature> securityFeatures,
+            Map<String, String> indexedReservedRolesVersionMap
         ) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
@@ -676,6 +732,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexState = indexState;
             this.indexUUID = indexUUID;
             this.securityFeatures = securityFeatures;
+            this.indexedReservedRolesVersionMap = indexedReservedRolesVersionMap;
         }
 
         @Override
@@ -695,7 +752,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && Objects.equals(concreteIndexName, state.concreteIndexName)
                 && indexHealth == state.indexHealth
                 && indexState == state.indexState
-                && Objects.equals(securityFeatures, state.securityFeatures);
+                && Objects.equals(securityFeatures, state.securityFeatures)
+                && Objects.equals(indexedReservedRolesVersionMap, state.indexedReservedRolesVersionMap);
         }
 
         public boolean indexExists() {
@@ -716,7 +774,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexMappingVersion,
                 concreteIndexName,
                 indexHealth,
-                securityFeatures
+                securityFeatures,
+                indexedReservedRolesVersionMap
             );
         }
     }

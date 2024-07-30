@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
@@ -40,6 +41,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
     /** "Security Solutions" only legacy signals index */
@@ -976,6 +978,18 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     public static Collection<RoleDescriptor> roleDescriptors() {
         return RESERVED_ROLES.values();
+    }
+
+    public static Map<String, String> versionMap() {
+        return ReservedRolesStore.roleDescriptors()
+            .stream()
+            .map(
+                roleDescriptor -> new Tuple<>(
+                    roleDescriptor.getName(),
+                    (String) roleDescriptor.getMetadata().get(MetadataUtils.RESERVED_ROLE_VERSION_METADATA_KEY)
+                )
+            )
+            .collect(toUnmodifiableMap(Tuple::v1, Tuple::v2));
     }
 
     public static Set<String> names() {

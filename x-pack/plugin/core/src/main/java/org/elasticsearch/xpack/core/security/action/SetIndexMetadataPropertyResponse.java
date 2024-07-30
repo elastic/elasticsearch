@@ -19,23 +19,23 @@ import static org.elasticsearch.xpack.core.security.action.SetIndexMetadataPrope
 import static org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyRequest.writeOptionalStringMap;
 
 public class SetIndexMetadataPropertyResponse extends ActionResponse {
-    private final String key;
     @Nullable
     private final Map<String, String> value;
 
-    public SetIndexMetadataPropertyResponse(String key, @Nullable Map<String, String> value) {
-        this.key = key;
+    public SetIndexMetadataPropertyResponse(@Nullable Map<String, String> value) {
         this.value = value;
     }
 
     public SetIndexMetadataPropertyResponse(StreamInput in) throws IOException {
-        key = in.readString();
         value = readOptionalStringMap(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(key);
         writeOptionalStringMap(value, out);
+    }
+
+    public @Nullable Map<String, String> value() {
+        return value;
     }
 }

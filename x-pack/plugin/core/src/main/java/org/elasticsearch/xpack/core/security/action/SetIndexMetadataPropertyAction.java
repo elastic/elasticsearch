@@ -145,7 +145,7 @@ public class SetIndexMetadataPropertyAction extends ActionType<SetIndexMetadataP
             }
 
             void success(Map<String, String> value) {
-                listener.onResponse(new SetIndexMetadataPropertyResponse(key, value));
+                listener.onResponse(new SetIndexMetadataPropertyResponse(value));
             }
 
             @Override
@@ -184,7 +184,7 @@ public class SetIndexMetadataPropertyAction extends ActionType<SetIndexMetadataP
                 );
             } else {
                 // returns existing value when expectation is not met
-                listener.onResponse(new SetIndexMetadataPropertyResponse(request.key(), existingValue));
+                listener.onResponse(new SetIndexMetadataPropertyResponse(existingValue));
             }
         }
 

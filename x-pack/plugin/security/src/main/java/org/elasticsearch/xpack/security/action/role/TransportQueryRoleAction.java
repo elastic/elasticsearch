@@ -88,12 +88,14 @@ public class TransportQueryRoleAction extends TransportAction<QueryRoleRequest, 
         if (accessesRoleName.get()) {
             searchSourceBuilder.runtimeMappings(ROLE_NAME_RUNTIME_MAPPING);
         }
-        nativeRolesStore.queryRoleDescriptors(
-            searchSourceBuilder,
-            ActionListener.wrap(
-                queryRoleResults -> listener.onResponse(new QueryRoleResponse(queryRoleResults.total(), queryRoleResults.items())),
-                listener::onFailure
-            )
-        );
+        nativeRolesStore.ensureBuiltinRolesAreQueriable(ActionListener.wrap(onResponse -> {
+            nativeRolesStore.queryRoleDescriptors(
+                searchSourceBuilder,
+                ActionListener.wrap(
+                    queryRoleResults -> listener.onResponse(new QueryRoleResponse(queryRoleResults.total(), queryRoleResults.items())),
+                    listener::onFailure
+                )
+            );
+        }, listener::onFailure));
     }
 }

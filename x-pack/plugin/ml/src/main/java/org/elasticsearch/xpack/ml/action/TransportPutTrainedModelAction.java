@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
@@ -188,6 +189,17 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     )
                 );
                 return;
+            }
+
+            if (licenseState.isAllowedByLicense(config.getInferenceConfig().getMinLicenseSupported()) == false) {
+                finalResponseListener.onFailure(
+                    new ElasticsearchSecurityException(
+                        "Model of type [{}] requires [{}] license level",
+                        RestStatus.FORBIDDEN,
+                        config.getInferenceConfig().getName(),
+                        config.getInferenceConfig().getMinLicenseSupported().description()
+                    )
+                );
             }
 
             TransportVersion minCompatibilityVersion = config.getModelDefinition().getTrainedModel().getMinimalCompatibilityVersion();

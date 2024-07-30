@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisMode;
@@ -116,7 +117,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.expand = settings.getAsBoolean("expand", true);
         this.format = settings.get("format", "");
         boolean updateable = settings.getAsBoolean("updateable", false);
-        this.lenient = settings.getAsBoolean("lenient", updateable);
+        this.lenient = settings.getAsBoolean(
+            "lenient",
+            indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.LENIENT_UPDATEABLE_SYNONYMS) && updateable
+        );
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;

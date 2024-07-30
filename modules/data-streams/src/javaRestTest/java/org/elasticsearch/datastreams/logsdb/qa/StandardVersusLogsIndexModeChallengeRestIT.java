@@ -48,6 +48,10 @@ import static org.hamcrest.Matchers.greaterThan;
  * This test uses simple mapping and document structure in order to allow easier debugging of the test itself.
  */
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
+    private final DataGenerator dataGenerator;
+    private final int numShards = randomBoolean() ? randomIntBetween(2, 5) : 0;
+    private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
+
     public StandardVersusLogsIndexModeChallengeRestIT() {
         super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
     }
@@ -138,25 +142,24 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         builder.endObject();
     }
 
-    protected void commonSettings(final Settings.Builder settings) {
-        if (randomBoolean()) {
-            settings.put("index.number_of_shards", randomIntBetween(2, 5));
+    @Override
+    public void commonSettings(Settings.Builder builder) {
+        if (numShards > 0) {
+            builder.put("index.number_of_shards", numShards);
         }
-        if (randomBoolean()) {
-            settings.put("index.number_of_replicas", randomIntBetween(1, 3));
+        if (numReplicas > 0) {
+            builder.put("index.number_of_replicas", numReplicas);
         }
+        builder.put("index.mapping.total_fields.limit", 5000);
     }
 
     @Override
     public void contenderSettings(Settings.Builder builder) {
         builder.put("index.mode", "logsdb");
-        commonSettings(builder);
     }
-
+  
     @Override
-    public void baselineSettings(Settings.Builder builder) {
-        commonSettings(builder);
-    }
+    public void baselineSettings(Settings.Builder builder) {}
 
     @Override
     public void beforeStart() throws Exception {
@@ -246,7 +249,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(0)
-            .aggregation(new TermsAggregationBuilder("agg").field("host.name"));
+            .aggregation(new TermsAggregationBuilder("agg").field("host.name").size(numberOfDocuments));
 
         final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())

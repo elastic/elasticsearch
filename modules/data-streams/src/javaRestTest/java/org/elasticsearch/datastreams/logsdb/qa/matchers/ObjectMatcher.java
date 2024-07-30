@@ -28,7 +28,13 @@ public class ObjectMatcher extends EqualMatcher<Object> {
         return actual.equals(expected)
             ? MatchResult.match()
             : MatchResult.noMatch(
-                formatErrorMessage(actualMappings, actualSettings, expectedMappings, expectedSettings, "Actual does not equal expected")
+                formatErrorMessage(
+                    actualMappings,
+                    actualSettings,
+                    expectedMappings,
+                    expectedSettings,
+                    "Actual does not equal expected, actual: " + actual + ", expected: " + expected
+                )
             );
     }
 }

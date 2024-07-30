@@ -10,8 +10,8 @@ import java.util.Map;
 
 public class MetadataUtils {
 
-    public static final String RESERVED_ROLE_VERSION_METADATA_KEY = "reserved_role_version";
     public static final String RESERVED_PREFIX = "_";
+    public static final String RESERVED_ROLE_VERSION_METADATA_KEY = RESERVED_PREFIX + "version";
     public static final String RESERVED_METADATA_KEY = RESERVED_PREFIX + "reserved";
     public static final String DEPRECATED_METADATA_KEY = RESERVED_PREFIX + "deprecated";
     public static final String DEPRECATED_REASON_METADATA_KEY = RESERVED_PREFIX + "deprecated_reason";
@@ -21,9 +21,13 @@ public class MetadataUtils {
     public static final String RESERVED_ROLE_VERSION_VALUE = "2";
     public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Map.of(
         RESERVED_METADATA_KEY,
-        true,
-        RESERVED_ROLE_VERSION_METADATA_KEY,
-        RESERVED_ROLE_VERSION_VALUE
+        true
+    );
+    public static final Map<String, Object> DEFAULT_RESERVED_ROLE_METADATA = Map.of(
+            RESERVED_METADATA_KEY,
+            true,
+            RESERVED_ROLE_VERSION_METADATA_KEY,
+            RESERVED_ROLE_VERSION_VALUE
     );
 
     private MetadataUtils() {}
@@ -44,9 +48,20 @@ public class MetadataUtils {
             DEPRECATED_METADATA_KEY,
             true,
             DEPRECATED_REASON_METADATA_KEY,
-            reason,
-            RESERVED_ROLE_VERSION_METADATA_KEY,
-            RESERVED_ROLE_VERSION_VALUE
+            reason
+        );
+    }
+
+    public static Map<String, Object> getDeprecatedReservedRoleMetadata(String reason) {
+        return Map.of(
+                RESERVED_METADATA_KEY,
+                true,
+                DEPRECATED_METADATA_KEY,
+                true,
+                DEPRECATED_REASON_METADATA_KEY,
+                reason,
+                RESERVED_ROLE_VERSION_METADATA_KEY,
+                RESERVED_ROLE_VERSION_VALUE
         );
     }
 }

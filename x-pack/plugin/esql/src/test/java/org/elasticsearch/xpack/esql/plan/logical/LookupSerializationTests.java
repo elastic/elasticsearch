@@ -34,7 +34,7 @@ public class LookupSerializationTests extends AbstractLogicalPlanSerializationTe
 
     @Override
     protected Lookup mutateInstance(Lookup instance) throws IOException {
-        Source source = randomSource();
+        Source source = instance.source();
         LogicalPlan child = instance.child();
         Expression tableName = instance.tableName();
         List<Attribute> matchFields = instance.matchFields();

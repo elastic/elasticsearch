@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.AbstractEsFieldTypeTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribute> {
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {
@@ -22,7 +21,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         FieldAttribute parent = maxDepth == 0 || randomBoolean() ? null : createFieldAttribute(maxDepth - 1, onlyRepresentable);
         String name = randomAlphaOfLength(5);
         DataType type = onlyRepresentable
-            ? randomValueOtherThanMany(t -> false == EsqlDataTypes.isRepresentable(t), () -> randomFrom(DataType.types()))
+            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), () -> randomFrom(DataType.types()))
             : randomFrom(DataType.types());
         EsField field = AbstractEsFieldTypeTests.randomAnyEsField(maxDepth);
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);

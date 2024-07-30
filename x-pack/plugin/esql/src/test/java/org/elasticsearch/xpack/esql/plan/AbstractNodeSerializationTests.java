@@ -37,9 +37,10 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
 
     public static Source randomSource() {
         int lineNumber = between(0, EXAMPLE_QUERY.length - 1);
-        int offset = between(0, EXAMPLE_QUERY[lineNumber].length() - 2);
-        int length = between(1, EXAMPLE_QUERY[lineNumber].length() - offset - 1);
-        String text = EXAMPLE_QUERY[lineNumber].substring(offset, offset + length);
+        String line = EXAMPLE_QUERY[lineNumber];
+        int offset = between(0, line.length() - 2);
+        int length = between(1, line.length() - offset - 1);
+        String text = line.substring(offset, offset + length);
         return new Source(lineNumber + 1, offset, text);
     }
 

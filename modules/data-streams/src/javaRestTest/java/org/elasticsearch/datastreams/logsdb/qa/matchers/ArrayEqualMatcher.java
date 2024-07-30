@@ -47,7 +47,7 @@ class ArrayEqualMatcher extends EqualMatcher<Object[]> {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Arrays do not match when ignoreing sort order"
+                        "Arrays do not match when ignoring sort order"
                     )
                 );
         } else {

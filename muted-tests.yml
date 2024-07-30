@@ -149,6 +149,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111434
+- class: org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.AzureSnapshotBasedRecoveryIT
+  method: testRecoveryUsingSnapshots
+  issue: https://github.com/elastic/elasticsearch/issues/111377
 
 # Examples:
 #

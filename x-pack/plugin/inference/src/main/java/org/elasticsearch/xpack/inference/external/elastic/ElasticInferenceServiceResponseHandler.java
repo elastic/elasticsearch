@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.elastic;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -44,6 +45,8 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
             throw new RetryException(false, buildError(BAD_REQUEST, request, result));
         } else if (statusCode == 405) {
             throw new RetryException(false, buildError(METHOD_NOT_ALLOWED, request, result));
+        } else if (statusCode == 413) {
+            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
         }
 
         throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));

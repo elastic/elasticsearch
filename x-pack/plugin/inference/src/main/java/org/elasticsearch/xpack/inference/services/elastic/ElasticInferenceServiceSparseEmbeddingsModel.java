@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.inference.services.elser.ElserModels;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 //TODO: test
@@ -104,24 +107,17 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     }
 
     private URI createUri() throws URISyntaxException {
-        // TODO: use URI builder here
-        String modelId = getServiceSettings().modelId();
-        String modelIdUriPath;
+        URIBuilder uriBuilder = new URIBuilder(elasticInferenceServiceComponents().eisGatewayUrl());
+        List<String> pathSegments = new ArrayList<>(uriBuilder.getPathSegments());
+        pathSegments.add("sparse-text-embedding");
 
+        String modelId = getServiceSettings().modelId();
         switch (modelId) {
-            case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
+            case ElserModels.ELSER_V2_MODEL -> pathSegments.add("ELSERv2");
             default -> throw new IllegalArgumentException("Unsupported model for EIS [" + modelId + "]");
         }
 
-        return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/sparse-text-embedding/" + modelIdUriPath);
-    }
-
-    // Needed for testing only
-    public void setUri(String newUri) {
-        try {
-            this.uri = new URI(newUri);
-        } catch (URISyntaxException e) {
-            // swallow any error
-        }
+        uriBuilder.setPathSegments(pathSegments);
+        return uriBuilder.build();
     }
 }

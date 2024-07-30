@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
 import org.junit.After;
 import org.junit.Before;
@@ -77,22 +76,24 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             sender.start();
 
             String responseJson = """
-                [
-                    {
-                        ".": 0.133155956864357
-                    }
-                ]
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
+                    ]
+                }
                 """;
-            // TODO: fix this, webServer is returning a null response
+
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
-            model.setUri(getUrl(webServer));
             var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new DocumentsOnlyInput(List.of("hello world")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -100,23 +101,22 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
                 result.asMap(),
                 is(
                     SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
-                        List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))
+                        List.of(
+                            new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hello", 2.1259406f, "greet", 1.7073475f), false)
+                        )
                     )
                 )
             );
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
-            assertThat(requestMap.get("inputs"), instanceOf(List.class));
-            var inputList = (List<String>) requestMap.get("inputs");
-            assertThat(inputList, contains("abc"));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world"));
         }
     }
 
@@ -133,50 +133,42 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.start();
 
+            // This will fail because the expected output is {"data": [{...}]}
             String responseJson = """
-                [
-                  {
-                    "predictions": [
-                      [
-                        [
-                          ".",
-                          ".",
-                          0.133155956864357
-                        ]
-                      ]
-                    ]
-                  }
-                ]
+                {
+                    "data": {
+                        "hello": 2.1259406
+                    }
+                }
                 """;
-            // TODO: fix this, webServer is returning a null response
+
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
-            model.setUri(getUrl(webServer));
             var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new DocumentsOnlyInput(List.of("hello world")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse object: expecting token of type [START_OBJECT] but found [START_ARRAY]")
+                is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
             );
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+                equalTo(XContentType.JSON.mediaType())
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
-            assertThat(requestMap.get("inputs"), instanceOf(List.class));
-            var inputList = (List<String>) requestMap.get("inputs");
-            assertThat(inputList, contains("abc"));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world"));
         }
     }
 
@@ -188,59 +180,61 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             String responseJsonContentTooLarge = """
                 {
-                    "error": "Input validation error: `inputs` must have less than 512 tokens. Given: 571",
+                    "error": "Input validation error: `input` must have less than 512 tokens. Given: 571",
                     "error_type": "Validation"
                 }
                 """;
 
             String responseJson = """
                 {
-                    "embeddings": [
-                        [
-                            -0.0123,
-                            0.123
-                        ]
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
                     ]
-                {
+                }
                 """;
-            // TODO: fix this, webServer is returning a null response
+
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
-            model.setUri(getUrl(webServer));
             var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new DocumentsOnlyInput(List.of("hello world")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F }))));
+            assertThat(
+                result.asMap(),
+                is(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
+                        List.of(
+                            new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hello", 2.1259406f, "greet", 1.7073475f), true)
+                        )
+                    )
+                )
+            );
 
             assertThat(webServer.requests(), hasSize(2));
             {
                 assertNull(webServer.requests().get(0).getUri().getQuery());
-                assertThat(
-                    webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                    equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-                );
+                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
                 var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
-                var initialInputs = initialRequestAsMap.get("inputs");
-                assertThat(initialInputs, is(List.of("abcd")));
+                var initialInputs = initialRequestAsMap.get("input");
+                assertThat(initialInputs, is(List.of("hello world")));
             }
             {
                 assertNull(webServer.requests().get(1).getUri().getQuery());
-                assertThat(
-                    webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE),
-                    equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-                );
+                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
                 var truncatedRequest = entityAsMap(webServer.requests().get(1).getBody());
-                var truncatedInputs = truncatedRequest.get("inputs");
-                assertThat(truncatedInputs, is(List.of("ab")));
+                var truncatedInputs = truncatedRequest.get("input");
+                assertThat(truncatedInputs, is(List.of("hello")));
             }
         }
     }
@@ -253,41 +247,45 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "embeddings": [
-                        [
-                            -0.0123,
-                            0.123
-                        ]
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
                     ]
-                {
+                }
                 """;
-            // TODO: fix this, webServer is returning a null response
+
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // truncated to 1 token = 3 characters
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), 1);
-            model.setUri(getUrl(webServer));
             var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("123456")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new DocumentsOnlyInput(List.of("hello world")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F }))));
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+                result.asMap(),
+                is(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
+                        List.of(
+                            new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hello", 2.1259406f, "greet", 1.7073475f), true)
+                        )
+                    )
+                )
             );
 
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+
             var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
-            var initialInputs = initialRequestAsMap.get("inputs");
-            assertThat(initialInputs, is(List.of("123")));
+            var initialInputs = initialRequestAsMap.get("input");
+            assertThat(initialInputs, is(List.of("hel")));
         }
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.hamcrest.MatcherAssert;
@@ -53,6 +54,16 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
             containsString("Received a method not allowed status code for request from inference entity id [id] status [405]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.METHOD_NOT_ALLOWED));
+    }
+
+    public void testCheckForFailureStatusCode_ThrowsFor413() {
+        var exception = expectThrows(ContentTooLargeException.class, () -> callCheckForFailureStatusCode(413, "id"));
+        assertTrue(exception.shouldRetry());
+        MatcherAssert.assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received a content too large status code for request from inference entity id [id] status [413]")
+        );
+        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {

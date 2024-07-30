@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public final class PhysicalVerifier {
 
     public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
-    private static final OptimizerRules.DependencyConsistency<PhysicalPlan> DEPENDENCY_CHECK = new DependencyConsistency<>();
+    private static final DependencyConsistency<PhysicalPlan> DEPENDENCY_CHECK = new DependencyConsistency<>();
 
     private PhysicalVerifier() {}
 

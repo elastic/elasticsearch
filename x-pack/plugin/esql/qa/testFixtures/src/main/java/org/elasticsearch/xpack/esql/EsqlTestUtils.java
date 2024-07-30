@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.junit.Assert;
@@ -234,7 +233,7 @@ public final class EsqlTestUtils {
 
     public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
+    public static final Verifier TEST_VERIFIER = new Verifier();
 
     private EsqlTestUtils() {}
 

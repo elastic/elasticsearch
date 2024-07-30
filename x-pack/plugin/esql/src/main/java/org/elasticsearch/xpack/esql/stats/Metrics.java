@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.stats;
 
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
 import java.util.Collections;
@@ -36,10 +38,19 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
-    protected static String QPREFIX = "queries.";
-    protected static String FPREFIX = "features.";
 
-    public Metrics() {
+    // AMP counters
+    private final LongCounter featuresCounter;
+    private final LongCounter functionsCounter;
+
+    public static String QPREFIX = "queries.";
+    public static String FEATURES_PREFIX = "features.";
+    public static String FUNCTIONS_PREFIX = "functions.";
+    public static final String FEATURE_METRICS = "es.esql." + FEATURES_PREFIX + "total";
+    public static final String FUNCTION_METRICS = "es.esql." + FUNCTIONS_PREFIX + "total";
+    public static final String FEATURE_NAME = "feature_name";
+
+    public Metrics(MeterRegistry meterRegistry) {
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
             Map<OperationType, CounterMetric> metricsMap = Maps.newLinkedHashMapWithExpectedSize(OperationType.values().length);
@@ -56,6 +67,8 @@ public class Metrics {
             fMap.put(featureMetric, new CounterMetric());
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
+        featuresCounter = meterRegistry.registerLongCounter(FEATURE_METRICS, "ESQL features, total usage", "unit");
+        functionsCounter = meterRegistry.registerLongCounter(FUNCTION_METRICS, "ESQL functions, total usage", "unit");
     }
 
     /**
@@ -81,6 +94,14 @@ public class Metrics {
         this.featuresMetrics.get(metric).inc();
     }
 
+    public void incCommand(String name, int count) {
+        this.featuresCounter.incrementBy(count, Map.of(FEATURE_NAME, name));
+    }
+
+    public void incFunction(String name, int count) {
+        this.functionsCounter.incrementBy(count, Map.of(FEATURE_NAME, name));
+    }
+
     public Counters stats() {
         Counters counters = new Counters();
 
@@ -99,7 +120,7 @@ public class Metrics {
 
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
-            counters.inc(FPREFIX + entry.getKey().toString(), entry.getValue().count());
+            counters.inc(FEATURES_PREFIX + entry.getKey().toString(), entry.getValue().count());
         }
 
         return counters;

@@ -1,0 +1,5 @@
+pr: 111226
+summary: "ES|QL: add Telemetry API and track top functions"
+area: ES|QL
+type: enhancement
+issues: []

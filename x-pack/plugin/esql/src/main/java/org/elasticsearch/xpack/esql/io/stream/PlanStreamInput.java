@@ -217,7 +217,8 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     public void toCache(FieldAttribute attr, int id) {
-        while (id >= fieldAttributes.length) {
+        // IDs are generated and serialized in ascending order
+        if (id >= fieldAttributes.length) {
             fieldAttributes = Arrays.copyOf(fieldAttributes, fieldAttributes.length * 2);
         }
         fieldAttributes[id] = attr;

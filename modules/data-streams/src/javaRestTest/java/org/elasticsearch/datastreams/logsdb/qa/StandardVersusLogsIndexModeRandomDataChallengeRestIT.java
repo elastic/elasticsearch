@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.logsdb.qa;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
@@ -90,11 +89,6 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
             builder.field("subobjects", false);
             builder.endObject();
         }
-    }
-
-    @Override
-    protected void commonSettings(final Settings.Builder settings) {
-        settings.put("index.mapping.total_fields.limit", 5000);
     }
 
     @Override

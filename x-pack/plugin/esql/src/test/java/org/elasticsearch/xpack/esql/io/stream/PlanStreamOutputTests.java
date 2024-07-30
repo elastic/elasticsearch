@@ -120,15 +120,17 @@ public class PlanStreamOutputTests extends ESTestCase {
         }
     }
 
-    public void testWriteFieldAttributeTwice() throws IOException {
+    public void testWriteFieldAttributeMultipleTimes() throws IOException {
         FieldAttribute fa = PlanNamedTypesTests.randomFieldAttribute();
         EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
         ) {
-            planStream.writeNamedWriteable(fa);
-            planStream.writeNamedWriteable(fa);
+            int occurrences = randomIntBetween(2, 150);
+            for (int i = 0; i < occurrences; i++) {
+                planStream.writeNamedWriteable(fa);
+            }
             int depth = 0;
             FieldAttribute parent = fa;
             while (parent != null) {
@@ -138,9 +140,10 @@ public class PlanStreamOutputTests extends ESTestCase {
             assertThat(planStream.cachedFieldAttributes.size(), is(depth));
             try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
                 FieldAttribute first = (FieldAttribute) in.readNamedWriteable(Attribute.class);
-                FieldAttribute second = (FieldAttribute) in.readNamedWriteable(Attribute.class);
-                assertThat(first, sameInstance(second));
-
+                for (int i = 1; i < occurrences; i++) {
+                    FieldAttribute next = (FieldAttribute) in.readNamedWriteable(Attribute.class);
+                    assertThat(first, sameInstance(next));
+                }
                 for (int i = 0; i < depth; i++) {
                     assertThat(first, equalTo(fa));
                     first = first.parent();
@@ -150,7 +153,42 @@ public class PlanStreamOutputTests extends ESTestCase {
                 assertThat(fa, is(nullValue()));
             }
         }
+    }
 
+    public void testWriteMultipleFieldAttributes() throws IOException {
+        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        try (
+            BytesStreamOutput out = new BytesStreamOutput();
+            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
+        ) {
+            List<FieldAttribute> attrs = new ArrayList<>();
+            int occurrences = randomIntBetween(2, 300);
+            for (int i = 0; i < occurrences; i++) {
+                attrs.add(PlanNamedTypesTests.randomFieldAttribute());
+            }
+
+            // send all the attributes, three times
+            for (int i = 0; i < 3; i++) {
+                for (FieldAttribute attr : attrs) {
+                    planStream.writeNamedWriteable(attr);
+                }
+            }
+
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+                List<FieldAttribute> readAttrs = new ArrayList<>();
+                for (int i = 0; i < occurrences; i++) {
+                    readAttrs.add((FieldAttribute) in.readNamedWriteable(Attribute.class));
+                    assertThat(readAttrs.get(i), equalTo(attrs.get(i)));
+                }
+                // two more times
+                for (int i = 0; i < 2; i++) {
+                    for (int j = 0; j < occurrences; j++) {
+                        FieldAttribute attr = (FieldAttribute) in.readNamedWriteable(Attribute.class);
+                        assertThat(attr, sameInstance(readAttrs.get(j)));
+                    }
+                }
+            }
+        }
     }
 
     private EsqlConfiguration randomConfiguration(Map<String, Map<String, Column>> tables) {
@@ -174,6 +212,7 @@ public class PlanStreamOutputTests extends ESTestCase {
     );
 
     private static final NamedWriteableRegistry REGISTRY;
+
     static {
         List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
         writeables.addAll(Block.getNamedWriteables());

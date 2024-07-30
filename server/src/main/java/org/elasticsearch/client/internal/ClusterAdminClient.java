@@ -290,6 +290,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(TransportClusterSearchShardsAction.TYPE, request, listener);
     }
 
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices) {
         return new ClusterSearchShardsRequestBuilder(this).setIndices(indices);
     }
@@ -476,6 +477,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new SimulatePipelineRequestBuilder(this, source, xContentType);
     }
 
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public PutStoredScriptRequestBuilder preparePutStoredScript() {
         return new PutStoredScriptRequestBuilder(this);
     }
@@ -484,15 +486,16 @@ public class ClusterAdminClient implements ElasticsearchClient {
         execute(TransportDeleteStoredScriptAction.TYPE, request, listener);
     }
 
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
         return new DeleteStoredScriptRequestBuilder(client).setId(id);
     }
 
     public void putStoredScript(final PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
         execute(TransportPutStoredScriptAction.TYPE, request, listener);
-
     }
 
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public GetStoredScriptRequestBuilder prepareGetStoredScript(String id) {
         return new GetStoredScriptRequestBuilder(this).setId(id);
     }

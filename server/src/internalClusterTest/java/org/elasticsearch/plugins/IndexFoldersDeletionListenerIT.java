@@ -104,7 +104,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
                     plugin.deletedIndices.contains(index)
                 );
 
-                final List<ShardId> deletedShards = plugin.deletedShards.get(index);
+                final Set<ShardId> deletedShards = plugin.deletedShards.get(index);
                 assertThat(deletedShards, notNullValue());
                 assertFalse(
                     "Listener should have been notified of deletion of one or more shards on node " + nodeName,
@@ -175,7 +175,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
                         plugin.deletedIndices.contains(index)
                     );
 
-                    final List<ShardId> deletedShards = plugin.deletedShards.get(index);
+                    final Set<ShardId> deletedShards = plugin.deletedShards.get(index);
                     assertThat(deletedShards, notNullValue());
                     assertFalse(
                         "Listener should have been notified of deletion of one or more shards on node " + nodeName,
@@ -338,7 +338,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
     public static class IndexFoldersDeletionListenerPlugin extends Plugin implements IndexStorePlugin {
 
         final Set<Index> deletedIndices = ConcurrentCollections.newConcurrentSet();
-        final Map<Index, List<ShardId>> deletedShards = ConcurrentCollections.newConcurrentMap();
+        final Map<Index, Set<ShardId>> deletedShards = ConcurrentCollections.newConcurrentMap();
 
         @Override
         public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
@@ -350,7 +350,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
                 @Override
                 public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
-                    deletedShards.computeIfAbsent(shardId.getIndex(), i -> new ArrayList<>()).add(shardId);
+                    deletedShards.computeIfAbsent(shardId.getIndex(), i -> ConcurrentCollections.newConcurrentSet()).add(shardId);
                 }
             });
         }

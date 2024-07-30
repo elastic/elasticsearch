@@ -128,15 +128,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithCodeFlowAndClientPost
   issue: https://github.com/elastic/elasticsearch/issues/111396
-- class: org.elasticsearch.xpack.searchablesnapshots.AzureSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/111279
-- class: org.elasticsearch.repositories.azure.RepositoryAzureClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/111345
-- class: org.elasticsearch.repositories.blobstore.testkit.AzureSnapshotRepoTestKitIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/111280
-- class: org.elasticsearch.xpack.repositories.metering.azure.AzureRepositoriesMeteringIT
-  issue: https://github.com/elastic/elasticsearch/issues/111307
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
   method: testGroupingAggregate {TestCase=<long unicode TEXTs>}
   issue: https://github.com/elastic/elasticsearch/issues/111429

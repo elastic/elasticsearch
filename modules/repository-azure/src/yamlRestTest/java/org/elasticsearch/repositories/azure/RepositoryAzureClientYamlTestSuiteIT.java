@@ -24,6 +24,8 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.function.Predicate;
+
 public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
     private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");
@@ -41,11 +43,18 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
         AZURE_TEST_CLIENT_ID,
-        // TODO
-        Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
-            ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
-            : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
+        decideAuthHeaderPredicate()
     );
+
+    private static Predicate<String> decideAuthHeaderPredicate() {
+        if (Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)) {
+            return AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT);
+        } else if (Strings.hasText(AZURE_TEST_TENANT_ID) && Strings.hasText(AZURE_TEST_CLIENT_ID)) {
+            return AzureHttpFixture.WORK_IDENTITY_BEARER_TOKEN_PREDICATE;
+        } else {
+            return AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE;
+        }
+    }
 
     private static TestTrustStore trustStore = new TestTrustStore(
         () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")

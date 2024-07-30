@@ -604,9 +604,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (argumentCount > 3) {
             throw new IllegalArgumentException("would generate too many combinations");
         }
-        Stream<List<DataType>> stream = representable().map(t -> List.of(t));
+        Stream<List<DataType>> stream = DataType.validFunctionParameters().map(t -> List.of(t));
         for (int i = 1; i < argumentCount; i++) {
-            stream = stream.flatMap(types -> representable().map(t -> append(types, t)));
+            stream = stream.flatMap(types -> DataType.validFunctionParameters().map(t -> append(types, t)));
         }
         return stream;
     }
@@ -696,9 +696,5 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
         String name = types.get(badArgPosition).typeName();
         return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
-    }
-
-    protected static Stream<DataType> representable() {
-        return DataType.types().stream().filter(DataType::isRepresentable);
     }
 }

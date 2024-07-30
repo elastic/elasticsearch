@@ -19,7 +19,7 @@ synopsis:keyword
 "double cos(angle:double|integer|long|unsigned_long)"
 "double cosh(angle:double|integer|long|unsigned_long)"
 "long count(?field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
-"long count_distinct(field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version, ?precision:integer)"
+"long count_distinct(field:boolean|date|double|integer|ip|keyword|long|text|version, ?precision:integer|long|unsigned_long)"
 "integer date_diff(unit:keyword|text, startTimestamp:date, endTimestamp:date)"
 "long date_extract(datePart:keyword|text, date:date)"
 "keyword date_format(?dateFormat:keyword|text, date:date)"
@@ -139,8 +139,8 @@ coalesce      |first                               |"boolean|cartesian_point|car
 concat        |[string1, string2]                  |["keyword|text", "keyword|text"]                                                                                                  |[Strings to concatenate., Strings to concatenate.]
 cos           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 cosh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
-count         |field                               |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                                |Column or literal for which to count the number of values.
-count_distinct|[field, precision]                  |["boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version", integer]                                   |[Column or literal for which to count the number of distinct values., ]
+count         |field                               |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                                |Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows).
+count_distinct|[field, precision]                  |["boolean|date|double|integer|ip|keyword|long|text|version", "integer|long|unsigned_long"]                                        |[Column or literal for which to count the number of distinct values., Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000.]
 date_diff     |[unit, startTimestamp, endTimestamp]|["keyword|text", date, date]                                                                                                      |[Time difference unit, A string representing a start timestamp, A string representing an end timestamp]
 date_extract  |[datePart, date]                    |["keyword|text", date]                                                                                                            |[Part of the date to extract.  Can be: `aligned_day_of_week_in_month`\, `aligned_day_of_week_in_year`\, `aligned_week_of_month`\, `aligned_week_of_year`\, `ampm_of_day`\, `clock_hour_of_ampm`\, `clock_hour_of_day`\, `day_of_month`\, `day_of_week`\, `day_of_year`\, `epoch_day`\, `era`\, `hour_of_ampm`\, `hour_of_day`\, `instant_seconds`\, `micro_of_day`\, `micro_of_second`\, `milli_of_day`\, `milli_of_second`\, `minute_of_day`\, `minute_of_hour`\, `month_of_year`\, `nano_of_day`\, `nano_of_second`\, `offset_seconds`\, `proleptic_month`\, `second_of_day`\, `second_of_minute`\, `year`\, or `year_of_era`. Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField] for a description of these values.  If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
 date_format   |[dateFormat, date]                  |["keyword|text", date]                                                                                                            |[Date format (optional).  If no format is specified\, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used. If `null`\, the function returns `null`., Date expression. If `null`\, the function returns `null`.]
@@ -356,7 +356,7 @@ to_ver        |Converts an input string to a version value.
 to_version    |Converts an input string to a version value.
 top           |Collects the top values for a field. Includes repeated values.
 trim          |Removes leading and trailing whitespaces from a string.
-values        |Collect values for a field.
+values        |Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. If you need the values returned in order use <<esql-mv_sort>>.
 weighted_avg  |The weighted average of a numeric field.
 ;
 

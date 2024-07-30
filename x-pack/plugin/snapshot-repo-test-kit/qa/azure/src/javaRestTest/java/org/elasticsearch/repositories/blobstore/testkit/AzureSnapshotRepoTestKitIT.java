@@ -11,6 +11,7 @@ import fixture.azure.AzureHttpFixture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
@@ -31,7 +32,9 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
     private static final String AZURE_TEST_TENANT_ID = System.getProperty("test.azure.tenant_id");
     private static final String AZURE_TEST_CLIENT_ID = System.getProperty("test.azure.client_id");
     private static final AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
+        USE_FIXTURE
+            ? ESTestCase.inFipsJvm() ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.HTTPS
+            : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
@@ -80,7 +83,11 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             () -> fixture.getFederatedTokenPath().toString(),
             s -> USE_FIXTURE && notNullOrEmpty(AZURE_TEST_CLIENT_ID) && notNullOrEmpty(AZURE_TEST_TENANT_ID)
         )
-        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
+        .systemProperty(
+            "javax.net.ssl.trustStore",
+            () -> trustStore.getTrustStorePath().toString(),
+            s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
+        )
         .build();
 
     @ClassRule(order = 1)

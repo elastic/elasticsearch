@@ -11,13 +11,10 @@ package fixture.azure;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -61,27 +58,5 @@ public class AzureMetadataServiceHttpHandler implements HttpHandler {
         exchange.sendResponseHeaders(200, responseBytes.length);
         new BytesArray(responseBytes).writeTo(exchange.getResponseBody());
         exchange.close();
-    }
-
-    private void writeResponse(HttpExchange exchange, BytesReference responseBytes) throws IOException {
-        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-        exchange.sendResponseHeaders(200, responseBytes.length());
-        responseBytes.writeTo(exchange.getResponseBody());
-    }
-
-    private BytesReference getAccessTokenBytes(XContentBuilder xcb) throws IOException {
-        final var nowSeconds = System.currentTimeMillis() / 1000L;
-        final var validitySeconds = 86400L;
-        xcb.startObject();
-        xcb.field("access_token", bearerToken);
-        xcb.field("client_id", UUIDs.randomBase64UUID());
-        xcb.field("expires_in", Long.toString(validitySeconds));
-        xcb.field("expires_on", Long.toString(nowSeconds + validitySeconds));
-        xcb.field("ext_expires_in", Long.toString(validitySeconds));
-        xcb.field("not_before", Long.toString(nowSeconds));
-        xcb.field("resource", "https://storage.azure.com");
-        xcb.field("token_type", "Bearer");
-        xcb.endObject();
-        return BytesReference.bytes(xcb);
     }
 }

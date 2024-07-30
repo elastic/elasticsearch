@@ -68,6 +68,7 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -495,11 +496,72 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         });
+        final SearchSourceBuilder source = original.source();
+        if (shouldOpenPIT(source)) {
+            openPIT(client, original, searchService.getDefaultKeepAliveInMillis(), listener.delegateFailureAndWrap((delegate, resp) -> {
+                // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
+                // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
+                source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
+                executeRequest(task, original, new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchResponse response) {
+                        // we need to close the PIT first so we delay the release of the response to after the closing
+                        response.incRef();
+                        closePIT(
+                            client,
+                            original.source().pointInTimeBuilder(),
+                            () -> ActionListener.respondAndRelease(listener, response)
+                        );
+                    }
 
-        Rewriteable.rewriteAndFetch(
-            original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices),
-            rewriteListener
+                    @Override
+                    public void onFailure(Exception e) {
+                        closePIT(client, original.source().pointInTimeBuilder(), () -> listener.onFailure(e));
+                    }
+                }, searchPhaseProvider);
+            }));
+        } else {
+            Rewriteable.rewriteAndFetch(
+                original,
+                searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, original.pointInTimeBuilder()),
+                rewriteListener
+            );
+        }
+    }
+
+    /**
+     * Returns true if the provided source needs to open a shared point in time prior to executing the request.
+     */
+    private boolean shouldOpenPIT(SearchSourceBuilder source) {
+        if (source == null) {
+            return false;
+        }
+        if (source.pointInTimeBuilder() != null) {
+            return false;
+        }
+        var retriever = source.retriever();
+        return retriever != null && retriever.isCompound();
+    }
+
+    static void openPIT(Client client, SearchRequest request, long keepAliveMillis, ActionListener<OpenPointInTimeResponse> listener) {
+        OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(request.indices()).indicesOptions(request.indicesOptions())
+            .preference(request.preference())
+            .routing(request.routing())
+            .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));
+        client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
+    }
+
+    static void closePIT(Client client, PointInTimeBuilder pit, Runnable next) {
+        client.execute(
+            TransportClosePointInTimeAction.TYPE,
+            new ClosePointInTimeRequest(pit.getEncodedId()),
+            ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(ClosePointInTimeResponse closePointInTimeResponse) {}
+
+                @Override
+                public void onFailure(Exception e) {}
+            }, next)
         );
     }
 

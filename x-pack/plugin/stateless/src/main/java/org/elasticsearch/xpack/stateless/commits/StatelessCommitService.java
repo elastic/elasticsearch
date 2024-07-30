@@ -2136,7 +2136,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             boolean success = registerUnpromoteableCommitRefs(nodes, commitReference);
             // it is fine if a newer commit notification removed the registration, since then blobReference cannot be used
             // by search shard readers anymore.
-            assert success || commitReference.getPrimaryTermAndGeneration().generation() < uploadedGenerationNotified.get();
+            // Sometimes shard can be deleted (see `isDeleted` flag) before new commit upload message is sent out
+            // hence registerUnpromoteableCommitRefs can return false since the BlobReference search node sets has been cleared by the index
+            // deletion
+            assert success || isDeleted || commitReference.getPrimaryTermAndGeneration().generation() < uploadedGenerationNotified.get();
         }
 
         /**

@@ -12,7 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -54,10 +54,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
                 fail();
             }
         });
-
         verify(mockClient).execute(
-            eq(InferenceAction.INSTANCE),
-            argThat(actionRequest -> ((InferenceAction.Request) actionRequest).getTaskType().equals(TaskType.RERANK)),
+            eq(GetInferenceModelAction.INSTANCE),
+            argThat(actionRequest -> ((GetInferenceModelAction.Request) actionRequest).getTaskType().equals(TaskType.RERANK)),
             any()
         );
     }

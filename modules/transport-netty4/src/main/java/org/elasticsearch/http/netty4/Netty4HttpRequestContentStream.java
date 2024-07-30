@@ -85,7 +85,7 @@ public class Netty4HttpRequestContentStream implements HttpContent.Stream {
         } else {
             // accumulation step
             if (aggregate == null) {
-                aggregate = channel.alloc().compositeHeapBuffer();
+                aggregate = channel.alloc().compositeBuffer();
             }
             aggregate.addComponent(true, content);
             requestedBytes -= content.readableBytes();

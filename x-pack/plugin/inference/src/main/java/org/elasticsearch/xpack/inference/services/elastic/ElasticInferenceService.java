@@ -119,6 +119,7 @@ public class ElasticInferenceService extends SenderService {
             .map(m -> m.getServiceSettings().maxInputTokens())
             .orElse(EMBEDDING_MAX_BATCH_SIZE);
 
+        // TODO: what can we use here instead of float embeddings?
         var batchedRequests = new EmbeddingRequestChunker(input, maxInputTokens, EmbeddingRequestChunker.EmbeddingType.FLOAT)
             .batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
@@ -257,7 +258,7 @@ public class ElasticInferenceService extends SenderService {
             ServiceUtils.getEmbeddingSize(
                 model,
                 this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel)))
             );
         } else {
             listener.onResponse(model);
@@ -265,8 +266,7 @@ public class ElasticInferenceService extends SenderService {
     }
 
     private ElasticInferenceServiceSparseEmbeddingsModel updateModelWithEmbeddingDetails(
-        ElasticInferenceServiceSparseEmbeddingsModel model,
-        int embeddingSize // TODO: are we discarding this?
+        ElasticInferenceServiceSparseEmbeddingsModel model
     ) {
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings = new ElasticInferenceServiceSparseEmbeddingsServiceSettings(
             model.getInferenceEntityId(),

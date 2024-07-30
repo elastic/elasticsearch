@@ -23,9 +23,9 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
 
     public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, Integer maxInputTokens) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
-            randomAlphaOfLength(8),
+            "id",
             TaskType.SPARSE_EMBEDDING,
-            randomAlphaOfLength(8),
+            "service",
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ElserModels.ELSER_V2_MODEL, maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,

@@ -203,7 +203,7 @@ public final class DissectParser {
             DissectKey key = dissectPair.key();
             byte[] delimiter = dissectPair.delimiter().getBytes(StandardCharsets.UTF_8);
             // start dissection after the first delimiter
-            int i = leadingDelimiter.length();
+            int i = leadingDelimiter.getBytes(StandardCharsets.UTF_8).length;
             int valueStart = i;
             int lookAheadMatches;
             // start walking the input string byte by byte, look ahead for matches where needed

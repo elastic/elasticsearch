@@ -21,22 +21,26 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
+    private final InferenceStats inferenceStats;
 
     @Inject
     public TransportInferenceAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
-        InferenceServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry,
+        InferenceStats inferenceStats
     ) {
         super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
+        this.inferenceStats = inferenceStats;
     }
 
     @Override
@@ -76,6 +80,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     unparsedModel.settings(),
                     unparsedModel.secrets()
                 );
+            inferenceStats.incrementRequestCount(model);
             inferOnService(model, request, service.get(), delegate);
         });
 

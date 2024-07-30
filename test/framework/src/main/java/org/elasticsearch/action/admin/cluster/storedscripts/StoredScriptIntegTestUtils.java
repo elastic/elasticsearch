@@ -26,7 +26,7 @@ public class StoredScriptIntegTestUtils {
         assertAcked(
             ESIntegTestCase.safeExecute(
                 TransportPutStoredScriptAction.TYPE,
-                new PutStoredScriptRequest().id(id).content(jsonContent, XContentType.JSON)
+                new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id(id).content(jsonContent, XContentType.JSON)
             )
         );
     }

@@ -1056,7 +1056,7 @@ dimensions with ignore_malformed and ignore_above:
 ---
 non string dimension fields:
   - requires:
-      cluster_features: ["mapper.pass_through_priority"]
+      cluster_features: ["mapper.pass_through_priority", "routing.boolean_routing_path"]
       reason: support for priority in passthrough objects
   - do:
       allowed_warnings:

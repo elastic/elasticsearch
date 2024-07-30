@@ -18,6 +18,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -83,9 +84,10 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         .systemProperty("AZURE_AUTHORITY_HOST", () -> fixture.getOAuthTokenServiceAddress(), s -> USE_FIXTURE)
         .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))
         .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> Strings.hasText(AZURE_TEST_TENANT_ID))
+        .configFile("storage-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
         .systemProperty(
             "AZURE_FEDERATED_TOKEN_FILE",
-            () -> fixture.getFederatedTokenPath().toString(),
+            () -> "${ES_PATH_CONF}/storage-azure/azure-federated-token",
             s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
         )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
@@ -112,5 +114,4 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
-
 }

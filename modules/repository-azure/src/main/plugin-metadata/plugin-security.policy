@@ -14,7 +14,4 @@ grant {
   // Used by jackson bean deserialization
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-  // azure client reads the federated token file for workload identity authentication
-  permission java.io.FilePermission "${AZURE_FEDERATED_TOKEN_FILE}", "read";
 };

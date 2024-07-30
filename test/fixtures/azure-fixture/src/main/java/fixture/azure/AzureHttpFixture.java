@@ -48,7 +48,8 @@ public class AzureHttpFixture extends ExternalResource {
     private HttpServer metadataServer;
     private HttpServer oauthTokenServiceServer;
 
-    private Path federatedTokenPath;
+    // JWT-looking value for workload identify authentication -- the exact value has no inherent meaning
+    private final String federatedToken = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9";
 
     public enum Protocol {
         NONE,
@@ -156,17 +157,13 @@ public class AzureHttpFixture extends ExternalResource {
         return "http://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
     }
 
-    public Path getFederatedTokenPath() {
-        return federatedTokenPath;
+    public String getFederatedToken() {
+        return federatedToken;
     }
 
     @Override
     protected void before() {
         try {
-            final Path federatedTokenTmpdir = ESTestCase.createTempDir();
-            federatedTokenPath = copyResource(federatedTokenTmpdir, "azure-federated-token");
-            final String federatedToken = Files.readString(federatedTokenPath);
-
             // Set different bearer tokens for managed and workload identity to ensure that we are using the expected one for access
             final var managedIdentityBearerToken = ESTestCase.randomIdentifier();
             final var workloadIdentityBearerToken = ESTestCase.randomIdentifier();

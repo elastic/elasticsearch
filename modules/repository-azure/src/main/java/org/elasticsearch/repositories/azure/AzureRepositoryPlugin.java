@@ -76,7 +76,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        AzureClientProvider azureClientProvider = AzureClientProvider.create(services.environment(), services.threadPool(), settings);
+        AzureClientProvider azureClientProvider = AzureClientProvider.create(services.threadPool(), settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
         return List.of(azureClientProvider);
     }

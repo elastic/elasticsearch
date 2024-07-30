@@ -70,7 +70,6 @@ public class AzureStorageService {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final AzureClientProvider azureClientProvider;
-
     private final ClientLogger clientLogger = new ClientLogger(AzureStorageService.class);
 
     public AzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {

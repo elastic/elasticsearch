@@ -36,7 +36,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false);
+            ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [query]"));
         }
@@ -50,7 +50,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false);
+            ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [knn]"));
         }
@@ -58,7 +58,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"search_after\": [1], \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false);
+            ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [search_after]"));
 
@@ -67,7 +67,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"terminate_after\": 1, \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false);
+            ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [terminate_after]"));
         }
@@ -75,7 +75,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"sort\": [\"field\"], \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false);
+            ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [sort]"));
         }
@@ -88,7 +88,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false);
+            ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [rescore]"));
         }
@@ -96,7 +96,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"min_score\": 2, \"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false);
+            ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [min_score]"));
         }
@@ -109,7 +109,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
         ) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false);
+            ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [query, terminate_after, min_score]"));
         }

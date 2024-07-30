@@ -51,12 +51,10 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
             return AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT);
         } else if (Strings.hasText(AZURE_TEST_TENANT_ID) && Strings.hasText(AZURE_TEST_CLIENT_ID)) {
             return AzureHttpFixture.WORK_IDENTITY_BEARER_TOKEN_PREDICATE;
-        } else {
-            if (Strings.hasText(AZURE_TEST_TENANT_ID) || Strings.hasText(AZURE_TEST_CLIENT_ID)) {
-                fail(null, "Both [test.azure.tenant_id] and [test.azure.client_id] must be set if either is set");
-            }
-            return AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE;
+        } else if (Strings.hasText(AZURE_TEST_TENANT_ID) || Strings.hasText(AZURE_TEST_CLIENT_ID)) {
+            fail(null, "Both [test.azure.tenant_id] and [test.azure.client_id] must be set if either is set");
         }
+        return AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE;
     }
 
     private static TestTrustStore trustStore = new TestTrustStore(

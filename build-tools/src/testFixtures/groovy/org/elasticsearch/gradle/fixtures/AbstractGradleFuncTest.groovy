@@ -101,7 +101,6 @@ abstract class AbstractGradleFuncTest extends Specification {
                                 .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
                                         .toString().indexOf("-agentlib:jdwp") > 0
                                 )
-                                .withEnvironment([RUNTIME_JAVA_HOME: System.getProperty("java.home")])
                                 .withProjectDir(projectDir)
                                 .withPluginClasspath()
                                 .forwardOutput()

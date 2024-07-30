@@ -82,7 +82,8 @@ public class CCSUsageTelemetryTests extends ESTestCase {
                 assertThat(snapshot.getTookMrtTrue().count(), equalTo(0L));
                 assertThat(snapshot.getTookMrtTrue().max(), equalTo(0L));
             }
-            assertThat(snapshot.getClientCounts().get("unknown"), equalTo(1L));
+            // We currently don't count unknown clients
+            assertThat(snapshot.getClientCounts().size(), equalTo(0));
 
             // per cluster telemetry asserts
 
@@ -145,9 +146,10 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             assertThat(snapshot.getTook().avg(), greaterThan(0L));
             assertThat(snapshot.getTook().avg(), closeTo((took1 + took2) / 2));
             // assertThat(snapshot.getTook().max(), greaterThanOrEqualTo(Math.max(took1, took2)));
-            assertThat(snapshot.getClientCounts().size(), equalTo(2));
+
+            // Counting only known clients
             assertThat(snapshot.getClientCounts().get("kibana"), equalTo(1L));
-            assertThat(snapshot.getClientCounts().get("unknown"), equalTo(1L));
+            assertThat(snapshot.getClientCounts().size(), equalTo(1));
 
             // per cluster telemetry asserts
 

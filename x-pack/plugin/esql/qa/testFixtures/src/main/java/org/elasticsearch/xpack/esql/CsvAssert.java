@@ -19,7 +19,6 @@ import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;

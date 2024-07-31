@@ -24,6 +24,8 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
+import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,6 +49,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -77,6 +80,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -310,48 +314,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                try {
-                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
-                    SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
-                        SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
-                    if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                        // Deduplicate failures by exception message and index
-                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
-                        for (ShardOperationFailedException f : groupedFailures) {
-                            boolean causeHas500Status = false;
-                            if (f.getCause() != null) {
-                                causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
-                            }
-                            if ((f.status().getStatus() >= 500 || causeHas500Status)
-                                && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
-                                logger.warn("TransportSearchAction shard failure (partial results response)", f);
-                                responseCountTotalStatus = SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE;
-                            }
-                        }
-                    }
-                    // increment after the delegated onResponse to ensure we don't
-                    // record both a success and a failure if there is an exception
-                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
-
-                    if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() && searchResponse.getClusters().hasRemoteClusters()) {
-                        extractCCSTelemetry(searchResponse, (SearchTask) task);
-                    }
-                    // TODO: should this be last?
-                    listener.onResponse(searchResponse);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
-                listener.onFailure(e);
-            }
-        };
+        ActionListener<SearchResponse> loggingAndMetrics = new SearchResponseActionListener((SearchTask) task, listener);
         executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
     }
 
@@ -406,8 +369,32 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchPhaseProvider.apply(delegate)
                 );
             } else {
+                if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+                    tl.setRemotes(resolvedIndices.getRemoteClusterIndices().size());
+                    if (isAsyncSearchTask(task)) {
+                        tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
+                    }
+                    String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+                    if (client != null) {
+                        tl.setClient(client);
+                    }
+                    // Check if any of the index patterns are wildcard patterns
+                    var localIndices = resolvedIndices.getLocalIndices();
+                    if (localIndices != null && Arrays.stream(localIndices.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
+                        tl.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
+                    }
+                    if (resolvedIndices.getRemoteClusterIndices()
+                        .values()
+                        .stream()
+                        .anyMatch(originalIndices -> Arrays.stream(originalIndices.indices()).anyMatch(Regex::isSimpleMatchPattern))) {
+                        tl.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
+                    }
+                }
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
+                    if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+                        tl.setFeature(CCSUsageTelemetry.MRT_FEATURE);
+                    }
                     final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
                         && rewritten.source().aggregations() != null
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
@@ -815,27 +802,26 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-            TransportSearchAction.CCSActionListener<SearchShardsResponse, Map<String, SearchShardsResponse>> singleListener =
-                new TransportSearchAction.CCSActionListener<>(
-                    clusterAlias,
-                    skipUnavailable,
-                    responsesCountDown,
-                    exceptions,
-                    clusters,
-                    listener
-                ) {
-                    @Override
-                    void innerOnResponse(SearchShardsResponse searchShardsResponse) {
-                        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
-                        ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
-                        searchShardsResponses.put(clusterAlias, searchShardsResponse);
-                    }
+            CCSActionListener<SearchShardsResponse, Map<String, SearchShardsResponse>> singleListener = new CCSActionListener<>(
+                clusterAlias,
+                skipUnavailable,
+                responsesCountDown,
+                exceptions,
+                clusters,
+                listener
+            ) {
+                @Override
+                void innerOnResponse(SearchShardsResponse searchShardsResponse) {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
+                    ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
+                    searchShardsResponses.put(clusterAlias, searchShardsResponse);
+                }
 
-                    @Override
-                    Map<String, SearchShardsResponse> createFinalResponse() {
-                        return searchShardsResponses;
-                    }
-                };
+                @Override
+                Map<String, SearchShardsResponse> createFinalResponse() {
+                    return searchShardsResponses;
+                }
+            };
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
                 skipUnavailable == false,
@@ -1530,23 +1516,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private void extractCCSTelemetry(SearchResponse searchResponse, SearchTask searchTask) {
-        Map<String, CCSUsage.PerClusterUsage> clusterUsageMap = new HashMap<>();
-        for (String clusterAlias : searchResponse.getClusters().getClusterAliases()) {
-            SearchResponse.Cluster cluster = searchResponse.getClusters().getCluster(clusterAlias);
-            CCSUsage.PerClusterUsage clusterUsageInfo = new CCSUsage.PerClusterUsage(cluster.getTook());
-            clusterUsageMap.put(clusterAlias, clusterUsageInfo);
-        }
-
-        CCSUsage ccsUsage = new CCSUsage.Builder().took(searchResponse.getTookInMillis())
-            .async(isAsyncSearchTask(searchTask))
-            .minimizeRoundTrips(searchResponse.getClusters().isCcsMinimizeRoundtrips())
-            .numSkippedRemotes(searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED))
-            .perClusterUsage(clusterUsageMap)
-            .build();
-        usageService.getCcsUsageHolder().updateUsage(ccsUsage);
-    }
-
     /**
      * TransportSearchAction cannot access async-search code, so can't check whether this the Task
      * is an instance of AsyncSearchTask, so this roundabout method is used
@@ -1878,5 +1847,125 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);
+    }
+
+    private interface TelemetryListener {
+        void setRemotes(int count);
+
+        void setFeature(String feature);
+
+        void setClient(String client);
+    }
+
+    private class SearchResponseActionListener implements ActionListener<SearchResponse>, TelemetryListener {
+        private final SearchTask task;
+        private final ActionListener<SearchResponse> listener;
+        private final CCSUsage.Builder usageBuilder;
+
+        SearchResponseActionListener(SearchTask task, ActionListener<SearchResponse> listener) {
+            this.task = task;
+            this.listener = listener;
+            usageBuilder = new CCSUsage.Builder();
+        }
+
+        /**
+         * Should we collect telemetry for this search?
+         */
+        private boolean collectTelemetry() {
+            return CCS_TELEMETRY_FEATURE_FLAG.isEnabled() && usageBuilder.getRemotesCount() > 0;
+        }
+
+        public void setRemotes(int count) {
+            usageBuilder.setRemotesCount(count);
+        }
+
+        @Override
+        public void setFeature(String feature) {
+            usageBuilder.setFeature(feature);
+        }
+
+        @Override
+        public void setClient(String client) {
+            usageBuilder.setClient(client);
+        }
+
+        @Override
+        public void onResponse(SearchResponse searchResponse) {
+            try {
+                searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
+                    SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
+                if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                    // Deduplicate failures by exception message and index
+                    ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                    for (ShardOperationFailedException f : groupedFailures) {
+                        boolean causeHas500Status = false;
+                        if (f.getCause() != null) {
+                            causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+                        }
+                        if ((f.status().getStatus() >= 500 || causeHas500Status)
+                            && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
+                            logger.warn("TransportSearchAction shard failure (partial results response)", f);
+                            responseCountTotalStatus = SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE;
+                        }
+                    }
+                }
+                // increment after the delegated onResponse to ensure we don't
+                // record both a success and a failure if there is an exception
+                searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+
+                if (collectTelemetry()) {
+                    extractCCSTelemetry(searchResponse);
+                    recordTelemetry();
+                }
+                // TODO: should this be last?
+                listener.onResponse(searchResponse);
+            } catch (Exception e) {
+                onFailure(e);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+            if (collectTelemetry()) {
+                // TODO: better failure recognition
+                Result status;
+                if (e instanceof RemoteTransportException) {
+                    status = Result.REMOTES_UNAVAILABLE;
+                } else if (task.isCancelled() || (e instanceof TaskCancelledException)) {
+                    status = Result.CANCELED;
+                } else {
+                    status = Result.UNKNOWN;
+                }
+                usageBuilder.setFailure(status);
+                // TODO: can we still get some time measurements here? Do we want to?
+                recordTelemetry();
+            }
+            listener.onFailure(e);
+        }
+
+        private void recordTelemetry() {
+            usageService.getCcsUsageHolder().updateUsage(usageBuilder.build());
+        }
+
+        /**
+         * Extract telemetry data from the search response.
+         * @param searchResponse The final response from the search.
+         */
+        private void extractCCSTelemetry(SearchResponse searchResponse) {
+            usageBuilder.took(searchResponse.getTookInMillis());
+            // TODO: what happens with the local cluster there? Are we tracking it too just like the others?
+            for (String clusterAlias : searchResponse.getClusters().getClusterAliases()) {
+                SearchResponse.Cluster cluster = searchResponse.getClusters().getCluster(clusterAlias);
+                if (cluster.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
+                    usageBuilder.skippedRemote(clusterAlias);
+                } else {
+                    usageBuilder.perClusterUsage(clusterAlias, cluster.getTook());
+                }
+            }
+
+        }
+
     }
 }

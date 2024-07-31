@@ -8,8 +8,7 @@
 
 When a data node is critically low on disk space and has reached the
 <<cluster-routing-flood-stage,flood-stage disk usage watermark>>, the following
-error is logged: `Error: disk usage exceeded flood-stage watermark, index has 
-read-only-allow-delete block`. 
+error is logged: `Error: disk usage exceeded flood-stage watermark, index has read-only-allow-delete block`. 
 
 To prevent a full disk, when a node reaches this watermark, {es} <<index-block-settings,blocks writes>>
 to any index with a shard on the node. If the block affects related system
@@ -20,7 +19,7 @@ this could induce {kib}'s `Kibana Server is not Ready yet`
 {es} will automatically remove the write block when the affected node's disk
 usage falls below the <<cluster-routing-watermark-high,high disk watermark>>. 
 To achieve this, {es} attempts to rebalance some of the affected node's shards 
-to other nodes in the same data tier. 
+to other nodes in the same data tier.
 
 [[fix-watermark-errors-rebalance]]
 ==== Monitor rebalancing

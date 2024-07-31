@@ -221,8 +221,7 @@ public final class CsvAssert {
                             expectedValue = rebuildExpected(
                                 expectedValue,
                                 Long.class,
-                                x -> DateFormatter.forPattern("strict_date_optional_time_nanos")
-                                    .format((Instant.ofEpochMilli((long) x / 1_000_000).plusNanos((long) x % 1_000_000)))
+                                x -> DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos((long) x)
                             );
                         } else if (expectedType == Type.GEO_POINT) {
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));

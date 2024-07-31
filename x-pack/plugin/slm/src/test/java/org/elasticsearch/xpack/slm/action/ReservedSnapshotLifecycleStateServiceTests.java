@@ -113,42 +113,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
-            is("Required one of fields [schedule, interval], but none were specified. ")
-        );
-    }
-
-    public void testValidationFailsBothScheduleAndInterval() {
-        Client client = mock(Client.class);
-        when(client.settings()).thenReturn(Settings.EMPTY);
-        final ClusterName clusterName = new ClusterName("elasticsearch");
-
-        ClusterState state = ClusterState.builder(clusterName).build();
-        ReservedSnapshotAction action = new ReservedSnapshotAction();
-        TransformState prevState = new TransformState(state, Set.of());
-
-        String badPolicyJSON = """
-            {
-              "daily-snapshots": {
-                "schedule": "0 1 2 3 4 ?",
-                "interval": "30m",
-                "name": "<production-snap-{now/d}>",
-                "repository": "repo",
-                "config": {
-                  "indices": ["foo-*", "important"],
-                  "ignore_unavailable": true,
-                  "include_global_state": false
-                },
-                "retention": {
-                  "expire_after": "30d",
-                  "min_count": 1,
-                  "max_count": 50
-                }
-              }
-            }""";
-
-        assertThat(
-            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
-            is("The following fields are not allowed together: [schedule, interval] ")
+            is("Required [schedule]")
         );
     }
 

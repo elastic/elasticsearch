@@ -858,10 +858,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
-
-
-        logger.warn("waz: " +  Strings.toString(lifecycleBuilder));
-
         final Response response = client().performRequest(putLifecycle);
         assertAcked(response);
     }

@@ -95,7 +95,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         // resolve all concrete indices upfront and warn/error later
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
-        Map<String, List<AliasMetadata>> aliases = state.metadata().projectMetadata.findAliases(request.aliases(), concreteIndices);
+        Map<String, List<AliasMetadata>> aliases = state.metadata().getProject().findAliases(request.aliases(), concreteIndices);
         cancellableTask.ensureNotCancelled();
         listener.onResponse(
             new GetAliasesResponse(
@@ -120,7 +120,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>(aliases);
         for (String index : concreteIndices) {
-            IndexAbstraction ia = state.metadata().projectMetadata.getIndicesLookup().get(index);
+            IndexAbstraction ia = state.metadata().getProject().getIndicesLookup().get(index);
             assert ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
             if (ia.getParentDataStream() != null) {
                 // Don't include backing indices of data streams,
@@ -149,7 +149,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
 
-        return state.metadata().projectMetadata.findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
+        return state.metadata().getProject().findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
     }
 
     private static void checkSystemIndexAccess(
@@ -171,7 +171,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         List<String> netNewSystemIndices = new ArrayList<>();
         List<String> systemIndicesNames = new ArrayList<>();
         aliasesMap.keySet().forEach(indexName -> {
-            IndexMetadata index = state.metadata().projectMetadata.index(indexName);
+            IndexMetadata index = state.metadata().getProject().index(indexName);
             if (index != null && index.isSystem()) {
                 if (systemIndexAccessAllowPredicate.test(indexName) == false) {
                     if (systemIndices.isNetNewSystemIndex(indexName)) {

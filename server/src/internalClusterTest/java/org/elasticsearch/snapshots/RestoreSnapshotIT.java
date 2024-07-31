@@ -230,7 +230,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setMetadata(true)
             .get()
             .getState()
-            .metadata().projectMetadata.index(indexName);
+            .metadata()
+            .getProject()
+            .index(indexName);
         assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), nullValue());
         final int numPrimaries = getNumShards(indexName).numPrimaries;
         final Map<Integer, Long> primaryTerms = IntStream.range(0, numPrimaries)
@@ -256,7 +258,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setMetadata(true)
             .get()
             .getState()
-            .metadata().projectMetadata.index(indexName);
+            .metadata()
+            .getProject()
+            .index(indexName);
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
             assertThat(restoredIndexMetadata.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
         }
@@ -305,7 +309,12 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that old mapping is restored");
-        MappingMetadata mappings = clusterAdmin().prepareState().get().getState().getMetadata().projectMetadata.indices()
+        MappingMetadata mappings = clusterAdmin().prepareState()
+            .get()
+            .getState()
+            .getMetadata()
+            .getProject()
+            .indices()
             .get("test-idx")
             .mapping();
         assertThat(mappings.sourceAsMap().toString(), containsString("baz"));

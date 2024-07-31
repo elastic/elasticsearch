@@ -87,7 +87,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = clusterAdmin().prepareState().get().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metadata().projectMetadata.indices().containsKey("test"), equalTo(false));
+        assertThat(state.metadata().getProject().indices().containsKey("test"), equalTo(false));
 
         createIndex("test");
         NumShards numShards = getNumShards("test");
@@ -144,7 +144,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = clusterAdmin().prepareState().get().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metadata().projectMetadata.indices().containsKey("test"), equalTo(true));
+        assertThat(state.metadata().getProject().indices().containsKey("test"), equalTo(true));
 
         ensureGreen();
 
@@ -189,7 +189,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = clusterAdmin().prepareState().get().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metadata().projectMetadata.indices().containsKey("test"), equalTo(true));
+        assertThat(state.metadata().getProject().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
         ensureGreen();

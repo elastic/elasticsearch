@@ -85,7 +85,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        hasIngestGeoIpMetadata = event.state().metadata().projectMetadata.custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
+        hasIngestGeoIpMetadata = event.state().metadata().getProject().custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
         final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
             && event.changedCustomProjectMetadataSet().contains(INGEST_GEOIP_CUSTOM_METADATA_TYPE);
         final boolean masterNodeChanged = Objects.equals(

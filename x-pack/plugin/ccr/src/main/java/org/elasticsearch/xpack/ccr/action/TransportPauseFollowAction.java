@@ -64,7 +64,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        final IndexMetadata followerIMD = state.metadata().projectMetadata.index(request.getFollowIndex());
+        final IndexMetadata followerIMD = state.metadata().getProject().index(request.getFollowIndex());
         if (followerIMD == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
             return;
@@ -73,7 +73,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             listener.onFailure(new IllegalArgumentException("index [" + request.getFollowIndex() + "] is not a follower index"));
             return;
         }
-        PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
             listener.onFailure(new IllegalArgumentException("no shard follow tasks found"));
             return;

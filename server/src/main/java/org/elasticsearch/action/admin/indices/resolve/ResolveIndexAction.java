@@ -601,11 +601,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            IndexAbstraction ia = clusterState.metadata().projectMetadata.getIndicesLookup().get(indexAbstraction);
+            IndexAbstraction ia = clusterState.metadata().getProject().getIndicesLookup().get(indexAbstraction);
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {
-                        IndexMetadata writeIndex = clusterState.metadata().projectMetadata.index(ia.getWriteIndex());
+                        IndexMetadata writeIndex = clusterState.metadata().getProject().index(ia.getWriteIndex());
                         String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
                         List<Attribute> attributes = new ArrayList<>();
                         attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? Attribute.OPEN : Attribute.CLOSED);

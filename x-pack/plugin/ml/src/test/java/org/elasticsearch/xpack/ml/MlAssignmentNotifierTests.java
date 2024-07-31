@@ -232,7 +232,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                     .masterNodeId("_node_id")
             )
             .build();
-        notifier.auditUnassignedMlTasks(newState.nodes(), newState.metadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE));
+        notifier.auditUnassignedMlTasks(newState.nodes(), newState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE));
         if (anomalyDetectionAuditor.includeNodeInfo()) {
             verify(anomalyDetectionAuditor, times(1)).warning("job_id", "No node found to open job. Reasons [test assignment]");
         } else {

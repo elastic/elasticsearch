@@ -936,7 +936,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         {
             final var decision = DataTierAllocationDecider.INSTANCE.canRemain(
-                allocation.metadata().projectMetadata.getIndexSafe(shard.index()),
+                allocation.metadata().getProject().getIndexSafe(shard.index()),
                 shard,
                 routingNode,
                 allocation

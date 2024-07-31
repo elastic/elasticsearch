@@ -47,7 +47,7 @@ public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Pr
     }
 
     public static TrainedModelCacheMetadata fromState(ClusterState clusterState) {
-        TrainedModelCacheMetadata cacheMetadata = clusterState.getMetadata().projectMetadata.custom(NAME);
+        TrainedModelCacheMetadata cacheMetadata = clusterState.getMetadata().getProject().custom(NAME);
         return cacheMetadata == null ? EMPTY : cacheMetadata;
     }
 

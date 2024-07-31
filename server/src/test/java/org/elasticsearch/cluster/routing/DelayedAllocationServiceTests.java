@@ -84,9 +84,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("test"))
-                    .build()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("test")).build()
             )
             .build();
         clusterState = ClusterState.builder(clusterState)
@@ -136,9 +134,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("test"))
-                    .build()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("test")).build()
             )
             .build();
         clusterState = ClusterState.builder(clusterState)
@@ -262,8 +258,8 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("short_delay"))
-                    .addAsNew(metadata.projectMetadata.index("long_delay"))
+                    .addAsNew(metadata.getProject().index("short_delay"))
+                    .addAsNew(metadata.getProject().index("long_delay"))
                     .build()
             )
             .nodes(
@@ -456,8 +452,8 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("foo"))
-                    .addAsNew(metadata.projectMetadata.index("bar"))
+                    .addAsNew(metadata.getProject().index("foo"))
+                    .addAsNew(metadata.getProject().index("bar"))
                     .build()
             )
             .build();

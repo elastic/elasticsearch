@@ -226,7 +226,7 @@ public class ResolvedIndices {
     ) {
         Map<Index, IndexMetadata> localIndexMetadata = new HashMap<>();
         for (Index index : concreteLocalIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
+            IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
             if (indexMetadata == null) {
                 if (failOnMissingIndex) {
                     throw new IndexNotFoundException(index);

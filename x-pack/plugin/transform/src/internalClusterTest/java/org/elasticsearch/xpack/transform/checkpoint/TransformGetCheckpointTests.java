@@ -238,7 +238,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             mockIndicesService = mock(IndicesService.class);
             for (int i = 0; i < numberOfIndices; ++i) {
                 IndexService mockIndexService = mock(IndexService.class);
-                IndexMetadata indexMeta = clusterStateWithIndex.metadata().projectMetadata.index(indexNamePattern + i);
+                IndexMetadata indexMeta = clusterStateWithIndex.metadata().getProject().index(indexNamePattern + i);
 
                 IndexSettings mockIndexSettings = new IndexSettings(indexMeta, clusterService.getSettings());
                 when(mockIndexService.getIndexSettings()).thenReturn(mockIndexSettings);

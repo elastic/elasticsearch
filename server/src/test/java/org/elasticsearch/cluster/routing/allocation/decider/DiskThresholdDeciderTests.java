@@ -887,7 +887,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(
-            routingAllocation.metadata().projectMetadata.getIndexSafe(firstRouting.index()),
+            routingAllocation.metadata().getProject().getIndexSafe(firstRouting.index()),
             firstRouting,
             firstRoutingNode,
             routingAllocation
@@ -928,7 +928,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
         routingAllocation.debugDecision(true);
         decision = diskThresholdDecider.canRemain(
-            routingAllocation.metadata().projectMetadata.getIndexSafe(firstRouting.index()),
+            routingAllocation.metadata().getProject().getIndexSafe(firstRouting.index()),
             firstRouting,
             firstRoutingNode,
             routingAllocation
@@ -1068,7 +1068,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(
-            routingAllocation.metadata().projectMetadata.getIndexSafe(startedShard.index()),
+            routingAllocation.metadata().getProject().getIndexSafe(startedShard.index()),
             startedShard,
             clusterState.getRoutingNodes().node("data"),
             routingAllocation

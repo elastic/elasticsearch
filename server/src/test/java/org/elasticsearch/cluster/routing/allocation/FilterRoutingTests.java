@@ -195,7 +195,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .build();
 
         final RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.projectMetadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -307,7 +307,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .build();
 
         final RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(initialMetadata.projectMetadata.index("test"))
+            .addAsNew(initialMetadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -335,7 +335,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> switch between value2 and value4, shards should be relocating");
 
-        final IndexMetadata existingMetadata = clusterState.metadata().projectMetadata.index("test");
+        final IndexMetadata existingMetadata = clusterState.metadata().getProject().index("test");
         final Metadata updatedMetadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(existingMetadata)
@@ -369,8 +369,8 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.projectMetadata.index("test1"))
-            .addAsNew(metadata.projectMetadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();

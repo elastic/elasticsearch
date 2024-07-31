@@ -71,7 +71,7 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
     }
 
     static Map<String, AutoFollowPattern> getAutoFollowPattern(Metadata metadata, String name) {
-        AutoFollowMetadata autoFollowMetadata = metadata.projectMetadata.custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = metadata.getProject().custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             if (name == null) {
                 return Collections.emptyMap();

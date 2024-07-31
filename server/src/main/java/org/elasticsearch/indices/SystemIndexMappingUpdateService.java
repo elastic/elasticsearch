@@ -129,7 +129,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         return this.systemIndices.getSystemIndexDescriptors()
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .filter(d -> metadata.projectMetadata.hasIndexAbstraction(d.getPrimaryIndex()))
+            .filter(d -> metadata.getProject().hasIndexAbstraction(d.getPrimaryIndex()))
             .toList();
     }
 
@@ -227,7 +227,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
     static State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
-        final IndexMetadata indexMetadata = state.metadata().projectMetadata.index(descriptor.getPrimaryIndex());
+        final IndexMetadata indexMetadata = state.metadata().getProject().index(descriptor.getPrimaryIndex());
 
         if (indexMetadata == null) {
             return null;

@@ -538,7 +538,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
         // Use indicesSettings to determine the indices returned - see [NOTE: WHY GET SETTINGS] above for details.
         indicesSettings.forEach((indexName, settings) -> {
-            final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(indexName);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
 
             if (indexMetadata == null) {
                 // The index exists in indicesSettings but its metadata is missing, which means it was created or deleted

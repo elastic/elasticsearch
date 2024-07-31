@@ -68,7 +68,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
                 }
             }
         }
-        AutoFollowMetadata autoFollowMetadata = metadata.projectMetadata.custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = metadata.getProject().custom(AutoFollowMetadata.TYPE);
         int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
 
         Long lastFollowTimeInMillis;

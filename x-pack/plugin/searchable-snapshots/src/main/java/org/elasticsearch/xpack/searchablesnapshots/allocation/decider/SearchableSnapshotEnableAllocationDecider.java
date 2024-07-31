@@ -69,7 +69,7 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
             return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }
 
-        final IndexMetadata indexMetadata = allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.metadata().getProject().getIndexSafe(shardRouting.index());
         if (indexMetadata.isSearchableSnapshot()) {
             EnableAllocationDecider.Allocation enableAllocationCopy = this.enableAllocation;
             boolean allocateOnRollingRestartCopy = this.allocateOnRollingRestart;

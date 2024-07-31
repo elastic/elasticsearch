@@ -907,7 +907,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
 
-        DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
         Index result = dataStream.selectTimeSeriesWriteIndex(currentTime, clusterState.getMetadata());
         assertThat(result, equalTo(dataStream.getIndices().get(1)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())));
@@ -941,30 +941,30 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
             );
-            DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
+            DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
             assertThat(dataStream, notNullValue());
             assertThat(dataStream.getIndices(), hasSize(2));
             assertThat(
                 IndexSettings.TIME_SERIES_START_TIME.get(
-                    clusterState.getMetadata().projectMetadata.index(dataStream.getIndices().get(0)).getSettings()
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(0)).getSettings()
                 ),
                 equalTo(start1)
             );
             assertThat(
                 IndexSettings.TIME_SERIES_END_TIME.get(
-                    clusterState.getMetadata().projectMetadata.index(dataStream.getIndices().get(0)).getSettings()
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(0)).getSettings()
                 ),
                 equalTo(end1)
             );
             assertThat(
                 IndexSettings.TIME_SERIES_START_TIME.get(
-                    clusterState.getMetadata().projectMetadata.index(dataStream.getIndices().get(1)).getSettings()
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(1)).getSettings()
                 ),
                 equalTo(start2)
             );
             assertThat(
                 IndexSettings.TIME_SERIES_END_TIME.get(
-                    clusterState.getMetadata().projectMetadata.index(dataStream.getIndices().get(1)).getSettings()
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(1)).getSettings()
                 ),
                 equalTo(end2)
             );
@@ -1027,7 +1027,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
             );
-            DataStream dataStream = clusterState.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
+            DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
 
             {
                 // IndexMetadata not found case:
@@ -1598,7 +1598,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 2000
             String thirdGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
-            Index thirdIndex = metadata.projectMetadata.index(thirdGeneration).getIndex();
+            Index thirdIndex = metadata.getProject().index(thirdGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
                 thirdIndex,
                 metadata.getProject()::index,
@@ -1610,7 +1610,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.projectMetadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
@@ -1659,7 +1659,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.projectMetadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
@@ -1683,7 +1683,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.projectMetadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
@@ -1706,7 +1706,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Metadata metadata = builder.build();
 
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.projectMetadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,

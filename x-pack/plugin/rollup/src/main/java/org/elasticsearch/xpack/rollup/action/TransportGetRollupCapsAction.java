@@ -59,7 +59,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     private void doExecuteForked(String indexPattern, ActionListener<GetRollupCapsAction.Response> listener) {
         Transports.assertNotTransportThread("retrieving rollup job caps may be expensive");
-        Map<String, RollableIndexCaps> allCaps = getCaps(indexPattern, clusterService.state().getMetadata().projectMetadata.indices());
+        Map<String, RollableIndexCaps> allCaps = getCaps(indexPattern, clusterService.state().getMetadata().getProject().indices());
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
 

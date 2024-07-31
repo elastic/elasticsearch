@@ -87,7 +87,7 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         final String id = request.getDatabaseId();
-        final IngestGeoIpMetadata geoIpMeta = state.metadata().projectMetadata.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final IngestGeoIpMetadata geoIpMeta = state.metadata().getProject().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (geoIpMeta.getDatabases().containsKey(id) == false) {
             throw new ResourceNotFoundException("Database configuration not found: {}", id);
         }
@@ -103,10 +103,9 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            final IngestGeoIpMetadata geoIpMeta = currentState.metadata().projectMetadata.custom(
-                IngestGeoIpMetadata.TYPE,
-                IngestGeoIpMetadata.EMPTY
-            );
+            final IngestGeoIpMetadata geoIpMeta = currentState.metadata()
+                .getProject()
+                .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             logger.debug("deleting database configuration [{}]", databaseId);
             Map<String, DatabaseConfigurationMetadata> databases = new HashMap<>(geoIpMeta.getDatabases());

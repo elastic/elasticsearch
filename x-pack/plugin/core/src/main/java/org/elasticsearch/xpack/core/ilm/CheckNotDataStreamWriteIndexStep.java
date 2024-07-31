@@ -42,7 +42,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         Metadata metadata = clusterState.metadata();
-        IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
+        IndexMetadata indexMetadata = metadata.getProject().index(index);
         String indexName = index.getName();
 
         if (indexMetadata == null) {
@@ -58,7 +58,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         }
 
         String policyName = indexMetadata.getLifecyclePolicyName();
-        IndexAbstraction indexAbstraction = clusterState.metadata().projectMetadata.getIndicesLookup().get(indexName);
+        IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {

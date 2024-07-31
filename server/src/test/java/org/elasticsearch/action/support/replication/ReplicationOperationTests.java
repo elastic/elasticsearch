@@ -90,7 +90,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, randomInt(5));
-        IndexMetadata indexMetadata = initialState.getMetadata().projectMetadata.index(index);
+        IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
@@ -164,7 +164,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, randomInt(5));
-        IndexMetadata indexMetadata = initialState.getMetadata().projectMetadata.index(index);
+        IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
@@ -276,7 +276,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, 1 + randomInt(2), randomInt(2));
-        IndexMetadata indexMetadata = initialState.getMetadata().projectMetadata.index(index);
+        IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
@@ -383,7 +383,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         final ClusterState initialState = stateWithActivePrimary(index, true, 0);
-        Set<String> inSyncAllocationIds = initialState.metadata().projectMetadata.index(index).inSyncAllocationIds(0);
+        Set<String> inSyncAllocationIds = initialState.metadata().getProject().index(index).inSyncAllocationIds(0);
         IndexShardRoutingTable shardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
@@ -401,7 +401,7 @@ public class ReplicationOperationTests extends ESTestCase {
             stateWithAddedReplicas = state(index, true, ShardRoutingState.RELOCATING);
         }
 
-        inSyncAllocationIds = stateWithAddedReplicas.metadata().projectMetadata.index(index).inSyncAllocationIds(0);
+        inSyncAllocationIds = stateWithAddedReplicas.metadata().getProject().index(index).inSyncAllocationIds(0);
         shardRoutingTable = stateWithAddedReplicas.getRoutingTable().shardRoutingTable(shardId);
         trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
@@ -410,7 +410,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final AtomicReference<ReplicationGroup> replicationGroup = new AtomicReference<>(initialReplicationGroup);
         logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
-        final long primaryTerm = initialState.getMetadata().projectMetadata.index(shardId.getIndexName()).primaryTerm(shardId.id());
+        final long primaryTerm = initialState.getMetadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
         final ShardRouting primaryShard = updatedReplicationGroup.getRoutingTable().primaryShard();
         final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get, threadPool) {
             @Override
@@ -483,10 +483,10 @@ public class ReplicationOperationTests extends ESTestCase {
             passesActiveShardCheck ? "succeed" : "retry",
             state
         );
-        final long primaryTerm = state.metadata().projectMetadata.index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metadata().getProject().index(index).primaryTerm(shardId.id());
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
 
-        final Set<String> inSyncAllocationIds = state.metadata().projectMetadata.index(index).inSyncAllocationIds(0);
+        final Set<String> inSyncAllocationIds = state.metadata().getProject().index(index).inSyncAllocationIds(0);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
         final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
@@ -534,7 +534,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final Request request = new Request(shardId);
 
         final ClusterState state = stateWithActivePrimary(index, true, 1, 0);
-        final IndexMetadata indexMetadata = state.getMetadata().projectMetadata.index(index);
+        final IndexMetadata indexMetadata = state.getMetadata().getProject().index(index);
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final ShardRouting primaryRouting = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
 

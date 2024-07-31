@@ -242,8 +242,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
         if (compatibilityVersions.transportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
             && metadata != null
-            && metadata.projectMetadata.indices() != null) {
-            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
+            && metadata.getProject().indices() != null) {
+            for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
                 assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
                     : "event.ingested range should be UNKNOWN but is "
                         + indexMetadata.getEventIngestedRange()
@@ -451,11 +451,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
             });
         }
-        if (metadata.projectMetadata.indicesLookupInitialized() == false) {
+        if (metadata.getProject().indicesLookupInitialized() == false) {
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    metadata.projectMetadata.getIndicesLookup();
+                    metadata.getProject().getIndicesLookup();
                 }
 
                 @Override
@@ -519,9 +519,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             }
             sb.append("\n");
         }
-        if (metadata.projectMetadata.customs().isEmpty() == false) {
+        if (metadata.getProject().customs().isEmpty() == false) {
             sb.append("metadata customs (project):\n");
-            for (final Map.Entry<String, Metadata.ProjectCustom> cursor : metadata.projectMetadata.customs().entrySet()) {
+            for (final Map.Entry<String, Metadata.ProjectCustom> cursor : metadata.getProject().customs().entrySet()) {
                 final String type = cursor.getKey();
                 final Metadata.ProjectCustom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);

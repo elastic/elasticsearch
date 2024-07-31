@@ -380,7 +380,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      */
     public boolean allShardsActive(ShardId shardId, Metadata metadata) {
         final List<ShardRouting> shards = assignedShards(shardId);
-        final int shardCopies = metadata.projectMetadata.getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+        final int shardCopies = metadata.getProject().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
         if (shards.size() < shardCopies) {
             return false; // if we are empty nothing is active if we have less than total at least one is unassigned
         }

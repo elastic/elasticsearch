@@ -60,7 +60,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("idx").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.projectMetadata.index("idx"))
+            .addAsNew(metadata.getProject().index("idx"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -191,10 +191,10 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             .metadata(
                 Metadata.builder(clusterState.metadata())
                     .put(
-                        IndexMetadata.builder(clusterState.metadata().projectMetadata.index("idx"))
+                        IndexMetadata.builder(clusterState.metadata().getProject().index("idx"))
                             .settings(
                                 Settings.builder()
-                                    .put(clusterState.metadata().projectMetadata.index("idx").getSettings())
+                                    .put(clusterState.metadata().getProject().index("idx").getSettings())
                                     .put("index.allocation.max_retries", retries + 1)
                                     .build()
                             )

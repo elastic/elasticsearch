@@ -750,7 +750,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         } else {
             snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> {
                 final Index index = snapshot.indexByName(key.indexName());
-                if (metadata.projectMetadata.index(index) == null) {
+                if (metadata.getProject().index(index) == null) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                     return;
                 }
@@ -766,7 +766,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // Remove global state from the cluster state
             builder = Metadata.builder();
             for (IndexId index : snapshot.indices().values()) {
-                final IndexMetadata indexMetadata = metadata.projectMetadata.index(index.getName());
+                final IndexMetadata indexMetadata = metadata.getProject().index(index.getName());
                 if (indexMetadata == null) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                 } else {
@@ -781,7 +781,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final Map<String, DataStream> dataStreams = new HashMap<>();
         final Set<String> indicesInSnapshot = snapshot.indices().keySet();
         for (String dataStreamName : snapshot.dataStreams()) {
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dataStreamName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
             if (dataStream == null) {
                 assert snapshot.partial()
                     : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
@@ -800,7 +800,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
             }
         }
-        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.projectMetadata.dataStreamAliases())).build();
+        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.getProject().dataStreamAliases())).build();
     }
 
     /**
@@ -1454,14 +1454,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     }
                     // remove those data streams from metadata for which we are missing indices
                     Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
-                    for (Map.Entry<String, DataStream> dataStreamEntry : existing.projectMetadata.dataStreams().entrySet()) {
+                    for (Map.Entry<String, DataStream> dataStreamEntry : existing.getProject().dataStreams().entrySet()) {
                         if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
                             dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
                         }
                     }
                     Map<String, DataStreamAlias> dataStreamAliasesToCopy = filterDataStreamAliases(
                         dataStreamsToCopy,
-                        existing.projectMetadata.dataStreamAliases()
+                        existing.getProject().dataStreamAliases()
                     );
                     metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
                     return metaBuilder.build();
@@ -1510,7 +1510,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final SnapshotInfo snapshotInfo = new SnapshotInfo(
                     snapshot,
                     finalIndices,
-                    entry.dataStreams().stream().filter(metaForSnapshot.projectMetadata.dataStreams()::containsKey).toList(),
+                    entry.dataStreams().stream().filter(metaForSnapshot.getProject().dataStreams()::containsKey).toList(),
                     entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                     failure,
                     threadPool.absoluteTimeInMillis(),
@@ -2958,7 +2958,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
-            IndexMetadata indexMetadata = currentState.metadata().projectMetadata.index(indexName);
+            IndexMetadata indexMetadata = currentState.metadata().getProject().index(indexName);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), ShardSnapshotStatus.MISSING);
@@ -3040,7 +3040,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * indices-to-check set.
      */
     public static Set<String> snapshottingDataStreams(final ClusterState currentState, final Set<String> dataStreamsToCheck) {
-        Map<String, DataStream> dataStreams = currentState.metadata().projectMetadata.dataStreams();
+        Map<String, DataStream> dataStreams = currentState.metadata().getProject().dataStreams();
         return SnapshotsInProgress.get(currentState)
             .asStream()
             .filter(e -> e.partial() == false)
@@ -3058,7 +3058,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
                 if (entry.partial() == false && entry.isClone() == false) {
                     for (String indexName : entry.indices().keySet()) {
-                        IndexMetadata indexMetadata = currentState.metadata().projectMetadata.index(indexName);
+                        IndexMetadata indexMetadata = currentState.metadata().getProject().index(indexName);
                         if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
                             indices.add(indexMetadata.getIndex());
                         }

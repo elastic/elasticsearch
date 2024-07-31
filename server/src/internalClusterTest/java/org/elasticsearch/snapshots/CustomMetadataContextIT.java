@@ -109,11 +109,11 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that custom persistent metadata [{}] is correctly restored", metadata);
         if (isSnapshotMetadataSet) {
-            assertThat(metadata.projectMetadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
+            assertThat(metadata.getProject().<SnapshotMetadata>custom(SnapshotMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
         } else {
-            assertThat(metadata.projectMetadata.<SnapshotMetadata>custom(SnapshotMetadata.TYPE), nullValue());
+            assertThat(metadata.getProject().<SnapshotMetadata>custom(SnapshotMetadata.TYPE), nullValue());
         }
-        assertThat(metadata.projectMetadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
+        assertThat(metadata.getProject().<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
     }
 
     public void testShouldKeepGatewayMetadataAfterRestart() throws Exception {
@@ -129,8 +129,8 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
 
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that gateway custom metadata [{}] survived full cluster restart", metadata);
-        assertThat(metadata.projectMetadata.<GatewayMetadata>custom(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
-        assertThat(metadata.projectMetadata.<ApiMetadata>custom(ApiMetadata.TYPE), nullValue());
+        assertThat(metadata.getProject().<GatewayMetadata>custom(GatewayMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
+        assertThat(metadata.getProject().<ApiMetadata>custom(ApiMetadata.TYPE), nullValue());
     }
 
     public void testShouldExposeApiMetadata() throws Exception {
@@ -142,8 +142,8 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
 
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that api custom metadata [{}] is visible via api", metadata);
-        assertThat(metadata.projectMetadata.<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
-        assertThat(metadata.projectMetadata.<NonApiMetadata>custom(NonApiMetadata.TYPE), nullValue());
+        assertThat(metadata.getProject().<ApiMetadata>custom(ApiMetadata.TYPE).getData(), equalTo("before_restart_s_gw"));
+        assertThat(metadata.getProject().<NonApiMetadata>custom(NonApiMetadata.TYPE), nullValue());
     }
 
     public static class TestCustomMetadataPlugin extends Plugin {

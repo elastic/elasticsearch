@@ -425,7 +425,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        final IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().projectMetadata.index(indexName));
+        final IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().getProject().index(indexName));
         allocationIds.forEach(idxMetaBuilder::putInSyncAllocationIds);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadataBuilder).build();
@@ -473,7 +473,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        final IndexMetadata.Builder idxMetaBuilder2 = IndexMetadata.builder(clusterState.metadata().projectMetadata.index(indexName));
+        final IndexMetadata.Builder idxMetaBuilder2 = IndexMetadata.builder(clusterState.metadata().getProject().index(indexName));
         allocationIds.forEach(idxMetaBuilder2::putInSyncAllocationIds);
         metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder2);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadataBuilder).build();
@@ -552,7 +552,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             IndexShardRoutingTable shardRouting = indexRoutingTable.shard(i);
             final ShardRouting primaryShard = shardRouting.primaryShard();
             if (primaryShard.active() == false) {
-                if (clusterState.metadata().projectMetadata.index(indexName)
+                if (clusterState.metadata()
+                    .getProject()
+                    .index(indexName)
                     .inSyncAllocationIds(shardRouting.shardId().id())
                     .isEmpty() == false) {
                     return false;

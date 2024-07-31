@@ -102,7 +102,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             Collections.singletonList(new AliasMetadata.Builder("d").build())
         );
         final String[] concreteIndices = { "a", ".b", "c" };
-        assertEquals(state.metadata().projectMetadata.findAliases(request.aliases(), concreteIndices), aliases);
+        assertEquals(state.metadata().getProject().findAliases(request.aliases(), concreteIndices), aliases);
         Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -133,7 +133,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         request.indices(".b");
         Map<String, List<AliasMetadata>> aliases = Map.of(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()));
         final String[] concreteIndices = { ".b" };
-        assertEquals(state.metadata().projectMetadata.findAliases(request.aliases(), concreteIndices), aliases);
+        assertEquals(state.metadata().getProject().findAliases(request.aliases(), concreteIndices), aliases);
         Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -161,7 +161,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         GetAliasesRequest request = new GetAliasesRequest(".y");
         Map<String, List<AliasMetadata>> aliases = Map.of(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()));
         final String[] concreteIndices = { "a", ".b", "c" };
-        assertEquals(state.metadata().projectMetadata.findAliases(request.aliases(), concreteIndices), aliases);
+        assertEquals(state.metadata().getProject().findAliases(request.aliases(), concreteIndices), aliases);
         Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -189,7 +189,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         GetAliasesRequest request = new GetAliasesRequest(".y");
         Map<String, List<AliasMetadata>> aliases = Map.of(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()));
         final String[] concreteIndices = { "a", ".b", "c" };
-        assertEquals(state.metadata().projectMetadata.findAliases(request.aliases(), concreteIndices), aliases);
+        assertEquals(state.metadata().getProject().findAliases(request.aliases(), concreteIndices), aliases);
         Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -213,7 +213,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         request.indices("c");
         Map<String, List<AliasMetadata>> aliases = Map.of("c", Collections.singletonList(new AliasMetadata.Builder("d").build()));
         final String[] concreteIndices = { "c" };
-        assertEquals(state.metadata().projectMetadata.findAliases(request.aliases(), concreteIndices), aliases);
+        assertEquals(state.metadata().getProject().findAliases(request.aliases(), concreteIndices), aliases);
         Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,

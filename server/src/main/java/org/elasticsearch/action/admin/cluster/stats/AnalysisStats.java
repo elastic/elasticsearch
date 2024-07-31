@@ -72,7 +72,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Set<String> synonymsIdsUsedInIndices = new HashSet<>();
         final Set<String> synonymsIdsUsed = new HashSet<>();
 
-        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.projectMetadata.getMappingsByHash().size());
+        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getProject().getMappingsByHash().size());
         for (IndexMetadata indexMetadata : metadata.getProject()) {
             ensureNotCancelled.run();
             if (indexMetadata.isSystem()) {

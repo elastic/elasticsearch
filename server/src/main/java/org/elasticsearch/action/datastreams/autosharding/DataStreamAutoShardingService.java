@@ -198,7 +198,7 @@ public class DataStreamAutoShardingService {
 
     private AutoShardingResult innerCalculate(Metadata metadata, DataStream dataStream, double writeIndexLoad, LongSupplier nowSupplier) {
         // increasing the number of shards is calculated solely based on the index load of the write index
-        IndexMetadata writeIndex = metadata.projectMetadata.index(dataStream.getWriteIndex());
+        IndexMetadata writeIndex = metadata.getProject().index(dataStream.getWriteIndex());
         assert writeIndex != null : "the data stream write index must exist in the provided cluster metadata";
         AutoShardingResult increaseShardsResult = getIncreaseShardsResult(dataStream, writeIndexLoad, nowSupplier, writeIndex);
         return Objects.requireNonNullElseGet(
@@ -258,7 +258,7 @@ public class DataStreamAutoShardingService {
      */
     private TimeValue getRemainingDecreaseShardsCooldown(Metadata metadata, DataStream dataStream) {
         Index oldestBackingIndex = dataStream.getIndices().get(0);
-        IndexMetadata oldestIndexMeta = metadata.projectMetadata.getIndexSafe(oldestBackingIndex);
+        IndexMetadata oldestIndexMeta = metadata.getProject().getIndexSafe(oldestBackingIndex);
 
         return dataStream.getAutoShardingEvent() == null
             // without a pre-existing auto sharding event we wait until the oldest index has been created longer than the decrease_shards

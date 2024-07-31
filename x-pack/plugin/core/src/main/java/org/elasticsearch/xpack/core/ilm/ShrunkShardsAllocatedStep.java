@@ -43,7 +43,7 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
+        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
@@ -55,12 +55,12 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
 
         // We only want to make progress if all shards of the shrunk index are
         // active
-        boolean indexExists = clusterState.metadata().projectMetadata.index(shrunkenIndexName) != null;
+        boolean indexExists = clusterState.metadata().getProject().index(shrunkenIndexName) != null;
         if (indexExists == false) {
             return new Result(false, new Info(false, -1, false));
         }
         boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(clusterState, shrunkenIndexName);
-        int numShrunkIndexShards = clusterState.metadata().projectMetadata.index(shrunkenIndexName).getNumberOfShards();
+        int numShrunkIndexShards = clusterState.metadata().getProject().index(shrunkenIndexName).getNumberOfShards();
         if (allShardsActive) {
             return new Result(true, null);
         } else {

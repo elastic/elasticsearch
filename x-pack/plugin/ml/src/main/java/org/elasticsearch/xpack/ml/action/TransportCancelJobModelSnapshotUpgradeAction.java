@@ -70,9 +70,10 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         ActionListener<List<Job.Builder>> expandIdsListener = listener.delegateFailureAndWrap((delegate, jobs) -> {
             SimpleIdsMatcher matcher = new SimpleIdsMatcher(request.getSnapshotId());
             Set<String> jobIds = jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet());
-            PersistentTasksCustomMetadata tasksInProgress = clusterService.state().metadata().projectMetadata.custom(
-                PersistentTasksCustomMetadata.TYPE
-            );
+            PersistentTasksCustomMetadata tasksInProgress = clusterService.state()
+                .metadata()
+                .getProject()
+                .custom(PersistentTasksCustomMetadata.TYPE);
             // allow_no_match plays no part here. The reason is that we have a principle that stopping
             // a stopped entity is a no-op, and upgrades that have already completed won't have a task.
             // This is a bit different to jobs and datafeeds, where the entity continues to exist even

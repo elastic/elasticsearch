@@ -465,7 +465,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             );
             if (e instanceof TimeoutException) {
                 try {
-                    final IndexMetadata indexMetadata = clusterService.state().metadata().projectMetadata.index(shardId.getIndex());
+                    final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
                     if (indexMetadata == null) {
                         listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
                         return;

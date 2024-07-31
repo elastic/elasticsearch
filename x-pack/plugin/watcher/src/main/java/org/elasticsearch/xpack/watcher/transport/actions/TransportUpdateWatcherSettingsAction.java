@@ -84,7 +84,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        final IndexMetadata watcherIndexMd = state.metadata().projectMetadata.index(WATCHER_INDEX_NAME);
+        final IndexMetadata watcherIndexMd = state.metadata().getProject().index(WATCHER_INDEX_NAME);
         if (watcherIndexMd == null) {
             // Index does not exist, so fail fast
             listener.onFailure(new ResourceNotFoundException("no Watches found on which to modify settings"));

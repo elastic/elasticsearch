@@ -95,8 +95,8 @@ public class MetadataDeleteIndexService {
         final Set<Index> indicesToDelete = new HashSet<>();
         final Map<Index, DataStream> dataStreamIndices = new HashMap<>();
         for (Index index : indices) {
-            IndexMetadata im = meta.projectMetadata.getIndexSafe(index);
-            DataStream parent = meta.projectMetadata.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
+            IndexMetadata im = meta.getProject().getIndexSafe(index);
+            DataStream parent = meta.getProject().getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
                 boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getFailureStoreWriteIndex());
                 if (isFailureStoreWriteIndex || im.getIndex().equals(parent.getWriteIndex())) {

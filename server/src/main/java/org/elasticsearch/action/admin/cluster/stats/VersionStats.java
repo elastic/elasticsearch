@@ -66,7 +66,7 @@ public final class VersionStats implements ToXContentFragment, Writeable {
         }
 
         // Loop through all indices in the metadata, building the counts as needed
-        for (Map.Entry<String, IndexMetadata> cursor : metadata.projectMetadata.indices().entrySet()) {
+        for (Map.Entry<String, IndexMetadata> cursor : metadata.getProject().indices().entrySet()) {
             IndexMetadata indexMetadata = cursor.getValue();
             // Increment version-specific index counts
             indexCounts.merge(indexMetadata.getCreationVersion(), 1, Integer::sum);

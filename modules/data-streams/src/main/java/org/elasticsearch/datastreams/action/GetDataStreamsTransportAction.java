@@ -234,11 +234,11 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         List<Index> backingIndices
     ) {
         for (Index index : backingIndices) {
-            IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
+            IndexMetadata indexMetadata = metadata.getProject().index(index);
             Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
             assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
             ManagedBy managedBy;
-            if (metadata.projectMetadata.isIndexManagedByILM(indexMetadata)) {
+            if (metadata.getProject().isIndexManagedByILM(indexMetadata)) {
                 managedBy = ManagedBy.ILM;
             } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index)) {
                 managedBy = ManagedBy.LIFECYCLE;
@@ -255,7 +255,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         GetDataStreamAction.Request request
     ) {
         List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, clusterState, request.getNames(), request.indicesOptions());
-        Map<String, DataStream> dataStreams = clusterState.metadata().projectMetadata.dataStreams();
+        Map<String, DataStream> dataStreams = clusterState.metadata().getProject().dataStreams();
 
         return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).toList();
     }

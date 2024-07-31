@@ -89,13 +89,13 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         final Metadata metadata = event.state().metadata();
-        final Map<String, IndexMetadata> indices = metadata.projectMetadata.indices();
-        if (indices == event.previousState().metadata().projectMetadata.indices()) {
+        final Map<String, IndexMetadata> indices = metadata.getProject().indices();
+        if (indices == event.previousState().metadata().getProject().indices()) {
             return;
         }
 
         // clear out mappers for indices that no longer exist or whose timestamp range is no longer known
-        fieldTypesByIndex.keySet().removeIf(index -> hasUsefulTimestampField(metadata.projectMetadata.index(index)) == false);
+        fieldTypesByIndex.keySet().removeIf(index -> hasUsefulTimestampField(metadata.getProject().index(index)) == false);
 
         // capture mappers for indices that do exist
         for (IndexMetadata indexMetadata : indices.values()) {

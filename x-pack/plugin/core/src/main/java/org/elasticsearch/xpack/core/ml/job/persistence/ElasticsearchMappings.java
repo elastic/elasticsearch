@@ -104,11 +104,9 @@ public class ElasticsearchMappings {
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, int minVersion) {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        Map<String, MappingMetadata> currentMapping = state.metadata().projectMetadata.findMappings(
-            concreteIndices,
-            MapperPlugin.NOOP_FIELD_FILTER,
-            Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-        );
+        Map<String, MappingMetadata> currentMapping = state.metadata()
+            .getProject()
+            .findMappings(concreteIndices, MapperPlugin.NOOP_FIELD_FILTER, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
         for (String index : concreteIndices) {
             MappingMetadata metadata = currentMapping.get(index);
@@ -164,7 +162,7 @@ public class ElasticsearchMappings {
         ActionListener<Boolean> listener,
         int minVersion
     ) {
-        IndexAbstraction indexAbstraction = state.metadata().projectMetadata.getIndicesLookup().get(alias);
+        IndexAbstraction indexAbstraction = state.metadata().getProject().getIndicesLookup().get(alias);
         if (indexAbstraction == null) {
             // The index has never been created yet
             listener.onResponse(true);

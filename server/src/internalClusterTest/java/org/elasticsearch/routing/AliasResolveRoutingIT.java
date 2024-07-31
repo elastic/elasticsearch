@@ -64,25 +64,25 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
             .addAliasAction(AliasActions.add().index("test2").alias("alias0").routing("0"))
             .get();
 
-        assertThat(clusterService().state().metadata().projectMetadata.resolveIndexRouting(null, "test1"), nullValue());
-        assertThat(clusterService().state().metadata().projectMetadata.resolveIndexRouting(null, "alias"), nullValue());
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "test1"), nullValue());
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias"), nullValue());
 
-        assertThat(clusterService().state().metadata().projectMetadata.resolveIndexRouting(null, "test1"), nullValue());
-        assertThat(clusterService().state().metadata().projectMetadata.resolveIndexRouting(null, "alias10"), equalTo("0"));
-        assertThat(clusterService().state().metadata().projectMetadata.resolveIndexRouting(null, "alias20"), equalTo("0"));
-        assertThat(clusterService().state().metadata().projectMetadata.resolveIndexRouting(null, "alias21"), equalTo("1"));
-        assertThat(clusterService().state().metadata().projectMetadata.resolveIndexRouting("3", "test1"), equalTo("3"));
-        assertThat(clusterService().state().metadata().projectMetadata.resolveIndexRouting("0", "alias10"), equalTo("0"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "test1"), nullValue());
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias10"), equalTo("0"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias20"), equalTo("0"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias21"), equalTo("1"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting("3", "test1"), equalTo("3"));
+        assertThat(clusterService().state().metadata().getProject().resolveIndexRouting("0", "alias10"), equalTo("0"));
 
         try {
-            clusterService().state().metadata().projectMetadata.resolveIndexRouting("1", "alias10");
+            clusterService().state().metadata().getProject().resolveIndexRouting("1", "alias10");
             fail("should fail");
         } catch (IllegalArgumentException e) {
             // all is well, we can't have two mappings, one provided, and one in the alias
         }
 
         try {
-            clusterService().state().metadata().projectMetadata.resolveIndexRouting(null, "alias0");
+            clusterService().state().metadata().getProject().resolveIndexRouting(null, "alias0");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
             // Expected

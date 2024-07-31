@@ -388,7 +388,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                     shards += 1;
                     totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
                     totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(
-                        clusterState.metadata().projectMetadata.index(shardRouting.index())
+                        clusterState.metadata().getProject().index(shardRouting.index())
                     ).orElseThrow(() -> new AssertionError("missing write load"));
                 }
 

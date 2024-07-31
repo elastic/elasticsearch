@@ -97,7 +97,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
-        final IndexMetadata indexMetadata = allocation.metadata().projectMetadata.getIndexSafe(unassignedShard.index());
+        final IndexMetadata indexMetadata = allocation.metadata().getProject().getIndexSafe(unassignedShard.index());
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 

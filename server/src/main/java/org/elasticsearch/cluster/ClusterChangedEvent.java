@@ -129,7 +129,7 @@ public class ClusterChangedEvent {
      * returned iff they have been added, updated or removed between the previous and the current state
      */
     public Set<String> changedCustomProjectMetadataSet() {
-        return changedCustoms(state.metadata().projectMetadata.customs(), previousState.metadata().projectMetadata.customs());
+        return changedCustoms(state.metadata().getProject().customs(), previousState.metadata().getProject().customs());
     }
 
     private <C extends Metadata.MetadataCustom<C>> Set<String> changedCustoms(
@@ -241,9 +241,9 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        if (currentMetadata.projectMetadata.indices() != previousMetadata.projectMetadata.indices()) {
-            for (IndexMetadata index : previousMetadata.projectMetadata.indices().values()) {
-                IndexMetadata current = currentMetadata.projectMetadata.index(index.getIndex());
+        if (currentMetadata.getProject().indices() != previousMetadata.getProject().indices()) {
+            for (IndexMetadata index : previousMetadata.getProject().indices().values()) {
+                IndexMetadata current = currentMetadata.getProject().index(index.getIndex());
                 if (current == null) {
                     if (deleted == null) {
                         deleted = new HashSet<>();
@@ -253,8 +253,8 @@ public class ClusterChangedEvent {
             }
         }
 
-        final IndexGraveyard currentGraveyard = currentMetadata.projectMetadata.indexGraveyard();
-        final IndexGraveyard previousGraveyard = previousMetadata.projectMetadata.indexGraveyard();
+        final IndexGraveyard currentGraveyard = currentMetadata.getProject().indexGraveyard();
+        final IndexGraveyard previousGraveyard = previousMetadata.getProject().indexGraveyard();
 
         // Look for new entries in the index graveyard, where there's no corresponding index in the
         // previous metadata. This indicates that a dangling index has been explicitly deleted, so
@@ -284,7 +284,7 @@ public class ClusterChangedEvent {
         // to re-process the same deletes or process deletes about indices it never knew about. This is not
         // an issue because there are safeguards in place in the delete store operation in case the index
         // folder doesn't exist on the file system.
-        List<IndexGraveyard.Tombstone> tombstones = state.metadata().projectMetadata.indexGraveyard().getTombstones();
+        List<IndexGraveyard.Tombstone> tombstones = state.metadata().getProject().indexGraveyard().getTombstones();
         return tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).toList();
     }
 

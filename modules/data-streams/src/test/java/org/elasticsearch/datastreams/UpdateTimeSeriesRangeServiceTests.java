@@ -138,7 +138,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             dataStreamName,
             List.of(new Tuple<>(start.minus(4, ChronoUnit.HOURS), start), new Tuple<>(start, end))
         ).getMetadata();
-        DataStream d = metadata.projectMetadata.dataStreams().get(dataStreamName);
+        DataStream d = metadata.getProject().dataStreams().get(dataStreamName);
         metadata = Metadata.builder(metadata)
             .put(d.copy().setReplicated(true).setBackingIndices(d.getBackingIndices().copy().setRolloverOnWrite(false).build()).build())
             .build();
@@ -208,14 +208,14 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
     }
 
     static Instant getEndTime(ClusterState state, String dataStreamName, int index) {
-        DataStream dataStream = state.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
-        Settings indexSettings = state.getMetadata().projectMetadata.index(dataStream.getIndices().get(index)).getSettings();
+        DataStream dataStream = state.getMetadata().getProject().dataStreams().get(dataStreamName);
+        Settings indexSettings = state.getMetadata().getProject().index(dataStream.getIndices().get(index)).getSettings();
         return IndexSettings.TIME_SERIES_END_TIME.get(indexSettings);
     }
 
     static Instant getStartTime(ClusterState state, String dataStreamName, int index) {
-        DataStream dataStream = state.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
-        Settings indexSettings = state.getMetadata().projectMetadata.index(dataStream.getIndices().get(index)).getSettings();
+        DataStream dataStream = state.getMetadata().getProject().dataStreams().get(dataStreamName);
+        Settings indexSettings = state.getMetadata().getProject().index(dataStream.getIndices().get(index)).getSettings();
         return IndexSettings.TIME_SERIES_START_TIME.get(indexSettings);
     }
 

@@ -71,7 +71,7 @@ public class FreezeAction implements LifecycleAction {
             checkNotWriteIndex,
             nextStepKey,
             (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.getMetadata().projectMetadata.index(index);
+                IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {

@@ -369,7 +369,7 @@ public class ClusterStateChanges {
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {
         final Index[] concreteIndices = Arrays.stream(request.indices())
-            .map(index -> state.metadata().projectMetadata.index(index).getIndex())
+            .map(index -> state.metadata().getProject().index(index).getIndex())
             .toArray(Index[]::new);
 
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
@@ -470,7 +470,7 @@ public class ClusterStateChanges {
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
         final Map<ShardRouting, Long> entries = startedShards.stream().collect(toMap(Function.identity(), startedShard -> {
-            final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(startedShard.shardId().getIndex());
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(startedShard.shardId().getIndex());
             return indexMetadata != null ? indexMetadata.primaryTerm(startedShard.shardId().id()) : 0L;
         }));
         return applyStartedShards(clusterState, entries);

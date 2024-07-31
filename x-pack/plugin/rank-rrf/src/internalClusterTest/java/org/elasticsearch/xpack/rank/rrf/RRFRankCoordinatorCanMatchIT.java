@@ -125,8 +125,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         client().admin().indices().prepareOpen("time_index").get();
 
         assertBusy(() -> {
-            IndexLongFieldRange timestampRange = clusterService().state().metadata().projectMetadata.index("time_index")
-                .getTimestampRange();
+            IndexLongFieldRange timestampRange = clusterService().state().metadata().getProject().index("time_index").getTimestampRange();
             assertTrue(Strings.toString(timestampRange), timestampRange.containsAllShardRanges());
         });
 

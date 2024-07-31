@@ -222,7 +222,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 ) // (Index, ClusterShardHealth) of all red shards
                 .map(
                     redIndexShardHealthTuple -> new ShardId(
-                        metadata.projectMetadata.index(redIndexShardHealthTuple.v1()).getIndex(),
+                        metadata.getProject().index(redIndexShardHealthTuple.v1()).getIndex(),
                         redIndexShardHealthTuple.v2().getShardId()
                     )
                 ) // Convert to ShardId

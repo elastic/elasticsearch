@@ -390,7 +390,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
 
     private static boolean isIlmRestrictingShardMovement(ClusterState currentState, ShardRouting pair) {
         if (OperationMode.STOPPED.equals(currentILMMode(currentState)) == false) {
-            LifecycleExecutionState ilmState = currentState.metadata().projectMetadata.index(pair.index()).getLifecycleExecutionState();
+            LifecycleExecutionState ilmState = currentState.metadata().getProject().index(pair.index()).getLifecycleExecutionState();
             // Specifically, if 1) ILM is running, 2) ILM is currently shrinking the index this shard is part of, and 3) it hasn't
             // errored out, we can disregard this shard under the assumption that ILM will get it movable eventually
             boolean ilmWillMoveShardEventually = ilmState != null

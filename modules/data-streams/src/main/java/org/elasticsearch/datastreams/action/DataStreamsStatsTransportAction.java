@@ -124,7 +124,10 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
             StoreStats storeStats = indexShard.storeStats();
-            IndexAbstraction indexAbstraction = clusterService.state().getMetadata().projectMetadata.getIndicesLookup()
+            IndexAbstraction indexAbstraction = clusterService.state()
+                .getMetadata()
+                .getProject()
+                .getIndicesLookup()
                 .get(shardRouting.getIndexName());
             assert indexAbstraction != null;
             DataStream dataStream = indexAbstraction.getParentDataStream();
@@ -152,7 +155,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         getResponseFactory(DataStreamsStatsAction.Request request, ClusterState clusterState) {
         Map<String, AggregatedStats> aggregatedDataStreamsStats = new HashMap<>();
         Set<String> allBackingIndices = new HashSet<>();
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().projectMetadata.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getProject().getIndicesLookup();
 
         // Collect the number of backing indices from the cluster state. If every shard operation for an index fails,
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used

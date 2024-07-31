@@ -179,7 +179,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().projectMetadata.index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (allocation.metadata().getProject().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -340,7 +340,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().projectMetadata.index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (allocation.metadata().getProject().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 

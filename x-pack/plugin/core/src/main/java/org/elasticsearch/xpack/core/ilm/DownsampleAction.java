@@ -158,7 +158,7 @@ public class DownsampleAction implements LifecycleAction {
             nextStepKey,
             checkNotWriteIndex,
             (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
                 assert indexMetadata != null : "invalid cluster metadata. index [" + index.getName() + "] metadata not found";
                 if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
                     return false;
@@ -260,7 +260,7 @@ public class DownsampleAction implements LifecycleAction {
             swapAliasesKey,
             replaceDataStreamIndexKey,
             (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().projectMetadata.getIndicesLookup().get(index.getName());
+                IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }

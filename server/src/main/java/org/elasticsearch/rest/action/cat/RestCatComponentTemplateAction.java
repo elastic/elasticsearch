@@ -91,7 +91,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         Metadata metadata = clusterStateResponse.getState().metadata();
         Map<String, Set<String>> reverseIndexOnComposedOfToIndexName = buildReverseIndexOnComposedOfToIndexName(metadata);
 
-        for (Map.Entry<String, ComponentTemplate> entry : metadata.projectMetadata.componentTemplates().entrySet()) {
+        for (Map.Entry<String, ComponentTemplate> entry : metadata.getProject().componentTemplates().entrySet()) {
             String name = entry.getKey();
             ComponentTemplate componentTemplate = entry.getValue();
             if (patternString == null || Regex.simpleMatch(patternString, name)) {
@@ -111,7 +111,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
     }
 
     private static Map<String, Set<String>> buildReverseIndexOnComposedOfToIndexName(Metadata metadata) {
-        Map<String, ComposableIndexTemplate> allTemplates = metadata.projectMetadata.templatesV2();
+        Map<String, ComposableIndexTemplate> allTemplates = metadata.getProject().templatesV2();
         Map<String, Set<String>> reverseIndex = new HashMap<>();
 
         for (Map.Entry<String, ComposableIndexTemplate> templateEntry : allTemplates.entrySet()) {

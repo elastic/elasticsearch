@@ -46,7 +46,7 @@ public class OperationRoutingTests extends ESTestCase {
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
             final String indexName = "test";
             ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(indexName, true, randomInt(8)));
-            final Index index = clusterService.state().metadata().projectMetadata.index(indexName).getIndex();
+            final Index index = clusterService.state().metadata().getProject().index(indexName).getIndex();
             final List<ShardRouting> shards = clusterService.state().getRoutingNodes().assignedShards(new ShardId(index, 0));
             final int count = randomIntBetween(1, shards.size());
             int position = 0;
@@ -90,7 +90,7 @@ public class OperationRoutingTests extends ESTestCase {
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
             final String indexName = "test";
             ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(indexName, true, randomInt(8)));
-            final Index index = clusterService.state().metadata().projectMetadata.index(indexName).getIndex();
+            final Index index = clusterService.state().metadata().getProject().index(indexName).getIndex();
             final List<ShardRouting> shards = clusterService.state().getRoutingNodes().assignedShards(new ShardId(index, 0));
             final ClusterState state = clusterService.state();
 
@@ -207,7 +207,7 @@ public class OperationRoutingTests extends ESTestCase {
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
             final String indexName = "test";
             ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(indexName, true, randomInt(8)));
-            final Index index = clusterService.state().metadata().projectMetadata.index(indexName).getIndex();
+            final Index index = clusterService.state().metadata().getProject().index(indexName).getIndex();
             final List<ShardRouting> shards = clusterService.state().getRoutingNodes().assignedShards(new ShardId(index, 0));
             final int count = randomIntBetween(1, shards.size());
             int position = 0;

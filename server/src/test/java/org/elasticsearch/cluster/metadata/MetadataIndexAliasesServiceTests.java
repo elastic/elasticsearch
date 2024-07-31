@@ -88,15 +88,12 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             singletonList(new AliasAction.Add(index, "test", null, null, null, null, null))
         );
-        IndexAbstraction alias = after.metadata().projectMetadata.getIndicesLookup().get("test");
+        IndexAbstraction alias = after.metadata().getProject().getIndicesLookup().get("test");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(alias.getIndices(), contains(after.metadata().projectMetadata.index(index).getIndex()));
+        assertThat(alias.getIndices(), contains(after.metadata().getProject().index(index).getIndex()));
         assertAliasesVersionIncreased(index, before, after);
-        assertThat(
-            after.metadata().projectMetadata.aliasedIndices("test"),
-            contains(after.metadata().projectMetadata.index(index).getIndex())
-        );
+        assertThat(after.metadata().getProject().aliasedIndices("test"), contains(after.metadata().getProject().index(index).getIndex()));
 
         // Remove the alias from it while adding another one
         before = after;
@@ -104,25 +101,22 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             Arrays.asList(new AliasAction.Remove(index, "test", null), new AliasAction.Add(index, "test_2", null, null, null, null, null))
         );
-        assertNull(after.metadata().projectMetadata.getIndicesLookup().get("test"));
-        assertThat(after.metadata().projectMetadata.aliasedIndices("test"), empty());
-        alias = after.metadata().projectMetadata.getIndicesLookup().get("test_2");
+        assertNull(after.metadata().getProject().getIndicesLookup().get("test"));
+        assertThat(after.metadata().getProject().aliasedIndices("test"), empty());
+        alias = after.metadata().getProject().getIndicesLookup().get("test_2");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(alias.getIndices(), contains(after.metadata().projectMetadata.index(index).getIndex()));
+        assertThat(alias.getIndices(), contains(after.metadata().getProject().index(index).getIndex()));
         assertAliasesVersionIncreased(index, before, after);
-        assertThat(
-            after.metadata().projectMetadata.aliasedIndices("test_2"),
-            contains(after.metadata().projectMetadata.index(index).getIndex())
-        );
+        assertThat(after.metadata().getProject().aliasedIndices("test_2"), contains(after.metadata().getProject().index(index).getIndex()));
 
         // Now just remove on its own
         before = after;
         after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
-        assertNull(after.metadata().projectMetadata.getIndicesLookup().get("test"));
-        assertThat(after.metadata().projectMetadata.aliasedIndices("test"), empty());
-        assertNull(after.metadata().projectMetadata.getIndicesLookup().get("test_2"));
-        assertThat(after.metadata().projectMetadata.aliasedIndices("test_2"), empty());
+        assertNull(after.metadata().getProject().getIndicesLookup().get("test"));
+        assertThat(after.metadata().getProject().aliasedIndices("test"), empty());
+        assertNull(after.metadata().getProject().getIndicesLookup().get("test_2"));
+        assertThat(after.metadata().getProject().aliasedIndices("test_2"), empty());
         assertAliasesVersionIncreased(index, before, after);
     }
 
@@ -136,10 +130,10 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             singletonList(new AliasAction.Add(index, "test", null, null, null, null, null))
         );
-        IndexAbstraction alias = after.metadata().projectMetadata.getIndicesLookup().get("test");
+        IndexAbstraction alias = after.metadata().getProject().getIndicesLookup().get("test");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(alias.getIndices(), contains(after.metadata().projectMetadata.index(index).getIndex()));
+        assertThat(alias.getIndices(), contains(after.metadata().getProject().index(index).getIndex()));
         assertAliasesVersionIncreased(index, before, after);
 
         // Remove the alias from it with mustExist == true while adding another one
@@ -148,18 +142,18 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             Arrays.asList(new AliasAction.Remove(index, "test", true), new AliasAction.Add(index, "test_2", null, null, null, null, null))
         );
-        assertNull(after.metadata().projectMetadata.getIndicesLookup().get("test"));
-        alias = after.metadata().projectMetadata.getIndicesLookup().get("test_2");
+        assertNull(after.metadata().getProject().getIndicesLookup().get("test"));
+        alias = after.metadata().getProject().getIndicesLookup().get("test_2");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(alias.getIndices(), contains(after.metadata().projectMetadata.index(index).getIndex()));
+        assertThat(alias.getIndices(), contains(after.metadata().getProject().index(index).getIndex()));
         assertAliasesVersionIncreased(index, before, after);
 
         // Now just remove on its own
         before = after;
         after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
-        assertNull(after.metadata().projectMetadata.getIndicesLookup().get("test"));
-        assertNull(after.metadata().projectMetadata.getIndicesLookup().get("test_2"));
+        assertNull(after.metadata().getProject().getIndicesLookup().get("test"));
+        assertNull(after.metadata().getProject().getIndicesLookup().get("test_2"));
         assertAliasesVersionIncreased(index, before, after);
 
         // Show that removing non-existing alias with mustExist == true fails
@@ -274,10 +268,10 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             Arrays.asList(new AliasAction.Add("test_2", "test", null, null, null, null, null), new AliasAction.RemoveIndex("test"))
         );
-        IndexAbstraction alias = after.metadata().projectMetadata.getIndicesLookup().get("test");
+        IndexAbstraction alias = after.metadata().getProject().getIndicesLookup().get("test");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(alias.getIndices(), contains(after.metadata().projectMetadata.index("test_2").getIndex()));
+        assertThat(alias.getIndices(), contains(after.metadata().getProject().index("test_2").getIndex()));
         assertAliasesVersionIncreased("test_2", before, after);
     }
 
@@ -305,7 +299,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             Arrays.asList(new AliasAction.RemoveIndex("test"), new AliasAction.RemoveIndex("test"))
         );
-        assertNull(after.metadata().projectMetadata.getIndicesLookup().get("test"));
+        assertNull(after.metadata().getProject().getIndicesLookup().get("test"));
     }
 
     public void testAddWriteOnlyWithNoExistingAliases() {
@@ -315,23 +309,23 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             before,
             List.of(new AliasAction.Add("test", "alias", null, null, null, false, null))
         );
-        assertFalse(after.metadata().projectMetadata.index("test").getAliases().get("alias").writeIndex());
-        assertNull(after.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex());
+        assertFalse(after.metadata().getProject().index("test").getAliases().get("alias").writeIndex());
+        assertNull(after.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex());
         assertAliasesVersionIncreased("test", before, after);
 
         after = service.applyAliasActions(before, List.of(new AliasAction.Add("test", "alias", null, null, null, null, null)));
-        assertNull(after.metadata().projectMetadata.index("test").getAliases().get("alias").writeIndex());
+        assertNull(after.metadata().getProject().index("test").getAliases().get("alias").writeIndex());
         assertThat(
-            after.metadata().projectMetadata.index(after.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex()),
-            equalTo(after.metadata().projectMetadata.index("test"))
+            after.metadata().getProject().index(after.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex()),
+            equalTo(after.metadata().getProject().index("test"))
         );
         assertAliasesVersionIncreased("test", before, after);
 
         after = service.applyAliasActions(before, List.of(new AliasAction.Add("test", "alias", null, null, null, true, null)));
-        assertTrue(after.metadata().projectMetadata.index("test").getAliases().get("alias").writeIndex());
+        assertTrue(after.metadata().getProject().index("test").getAliases().get("alias").writeIndex());
         assertThat(
-            after.metadata().projectMetadata.index(after.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex()),
-            equalTo(after.metadata().projectMetadata.index("test"))
+            after.metadata().getProject().index(after.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex()),
+            equalTo(after.metadata().getProject().index("test"))
         );
         assertAliasesVersionIncreased("test", before, after);
     }
@@ -351,10 +345,10 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .build();
 
         ClusterState after = service.applyAliasActions(before, List.of(new AliasAction.Add("test", "alias", null, null, null, null, null)));
-        assertNull(after.metadata().projectMetadata.index("test").getAliases().get("alias").writeIndex());
+        assertNull(after.metadata().getProject().index("test").getAliases().get("alias").writeIndex());
         assertThat(
-            after.metadata().projectMetadata.index(after.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex()),
-            equalTo(after.metadata().projectMetadata.index("test2"))
+            after.metadata().getProject().index(after.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex()),
+            equalTo(after.metadata().getProject().index("test2"))
         );
         assertAliasesVersionIncreased("test", before, after);
         assertAliasesVersionUnchanged("test2", before, after);
@@ -387,11 +381,11 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         );
         Collections.shuffle(swapActions, random());
         ClusterState after = service.applyAliasActions(before, swapActions);
-        assertThat(after.metadata().projectMetadata.index("test").getAliases().get("alias").writeIndex(), equalTo(unsetValue));
-        assertTrue(after.metadata().projectMetadata.index("test2").getAliases().get("alias").writeIndex());
+        assertThat(after.metadata().getProject().index("test").getAliases().get("alias").writeIndex(), equalTo(unsetValue));
+        assertTrue(after.metadata().getProject().index("test2").getAliases().get("alias").writeIndex());
         assertThat(
-            after.metadata().projectMetadata.index(after.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex()),
-            equalTo(after.metadata().projectMetadata.index("test2"))
+            after.metadata().getProject().index(after.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex()),
+            equalTo(after.metadata().getProject().index("test2"))
         );
         assertAliasesVersionIncreased("test", before, after);
         assertAliasesVersionIncreased("test2", before, after);
@@ -416,16 +410,16 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2).put(indexMetadata3))
             .build();
 
-        assertNull(before.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex());
+        assertNull(before.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex());
 
         ClusterState after = service.applyAliasActions(
             before,
             List.of(new AliasAction.Add("test3", "alias", null, null, null, true, null))
         );
-        assertTrue(after.metadata().projectMetadata.index("test3").getAliases().get("alias").writeIndex());
+        assertTrue(after.metadata().getProject().index("test3").getAliases().get("alias").writeIndex());
         assertThat(
-            after.metadata().projectMetadata.index(after.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex()),
-            equalTo(after.metadata().projectMetadata.index("test3"))
+            after.metadata().getProject().index(after.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex()),
+            equalTo(after.metadata().getProject().index("test3"))
         );
         assertAliasesVersionUnchanged("test", before, after);
         assertAliasesVersionUnchanged("test2", before, after);
@@ -447,15 +441,15 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
             .build();
 
-        assertNull(before.metadata().projectMetadata.index("test").getAliases().get("alias").writeIndex());
-        assertNull(before.metadata().projectMetadata.index("test2").getAliases().get("alias").writeIndex());
-        assertNull(before.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex());
+        assertNull(before.metadata().getProject().index("test").getAliases().get("alias").writeIndex());
+        assertNull(before.metadata().getProject().index("test2").getAliases().get("alias").writeIndex());
+        assertNull(before.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex());
 
         ClusterState after = service.applyAliasActions(before, Collections.singletonList(new AliasAction.RemoveIndex("test")));
-        assertNull(after.metadata().projectMetadata.index("test2").getAliases().get("alias").writeIndex());
+        assertNull(after.metadata().getProject().index("test2").getAliases().get("alias").writeIndex());
         assertThat(
-            after.metadata().projectMetadata.index(after.metadata().projectMetadata.getIndicesLookup().get("alias").getWriteIndex()),
-            equalTo(after.metadata().projectMetadata.index("test2"))
+            after.metadata().getProject().index(after.metadata().getProject().getIndicesLookup().get("alias").getWriteIndex()),
+            equalTo(after.metadata().getProject().index("test2"))
         );
         assertAliasesVersionUnchanged("test2", before, after);
     }
@@ -636,21 +630,18 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar", null, null)
             )
         );
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("foobar"), notNullValue());
+        assertThat(result.metadata().getProject().dataStreamAliases().get("foobar"), notNullValue());
         assertThat(
-            result.metadata().projectMetadata.dataStreamAliases().get("foobar").getDataStreams(),
+            result.metadata().getProject().dataStreamAliases().get("foobar").getDataStreams(),
             containsInAnyOrder("logs-foobar", "metrics-foobar")
         );
 
         result = service.applyAliasActions(result, List.of(new AliasAction.RemoveDataStreamAlias("foobar", "logs-foobar", null)));
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("foobar"), notNullValue());
-        assertThat(
-            result.metadata().projectMetadata.dataStreamAliases().get("foobar").getDataStreams(),
-            containsInAnyOrder("metrics-foobar")
-        );
+        assertThat(result.metadata().getProject().dataStreamAliases().get("foobar"), notNullValue());
+        assertThat(result.metadata().getProject().dataStreamAliases().get("foobar").getDataStreams(), containsInAnyOrder("metrics-foobar"));
 
         result = service.applyAliasActions(result, List.of(new AliasAction.RemoveDataStreamAlias("foobar", "metrics-foobar", null)));
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("foobar"), nullValue());
+        assertThat(result.metadata().getProject().dataStreamAliases().get("foobar"), nullValue());
     }
 
     public void testDataStreamAliasesWithWriteFlag() {
@@ -666,12 +657,12 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", null, null)
             )
         );
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().getProject().dataStreamAliases().get("logs-http"), notNullValue());
         assertThat(
-            result.metadata().projectMetadata.dataStreamAliases().get("logs-http").getDataStreams(),
+            result.metadata().getProject().dataStreamAliases().get("logs-http").getDataStreams(),
             containsInAnyOrder("logs-http-nasa", "logs-http-emea")
         );
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-emea"));
+        assertThat(result.metadata().getProject().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-emea"));
 
         result = service.applyAliasActions(
             state,
@@ -680,20 +671,20 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", true, null)
             )
         );
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().getProject().dataStreamAliases().get("logs-http"), notNullValue());
         assertThat(
-            result.metadata().projectMetadata.dataStreamAliases().get("logs-http").getDataStreams(),
+            result.metadata().getProject().dataStreamAliases().get("logs-http").getDataStreams(),
             containsInAnyOrder("logs-http-nasa", "logs-http-emea")
         );
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
+        assertThat(result.metadata().getProject().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
 
         result = service.applyAliasActions(result, List.of(new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-emea", null)));
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("logs-http"), notNullValue());
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("logs-http").getDataStreams(), contains("logs-http-nasa"));
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
+        assertThat(result.metadata().getProject().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().getProject().dataStreamAliases().get("logs-http").getDataStreams(), contains("logs-http-nasa"));
+        assertThat(result.metadata().getProject().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
 
         result = service.applyAliasActions(result, List.of(new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-nasa", null)));
-        assertThat(result.metadata().projectMetadata.dataStreamAliases().get("logs-http"), nullValue());
+        assertThat(result.metadata().getProject().dataStreamAliases().get("logs-http"), nullValue());
     }
 
     public void testAddAndRemoveAliasClusterStateUpdate() throws Exception {
@@ -721,15 +712,12 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             )
         );
 
-        IndexAbstraction alias = after.metadata().projectMetadata.getIndicesLookup().get("test");
+        IndexAbstraction alias = after.metadata().getProject().getIndicesLookup().get("test");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(alias.getIndices(), contains(after.metadata().projectMetadata.index(index).getIndex()));
+        assertThat(alias.getIndices(), contains(after.metadata().getProject().index(index).getIndex()));
         assertAliasesVersionIncreased(new String[] { index }, before, after, 3);
-        assertThat(
-            after.metadata().projectMetadata.aliasedIndices("test"),
-            contains(after.metadata().projectMetadata.index(index).getIndex())
-        );
+        assertThat(after.metadata().getProject().aliasedIndices("test"), contains(after.metadata().getProject().index(index).getIndex()));
     }
 
     public void testEmptyTaskListProducesSameClusterState() throws Exception {
@@ -764,8 +752,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     private void assertAliasesVersionUnchanged(final String[] indices, final ClusterState before, final ClusterState after) {
         for (final var index : indices) {
-            final long expected = before.metadata().projectMetadata.index(index).getAliasesVersion();
-            final long actual = after.metadata().projectMetadata.index(index).getAliasesVersion();
+            final long expected = before.metadata().getProject().index(index).getAliasesVersion();
+            final long actual = after.metadata().getProject().index(index).getAliasesVersion();
             assertThat("index metadata aliases version mismatch", actual, equalTo(expected));
         }
     }
@@ -785,8 +773,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         final int diff
     ) {
         for (final var index : indices) {
-            final long expected = diff + before.metadata().projectMetadata.index(index).getAliasesVersion();
-            final long actual = after.metadata().projectMetadata.index(index).getAliasesVersion();
+            final long expected = diff + before.metadata().getProject().index(index).getAliasesVersion();
+            final long actual = after.metadata().getProject().index(index).getAliasesVersion();
             assertThat("index metadata aliases version mismatch", actual, equalTo(expected));
         }
     }

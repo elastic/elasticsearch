@@ -100,7 +100,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         // close the index
         ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().get();
         assertThat(
-            clusterStateResponse.getState().getMetadata().projectMetadata.index(index).getState().name(),
+            clusterStateResponse.getState().getMetadata().getProject().index(index).getState().name(),
             equalTo(IndexMetadata.State.CLOSE.name())
         );
 
@@ -210,6 +210,6 @@ public class MetadataNodesIT extends ESIntegTestCase {
 
     private Map<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {
         final Coordinator coordinator = internalCluster().getInstance(Coordinator.class, nodeName);
-        return coordinator.getApplierState().getMetadata().projectMetadata.indices();
+        return coordinator.getApplierState().getMetadata().getProject().indices();
     }
 }

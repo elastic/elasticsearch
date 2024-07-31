@@ -337,7 +337,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                 .remoteShardFailed(
                     eq(shardRouting.shardId()),
                     eq(shardRouting.allocationId().getId()),
-                    eq(state.metadata().projectMetadata.index(index).primaryTerm(shardRouting.shardId().getId())),
+                    eq(state.metadata().getProject().index(index).primaryTerm(shardRouting.shardId().getId())),
                     eq(true),
                     eq("mark unpromotable copy as stale after refresh failure"),
                     any(Exception.class),

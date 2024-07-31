@@ -69,8 +69,8 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
      */
     @SuppressWarnings("deprecated")
     public static OperationMode currentILMMode(final ClusterState state) {
-        IndexLifecycleMetadata oldMetadata = state.metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
-        LifecycleOperationMetadata currentMetadata = state.metadata().projectMetadata.custom(LifecycleOperationMetadata.TYPE);
+        IndexLifecycleMetadata oldMetadata = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
+        LifecycleOperationMetadata currentMetadata = state.metadata().getProject().custom(LifecycleOperationMetadata.TYPE);
         return Optional.ofNullable(currentMetadata)
             .map(LifecycleOperationMetadata::getILMOperationMode)
             .orElse(
@@ -88,8 +88,8 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
      */
     @SuppressWarnings("deprecated")
     public static OperationMode currentSLMMode(final ClusterState state) {
-        SnapshotLifecycleMetadata oldMetadata = state.metadata().projectMetadata.custom(SnapshotLifecycleMetadata.TYPE);
-        LifecycleOperationMetadata currentMetadata = state.metadata().projectMetadata.custom(LifecycleOperationMetadata.TYPE);
+        SnapshotLifecycleMetadata oldMetadata = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        LifecycleOperationMetadata currentMetadata = state.metadata().getProject().custom(LifecycleOperationMetadata.TYPE);
         return Optional.ofNullable(currentMetadata)
             .map(LifecycleOperationMetadata::getSLMOperationMode)
             .orElse(

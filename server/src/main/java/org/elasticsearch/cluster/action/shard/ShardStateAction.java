@@ -313,7 +313,7 @@ public class ShardStateAction {
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
                 FailedShardEntry entry = task.entry();
-                IndexMetadata indexMetadata = initialState.metadata().projectMetadata.index(entry.getShardId().getIndex());
+                IndexMetadata indexMetadata = initialState.metadata().getProject().index(entry.getShardId().getIndex());
                 if (indexMetadata == null) {
                     // tasks that correspond to non-existent indices are marked as successful
                     logger.debug(
@@ -638,9 +638,9 @@ public class ShardStateAction {
                     taskContext.success(task::onSuccess);
                 } else {
                     if (matched.primary() && startedShardEntry.primaryTerm > 0) {
-                        final IndexMetadata indexMetadata = initialState.metadata().projectMetadata.index(
-                            startedShardEntry.shardId.getIndex()
-                        );
+                        final IndexMetadata indexMetadata = initialState.metadata()
+                            .getProject()
+                            .index(startedShardEntry.shardId.getIndex());
                         assert indexMetadata != null;
                         final long currentPrimaryTerm = indexMetadata.primaryTerm(startedShardEntry.shardId.id());
                         if (currentPrimaryTerm != startedShardEntry.primaryTerm) {
@@ -703,7 +703,7 @@ public class ShardStateAction {
                                 ? null
                                 : clusterStateTimeRanges.eventIngestedRange();
 
-                            final IndexMetadata indexMetadata = initialState.metadata().projectMetadata.index(index);
+                            final IndexMetadata indexMetadata = initialState.metadata().getProject().index(index);
                             if (currentTimestampMillisRange == null) {
                                 currentTimestampMillisRange = indexMetadata.getTimestampRange();
                             }
@@ -780,20 +780,20 @@ public class ShardStateAction {
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
             for (Map.Entry<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting().entrySet()) {
                 assert cursor.getValue().allPrimaryShardsActive() == false
-                    || clusterState.metadata().projectMetadata.index(cursor.getKey()).getTimestampRange().isComplete()
+                    || clusterState.metadata().getProject().index(cursor.getKey()).getTimestampRange().isComplete()
                     : "index ["
                         + cursor.getKey()
                         + "] should have complete timestamp range, but got "
-                        + clusterState.metadata().projectMetadata.index(cursor.getKey()).getTimestampRange()
+                        + clusterState.metadata().getProject().index(cursor.getKey()).getTimestampRange()
                         + " for "
                         + cursor.getValue().prettyPrint();
 
                 assert cursor.getValue().allPrimaryShardsActive() == false
-                    || clusterState.metadata().projectMetadata.index(cursor.getKey()).getEventIngestedRange().isComplete()
+                    || clusterState.metadata().getProject().index(cursor.getKey()).getEventIngestedRange().isComplete()
                     : "index ["
                         + cursor.getKey()
                         + "] should have complete event.ingested range, but got "
-                        + clusterState.metadata().projectMetadata.index(cursor.getKey()).getEventIngestedRange()
+                        + clusterState.metadata().getProject().index(cursor.getKey()).getEventIngestedRange()
                         + " for "
                         + cursor.getValue().prettyPrint();
             }

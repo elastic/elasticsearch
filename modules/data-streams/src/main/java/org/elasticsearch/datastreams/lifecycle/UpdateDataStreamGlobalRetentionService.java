@@ -103,7 +103,7 @@ public class UpdateDataStreamGlobalRetentionService {
             return List.of();
         }
         List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = new ArrayList<>();
-        for (DataStream dataStream : clusterState.metadata().projectMetadata.dataStreams().values()) {
+        for (DataStream dataStream : clusterState.metadata().getProject().dataStreams().values()) {
             if (dataStream.getLifecycle() != null) {
                 TimeValue previousEffectiveRetention = dataStream.getLifecycle()
                     .getEffectiveDataRetention(dataStream.isSystem() ? null : previousGlobalRetention);

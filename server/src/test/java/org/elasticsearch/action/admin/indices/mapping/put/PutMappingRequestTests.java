@@ -86,7 +86,7 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2").writeIndexOnly(true);
         Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
-        IndexAbstraction expectedDs = cs.metadata().projectMetadata.getIndicesLookup().get("foo");
+        IndexAbstraction expectedDs = cs.metadata().getProject().getIndicesLookup().get("foo");
         // should resolve the data stream and each alias to their respective write indices
         assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getName(), "index2", "index3"));
     }
@@ -110,7 +110,7 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2");
         Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
-        IndexAbstraction expectedDs = cs.metadata().projectMetadata.getIndicesLookup().get("foo");
+        IndexAbstraction expectedDs = cs.metadata().getProject().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices()
             .stream()
             .map(Index::getName)
@@ -139,7 +139,7 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest request = new PutMappingRequest().indices("foo", "index3").writeIndexOnly(true);
         Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
-        IndexAbstraction expectedDs = cs.metadata().projectMetadata.getIndicesLookup().get("foo");
+        IndexAbstraction expectedDs = cs.metadata().getProject().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices()
             .stream()
             .map(Index::getName)

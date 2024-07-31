@@ -1009,8 +1009,8 @@ public class IndicesService extends AbstractLifecycleComponent
         if (nodeEnv.hasNodeFile()) {
             Index index = oldIndexMetadata.getIndex();
             try {
-                if (clusterState.metadata().projectMetadata.hasIndex(index)) {
-                    final IndexMetadata currentMetadata = clusterState.metadata().projectMetadata.index(index);
+                if (clusterState.metadata().getProject().hasIndex(index)) {
+                    final IndexMetadata currentMetadata = clusterState.metadata().getProject().index(index);
                     throw new IllegalStateException(
                         "Can't delete unassigned index store for ["
                             + index.getName()
@@ -1130,7 +1130,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState) throws IOException,
         ShardLockObtainFailedException {
-        final IndexMetadata metadata = clusterState.getMetadata().projectMetadata.indices().get(shardId.getIndexName());
+        final IndexMetadata metadata = clusterState.getMetadata().getProject().indices().get(shardId.getIndexName());
 
         final IndexSettings indexSettings = buildIndexSettings(metadata);
         ShardDeletionCheckResult shardDeletionCheckResult = canDeleteShardContent(shardId, indexSettings);
@@ -1185,7 +1185,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public IndexMetadata verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
         // this method should only be called when we know the index (name + uuid) is not part of the cluster state
-        if (clusterState.metadata().projectMetadata.index(index) != null) {
+        if (clusterState.metadata().getProject().index(index) != null) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
         }
         if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {
@@ -1718,12 +1718,12 @@ public class IndicesService extends AbstractLifecycleComponent
         }
 
         Metadata metadata = state.metadata();
-        IndexAbstraction ia = state.metadata().projectMetadata.getIndicesLookup().get(index);
+        IndexAbstraction ia = state.metadata().getProject().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
             String dataStreamName = dataStream.getName();
             List<QueryBuilder> filters = Arrays.stream(aliases)
-                .map(name -> metadata.projectMetadata.dataStreamAliases().get(name))
+                .map(name -> metadata.getProject().dataStreamAliases().get(name))
                 .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
                 .map(dataStreamAlias -> {
                     try {
@@ -1747,7 +1747,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         } else {
-            IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
+            IndexMetadata indexMetadata = metadata.getProject().index(index);
             return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
         }
     }

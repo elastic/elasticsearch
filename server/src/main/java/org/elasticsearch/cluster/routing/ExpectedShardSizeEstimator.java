@@ -50,7 +50,7 @@ public class ExpectedShardSizeEstimator {
             // Snapshot restore (unless it is partial) require downloading all segments locally from the blobstore to start the shard.
             // See org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction.buildIndexSettings
             // and DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS
-            case SNAPSHOT -> metadata.projectMetadata.getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false;
+            case SNAPSHOT -> metadata.getProject().getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false;
 
             // shrink/split/clone operation is going to clone existing locally placed shards using file system hard links
             // so no additional space is going to be used until future merges
@@ -70,7 +70,7 @@ public class ExpectedShardSizeEstimator {
         Metadata metadata,
         RoutingTable routingTable
     ) {
-        final IndexMetadata indexMetadata = metadata.projectMetadata.getIndexSafe(shard.index());
+        final IndexMetadata indexMetadata = metadata.getProject().getIndexSafe(shard.index());
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
@@ -100,7 +100,7 @@ public class ExpectedShardSizeEstimator {
         // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in the worst case
         long targetShardSize = 0;
         final Index mergeSourceIndex = indexMetadata.getResizeSourceIndex();
-        final IndexMetadata sourceIndexMetadata = metadata.projectMetadata.index(mergeSourceIndex);
+        final IndexMetadata sourceIndexMetadata = metadata.getProject().index(mergeSourceIndex);
         if (sourceIndexMetadata != null) {
             final Set<ShardId> shardIds = IndexMetadata.selectRecoverFromShards(
                 shard.id(),

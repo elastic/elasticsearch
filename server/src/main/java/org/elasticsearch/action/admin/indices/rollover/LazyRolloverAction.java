@@ -117,7 +117,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 : "The auto rollover action does not expect any other parameters in the request apart from the data stream name";
 
             Metadata metadata = clusterState.metadata();
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(rolloverRequest.getRolloverTarget());
+            DataStream dataStream = metadata.getProject().dataStreams().get(rolloverRequest.getRolloverTarget());
             // Skip submitting the task if we detect that the lazy rollover has been already executed.
             if (isLazyRolloverNeeded(dataStream, rolloverRequest.targetsFailureStore()) == false) {
                 DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
@@ -136,7 +136,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             final String trialRolloverIndexName = trialRolloverNames.rolloverName();
             MetadataRolloverService.validateIndexName(clusterState, trialRolloverIndexName);
 
-            assert metadata.projectMetadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget())
+            assert metadata.getProject().dataStreams().containsKey(rolloverRequest.getRolloverTarget())
                 : "Auto-rollover applies only to data streams";
 
             String source = "lazy_rollover source [" + trialSourceIndexName + "] to target [" + trialRolloverIndexName + "]";
@@ -223,7 +223,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         ) throws Exception {
 
             // If the data stream has been rolled over since it was marked for lazy rollover, this operation is a noop
-            final DataStream dataStream = currentState.metadata().projectMetadata.dataStreams().get(rolloverRequest.getRolloverTarget());
+            final DataStream dataStream = currentState.metadata().getProject().dataStreams().get(rolloverRequest.getRolloverTarget());
             assert dataStream != null;
 
             if (isLazyRolloverNeeded(dataStream, rolloverRequest.targetsFailureStore()) == false) {

@@ -135,7 +135,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build()
             ).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
-            assertTrue(state.metadata().projectMetadata.hasIndex("index"));
+            assertTrue(state.metadata().getProject().hasIndex("index"));
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
                 logger.info(state);
                 state = cluster.applyStartedShards(

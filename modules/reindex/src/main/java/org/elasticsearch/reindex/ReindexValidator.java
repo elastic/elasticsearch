@@ -126,7 +126,7 @@ public class ReindexValidator {
             return;
         }
         String target = destination.index();
-        if (destination.isRequireAlias() && (false == clusterState.getMetadata().projectMetadata.hasAlias(target))) {
+        if (destination.isRequireAlias() && (false == clusterState.getMetadata().getProject().hasAlias(target))) {
             throw new IndexNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + target + "] is not an alias",
                 target

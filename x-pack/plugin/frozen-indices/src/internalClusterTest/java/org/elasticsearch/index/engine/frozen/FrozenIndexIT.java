@@ -99,7 +99,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         );
 
         assertThat(
-            clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("index").getTimestampRange(),
+            clusterAdmin().prepareState().get().getState().metadata().getProject().index("index").getTimestampRange(),
             sameInstance(IndexLongFieldRange.EMPTY)
         );
 
@@ -112,7 +112,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureYellowAndNoInitializingShards("index");
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("index");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().getProject().index("index");
         final IndexLongFieldRange timestampFieldRange = indexMetadata.getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
@@ -175,7 +175,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
             .setMetadata(true)
             .get()
             .getState()
-            .metadata().projectMetadata.index("index")
+            .metadata()
+            .getProject()
+            .index("index")
             .getIndex();
 
         ensureGreen("index");

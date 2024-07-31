@@ -81,7 +81,7 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
     private static Settings getFilteredSettingsForIndex(String indexName, ClusterState state) {
         // Check the indices lookup to resolve the alias
 
-        return resolveConcreteIndex(indexName, state).map(idx -> state.metadata().projectMetadata.index(idx))
+        return resolveConcreteIndex(indexName, state).map(idx -> state.metadata().getProject().index(idx))
             .map(IndexMetadata::getSettings)
             .map(settings -> {
                 Settings.Builder builder = Settings.builder();
@@ -97,7 +97,7 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
 
     static Optional<Index> resolveConcreteIndex(String indexAbstractionName, ClusterState state) {
         // Don't use the indexNameExpressionResolver here so we don't trigger a system index deprecation warning
-        IndexAbstraction abstraction = state.metadata().projectMetadata.getIndicesLookup().get(indexAbstractionName);
+        IndexAbstraction abstraction = state.metadata().getProject().getIndicesLookup().get(indexAbstractionName);
         if (abstraction == null) {
             return Optional.empty();
         }

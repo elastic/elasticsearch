@@ -73,7 +73,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         );
         Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsNew(metadata.projectMetadata.index("source"));
+        routingTableBuilder.addAsNew(metadata.getProject().index("source"));
 
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -138,10 +138,10 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
         );
-        routingTableBuilder.addAsNew(metadata.projectMetadata.index("target"));
+        routingTableBuilder.addAsNew(metadata.getProject().index("target"));
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).metadata(metadata).build();
-        Index idx = clusterState.metadata().projectMetadata.index("target").getIndex();
+        Index idx = clusterState.metadata().getProject().index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
         RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
@@ -176,15 +176,15 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
         );
-        routingTableBuilder.addAsNew(metadata.projectMetadata.index("target"));
+        routingTableBuilder.addAsNew(metadata.getProject().index("target"));
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).metadata(metadata).build();
-        Index idx = clusterState.metadata().projectMetadata.index("target").getIndex();
+        Index idx = clusterState.metadata().getProject().index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
         RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
         int shardId = randomIntBetween(0, 3);
-        int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().projectMetadata.index("source"), 4).id();
+        int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().getProject().index("source"), 4).id();
         ShardRouting shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
             .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
             .build();
@@ -232,15 +232,15 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
         );
-        routingTableBuilder.addAsNew(metadata.projectMetadata.index("target"));
+        routingTableBuilder.addAsNew(metadata.getProject().index("target"));
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).metadata(metadata).build();
-        Index idx = clusterState.metadata().projectMetadata.index("target").getIndex();
+        Index idx = clusterState.metadata().getProject().index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
         RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
         int shardId = randomIntBetween(0, 3);
-        int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().projectMetadata.index("source"), 4).id();
+        int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().getProject().index("source"), 4).id();
         ShardRouting shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
             .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
             .build();

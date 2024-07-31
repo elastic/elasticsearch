@@ -515,9 +515,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     protected void assertRecentLastTaskStateChangeTime(String taskId, Duration howRecent, String queryNode) {
         ClusterStateRequest csRequest = new ClusterStateRequest().clear().metadata(true);
         ClusterStateResponse csResponse = client(queryNode).execute(ClusterStateAction.INSTANCE, csRequest).actionGet();
-        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().projectMetadata.custom(
-            PersistentTasksCustomMetadata.TYPE
-        );
+        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull(tasks);
         PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(taskId);
         assertNotNull(task);

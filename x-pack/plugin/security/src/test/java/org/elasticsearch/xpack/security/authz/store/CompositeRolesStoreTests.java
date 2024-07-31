@@ -911,7 +911,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
             .build();
         IndicesAccessControl iac = role.indices()
-            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.projectMetadata.getIndicesLookup(), cache);
+            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getProject().getIndicesLookup(), cache);
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));
@@ -2227,7 +2227,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             role.authorize(
                 TransportSearchAction.TYPE.name(),
                 Sets.newHashSet("index1"),
-                indexMetadata.projectMetadata.getIndicesLookup(),
+                indexMetadata.getProject().getIndicesLookup(),
                 emptyCache
             ).isGranted(),
             is(false == emptyRemoteRole)
@@ -2236,7 +2236,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             role.authorize(
                 TransportCreateIndexAction.TYPE.name(),
                 Sets.newHashSet("index1"),
-                indexMetadata.projectMetadata.getIndicesLookup(),
+                indexMetadata.getProject().getIndicesLookup(),
                 emptyCache
             ).isGranted(),
             is(false)
@@ -2245,7 +2245,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             role.authorize(
                 TransportSearchAction.TYPE.name(),
                 Sets.newHashSet("index2"),
-                indexMetadata.projectMetadata.getIndicesLookup(),
+                indexMetadata.getProject().getIndicesLookup(),
                 emptyCache
             ).isGranted(),
             is(false)

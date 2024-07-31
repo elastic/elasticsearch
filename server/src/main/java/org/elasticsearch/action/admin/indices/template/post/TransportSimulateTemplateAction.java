@@ -149,7 +149,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             // They should have specified either a template name or the body of a template, but neither were specified
             listener.onFailure(new IllegalArgumentException("a template name to match or a new template body must be specified"));
             return;
-        } else if (stateWithTemplate.metadata().projectMetadata.templatesV2().containsKey(matchingTemplate) == false) {
+        } else if (stateWithTemplate.metadata().getProject().templatesV2().containsKey(matchingTemplate) == false) {
             // They specified a template, but it didn't exist
             listener.onFailure(new IllegalArgumentException("unable to simulate template [" + matchingTemplate + "] that does not exist"));
             return;
@@ -160,7 +160,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             temporaryIndexName,
             stateWithTemplate
         );
-        ComposableIndexTemplate templateV2 = tempClusterState.metadata().projectMetadata.templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate templateV2 = tempClusterState.metadata().getProject().templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
         Map<String, List<String>> overlapping = new HashMap<>();

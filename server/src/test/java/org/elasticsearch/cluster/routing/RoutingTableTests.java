@@ -80,14 +80,14 @@ public class RoutingTableTests extends ESAllocationTestCase {
         RoutingTable testRoutingTable = new RoutingTable.Builder().add(
             new IndexRoutingTable.Builder(
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-                metadata.projectMetadata.index(TEST_INDEX_1).getIndex()
-            ).initializeAsNew(metadata.projectMetadata.index(TEST_INDEX_1)).build()
+                metadata.getProject().index(TEST_INDEX_1).getIndex()
+            ).initializeAsNew(metadata.getProject().index(TEST_INDEX_1)).build()
         )
             .add(
                 new IndexRoutingTable.Builder(
                     TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-                    metadata.projectMetadata.index(TEST_INDEX_2).getIndex()
-                ).initializeAsNew(metadata.projectMetadata.index(TEST_INDEX_2)).build()
+                    metadata.getProject().index(TEST_INDEX_2).getIndex()
+                ).initializeAsNew(metadata.getProject().index(TEST_INDEX_2)).build()
             )
             .build();
         this.clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(testRoutingTable).build();

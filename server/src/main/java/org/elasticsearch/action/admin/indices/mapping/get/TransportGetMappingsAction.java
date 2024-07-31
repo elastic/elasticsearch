@@ -65,11 +65,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     ) {
         logger.trace("serving getMapping request based on version {}", state.version());
         final Metadata metadata = state.metadata();
-        final Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
-            concreteIndices,
-            indicesService.getFieldFilter(),
-            () -> checkCancellation(task)
-        );
+        final Map<String, MappingMetadata> mappings = metadata.getProject()
+            .findMappings(concreteIndices, indicesService.getFieldFilter(), () -> checkCancellation(task));
         listener.onResponse(new GetMappingsResponse(mappings));
     }
 

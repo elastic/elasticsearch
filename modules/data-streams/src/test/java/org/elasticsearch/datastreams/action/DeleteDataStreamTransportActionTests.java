@@ -49,10 +49,10 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
-        assertThat(newState.metadata().projectMetadata.dataStreams().size(), equalTo(0));
-        assertThat(newState.metadata().projectMetadata.indices().size(), equalTo(otherIndices.size()));
+        assertThat(newState.metadata().getProject().dataStreams().size(), equalTo(0));
+        assertThat(newState.metadata().getProject().indices().size(), equalTo(otherIndices.size()));
         for (String indexName : otherIndices) {
-            assertThat(newState.metadata().projectMetadata.indices().get(indexName).getIndex().getName(), equalTo(indexName));
+            assertThat(newState.metadata().getProject().indices().get(indexName).getIndex().getName(), equalTo(indexName));
         }
     }
 
@@ -73,10 +73,10 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         );
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
-        assertThat(newState.metadata().projectMetadata.dataStreams().size(), equalTo(0));
-        assertThat(newState.metadata().projectMetadata.indices().size(), equalTo(otherIndices.size()));
+        assertThat(newState.metadata().getProject().dataStreams().size(), equalTo(0));
+        assertThat(newState.metadata().getProject().indices().size(), equalTo(otherIndices.size()));
         for (String indexName : otherIndices) {
-            assertThat(newState.metadata().projectMetadata.indices().get(indexName).getIndex().getName(), equalTo(indexName));
+            assertThat(newState.metadata().getProject().indices().get(indexName).getIndex().getName(), equalTo(indexName));
         }
     }
 
@@ -94,12 +94,12 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "ba*", "eggplant" });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
-        assertThat(newState.metadata().projectMetadata.dataStreams().size(), equalTo(1));
-        DataStream remainingDataStream = newState.metadata().projectMetadata.dataStreams().get(dataStreamNames[0]);
+        assertThat(newState.metadata().getProject().dataStreams().size(), equalTo(1));
+        DataStream remainingDataStream = newState.metadata().getProject().dataStreams().get(dataStreamNames[0]);
         assertNotNull(remainingDataStream);
-        assertThat(newState.metadata().projectMetadata.indices().size(), equalTo(remainingDataStream.getIndices().size()));
+        assertThat(newState.metadata().getProject().indices().size(), equalTo(remainingDataStream.getIndices().size()));
         for (Index i : remainingDataStream.getIndices()) {
-            assertThat(newState.metadata().projectMetadata.indices().get(i.getName()).getIndex(), equalTo(i));
+            assertThat(newState.metadata().getProject().indices().get(i.getName()).getIndex(), equalTo(i));
         }
     }
 
@@ -176,10 +176,10 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName + "*" });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
         assertThat(newState, sameInstance(cs));
-        assertThat(newState.metadata().projectMetadata.dataStreams().size(), equalTo(cs.metadata().projectMetadata.dataStreams().size()));
+        assertThat(newState.metadata().getProject().dataStreams().size(), equalTo(cs.metadata().getProject().dataStreams().size()));
         assertThat(
-            newState.metadata().projectMetadata.dataStreams().keySet(),
-            containsInAnyOrder(cs.metadata().projectMetadata.dataStreams().keySet().toArray(Strings.EMPTY_ARRAY))
+            newState.metadata().getProject().dataStreams().keySet(),
+            containsInAnyOrder(cs.metadata().getProject().dataStreams().keySet().toArray(Strings.EMPTY_ARRAY))
         );
     }
 

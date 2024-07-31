@@ -78,7 +78,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
             // if its already a NO decision looking at the node, or we aren't configured to look at the host, return the decision
             return decision;
         }
-        if (allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index()).getAutoExpandReplicas().expandToAllNodes()) {
+        if (allocation.metadata().getProject().getIndexSafe(shardRouting.index()).getAutoExpandReplicas().expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
         if (node.node() != null) {

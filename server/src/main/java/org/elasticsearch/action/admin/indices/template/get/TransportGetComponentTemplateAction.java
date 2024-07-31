@@ -74,7 +74,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         ClusterState state,
         ActionListener<GetComponentTemplateAction.Response> listener
     ) {
-        Map<String, ComponentTemplate> allTemplates = state.metadata().projectMetadata.componentTemplates();
+        Map<String, ComponentTemplate> allTemplates = state.metadata().getProject().componentTemplates();
         Map<String, ComponentTemplate> results;
 
         // If we did not ask for a specific name, then we return all templates

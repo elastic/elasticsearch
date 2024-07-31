@@ -62,7 +62,7 @@ public class AnalyticsCollectionResolver {
     public AnalyticsCollection collection(ClusterState state, String collectionName) throws ResourceNotFoundException {
         AnalyticsCollection collection = new AnalyticsCollection(collectionName);
 
-        if (state.metadata().projectMetadata.dataStreams().containsKey(collection.getEventDataStream()) == false) {
+        if (state.metadata().getProject().dataStreams().containsKey(collection.getEventDataStream()) == false) {
             throw new ResourceNotFoundException("no such analytics collection [{}]", collectionName);
         }
 

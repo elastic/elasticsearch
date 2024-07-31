@@ -127,8 +127,8 @@ public final class MlIndexAndAlias {
         // The initial index name must be suitable for rollover functionality.
         String firstConcreteIndex = indexPatternPrefix + "-000001";
         String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
-        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().projectMetadata.hasAlias(alias)
-            ? clusterState.getMetadata().projectMetadata.getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
+        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().getProject().hasAlias(alias)
+            ? clusterState.getMetadata().getProject().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
@@ -189,7 +189,7 @@ public final class MlIndexAndAlias {
         final String primaryIndex = descriptor.getPrimaryIndex();
 
         // The check for existence of the index is against the cluster state, so very cheap
-        if (clusterState.getMetadata().projectMetadata.hasIndexAbstraction(primaryIndex)) {
+        if (clusterState.getMetadata().getProject().hasIndexAbstraction(primaryIndex)) {
             finalListener.onResponse(true);
             return;
         }

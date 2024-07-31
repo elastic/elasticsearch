@@ -60,7 +60,7 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<GetWatcherSettingsAction.Response> listener
     ) {
-        IndexMetadata metadata = state.metadata().projectMetadata.index(WATCHER_INDEX_NAME);
+        IndexMetadata metadata = state.metadata().getProject().index(WATCHER_INDEX_NAME);
         if (metadata == null) {
             listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
         } else {

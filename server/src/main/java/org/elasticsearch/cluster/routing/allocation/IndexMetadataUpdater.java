@@ -116,7 +116,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
         final Map<String, IndexMetadata> updatedIndices = Maps.newHashMapWithExpectedSize(changesGroupedByIndex.size());
         for (Map.Entry<Index, List<Map.Entry<ShardId, Updates>>> indexChanges : changesGroupedByIndex.entrySet()) {
             Index index = indexChanges.getKey();
-            final IndexMetadata oldIndexMetadata = oldMetadata.projectMetadata.getIndexSafe(index);
+            final IndexMetadata oldIndexMetadata = oldMetadata.getProject().getIndexSafe(index);
             IndexMetadata updatedIndexMetadata = oldIndexMetadata;
             for (Map.Entry<ShardId, Updates> shardEntry : indexChanges.getValue()) {
                 ShardId shardId = shardEntry.getKey();
@@ -266,7 +266,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
         for (Map.Entry<Index, List<StaleShard>> indexEntry : staleShards.stream()
             .collect(Collectors.groupingBy(fs -> fs.shardId().getIndex()))
             .entrySet()) {
-            final IndexMetadata oldIndexMetadata = oldMetadata.projectMetadata.getIndexSafe(indexEntry.getKey());
+            final IndexMetadata oldIndexMetadata = oldMetadata.getProject().getIndexSafe(indexEntry.getKey());
             IndexMetadata.Builder indexMetadataBuilder = null;
             // group staleShards entries by shard id
             for (Map.Entry<ShardId, List<StaleShard>> shardEntry : indexEntry.getValue()

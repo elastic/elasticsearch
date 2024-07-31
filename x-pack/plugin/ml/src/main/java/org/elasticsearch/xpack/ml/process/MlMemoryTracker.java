@@ -335,7 +335,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                     .execute(
                         () -> refresh(
-                            clusterService.state().getMetadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE),
+                            clusterService.state().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE),
                             listener
                         )
                     );
@@ -369,7 +369,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         // Skip the provided job ID in the main refresh, as we unconditionally do it at the end.
         // Otherwise it might get refreshed twice, because it could have both a job task and a snapshot upgrade task.
         refresh(
-            clusterService.state().getMetadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE),
+            clusterService.state().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE),
             Collections.singleton(jobId),
             listener.delegateFailureAndWrap((l, aVoid) -> refreshAnomalyDetectorJobMemory(jobId, l))
         );
@@ -394,9 +394,10 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         memoryRequirementByDataFrameAnalyticsJob.put(id, mem + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
 
-        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().projectMetadata.custom(
-            PersistentTasksCustomMetadata.TYPE
-        );
+        PersistentTasksCustomMetadata persistentTasks = clusterService.state()
+            .getMetadata()
+            .getProject()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         refresh(persistentTasks, listener);
     }
 

@@ -1279,11 +1279,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "*inner1" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
-                new String[] { "index" },
-                index -> fieldPermissions::grantsAccessTo,
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.getProject()
+                .findMappings(
+                    new String[] { "index" },
+                    index -> fieldPermissions::grantsAccessTo,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+                );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1319,11 +1320,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object*" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
-                new String[] { "index" },
-                index -> fieldPermissions::grantsAccessTo,
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.getProject()
+                .findMappings(
+                    new String[] { "index" },
+                    index -> fieldPermissions::grantsAccessTo,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+                );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1358,11 +1360,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
-                new String[] { "index" },
-                index -> fieldPermissions::grantsAccessTo,
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.getProject()
+                .findMappings(
+                    new String[] { "index" },
+                    index -> fieldPermissions::grantsAccessTo,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+                );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1387,11 +1390,12 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "nested.inner2" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.projectMetadata.findMappings(
-                new String[] { "index" },
-                index -> fieldPermissions::grantsAccessTo,
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.getProject()
+                .findMappings(
+                    new String[] { "index" },
+                    index -> fieldPermissions::grantsAccessTo,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+                );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());

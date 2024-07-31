@@ -417,7 +417,7 @@ public class DesiredBalanceComputer {
     }
 
     private static int computeIterationCountReportInterval(RoutingAllocation allocation) {
-        final int relativeSize = allocation.metadata().projectMetadata.getTotalNumberOfShards();
+        final int relativeSize = allocation.metadata().getProject().getTotalNumberOfShards();
         int iterations = 1000;
         while (iterations < relativeSize && iterations < 1_000_000_000) {
             iterations *= 10;

@@ -230,7 +230,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private static boolean hasDataStreamRef(ClusterState clusterState, Set<String> indicesAndAliases, String index) {
-        IndexAbstraction ret = clusterState.getMetadata().projectMetadata.getIndicesLookup().get(index);
+        IndexAbstraction ret = clusterState.getMetadata().getProject().getIndicesLookup().get(index);
         if (ret == null || ret.getParentDataStream() == null) {
             return false;
         }
@@ -1486,7 +1486,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             }
             String index = resolved.getName();
-            IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
+            IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
             if (searchedIndices.contains(index) == false) {
                 throw new IllegalArgumentException(
                     "Target configured with wait_for_checkpoints must be a concrete index resolved in "

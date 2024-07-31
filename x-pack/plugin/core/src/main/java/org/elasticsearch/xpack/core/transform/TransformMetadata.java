@@ -170,7 +170,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
     }
 
     public static TransformMetadata getTransformMetadata(ClusterState state) {
-        TransformMetadata TransformMetadata = (state == null) ? null : state.getMetadata().projectMetadata.custom(TYPE);
+        TransformMetadata TransformMetadata = (state == null) ? null : state.getMetadata().getProject().custom(TYPE);
         if (TransformMetadata == null) {
             return EMPTY_METADATA;
         }

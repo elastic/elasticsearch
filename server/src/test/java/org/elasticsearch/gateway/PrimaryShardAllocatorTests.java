@@ -472,7 +472,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final Snapshot snapshot = new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID()));
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRestore(
-                metadata.projectMetadata.index(shardId.getIndex()),
+                metadata.getProject().index(shardId.getIndex()),
                 new SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     snapshot,
@@ -510,9 +510,9 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         switch (reason) {
-            case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.projectMetadata.index(shardId.getIndex()));
-            case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.projectMetadata.index(shardId.getIndex()));
-            case INDEX_REOPENED -> routingTableBuilder.addAsFromCloseToOpen(metadata.projectMetadata.index(shardId.getIndex()));
+            case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.getProject().index(shardId.getIndex()));
+            case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.getProject().index(shardId.getIndex()));
+            case INDEX_REOPENED -> routingTableBuilder.addAsFromCloseToOpen(metadata.getProject().index(shardId.getIndex()));
             default -> throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)

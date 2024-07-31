@@ -71,7 +71,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
     }
 
     private boolean isMigrationComplete(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().projectMetadata.indices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+        IndexMetadata indexMetadata = state.metadata().getProject().indices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
         return indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) != null;
     }
 

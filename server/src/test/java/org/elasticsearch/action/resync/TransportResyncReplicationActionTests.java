@@ -125,7 +125,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 final ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
 
-                final IndexMetadata indexMetadata = clusterService.state().metadata().projectMetadata.index(indexName);
+                final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(indexName);
                 final Index index = indexMetadata.getIndex();
                 final ShardId shardId = new ShardId(index, 0);
                 final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
@@ -152,7 +152,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(
                         shardRoutingTable,
-                        clusterService.state().metadata().projectMetadata.index(index).inSyncAllocationIds(shardId.id()),
+                        clusterService.state().metadata().getProject().index(index).inSyncAllocationIds(shardId.id()),
                         shardRoutingTable.getPromotableAllocationIds(),
                         0
                     )

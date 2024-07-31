@@ -212,13 +212,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     private final long version;
 
     private final CoordinationMetadata coordinationMetadata;
-    public final ProjectMetadata projectMetadata;
+    private final ProjectMetadata projectMetadata;
 
     private final Settings transientSettings;
     private final Settings persistentSettings;
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
-    final ImmutableOpenMap<String, Metadata.ClusterCustom> customs;
+    private final ImmutableOpenMap<String, Metadata.ClusterCustom> customs;
     private final Map<String, ReservedStateMetadata> reservedStateMetadata;
 
     private Metadata(

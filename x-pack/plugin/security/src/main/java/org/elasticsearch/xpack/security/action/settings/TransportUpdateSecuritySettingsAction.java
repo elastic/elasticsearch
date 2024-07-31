@@ -126,7 +126,7 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         if (settingsToUpdate.isEmpty()) {
             return Optional.empty();
         }
-        IndexAbstraction abstraction = state.metadata().projectMetadata.getIndicesLookup().get(indexName);
+        IndexAbstraction abstraction = state.metadata().getProject().getIndicesLookup().get(indexName);
         if (abstraction == null) {
             throw new IllegalArgumentException("the [" + indexName + "] index is not in use on this system yet");
         }

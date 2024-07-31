@@ -318,8 +318,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             )
         );
         ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
-        assertEquals(IndexMetadata.State.CLOSE, stateResponse.getState().getMetadata().projectMetadata.index("idx-closed").getState());
-        assertEquals(IndexMetadata.State.OPEN, stateResponse.getState().getMetadata().projectMetadata.index("idx").getState());
+        assertEquals(IndexMetadata.State.CLOSE, stateResponse.getState().getMetadata().getProject().index("idx-closed").getState());
+        assertEquals(IndexMetadata.State.OPEN, stateResponse.getState().getMetadata().getProject().index("idx").getState());
         assertHitCount(client().prepareSearch(), 1L);
     }
 
@@ -518,7 +518,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertIndexFrozen("idx");
         assertEquals(
             IndexMetadata.State.CLOSE,
-            clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("idx-close").getState()
+            clusterAdmin().prepareState().get().getState().metadata().getProject().index("idx-close").getState()
         );
     }
 
@@ -530,7 +530,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(indicesAdmin().prepareClose("idx"));
         assertEquals(
             IndexMetadata.State.CLOSE,
-            clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("idx").getState()
+            clusterAdmin().prepareState().get().getState().metadata().getProject().index("idx").getState()
         );
         expectThrows(
             IndexNotFoundException.class,
@@ -553,7 +553,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         );
         assertEquals(
             IndexMetadata.State.OPEN,
-            clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("idx").getState()
+            clusterAdmin().prepareState().get().getState().metadata().getProject().index("idx").getState()
         );
     }
 
@@ -562,7 +562,12 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         createIndex(index, indexSettings(1, 0).build());
         prepareIndex(index).setSource("field", "value").get();
 
-        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index(index)
+        final long settingsVersion = clusterAdmin().prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index(index)
             .getSettingsVersion();
 
         assertAcked(
@@ -570,7 +575,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         );
         assertIndexFrozen(index);
         assertThat(
-            clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index(index).getSettingsVersion(),
+            clusterAdmin().prepareState().get().getState().metadata().getProject().index(index).getSettingsVersion(),
             greaterThan(settingsVersion)
         );
     }
@@ -587,7 +592,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         assertBusy(() -> {
-            final Index index = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index(indexName).getIndex();
+            final Index index = clusterAdmin().prepareState().get().getState().metadata().getProject().index(indexName).getIndex();
             final IndexService indexService = indicesService.indexService(index);
             assertThat(indexService.hasShard(0), is(true));
             assertThat(indexService.getShard(0).getLastKnownGlobalCheckpoint(), greaterThanOrEqualTo(nbNoOps - 1L));
@@ -616,7 +621,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         );
         assertIndexFrozen(indexName);
 
-        final IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index(indexName);
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().getProject().index(indexName);
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(indexMetadata.getIndex());
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             final IndexShard indexShard = indexService.getShardOrNull(i);
@@ -684,7 +689,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
         );
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("index");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().getProject().index("index");
         final IndexLongFieldRange timestampFieldRange = indexMetadata.getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
@@ -716,7 +721,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
         );
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("index");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().getProject().index("index");
         final IndexLongFieldRange timestampFieldRange = indexMetadata.getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
@@ -738,7 +743,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
         );
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("index");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().getProject().index("index");
         final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
         assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
@@ -770,7 +775,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
         );
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("index");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().getProject().index("index");
         final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
         assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
@@ -794,7 +799,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
         );
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index("index");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().getProject().index("index");
 
         final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
         assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));

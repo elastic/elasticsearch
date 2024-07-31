@@ -53,7 +53,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().projectMetadata.index(index);
+        IndexMetadata idxMeta = clusterState.metadata().getProject().index(index);
 
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it

@@ -177,7 +177,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         assertThat(actual.version(), equalTo(expected.version()));
         assertTrue(Metadata.isGlobalStateEquals(actual.metadata(), expected.metadata()));
         for (IndexMetadata indexMetadata : expected.metadata().getProject()) {
-            assertThat(actual.metadata().projectMetadata.index(indexMetadata.getIndex()), equalTo(indexMetadata));
+            assertThat(actual.metadata().getProject().index(indexMetadata.getIndex()), equalTo(indexMetadata));
         }
     }
 
@@ -236,7 +236,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             gateway.setLastAcceptedState(newClusterState);
 
             gateway = maybeNew(gateway);
-            assertThat(gateway.getLastAcceptedState().metadata().projectMetadata.index(indexName), equalTo(newIndexMetadata));
+            assertThat(gateway.getLastAcceptedState().metadata().getProject().index(indexName), equalTo(newIndexMetadata));
         } finally {
             IOUtils.close(gateway);
         }
@@ -503,7 +503,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     GatewayMetaState.AsyncPersistedState.resetVotingConfiguration(state),
                     reloadedPersistedState.getLastAcceptedState()
                 );
-                assertNotNull(reloadedPersistedState.getLastAcceptedState().metadata().projectMetadata.index(indexName));
+                assertNotNull(reloadedPersistedState.getLastAcceptedState().metadata().getProject().index(indexName));
             }
         } finally {
             IOUtils.close(cleanup);

@@ -158,7 +158,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     @Override
     protected Executor getExecutor(MultiGetShardRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
-        if (clusterState.metadata().projectMetadata.index(shardId.getIndex()).isSystem()) {
+        if (clusterState.metadata().getProject().index(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
             return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);

@@ -395,11 +395,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-                    final IndexMetadata indexMetadata = allocation.metadata().projectMetadata.index(shardRouting.index());
+                    final IndexMetadata indexMetadata = allocation.metadata().getProject().index(shardRouting.index());
                     if (indexMetadata.isSearchableSnapshot() == false) {
                         return allocation.decision(Decision.YES, name, "index is not a searchable snapshot shard - can allocate");
                     }
-                    if (allocation.metadata().projectMetadata.hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
+                    if (allocation.metadata().getProject().hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
                         return allocation.decision(Decision.YES, name, SNAPSHOT_BLOB_CACHE_INDEX + " is not created yet");
                     }
                     if (allocation.routingTable().hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {

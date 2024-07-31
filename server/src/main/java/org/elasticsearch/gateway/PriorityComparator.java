@@ -62,7 +62,7 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
         return new PriorityComparator() {
             @Override
             protected IndexMetadata getMetadata(Index index) {
-                return allocation.metadata().projectMetadata.getIndexSafe(index);
+                return allocation.metadata().getProject().getIndexSafe(index);
             }
         };
     }

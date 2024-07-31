@@ -154,7 +154,7 @@ public class IndexLifecycleService
         // check-and-set). moveClusterStateToStep also does its own validation, but doesn't take
         // the user-input for the current step (which is why we validate here for a passed in step)
         IndexLifecycleTransition.validateTransition(
-            currentState.getMetadata().projectMetadata.index(index),
+            currentState.getMetadata().getProject().index(index),
             currentStepKey,
             newStepKey,
             policyRegistry
@@ -174,7 +174,7 @@ public class IndexLifecycleService
     void onMaster(ClusterState clusterState) {
         maybeScheduleJob();
 
-        final IndexLifecycleMetadata currentMetadata = clusterState.metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata currentMetadata = clusterState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentILMMode(clusterState);
             if (OperationMode.STOPPED.equals(currentMode)) {
@@ -185,8 +185,8 @@ public class IndexLifecycleService
 
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
-            for (IndexMetadata idxMeta : clusterState.metadata().projectMetadata.indices().values()) {
-                if (clusterState.metadata().projectMetadata.isIndexManagedByILM(idxMeta)) {
+            for (IndexMetadata idxMeta : clusterState.metadata().getProject().indices().values()) {
+                if (clusterState.metadata().getProject().isIndexManagedByILM(idxMeta)) {
                     String policyName = idxMeta.getLifecyclePolicyName();
                     final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
@@ -323,7 +323,7 @@ public class IndexLifecycleService
         if (this.isMaster) {
             // cleanup cache in policyRegistry on another thread since its not critical to have it run on the applier thread and computing
             // the deleted indices becomes expensive for larger cluster states
-            if (event.state().metadata().projectMetadata.indices() != event.previousState().metadata().projectMetadata.indices()) {
+            if (event.state().metadata().getProject().indices() != event.previousState().metadata().getProject().indices()) {
                 clusterService.getClusterApplierService().threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
                     for (Index index : event.indicesDeleted()) {
                         policyRegistry.delete(index);
@@ -339,11 +339,11 @@ public class IndexLifecycleService
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
             // keep idle until elected
-            final IndexLifecycleMetadata ilmMetadata = event.state().metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+            final IndexLifecycleMetadata ilmMetadata = event.state().metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
             // only update the policy registry if we just became the master node or if the ilm metadata changed
             if (ilmMetadata != null
                 && (event.previousState().nodes().isLocalNodeElectedMaster() == false
-                    || ilmMetadata != event.previousState().metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE))) {
+                    || ilmMetadata != event.previousState().metadata().getProject().custom(IndexLifecycleMetadata.TYPE))) {
                 policyRegistry.update(ilmMetadata);
             }
         }
@@ -378,7 +378,7 @@ public class IndexLifecycleService
      * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
      */
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
-        IndexLifecycleMetadata currentMetadata = clusterState.metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = clusterState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
 
         OperationMode currentMode = currentILMMode(clusterState);
         if (currentMetadata == null) {
@@ -398,8 +398,8 @@ public class IndexLifecycleService
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
-        for (IndexMetadata idxMeta : clusterState.metadata().projectMetadata.indices().values()) {
-            if (clusterState.metadata().projectMetadata.isIndexManagedByILM(idxMeta)) {
+        for (IndexMetadata idxMeta : clusterState.metadata().getProject().indices().values()) {
+            if (clusterState.metadata().getProject().isIndexManagedByILM(idxMeta)) {
                 String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
@@ -508,7 +508,9 @@ public class IndexLifecycleService
             return Collections.emptySet();
         }
 
-        Set<String> indicesPreventingShutdown = state.metadata().projectMetadata.indices()
+        Set<String> indicesPreventingShutdown = state.metadata()
+            .getProject()
+            .indices()
             .entrySet()
             .stream()
             // Filter out to only consider managed indices

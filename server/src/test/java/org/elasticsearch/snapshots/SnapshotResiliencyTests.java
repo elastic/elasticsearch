@@ -868,7 +868,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final SetOnce<Index> firstIndex = new SetOnce<>();
         continueOrDie(createRepoAndIndex(repoName, index, 1), createIndexResponse -> {
-            firstIndex.set(masterNode.clusterService.state().metadata().projectMetadata.index(index).getIndex());
+            firstIndex.set(masterNode.clusterService.state().metadata().getProject().index(index).getIndex());
             // create a few more indices to make it more likely that the subsequent index delete operation happens before snapshot
             // finalization
             final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(indices, createIndicesListener);
@@ -1176,7 +1176,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 "Documents were restored but the restored index mapping was older than some documents and misses some of their fields",
                 (int) hitCount,
                 lessThanOrEqualTo(
-                    ((Map<?, ?>) masterNode.clusterService.state().metadata().projectMetadata.index(restoredIndex)
+                    ((Map<?, ?>) masterNode.clusterService.state()
+                        .metadata()
+                        .getProject()
+                        .index(restoredIndex)
                         .mapping()
                         .sourceAsMap()
                         .get("properties")).size()

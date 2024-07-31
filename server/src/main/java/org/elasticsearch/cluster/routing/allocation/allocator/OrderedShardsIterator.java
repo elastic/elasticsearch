@@ -62,7 +62,7 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
 
     private static Comparator<ShardRouting> createShardsComparator(Metadata metadata) {
         return Comparator.comparing(shard -> {
-            var lookup = metadata.projectMetadata.getIndicesLookup().get(shard.getIndexName());
+            var lookup = metadata.getProject().getIndicesLookup().get(shard.getIndexName());
             if (lookup != null && lookup.getParentDataStream() != null) {
                 // prioritize write indices of the data stream
                 return Objects.equals(lookup.getParentDataStream().getWriteIndex(), shard.index()) ? 0 : 2;

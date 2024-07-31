@@ -944,7 +944,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     private ClusterState newClusterState(Metadata metadata, DiscoveryNodes discoveryNodes) {
         final RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (IndexMetadata imd : metadata.getProject()) {
-            routingTable.addAsNew(metadata.projectMetadata.index(imd.getIndex()));
+            routingTable.addAsNew(metadata.getProject().index(imd.getIndex()));
         }
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)

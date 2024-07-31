@@ -179,10 +179,10 @@ public class MetadataCreateIndexService {
         if (state.routingTable().hasIndex(index)) {
             throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
-        if (state.metadata().projectMetadata.hasIndex(index)) {
-            throw new ResourceAlreadyExistsException(state.metadata().projectMetadata.index(index).getIndex());
+        if (state.metadata().getProject().hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(state.metadata().getProject().index(index).getIndex());
         }
-        if (state.metadata().projectMetadata.hasAlias(index)) {
+        if (state.metadata().getProject().hasAlias(index)) {
             throw new InvalidIndexNameException(index, "already exists as alias");
         }
     }
@@ -350,7 +350,7 @@ public class MetadataCreateIndexService {
         final Index recoverFromIndex = request.recoverFrom();
         final IndexMetadata sourceMetadata = recoverFromIndex == null
             ? null
-            : currentState.metadata().projectMetadata.getIndexSafe(recoverFromIndex);
+            : currentState.metadata().getProject().getIndexSafe(recoverFromIndex);
 
         if (sourceMetadata != null) {
             // If source metadata was provided, it means we're recovering from an existing index,
@@ -634,7 +634,7 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        ComposableIndexTemplate template = currentState.getMetadata().projectMetadata.templatesV2().get(templateName);
+        ComposableIndexTemplate template = currentState.getMetadata().getProject().templatesV2().get(templateName);
         final boolean isDataStream = template.getDataStreamTemplate() != null;
         if (isDataStream && request.dataStreamName() == null) {
             throw new IllegalArgumentException(
@@ -1254,7 +1254,7 @@ public class MetadataCreateIndexService {
         ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metadata(newMetadata).build();
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, updatedState.routingTable())
-            .addAsNew(updatedState.metadata().projectMetadata.index(indexName));
+            .addAsNew(updatedState.metadata().getProject().index(indexName));
         return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
     }
 
@@ -1505,15 +1505,15 @@ public class MetadataCreateIndexService {
     }
 
     static IndexMetadata validateResize(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
-        if (state.metadata().projectMetadata.hasIndex(targetIndexName)) {
-            throw new ResourceAlreadyExistsException(state.metadata().projectMetadata.index(targetIndexName).getIndex());
+        if (state.metadata().getProject().hasIndex(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(state.metadata().getProject().index(targetIndexName).getIndex());
         }
-        final IndexMetadata sourceMetadata = state.metadata().projectMetadata.index(sourceIndex);
+        final IndexMetadata sourceMetadata = state.metadata().getProject().index(sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(sourceIndex);
         }
 
-        IndexAbstraction source = state.metadata().projectMetadata.getIndicesLookup().get(sourceIndex);
+        IndexAbstraction source = state.metadata().getProject().getIndicesLookup().get(sourceIndex);
         assert source != null;
         if (source.getParentDataStream() != null && source.getParentDataStream().getWriteIndex().equals(sourceMetadata.getIndex())) {
             throw new IllegalArgumentException(
@@ -1547,7 +1547,7 @@ public class MetadataCreateIndexService {
         final boolean copySettings,
         final IndexScopedSettings indexScopedSettings
     ) {
-        final IndexMetadata sourceMetadata = currentState.metadata().projectMetadata.index(resizeSourceIndex.getName());
+        final IndexMetadata sourceMetadata = currentState.metadata().getProject().index(resizeSourceIndex.getName());
         if (type == ResizeType.SHRINK) {
             final List<String> nodesToAllocateOn = validateShrinkIndex(
                 currentState,

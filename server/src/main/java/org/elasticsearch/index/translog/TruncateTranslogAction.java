@@ -153,7 +153,7 @@ public class TruncateTranslogAction {
         try {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.getIndexSafe(shardPath.getShardId().getIndex());
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().getIndexSafe(shardPath.getShardId().getIndex());
             final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             final TranslogConfig translogConfig = new TranslogConfig(
                 shardPath.getShardId(),

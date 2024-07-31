@@ -50,7 +50,7 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
             newState.metadata(Metadata.builder(oldState.getMetadata()).removeProjectCustom(TransformMetadata.TYPE).build());
         } else {
             TransformMetadata.Builder builder = TransformMetadata.Builder.from(
-                oldState.metadata().projectMetadata.custom(TransformMetadata.TYPE)
+                oldState.metadata().getProject().custom(TransformMetadata.TYPE)
             ).isResetMode(request.isEnabled());
             newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(TransformMetadata.TYPE, builder.build()).build());
         }

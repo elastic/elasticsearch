@@ -308,7 +308,7 @@ public class JobResultsProvider {
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
-        if (state.getMetadata().projectMetadata.hasAlias(tempIndexName)) {
+        if (state.getMetadata().getProject().hasAlias(tempIndexName)) {
             String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
@@ -351,7 +351,7 @@ public class JobResultsProvider {
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
-        if (state.getMetadata().projectMetadata.hasIndex(indexName) == false) {
+        if (state.getMetadata().getProject().hasIndex(indexName) == false) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             executeAsyncWithOrigin(
@@ -377,7 +377,7 @@ public class JobResultsProvider {
                 client.admin().indices()::create
             );
         } else {
-            MappingMetadata indexMappings = state.metadata().projectMetadata.index(indexName).mapping();
+            MappingMetadata indexMappings = state.metadata().getProject().index(indexName).mapping();
             addTermsMapping(indexMappings, indexName, termFields, indexAndMappingsListener);
         }
     }

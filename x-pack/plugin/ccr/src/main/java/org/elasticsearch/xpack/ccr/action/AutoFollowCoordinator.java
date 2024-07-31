@@ -256,10 +256,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     void updateAutoFollowers(ClusterState followerClusterState) {
-        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata().projectMetadata.custom(
-            AutoFollowMetadata.TYPE,
-            AutoFollowMetadata.EMPTY
-        );
+        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata()
+            .getProject()
+            .custom(AutoFollowMetadata.TYPE, AutoFollowMetadata.EMPTY);
 
         if (autoFollowMetadata.getPatterns().isEmpty() && this.autoFollowers.isEmpty()) {
             return;
@@ -610,7 +609,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             for (final Index indexToFollow : leaderIndicesToFollow) {
                 // Look up the abstraction for the given index, e.g., an index ".ds-foo" could look
                 // up the Data Stream "foo"
-                IndexAbstraction indexAbstraction = remoteMetadata.projectMetadata.getIndicesLookup().get(indexToFollow.getName());
+                IndexAbstraction indexAbstraction = remoteMetadata.getProject().getIndicesLookup().get(indexToFollow.getName());
                 // Ensure that the remote cluster doesn't have other patterns
                 // that would follow the index, there can be only one.
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
@@ -633,7 +632,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         )
                     );
                 } else {
-                    final IndexMetadata leaderIndexMetadata = remoteMetadata.projectMetadata.getIndexSafe(indexToFollow);
+                    final IndexMetadata leaderIndexMetadata = remoteMetadata.getProject().getIndexSafe(indexToFollow);
                     // First ensure that the index on the leader that we want to follow has soft-deletes enabled
                     if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
                         String message = String.format(
@@ -686,7 +685,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         private static boolean leaderIndexAlreadyFollowed(AutoFollowPattern autoFollowPattern, Index leaderIndex, Metadata localMetadata) {
             String followIndexName = getFollowerIndexName(autoFollowPattern, leaderIndex.getName());
-            IndexMetadata indexMetadata = localMetadata.projectMetadata.index(followIndexName);
+            IndexMetadata indexMetadata = localMetadata.getProject().index(followIndexName);
             if (indexMetadata != null) {
                 // If an index with the same name exists, but it is not a follow index for this leader index then
                 // we should let the auto follower attempt to auto follow it, so it can fail later and
@@ -814,7 +813,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 if (leaderIndexMetadata.getState() != IndexMetadata.State.OPEN) {
                     continue;
                 }
-                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().projectMetadata.getIndicesLookup()
+                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata()
+                    .getProject()
+                    .getIndicesLookup()
                     .get(leaderIndexMetadata.getIndex().getName());
                 if (autoFollowPattern.isActive() && autoFollowPattern.match(indexAbstraction)) {
                     IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetadata.getIndex());
@@ -878,7 +879,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String name, Index indexToFollow) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().projectMetadata.custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().getProject().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
                 if (newFollowedIndexUUIDS.containsKey(name) == false) {
                     // A delete auto follow pattern request can have removed the auto follow pattern while we want to update
@@ -919,11 +920,12 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final List<String> autoFollowPatternNames
         ) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().projectMetadata.custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().getProject().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> autoFollowPatternNameToFollowedIndexUUIDs = new HashMap<>(
                     currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs()
                 );
-                Set<String> remoteIndexUUIDS = remoteMetadata.projectMetadata.indices()
+                Set<String> remoteIndexUUIDS = remoteMetadata.getProject()
+                    .indices()
                     .values()
                     .stream()
                     .map(IndexMetadata::getIndexUUID)

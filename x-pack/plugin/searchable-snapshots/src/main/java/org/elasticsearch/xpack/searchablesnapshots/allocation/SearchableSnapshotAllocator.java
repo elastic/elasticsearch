@@ -134,7 +134,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             if (recoveryUuid != null) {
 
                 // we always force snapshot recovery source to use the snapshot-based recovery process on the node
-                final Settings indexSettings = allocation.metadata().projectMetadata.index(shardRouting.index()).getSettings();
+                final Settings indexSettings = allocation.metadata().getProject().index(shardRouting.index()).getSettings();
                 final IndexId indexId = new IndexId(
                     SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings),
                     SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
@@ -252,7 +252,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     private AllocateUnassignedDecision decideAllocation(RoutingAllocation allocation, ShardRouting shardRouting) {
         assert shardRouting.unassigned();
         assert ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index()).getSettings()
+            allocation.metadata().getProject().getIndexSafe(shardRouting.index()).getSettings()
         ).equals(ALLOCATOR_NAME);
 
         if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
@@ -260,7 +260,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
-        if (SNAPSHOT_PARTIAL_SETTING.get(allocation.metadata().projectMetadata.index(shardRouting.index()).getSettings())
+        if (SNAPSHOT_PARTIAL_SETTING.get(allocation.metadata().getProject().index(shardRouting.index()).getSettings())
             && frozenCacheInfoService.isFetching()) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
@@ -373,7 +373,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
         final ShardId shardId = shard.shardId();
-        final Settings indexSettings = allocation.metadata().projectMetadata.index(shard.index()).getSettings();
+        final Settings indexSettings = allocation.metadata().getProject().index(shard.index()).getSettings();
 
         if (SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
             // cached data for partial indices is not persistent, no need to fetch it

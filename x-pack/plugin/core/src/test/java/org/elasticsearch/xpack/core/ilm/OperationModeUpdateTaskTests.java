@@ -117,11 +117,10 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         } else {
             assertThat("expected a different state instance but they were the same", state, not(equalTo(newState)));
         }
-        LifecycleOperationMetadata newMetadata = newState.metadata().projectMetadata.custom(LifecycleOperationMetadata.TYPE);
-        IndexLifecycleMetadata oldMetadata = newState.metadata().projectMetadata.custom(
-            IndexLifecycleMetadata.TYPE,
-            IndexLifecycleMetadata.EMPTY
-        );
+        LifecycleOperationMetadata newMetadata = newState.metadata().getProject().custom(LifecycleOperationMetadata.TYPE);
+        IndexLifecycleMetadata oldMetadata = newState.metadata()
+            .getProject()
+            .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         return Optional.ofNullable(newMetadata)
             .map(LifecycleOperationMetadata::getILMOperationMode)
             .orElseGet(oldMetadata::getOperationMode);
@@ -154,11 +153,10 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         } else {
             assertThat(state, not(equalTo(newState)));
         }
-        LifecycleOperationMetadata newMetadata = newState.metadata().projectMetadata.custom(LifecycleOperationMetadata.TYPE);
-        SnapshotLifecycleMetadata oldMetadata = newState.metadata().projectMetadata.custom(
-            SnapshotLifecycleMetadata.TYPE,
-            SnapshotLifecycleMetadata.EMPTY
-        );
+        LifecycleOperationMetadata newMetadata = newState.metadata().getProject().custom(LifecycleOperationMetadata.TYPE);
+        SnapshotLifecycleMetadata oldMetadata = newState.metadata()
+            .getProject()
+            .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         return Optional.ofNullable(newMetadata)
             .map(LifecycleOperationMetadata::getSLMOperationMode)
             .orElseGet(oldMetadata::getOperationMode);

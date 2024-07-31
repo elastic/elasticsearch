@@ -47,9 +47,7 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
             .nodes(discoNodes)
             .metadata(metadata)
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("idx"))
-                    .build()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("idx")).build()
             )
             .build();
         clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());

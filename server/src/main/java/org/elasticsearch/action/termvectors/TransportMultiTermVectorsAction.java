@@ -68,7 +68,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             ShardId shardId;
             try {
                 termVectorsRequest.routing(
-                    clusterState.metadata().projectMetadata.resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index())
+                    clusterState.metadata().getProject().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index())
                 );
                 String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
                 shardId = clusterService.operationRouting()

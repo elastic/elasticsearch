@@ -117,7 +117,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
         request.request()
-            .routing(state.metadata().projectMetadata.resolveIndexRouting(request.request().routing(), request.request().index()));
+            .routing(state.metadata().getProject().resolveIndexRouting(request.request().routing(), request.request().index()));
     }
 
     @Override
@@ -169,7 +169,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected Executor getExecutor(GetRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
-        if (clusterState.metadata().projectMetadata.getIndexSafe(shardId.getIndex()).isSystem()) {
+        if (clusterState.metadata().getProject().getIndexSafe(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
             return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);

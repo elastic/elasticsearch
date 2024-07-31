@@ -45,11 +45,12 @@ public class SetCompatibleVersionsTask extends AbstractVersionsTask {
         if (versionIds.isEmpty()) {
             throw new IllegalArgumentException("No version ids specified");
         }
+
         Integer transportVersion = versionIds.get(TRANSPORT_VERSION_TYPE);
         if (transportVersion == null) {
-            throw new IllegalArgumentException("TransportVersion id not specified");
+            // the release being done does not have transport versions - don't need to update CCS version
+            return;
         }
-
         Path versionJava = rootDir.resolve(TRANSPORT_VERSIONS_FILE_PATH);
         CompilationUnit file = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionJava));
 

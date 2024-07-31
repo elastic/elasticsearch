@@ -68,19 +68,29 @@ public class IndexReplicationRanker {
      * indices (interactiveSize() > 0), sorted by the ordering criteria in {@link
      * IndexReplicationRanker#rankedIndexComparator}.
      */
-    static Set<String> getRankedIndicesBelowThreshold(Collection<IndexRankingProperties> indices, long threshold) {
+    static IndexRankingResult getRankedIndicesBelowThreshold(Collection<IndexRankingProperties> indices, long threshold) {
         var rankedIndices = indices.stream().filter(index -> index.isInteractive()).sorted(rankedIndexComparator.reversed()).toList();
         long cumulativeSize = 0;
         var twoReplicaEligableIndices = new HashSet<String>();
+        IndexRankingProperties lastTwoReplicaIndex = null;
+        IndexRankingProperties firstOneReplicaIndex = null;
         for (IndexRankingProperties index : rankedIndices) {
             cumulativeSize += index.interactiveSize();
             if (cumulativeSize > threshold) {
+                firstOneReplicaIndex = index;
                 break;
             }
+            lastTwoReplicaIndex = index;
             twoReplicaEligableIndices.add(index.indexProperties().name());
         }
-        return twoReplicaEligableIndices;
+        return new IndexRankingResult(twoReplicaEligableIndices, lastTwoReplicaIndex, firstOneReplicaIndex);
     }
+
+    record IndexRankingResult(
+        Set<String> twoReplicaEligableIndices,
+        IndexRankingProperties lastTwoReplicaIndex,
+        IndexRankingProperties firstOneReplicaIndex
+    ) {}
 
     record IndexRankingProperties(SearchMetricsService.IndexProperties indexProperties, long interactiveSize) {
         boolean isInteractive() {

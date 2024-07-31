@@ -40,7 +40,7 @@ public interface PlanStreamInput {
      * @param id the serialization ID for the FieldAttribute
      * @throws IllegalArgumentException if the id is not in the cache
      */
-    Attribute attributeFromCache(int id);
+    Attribute attributeFromCache(int id) throws IOException;
 
     /**
      * Adds a FieldAttribute to the cache, with the corresponding serialization ID

@@ -23,12 +23,12 @@ public interface PlanStreamOutput {
      * @return the serialization ID if the attribute was already cached;
      * null otherwise
      */
-    Integer fromAttributeCache(Attribute attr);
+    Integer attributeIdFromCache(Attribute attr);
 
     /**
      * Adds a FieldAttribute to the cache, returning the new serialization ID assigned to it.
      * @return the cache ID; or null if the attribute cannot be added to the cache
      * @throws IllegalArgumentException if the attribute is already present in the cache
      */
-    Integer addToAttributeCache(Attribute attr);
+    Integer cacheAttribute(Attribute attr);
 }

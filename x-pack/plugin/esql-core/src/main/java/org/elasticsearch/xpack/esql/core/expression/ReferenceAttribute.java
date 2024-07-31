@@ -69,14 +69,14 @@ public class ReferenceAttribute extends TypedAttribute {
     public void writeTo(StreamOutput out) throws IOException {
         assert out instanceof PlanStreamOutput;
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
-            Integer cacheId = ((PlanStreamOutput) out).fromAttributeCache(this);
+            Integer cacheId = ((PlanStreamOutput) out).attributeIdFromCache(this);
             if (cacheId != null) {
                 out.writeByte(PlanStreamOutput.CACHED);
                 out.writeZLong(cacheId);
                 return;
             }
 
-            cacheId = ((PlanStreamOutput) out).addToAttributeCache(this);
+            cacheId = ((PlanStreamOutput) out).cacheAttribute(this);
             if (cacheId == null) {
                 out.writeByte(PlanStreamOutput.NO_CACHE);
             } else {

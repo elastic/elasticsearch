@@ -181,12 +181,12 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     }
 
     @Override
-    public Integer fromAttributeCache(Attribute attr) {
+    public Integer attributeIdFromCache(Attribute attr) {
         return cachedAttributes.get(attr);
     }
 
     @Override
-    public Integer addToAttributeCache(Attribute attr) {
+    public Integer cacheAttribute(Attribute attr) {
         if (cachedAttributes.containsKey(attr)) {
             throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
         }

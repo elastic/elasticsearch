@@ -30,12 +30,14 @@ import java.util.function.Function;
  * mapping and documents in order to cover more code paths and permutations.
  */
 public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
-    private final DataGenerator dataGenerator;
-
     private final boolean fullyDynamicMapping;
+
+    private final DataGenerator dataGenerator;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
+        this.fullyDynamicMapping = randomBoolean();
+
         this.dataGenerator = new DataGenerator(
             DataGeneratorSpecification.builder()
                 // Nested fields don't work with subobjects: false.
@@ -65,16 +67,20 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                     // specific to this fields which matcher can't handle.
                     @Override
                     public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+                        // Unsigned long is not used with dynamic mapping
+                        // since it can initially look like long
+                        // but later fail to parse once big values arrive.
+                        var excluded = fullyDynamicMapping
+                            ? List.of(FieldType.SCALED_FLOAT, FieldType.UNSIGNED_LONG)
+                            : List.of(FieldType.SCALED_FLOAT);
                         return new DataSourceResponse.FieldTypeGenerator(
-                            () -> randomValueOtherThan(FieldType.SCALED_FLOAT, () -> randomFrom(FieldType.values()))
+                            () -> randomValueOtherThanMany(excluded::contains, () -> randomFrom(FieldType.values()))
                         );
                     }
                 }))
                 .withPredefinedFields(List.of(new PredefinedField("host.name", FieldType.KEYWORD)))
                 .build()
         );
-
-        this.fullyDynamicMapping = randomBoolean();
     }
 
     @Override

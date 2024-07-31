@@ -58,6 +58,22 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 [[start-trained-model-deployment-query-params]]
 == {api-query-parms-title}
 
+`adaptive_allocation`::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
+
+`enabled`:::
+(Optional, Boolean)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-enabled]
+
+`max_number_of_allocations`:::
+(Required, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-max-number]
+
+`min_number_of_allocations`:::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-min-number]
+
 `cache_size`::
 (Optional, <<byte-units,byte value>>)
 The inference cache size (in memory outside the JVM heap) per node for the
@@ -73,7 +89,8 @@ Defaults to `model_id`.
 `number_of_allocations`::
 (Optional, integer)
 The total number of allocations this model is assigned across {ml} nodes.
-Increasing this value generally increases the throughput. Defaults to 1.
+Increasing this value generally increases the throughput. Defaults to `1`.
+If `adaptive_allocation` is enabled, do not set this value.
 
 `priority`::
 (Optional, string)
@@ -180,5 +197,26 @@ The `my_model` trained model can be deployed again with a different ID:
 [source,console]
 --------------------------------------------------
 POST _ml/trained_models/my_model/deployment/_start?deployment_id=my_model_for_search
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+[[start-trained-model-deployment-adaptive-allocation-example]]
+=== Setting adaptive allocations
+
+The following example starts a new deployment of the `my_model` trained model
+with the ID `my_model_for_search` and enables adaptive allocations with the
+minimum number of 3 allocations and the maximum number of 10. 
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/my_model/deployment/_start?deployment_id=my_model_for_search
+{
+  "adaptive_allocations": {
+    "enabled": true,
+    "min_number_of_allocations": 3,
+    "max_number_of_allocations": 10
+  }
+}
 --------------------------------------------------
 // TEST[skip:TBD]

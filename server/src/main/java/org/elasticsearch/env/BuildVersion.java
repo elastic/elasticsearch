@@ -103,7 +103,6 @@ public abstract class BuildVersion {
 
     }
 
-
     private static class DefaultBuildExtension implements BuildExtension {
         @Override
         public Build getCurrentBuild() {

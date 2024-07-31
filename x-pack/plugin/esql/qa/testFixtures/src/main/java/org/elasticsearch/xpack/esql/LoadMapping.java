@@ -4,16 +4,27 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.type;
+
+package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -22,77 +33,67 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.junit.Assert.assertNotNull;
 
-public abstract class Types {
+public class LoadMapping {
+    public static Map<String, EsField> loadMapping(String name) {
+        InputStream stream = LoadMapping.class.getResourceAsStream("/" + name);
+        assertNotNull("Could not find mapping resource:" + name, stream);
+        return loadMapping(stream);
+    }
+
+    private static Map<String, EsField> loadMapping(InputStream stream) {
+        try (InputStream in = stream) {
+            Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, in, true);
+            return fromEs(map);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 
     @SuppressWarnings("unchecked")
-    public static Map<String, EsField> fromEs(DataTypeRegistry typeRegistry, Map<String, Object> asMap) {
+    private static Map<String, EsField> fromEs(Map<String, Object> asMap) {
         Map<String, Object> props = null;
         if (asMap != null && asMap.isEmpty() == false) {
             props = (Map<String, Object>) asMap.get("properties");
         }
-        return props == null || props.isEmpty() ? emptyMap() : startWalking(typeRegistry, props);
+        return props == null || props.isEmpty() ? emptyMap() : startWalking(props);
     }
 
-    private static Map<String, EsField> startWalking(DataTypeRegistry typeRegistry, Map<String, Object> mapping) {
+    private static Map<String, EsField> startWalking(Map<String, Object> mapping) {
         Map<String, EsField> types = new LinkedHashMap<>();
 
         if (mapping == null) {
             return emptyMap();
         }
-        for (Entry<String, Object> entry : mapping.entrySet()) {
-            walkMapping(typeRegistry, entry.getKey(), entry.getValue(), types);
+        for (Map.Entry<String, Object> entry : mapping.entrySet()) {
+            walkMapping(entry.getKey(), entry.getValue(), types);
         }
 
         return types;
     }
 
-    private static DataType getType(DataTypeRegistry typeRegistry, Map<String, Object> content) {
-        if (content.containsKey("type")) {
-            String typeName = content.get("type").toString();
-            if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
-                return KEYWORD;
-            }
-            final Object metricsTypeParameter = content.get(TimeSeriesParams.TIME_SERIES_METRIC_PARAM);
-            final TimeSeriesParams.MetricType metricType;
-            if (metricsTypeParameter instanceof String str) {
-                metricType = TimeSeriesParams.MetricType.fromString(str);
-            } else {
-                metricType = (TimeSeriesParams.MetricType) metricsTypeParameter;
-            }
-            try {
-                return typeRegistry.fromEs(typeName, metricType);
-            } catch (IllegalArgumentException ex) {
-                return UNSUPPORTED;
-            }
-        } else if (content.containsKey("properties")) {
-            return OBJECT;
-        } else {
-            return UNSUPPORTED;
-        }
-    }
-
     @SuppressWarnings("unchecked")
-    private static void walkMapping(DataTypeRegistry typeRegistry, String name, Object value, Map<String, EsField> mapping) {
+    private static void walkMapping(String name, Object value, Map<String, EsField> mapping) {
         // object type - only root or nested docs supported
         if (value instanceof Map) {
             Map<String, Object> content = (Map<String, Object>) value;
 
             // extract field type
-            DataType esDataType = getType(typeRegistry, content);
+            DataType esDataType = getType(content);
             final Map<String, EsField> properties;
             if (esDataType == OBJECT || esDataType == NESTED) {
-                properties = fromEs(typeRegistry, content);
+                properties = fromEs(content);
             } else if (content.containsKey("fields")) {
                 // Check for multifields
                 Object fields = content.get("fields");
                 if (fields instanceof Map) {
-                    properties = startWalking(typeRegistry, (Map<String, Object>) fields);
+                    properties = startWalking((Map<String, Object>) fields);
                 } else {
                     properties = Collections.emptyMap();
                 }
             } else {
-                properties = fromEs(typeRegistry, content);
+                properties = fromEs(content);
             }
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
             final EsField field;
@@ -117,6 +118,31 @@ public abstract class Types {
         }
     }
 
+    private static DataType getType(Map<String, Object> content) {
+        if (content.containsKey("type")) {
+            String typeName = content.get("type").toString();
+            if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
+                return KEYWORD;
+            }
+            final Object metricsTypeParameter = content.get(TimeSeriesParams.TIME_SERIES_METRIC_PARAM);
+            final TimeSeriesParams.MetricType metricType;
+            if (metricsTypeParameter instanceof String str) {
+                metricType = TimeSeriesParams.MetricType.fromString(str);
+            } else {
+                metricType = (TimeSeriesParams.MetricType) metricsTypeParameter;
+            }
+            try {
+                return EsqlDataTypeRegistry.INSTANCE.fromEs(typeName, metricType);
+            } catch (IllegalArgumentException ex) {
+                return UNSUPPORTED;
+            }
+        } else if (content.containsKey("properties")) {
+            return OBJECT;
+        } else {
+            return UNSUPPORTED;
+        }
+    }
+
     private static String textSetting(Object value, String defaultValue) {
         return value == null ? defaultValue : value.toString();
     }
@@ -131,7 +157,7 @@ public abstract class Types {
 
     public static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
         if (properties != null && properties.isEmpty() == false) {
-            for (Entry<String, EsField> entry : properties.entrySet()) {
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
                 EsField field = entry.getValue();
                 UnsupportedEsField u;
                 if (field instanceof UnsupportedEsField) {

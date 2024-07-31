@@ -20,11 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.logsdb.datageneration.DataGenerator;
-import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.FieldType;
-import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
-import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -47,46 +42,52 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+/**
+ * Basic challenge test - we index same documents into an index with standard index mode and an index with logsdb index mode.
+ * Then we verify that results of common operations are the same modulo knows differences like synthetic source modifications.
+ * This test uses simple mapping and document structure in order to allow easier debugging of the test itself.
+ */
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
-    private final DataGenerator dataGenerator;
     private final int numShards = randomBoolean() ? randomIntBetween(2, 5) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
         super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
-        this.dataGenerator = new DataGenerator(
-            DataGeneratorSpecification.builder()
-                // Nested fields don't work with subobjects: false.
-                .withNestedFieldsLimit(0)
-                // TODO increase depth of objects
-                // Currently matching fails because in synthetic source all fields are flat (given that we have subobjects: false)
-                // but stored source is identical to original document which has nested structure.
-                .withMaxObjectDepth(0)
-                .withArbitrary(new RandomBasedArbitrary() {
-                    // TODO enable null values
-                    // Matcher does not handle nulls currently
-                    @Override
-                    public boolean generateNullValue() {
-                        return false;
-                    }
-
-                    // TODO enable arrays
-                    // List matcher currently does not apply matching logic recursively
-                    // and equality check fails because arrays are sorted in synthetic source.
-                    @Override
-                    public boolean generateArrayOfValues() {
-                        return false;
-                    }
-                })
-                .withPredefinedFields(List.of(new PredefinedField("host.name", FieldType.KEYWORD)))
-                .build()
-        );
     }
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
         if (randomBoolean()) {
-            dataGenerator.writeMapping(builder);
+            builder.startObject()
+                .startObject("properties")
+
+                .startObject("@timestamp")
+                .field("type", "date")
+                .endObject()
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("message")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("method")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("memory_usage_bytes")
+                .field("type", "long")
+                .field("ignore_malformed", randomBoolean())
+                .endObject()
+
+                .endObject()
+
+                .endObject();
         } else {
             // We want dynamic mapping, but we need host.name to be a keyword instead of text to support aggregations.
             builder.startObject()
@@ -104,14 +105,40 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field("subobjects", false);
+
         if (randomBoolean()) {
-            dataGenerator.writeMapping(builder, b -> builder.field("subobjects", false));
-        } else {
-            // Sometimes we go with full dynamic mapping.
-            builder.startObject();
-            builder.field("subobjects", false);
-            builder.endObject();
+            builder.startObject("properties")
+
+                .startObject("@timestamp")
+                .field("type", "date")
+                .endObject()
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("message")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("method")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .startObject("memory_usage_bytes")
+                .field("type", "long")
+                .field("ignore_malformed", randomBoolean())
+                .endObject()
+
+                .endObject();
         }
+
+        builder.endObject();
     }
 
     @Override
@@ -149,7 +176,6 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         });
     }
 
-    @SuppressWarnings("unchecked")
     public void testMatchAllQuery() throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
@@ -253,17 +279,15 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    private XContentBuilder generateDocument(final Instant timestamp) throws IOException {
-        var document = XContentFactory.jsonBuilder();
-        dataGenerator.generateDocument(document, doc -> {
-            doc.field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp));
-            // Needed for terms query
-            doc.field("method", randomFrom("put", "post", "get"));
-            // We can generate this but we would get "too many buckets"
-            doc.field("memory_usage_bytes", randomLongBetween(1000, 2000));
-        });
-
-        return document;
+    protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {
+        return XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
+            .field("host.name", randomFrom("foo", "bar", "baz"))
+            .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
+            .field("method", randomFrom("put", "post", "get"))
+            .field("memory_usage_bytes", randomLongBetween(1000, 2000))
+            .endObject();
     }
 
     @SuppressWarnings("unchecked")

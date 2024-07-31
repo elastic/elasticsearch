@@ -305,13 +305,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 if (snapshot.getSnapshotId().equals(snapshotId) == false) {
                     if (snapshot.getPolicy().equals(policyName)) {
                         if (runningSnapshots.contains(snapshot.getSnapshotId())) {
+                            // Snapshot is for this policy and is still running so keep it in registered set
                             newRegistered.add(snapshot);
                         } else {
+                            // Snapshot is for this policy but is not running so infer failure, update stats accordingly,
+                            // and remove from registered set
                             newStats = newStats.withFailedIncremented(policyName);
                             newPolicyMetadata.incrementInvocationsSinceLastSuccess()
                                 .setLastFailure(buildFailedSnapshotRecord(snapshot.getSnapshotId()));
                         }
                     } else if (snapLifecycles.containsKey(snapshot.getPolicy())) {
+                        // Snapshot is for another policy so keep in the registered set and that policy deal with it
                         newRegistered.add(snapshot);
                     }
                 }

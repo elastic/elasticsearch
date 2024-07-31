@@ -37,6 +37,14 @@ import java.util.Objects;
 
 import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FIELD;
 
+/**
+ * {@link RegisteredPolicySnapshots} records a set of snapshot IDs along with their SLM policy name. It is used to infer
+ * the failure of snapshots which did not record their failure in SnapshotLifecycleStats. The set is stored in the
+ * cluster state as custom metadata. When a snapshot is started by SLM, it is added to this set. Upon completion,
+ * is it removed. If a snapshot does not record its failure in SnapshotLifecycleStats, likely due to a master shutdown,
+ * it will not be removed from the registered set. A subsequent snapshot will then find that a registered snapshot
+ * is no longer running and will infer that it failed, updating SnapshotLifecycleStats accordingly.
+ */
 public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     public static final String TYPE = "registered_snapshots";
@@ -184,6 +192,12 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
             this.snapshots = new ArrayList<>(registeredPolicySnapshots.snapshots);
         }
 
+        /**
+         * Add the snapshotId to the registered set if its metadata contains a policyId, meaning that it was initiated by SLM.
+         * @param userMetadata metadata provided by the user in the CreateSnapshotRequest
+         *                     If the request is from SLM it will contain a key "policy" with an SLM policy name as the value.
+         * @param snapshotId the snapshotId to potentially add to the registered set
+         */
         void maybeAdd(Map<String, Object> userMetadata, SnapshotId snapshotId) {
             final String policy = getPolicyFromMetadata(userMetadata);
             if (policy != null) {

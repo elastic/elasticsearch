@@ -531,15 +531,6 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void assertSnapshotRunning(String snapshot) {
-        final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
-        ClusterState state = clusterStateResponse.getState();
-        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
-        Set<SnapshotId> snapshotIds = SnapshotLifecycleTask.currentlyRunningSnapshots(state);
-        Set<String> snapshotNames = snapshotIds.stream().map(SnapshotId::getName).collect(Collectors.toSet());
-        assertTrue(snapshotNames.contains(snapshot));
-    }
-
     private void assertRegistered(String policyName, List<String> expected) {
         var registered = getRegisteredSnapshots();
         var policySnaps = registered.getSnapshotsByPolicy(policyName).stream().map(SnapshotId::getName).toList();

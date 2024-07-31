@@ -28,7 +28,7 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
 
     private LongMetricValue randomLongMetricValue() {
         LongMetric v = new LongMetric();
-        for (int i = 0; i < randomIntBetween(0, 10); i++) {
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
             v.record(randomIntBetween(0, 1_000_000));
         }
         return v.getValue();

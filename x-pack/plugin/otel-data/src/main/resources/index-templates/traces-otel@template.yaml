@@ -8,9 +8,6 @@ _meta:
   description: default logs template installed by x-pack
   managed: true
 composed_of:
-# It's TBD how we proceed with these - potentially this could be shared with apm
-#  - traces@mappings
-#  - traces@settings
   - otel@mappings
   - traces-otel@mappings
   - semconv-resource-to-ecs@mappings

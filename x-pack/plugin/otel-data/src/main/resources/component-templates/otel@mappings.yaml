@@ -23,8 +23,6 @@ template:
         time_series_dimension: true
       dropped_attributes_count:
         type: long
-      processor.event:
-        type: keyword
       scope:
         properties:
           name:

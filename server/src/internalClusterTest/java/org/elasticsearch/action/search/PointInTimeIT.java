@@ -10,12 +10,15 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +43,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -57,8 +61,10 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class PointInTimeIT extends ESIntegTestCase {
@@ -84,7 +90,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex("test").setId(id).setSource("value", i).get();
         }
         refresh("test");
-        BytesReference pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp1 -> {
             assertThat(resp1.pointInTimeId(), equalTo(pitId));
             assertHitCount(resp1, numDocs);
@@ -130,7 +136,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex(index).setId(id).setSource("value", i).get();
         }
         refresh();
-        BytesReference pitId = openPointInTime(new String[] { "*" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "*" }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
         try {
             int moreDocs = randomIntBetween(10, 50);
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
@@ -212,7 +218,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex("test").setId(Integer.toString(i)).setSource("value", i).get();
         }
         refresh();
-        BytesReference pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs);
@@ -264,7 +270,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex("index").setId(id).setSource("value", i).get();
         }
         refresh();
-        BytesReference pit = openPointInTime(new String[] { "index" }, TimeValue.timeValueSeconds(5));
+        BytesReference pit = openPointInTime(new String[] { "index" }, TimeValue.timeValueSeconds(5)).getPointInTimeId();
         assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pit)), resp1 -> {
             assertHitCount(resp1, index1);
             if (rarely()) {
@@ -305,7 +311,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
         refresh();
-        BytesReference pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
+        BytesReference pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
         try {
             assertNoFailuresAndResponse(
                 prepareSearch().setPointInTime(new PointInTimeBuilder(pit)),
@@ -348,7 +354,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
             {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
-        BytesReference pitId = openPointInTime(new String[] { "test*" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "test*" }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
         try {
             for (String node : internalCluster().nodesInclude("test")) {
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
@@ -415,7 +421,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             prepareIndex(randomFrom("test-2")).setId(Integer.toString(i)).setSource("value", i).get();
         }
         refresh();
-        BytesReference pitId = openPointInTime(new String[] { "test-*" }, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(new String[] { "test-*" }, TimeValue.timeValueMinutes(2)).getPointInTimeId();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs1 + numDocs2);
@@ -447,7 +453,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             }
         }
         refresh("index-*");
-        BytesReference pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueHours(1));
+        BytesReference pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueHours(1)).getPointInTimeId();
         try {
             for (int size = 1; size <= numIndex; size++) {
                 SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
@@ -532,6 +538,154 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
+    public void testMissingShardsWithPointInTime() throws Exception {
+        final Settings nodeAttributes = Settings.builder().put("node.attr.foo", "bar").build();
+        final String masterNode = internalCluster().startMasterOnlyNode(nodeAttributes);
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2, nodeAttributes);
+
+        final String index = "my_test_index";
+        final int numShards = 2; // randomIntBetween(2, 4);
+        // create an index with numShards shards and 0 replicas
+        createIndex(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.require.foo", "bar")
+                .build()
+        );
+
+        // index some documents
+        int numDocs = randomIntBetween(10, 50);
+        for (int i = 0; i < numDocs; i++) {
+            String id = Integer.toString(i);
+            prepareIndex(index).setId(id).setSource("value", i).get();
+        }
+        refresh(index);
+
+        // create a PIT when all docs are present
+        OpenPointInTimeResponse pointInTimeResponse = openPointInTime(new String[]{index}, TimeValue.timeValueMinutes(1));
+        try {
+            // ensure that the PIT created has all the shards there
+            assertThat(numShards, equalTo(pointInTimeResponse.getTotalShards()));
+            assertThat(numShards, equalTo(pointInTimeResponse.getSuccessfulShards()));
+            assertThat(0, equalTo(pointInTimeResponse.getFailedShards()));
+            assertThat(0, equalTo(pointInTimeResponse.getSkippedShards()));
+
+            // make a request using the above PIT
+            assertResponse(
+                prepareSearch().setQuery(new MatchAllQueryBuilder())
+                    .setPointInTime(new PointInTimeBuilder(pointInTimeResponse.getPointInTimeId())),
+                resp -> {
+                    // ensure that al docs are returned
+                    assertThat(resp.pointInTimeId(), equalTo(pointInTimeResponse.getPointInTimeId()));
+                    assertHitCount(resp, numDocs);
+                }
+            );
+
+            // pick up a random data node to shut down
+            final String randomDataNode = randomFrom(dataNodes);
+
+            // find which shards to relocate
+            final String nodeId = admin().cluster().prepareNodesInfo(randomDataNode).get().getNodes().get(0).getNode().getId();
+            List<Integer> shardsToRelocate = new ArrayList<>();
+            for (ShardStats stats : admin().indices().prepareStats(index).get().getShards()) {
+                if (nodeId.equals(stats.getShardRouting().currentNodeId())) {
+                    shardsToRelocate.add(stats.getShardRouting().shardId().id());
+                }
+            }
+
+            final int shardsRemoved = shardsToRelocate.size();
+
+            // shut down the random data node
+            internalCluster().stopNode(randomDataNode);
+
+            // ensure that the index is Red
+            ensureRed(index);
+
+            // verify that not all documents can now be retrieved
+            assertResponse(prepareSearch().setQuery(new MatchAllQueryBuilder()), resp -> {
+                assertNotNull(resp.getHits().getTotalHits());
+                assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+            });
+
+            // create a PIT when some shards are missing
+            OpenPointInTimeResponse pointInTimeResponseOneNodeDown = openPointInTime(
+                new String[]{index},
+                TimeValue.timeValueMinutes(10),
+                true
+            );
+            try {
+                // assert that some shards are indeed missing from PIT
+                assertThat(numShards, equalTo(pointInTimeResponseOneNodeDown.getTotalShards()));
+                assertThat(numShards - shardsToRelocate.size(), equalTo(pointInTimeResponseOneNodeDown.getSuccessfulShards()));
+                assertThat(shardsToRelocate.size(), equalTo(pointInTimeResponseOneNodeDown.getFailedShards()));
+                assertThat(0, equalTo(pointInTimeResponseOneNodeDown.getSkippedShards()));
+
+                // ensure that the response now contains fewer documents than the total number of indexed documents
+                assertResponse(
+                    prepareSearch().setQuery(new MatchAllQueryBuilder())
+                        .setPointInTime(new PointInTimeBuilder(pointInTimeResponseOneNodeDown.getPointInTimeId())),
+                    resp -> {
+                        assertThat(resp.pointInTimeId(), equalTo(pointInTimeResponseOneNodeDown.getPointInTimeId()));
+                        assertNotNull(resp.getHits().getTotalHits());
+                        assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                    }
+                );
+
+                // add another node to the cluster and re-allocate the shards
+                final String newNodeName = internalCluster().startDataOnlyNode(nodeAttributes);
+                try {
+                    for (int shardId : shardsToRelocate) {
+                        ClusterRerouteUtils.reroute(client(), new AllocateEmptyPrimaryAllocationCommand(index, shardId, newNodeName, true));
+                    }
+                    ensureGreen(TimeValue.timeValueMinutes(2), index);
+
+                    // index some more documents
+                    for (int i = numDocs; i < numDocs * 2; i++) {
+                        String id = Integer.toString(i);
+                        prepareIndex(index).setId(id).setSource("value", i).get();
+                    }
+                    refresh(index);
+
+                    // ensure that we now see at least numDocs results from the updated index
+                    assertResponse(prepareSearch().setQuery(new MatchAllQueryBuilder()), resp -> {
+                        assertThat(resp.getSuccessfulShards(), equalTo(numShards));
+                        assertNotNull(resp.getHits().getTotalHits());
+                        assertThat(resp.getHits().getTotalHits().value, greaterThan((long) numDocs));
+                    });
+
+                    // ensure that when using the previously created PIT, we'd see the same number of documents as before regardless of the
+                    // newly indexed documents
+                    assertResponse(
+                        prepareSearch().setQuery(new MatchAllQueryBuilder())
+                            .setPointInTime(new PointInTimeBuilder(pointInTimeResponseOneNodeDown.getPointInTimeId())),
+                        resp -> {
+                            assertThat(resp.pointInTimeId(), equalTo(pointInTimeResponseOneNodeDown.getPointInTimeId()));
+                            assertThat(resp.getTotalShards(), equalTo(numShards - shardsRemoved));
+                            assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
+                            assertThat(resp.getFailedShards(), equalTo(0));
+                            assertNotNull(resp.getHits().getTotalHits());
+                            // we expect less documents as the newly indexed ones should not be part of the PIT
+                            assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                        }
+                    );
+                } finally {
+                    internalCluster().stopNode(newNodeName);
+                }
+            } finally {
+                closePointInTime(pointInTimeResponseOneNodeDown.getPointInTimeId());
+            }
+
+        } finally {
+            closePointInTime(pointInTimeResponse.getPointInTimeId());
+            internalCluster().stopNode(masterNode);
+            for (String dataNode : dataNodes) {
+                internalCluster().stopNode(dataNode);
+            }
+        }
+    }
+
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private void assertPagination(PointInTimeBuilder pit, int expectedNumDocs, int size, SortBuilder<?>... sorts) throws Exception {
         Set<String> seen = new HashSet<>();
@@ -590,10 +744,14 @@ public class PointInTimeIT extends ESIntegTestCase {
         assertThat(seen.size(), equalTo(expectedNumDocs));
     }
 
-    private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
-        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
-        return response.getPointInTimeId();
+    private OpenPointInTimeResponse openPointInTime(String[] indices, TimeValue keepAlive) {
+        return openPointInTime(indices, keepAlive, false);
+    }
+
+    private OpenPointInTimeResponse openPointInTime(String[] indices, TimeValue keepAlive, boolean allowPartialSearchResults) {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive)
+            .allowPartialSearchResults(allowPartialSearchResults);
+        return client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
     }
 
     private void closePointInTime(BytesReference readerId) {

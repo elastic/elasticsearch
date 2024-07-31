@@ -71,6 +71,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     // TODO: Remove and migrate everything to the method with all the parameters
+    /**
+     * @deprecated Use {@link #parameterSuppliersFromTypedDataWithDefaultChecks(List, boolean, PositionalErrorMessageSupplier)} instead.
+     * This method doesn't add all the default checks.
+     */
+    @Deprecated
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }

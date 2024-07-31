@@ -105,7 +105,8 @@ The API returns the following results:
 
 The following example updates the deployment for a
 `elastic__distilbert-base-uncased-finetuned-conll03-english` trained model to
-enable adaptive allocation:
+enable adaptive allocations with the minimum number of 3 allocations and the
+maximum number of 10:
 
 [source,console]
 --------------------------------------------------

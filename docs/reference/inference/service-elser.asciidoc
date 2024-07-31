@@ -136,7 +136,7 @@ If using the Python client, you can set the `timeout` parameter to a higher valu
 
 The following example shows how to create an {infer} endpoint called
 `my-elser-model` to perform a `sparse_embedding` task type and configure
-adaptive allocation.
+adaptive allocations.
 
 The request below will automatically download the ELSER model if it isn't
 already downloaded and then deploy the model.

@@ -1,7 +1,7 @@
 simple
 required_capability: date_nanos_type
 
-from date_nanos | sort millis desc | keep millis, nanos | limit 1;
+FROM date_nanos | SORT millis DESC | KEEP millis, nanos | LIMIT 1;
 
 millis:date              | nanos:date_nanos
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
@@ -10,7 +10,7 @@ millis:date              | nanos:date_nanos
 mv_max on date nanos
 required_capability: date_nanos_type
 
-from date_nanos | sort millis asc | eval nanos = mv_max(nanos) | keep nanos | limit 1;
+FROM date_nanos | SORT millis ASC | EVAL nanos = MV_MAX(nanos) | KEEP nanos | LIMIT 1;
 
 
 nanos:date_nanos
@@ -20,7 +20,7 @@ nanos:date_nanos
 mv_min on date nanos
 required_capability: date_nanos_type
 
-from date_nanos | sort millis asc | eval nanos = mv_min(nanos) | keep nanos | limit 1;
+FROM date_nanos | SORT millis ASC | EVAL nanos = MV_MIN(nanos) | KEEP nanos | LIMIT 1;
 
 nanos:date_nanos
 2023-01-23T13:55:01.543123456Z
@@ -29,7 +29,7 @@ nanos:date_nanos
 mv_count on date nanos
 required_capability: date_nanos_type
 
-from date_nanos | sort millis asc | eval ct = mv_count(nanos) | keep ct | limit 1;
+FROM date_nanos | SORT millis ASC | EVAL ct = MV_COUNT(nanos) | KEEP ct | LIMIT 1;
 
 ct:integer
 3
@@ -38,7 +38,7 @@ ct:integer
 mv_first on date nanos
 required_capability: date_nanos_type
 
-from date_nanos | sort millis asc | eval nanos = mv_first(nanos) | keep nanos | limit 1;
+FROM date_nanos | SORT millis ASC | EVAL nanos = MV_FIRST(nanos) | KEEP nanos | LIMIT 1;
 
 nanos:date_nanos
 2023-01-23T13:55:01.543123456Z
@@ -47,7 +47,7 @@ nanos:date_nanos
 mv_last on date nanos
 required_capability: date_nanos_type
 
-from date_nanos | sort millis asc | eval nanos = mv_last(nanos) | keep nanos | limit 1;
+FROM date_nanos | SORT millis asc | EVAL nanos = MV_LAST(nanos) | KEEP nanos | LIMIT 1;
 
 nanos:date_nanos
 2023-03-23T12:15:03.360103847Z

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.MetadataAttributeTests;
@@ -208,6 +209,57 @@ public class PlanStreamOutputTests extends ESTestCase {
                     planStream.writeNamedWriteable(randomAttribute());
                 }
             });
+        }
+    }
+
+    public void testWriteEqualAttributesDifferentID() throws IOException {
+        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        try (
+            BytesStreamOutput out = new BytesStreamOutput();
+            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
+        ) {
+
+            Attribute one = randomAttribute();
+            Attribute two = one.withId(new NameId());
+
+            planStream.writeNamedWriteable(one);
+            planStream.writeNamedWriteable(two);
+
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+                Attribute oneCopy = in.readNamedWriteable(Attribute.class);
+                Attribute twoCopy = in.readNamedWriteable(Attribute.class);
+
+                assertThat(oneCopy, equalTo(one));
+                assertThat(twoCopy, equalTo(two));
+
+                assertThat(oneCopy.id(), not(equalTo(twoCopy.id())));
+            }
+        }
+    }
+
+    public void testWriteDifferentAttributesSameID() throws IOException {
+        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        try (
+            BytesStreamOutput out = new BytesStreamOutput();
+            PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
+        ) {
+
+            Attribute one = randomAttribute();
+            Attribute two = randomAttribute().withId(one.id());
+
+            planStream.writeNamedWriteable(one);
+            planStream.writeNamedWriteable(two);
+
+            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
+                Attribute oneCopy = in.readNamedWriteable(Attribute.class);
+                Attribute twoCopy = in.readNamedWriteable(Attribute.class);
+
+                assertThat(oneCopy, equalTo(one));
+                assertThat(twoCopy, equalTo(two));
+
+                assertThat(oneCopy, not(equalTo(twoCopy)));
+                assertThat(oneCopy.id(), equalTo(twoCopy.id()));
+            }
         }
     }
 

@@ -100,9 +100,7 @@ public class CodecTests extends ESTestCase {
 
     public void testCodecRetrievalForUnknownCodec() throws Exception {
         CodecService codecService = createCodecService();
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-            codecService.codec("unknown_codec")
-        );
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> codecService.codec("unknown_codec"));
         assertEquals("failed to find codec [unknown_codec]", exception.getMessage());
     }
 
@@ -122,7 +120,6 @@ public class CodecTests extends ESTestCase {
 
         assertEquals(expectedCodecCount, availableCodecs.length);
     }
-
 
     private CodecService createCodecService() throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();

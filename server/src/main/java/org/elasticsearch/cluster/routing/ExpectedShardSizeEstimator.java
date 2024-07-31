@@ -70,6 +70,8 @@ public class ExpectedShardSizeEstimator {
         Metadata metadata,
         RoutingTable routingTable
     ) {
+        assert defaultValue == 0L || defaultValue == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+            : "Unexpected default value for expected shard size: " + defaultValue;
         final IndexMetadata indexMetadata = metadata.getIndexSafe(shard.index());
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false

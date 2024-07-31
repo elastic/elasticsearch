@@ -63,6 +63,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -548,6 +549,26 @@ public class IndexEngine extends InternalEngine {
         // For Stateless LVM, we need to refresh AND flush as a refresh by itself doesn't decrease the memory usage of the version map.
         refresh("write indexing buffer", SearcherScope.INTERNAL, false);
         flush(false, false, ActionListener.noop());
+    }
+
+    @Override
+    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, String forceMergeUUID) throws EngineException,
+        IOException {
+        try {
+            int before = getLastCommittedSegmentInfos().size();
+            super.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, forceMergeUUID);
+            if (flush) {
+                var info = getLastCommittedSegmentInfos();
+                int after = info.size();
+                boolean merged = Objects.equals(info.getUserData().get(FORCE_MERGE_UUID_KEY), forceMergeUUID);
+                logger.info("Completed force merge for shard {}. forceMergeSet={}, segment count {} -> {}", shardId, merged, before, after);
+            } else {
+                logger.info("Completed force merge for shard {} without flushing", shardId);
+            }
+        } catch (EngineException | IOException e) {
+            logger.warn(() -> Strings.format("Force merge failed for shard %s", shardId), e);
+            throw e;
+        }
     }
 
     // package private for testing

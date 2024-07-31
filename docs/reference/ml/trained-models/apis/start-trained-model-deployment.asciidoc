@@ -91,7 +91,7 @@ Defaults to `model_id`.
 (Optional, integer)
 The total number of allocations this model is assigned across {ml} nodes.
 Increasing this value generally increases the throughput. Defaults to `1`.
-If `adaptive_allocation` is enabled, do not set this value.
+If `adaptive_allocations` is enabled, do not set this value, because it's automatically set.
 
 `priority`::
 (Optional, string)

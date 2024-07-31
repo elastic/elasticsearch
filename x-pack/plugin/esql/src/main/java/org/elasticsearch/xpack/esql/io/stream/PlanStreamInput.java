@@ -213,6 +213,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         return nameIdFunction.apply(l);
     }
 
+    @Override
     public Attribute readAttributeWithCache(CheckedFunction<StreamInput, Attribute, IOException> constructor) throws IOException {
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
             int cacheId = Math.toIntExact(readZLong());

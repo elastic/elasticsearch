@@ -79,7 +79,6 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "manage_ccr",
     "manage_connector",
     "manage_data_frame_transforms",
-    "manage_data_stream_global_retention",
     "manage_enrich",
     "manage_ilm",
     "manage_index_templates",

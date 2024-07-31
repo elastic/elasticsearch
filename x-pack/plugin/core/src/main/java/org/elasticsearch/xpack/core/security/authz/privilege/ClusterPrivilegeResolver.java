@@ -401,10 +401,6 @@ public class ClusterPrivilegeResolver {
         "monitor_data_stream_global_retention",
         Set.of("cluster:monitor/data_stream/global_retention/*")
     );
-    public static final NamedClusterPrivilege MANAGE_GLOBAL_RETENTION = new ActionClusterPrivilege(
-        "manage_data_stream_global_retention",
-        Set.of("cluster:admin/data_stream/global_retention/*", "cluster:monitor/data_stream/global_retention/*")
-    );
 
     /**
      * If you are adding a new named cluster privilege, also add it to the
@@ -471,8 +467,7 @@ public class ClusterPrivilegeResolver {
             CROSS_CLUSTER_REPLICATION,
             READ_CONNECTOR_SECRETS,
             WRITE_CONNECTOR_SECRETS,
-            MONITOR_GLOBAL_RETENTION,
-            MANAGE_GLOBAL_RETENTION
+            MONITOR_GLOBAL_RETENTION
         ).filter(Objects::nonNull).toList()
     );
 

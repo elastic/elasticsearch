@@ -101,11 +101,6 @@ deprecated[7.5] Use `manage_transform` instead.
 +
 This privilege is not available in {serverless-full}.
 
-`manage_data_stream_global_retention`::
-All operations related to managing the data stream global retention settings.
-+
-This privilege is not available in {serverless-full}.
-
 `manage_enrich`::
 All operations related to managing and executing enrich policies.
 

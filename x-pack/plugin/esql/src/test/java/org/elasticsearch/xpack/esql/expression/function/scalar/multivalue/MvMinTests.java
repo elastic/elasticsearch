@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -44,10 +43,5 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvMin(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNonSpatialTypes();
     }
 }

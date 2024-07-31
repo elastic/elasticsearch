@@ -186,7 +186,12 @@ public class EsqlCapabilities {
         /**
          * Support for match operator
          */
-        MATCH_OPERATOR(true);
+        MATCH_OPERATOR(true),
+
+        /**
+         * Add CombineBinaryComparisons rule.
+         */
+        COMBINE_BINARY_COMPARISONS;
 
         private final boolean snapshotOnly;
 

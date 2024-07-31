@@ -105,7 +105,6 @@ public enum DataType {
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
     VERSION(builder().esType("version").estimatedSize(15).docValues()),
     OBJECT(builder().esType("object").unknownSize()),
-    NESTED(builder().esType("nested").unknownSize()),
     SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES)),
     TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES)),
@@ -287,7 +286,7 @@ public enum DataType {
     }
 
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED;
+        return t != OBJECT;
     }
 
     public static boolean isNull(DataType t) {
@@ -335,7 +334,6 @@ public enum DataType {
      */
     public static boolean isRepresentable(DataType t) {
         return t != OBJECT
-            && t != NESTED
             && t != UNSUPPORTED
             && t != DATE_PERIOD
             && t != TIME_DURATION

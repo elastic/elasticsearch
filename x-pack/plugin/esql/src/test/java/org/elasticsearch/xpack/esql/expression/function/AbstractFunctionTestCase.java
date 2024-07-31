@@ -168,7 +168,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     throw new UncheckedIOException(e);
                 }
             }
-            case UNSUPPORTED, OBJECT, NESTED, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);

@@ -29,7 +29,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -82,7 +81,7 @@ public class LoadMapping {
             // extract field type
             DataType esDataType = getType(content);
             final Map<String, EsField> properties;
-            if (esDataType == OBJECT || esDataType == NESTED) {
+            if (esDataType == OBJECT) {
                 properties = fromEs(content);
             } else if (content.containsKey("fields")) {
                 // Check for multifields

@@ -100,7 +100,9 @@ public abstract class BuildVersion {
         private static BuildExtension findExtension() {
             return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class)).orElse(new DefaultBuildExtension());
         }
+
     }
+
 
     private static class DefaultBuildExtension implements BuildExtension {
         @Override

@@ -22,7 +22,6 @@ public class Constants {
         "cluster:admin/component_template/delete",
         "cluster:admin/component_template/get",
         "cluster:admin/component_template/put",
-        "cluster:admin/data_stream/global_retention/put",
         "cluster:admin/deprecation/cache/reset",
         "cluster:admin/fleet/secrets/delete",
         "cluster:admin/fleet/secrets/get",

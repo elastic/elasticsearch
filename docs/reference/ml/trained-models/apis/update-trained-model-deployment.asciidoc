@@ -47,7 +47,7 @@ If `adaptive_allocations` is enabled, do not set the value of `number_of_allocat
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-enabled]
 
 `max_number_of_allocations`:::
-(Required, integer)
+(Optional, integer)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-max-number]
 
 `min_number_of_allocations`:::

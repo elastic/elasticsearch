@@ -61,7 +61,7 @@ If `adaptive_allocations` is enabled, do not set the value of `num_allocations`.
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-enabled]
 
 `max_number_of_allocations`::::
-(Required, integer)
+(Optional, integer)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-max-number]
 
 `min_number_of_allocations`::::
@@ -149,8 +149,8 @@ PUT _inference/sparse_embedding/my-elser-model
   "service_settings": {
     "adaptive_allocations": {
       "enabled": true,
-      "max_number_of_allocations": 10,
-      "min_number_of_allocations": 3
+      "min_number_of_allocations": 3,
+      "max_number_of_allocations": 10
     }
   }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -44,21 +43,29 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void doubles(List<TestCaseSupplier> cases) {
-        cases.add(
-            new TestCaseSupplier(
 
-                List.of(DataType.DOUBLE, DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    // TODO random inputs and outputs
-                    List.of(
-                        new TestCaseSupplier.TypedData(Arrays.asList(70.0, 60.0, 50.0), DataType.DOUBLE, "number"),
-                        new TestCaseSupplier.TypedData(1.5, DataType.DOUBLE, "p").forceLiteral()
-                    ),
-                    "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=1.5]",
-                    DataType.DOUBLE,
-                    closeTo(100.8357079220902, 0.00000001)
-                )
-            )
-        );
+        cases.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDouble());
+            double p = randomDoubleBetween(-100.0, 100.0, true);
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
+                    new TestCaseSupplier.TypedData(p, DataType.DOUBLE, "p").forceLiteral()
+                ),
+                "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
+                DataType.DOUBLE,
+                closeTo(calcPSeriesWeightedSum(field, p), 0.00000001)
+            );
+        }));
+    }
+
+    private static double calcPSeriesWeightedSum(List<Double> field, double p) {
+        double sum = 0;
+        for (int i = 0; i < field.size(); i++) {
+            double current = field.get(i) / Math.pow(i + 1, p);
+            sum += current;
+        }
+        return sum;
     }
 }

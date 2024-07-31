@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,6 +30,11 @@ public class Limit extends UnaryPlan {
     @Override
     public Limit replaceChild(LogicalPlan newChild) {
         return new Limit(source(), limit, newChild);
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return references();
     }
 
     public Expression limit() {

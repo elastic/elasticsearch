@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,6 +23,11 @@ public class ProjectExec extends UnaryExec {  // TODO implement EstimatesRowSize
     public ProjectExec(Source source, PhysicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child);
         this.projections = projections;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return references();
     }
 
     @Override

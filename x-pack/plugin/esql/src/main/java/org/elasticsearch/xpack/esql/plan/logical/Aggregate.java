@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -120,9 +121,22 @@ public class Aggregate extends UnaryPlan implements Stats {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = mergeOutputAttributes(Expressions.asAttributes(aggregates()), emptyList());
+            lazyOutput = outputAttributes(aggregates);
         }
         return lazyOutput;
+    }
+
+    public static List<Attribute> outputAttributes(List<? extends NamedExpression> aggregates) {
+        return mergeOutputAttributes(Expressions.asAttributes(aggregates), emptyList());
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return requiredInputAttributes(aggregates, groupings);
+    }
+
+    public static AttributeSet requiredInputAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
+        return Expressions.references(groupings).combine(Expressions.references(aggregates));
     }
 
     @Override

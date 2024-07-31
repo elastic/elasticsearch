@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,6 +22,11 @@ public class OrderExec extends UnaryExec {
     public OrderExec(Source source, PhysicalPlan child, List<Order> order) {
         super(source, child);
         this.order = order;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return references();
     }
 
     @Override

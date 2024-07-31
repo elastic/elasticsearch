@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -102,6 +103,11 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
 
     public Mode mode() {
         return mode;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return matchField.references();
     }
 
     @Override

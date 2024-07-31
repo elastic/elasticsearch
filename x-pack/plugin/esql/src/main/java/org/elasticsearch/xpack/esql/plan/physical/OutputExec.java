@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -29,6 +30,11 @@ public class OutputExec extends UnaryExec {
 
     public Consumer<Page> getPageConsumer() {
         return pageConsumer;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return AttributeSet.EMPTY;
     }
 
     @Override

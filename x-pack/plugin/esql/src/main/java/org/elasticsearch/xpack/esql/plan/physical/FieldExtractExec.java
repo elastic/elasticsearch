@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -46,6 +47,16 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             }
         }
         return null;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        AttributeSet required = new AttributeSet(docValuesAttributes);
+
+        required.add(sourceAttribute);
+        required.addAll(attributesToExtract);
+
+        return required;
     }
 
     @Override

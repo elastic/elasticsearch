@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -40,6 +41,11 @@ public class TopN extends UnaryPlan {
     @Override
     public TopN replaceChild(LogicalPlan newChild) {
         return new TopN(source(), newChild, order, limit);
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return references();
     }
 
     public Expression limit() {

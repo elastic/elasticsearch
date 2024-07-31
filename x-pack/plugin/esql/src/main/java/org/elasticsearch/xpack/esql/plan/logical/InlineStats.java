@@ -89,6 +89,11 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     }
 
     @Override
+    public AttributeSet requiredInputSet() {
+        return references();
+    }
+
+    @Override
     protected NodeInfo<InlineStats> info() {
         return NodeInfo.create(this, InlineStats::new, child(), groupings, aggregates);
     }

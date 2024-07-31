@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -26,6 +27,11 @@ public class Project extends UnaryPlan {
     public Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child);
         this.projections = projections;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return references();
     }
 
     @Override

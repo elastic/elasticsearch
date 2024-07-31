@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,6 +26,11 @@ public class Drop extends UnaryPlan {
 
     public List<NamedExpression> removals() {
         return removals;
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return references();
     }
 
     @Override

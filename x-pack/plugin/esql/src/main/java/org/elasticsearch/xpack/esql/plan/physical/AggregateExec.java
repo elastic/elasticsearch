@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 
 import java.util.List;
 import java.util.Objects;
@@ -20,8 +22,14 @@ import java.util.Objects;
 public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+    /**
+     * The output attributes of {@link AggregatorMode#INITIAL} aggregations, resp.
+     * the input attributes of {@link AggregatorMode#FINAL} aggregations.
+     */
+    // TODO: For INTERMEDIATE, should the input attributes be the same as the output attributes? Currently, they are.
+    private final List<Attribute> intermediateAttributes;
 
-    private final Mode mode;
+    private final AggregatorMode mode;
 
     /**
      * Estimate of the number of bytes that'll be loaded per position before
@@ -29,35 +37,31 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
-    public enum Mode {
-        SINGLE,
-        PARTIAL, // maps raw inputs to intermediate outputs
-        FINAL, // maps intermediate inputs to final outputs
-    }
-
     public AggregateExec(
         Source source,
         PhysicalPlan child,
         List<? extends Expression> groupings,
         List<? extends NamedExpression> aggregates,
-        Mode mode,
+        AggregatorMode mode,
+        List<Attribute> intermediateAttributes,
         Integer estimatedRowSize
     ) {
         super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
         this.mode = mode;
+        this.intermediateAttributes = intermediateAttributes;
         this.estimatedRowSize = estimatedRowSize;
     }
 
     @Override
     protected NodeInfo<AggregateExec> info() {
-        return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, estimatedRowSize);
+        return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     @Override
     public AggregateExec replaceChild(PhysicalPlan newChild) {
-        return new AggregateExec(source(), newChild, groupings, aggregates, mode, estimatedRowSize);
+        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     public List<? extends Expression> groupings() {
@@ -68,8 +72,8 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return aggregates;
     }
 
-    public AggregateExec withMode(Mode newMode) {
-        return new AggregateExec(source(), child(), groupings, aggregates, newMode, estimatedRowSize);
+    public AggregateExec withMode(AggregatorMode newMode) {
+        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
     }
 
     /**
@@ -84,16 +88,27 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     public PhysicalPlan estimateRowSize(State state) {
         state.add(false, aggregates);  // The groupings are contained within the aggregates
         int size = state.consumeAllFields(true);
-        return Objects.equals(this.estimatedRowSize, size) ? this : new AggregateExec(source(), child(), groupings, aggregates, mode, size);
+        return Objects.equals(this.estimatedRowSize, size)
+            ? this
+            : new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, size);
     }
 
-    public Mode getMode() {
+    public AggregatorMode getMode() {
         return mode;
+    }
+
+    public List<Attribute> intermediateAttributes() {
+        return intermediateAttributes;
     }
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(aggregates);
+        return mode.isOutputPartial() ? intermediateAttributes : Aggregate.outputAttributes(aggregates);
+    }
+
+    @Override
+    public AttributeSet requiredInputSet() {
+        return mode.isInputPartial() ? new AttributeSet(intermediateAttributes) : Aggregate.requiredInputAttributes(aggregates, groupings);
     }
 
     @Override

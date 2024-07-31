@@ -57,11 +57,6 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         return new MvDedupe(source, field);
     }
 
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableTypes();
-    }
-
     @SuppressWarnings("unchecked")
     private static Matcher<Object> getMatcher(Stream<?> v) {
         Set<Object> values = v.collect(Collectors.toSet());

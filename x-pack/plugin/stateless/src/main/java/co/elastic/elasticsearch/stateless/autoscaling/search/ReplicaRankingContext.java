@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 class ReplicaRankingContext {
 
     private final Map<String, IndexReplicationRanker.IndexRankingProperties> rankingProperties = new HashMap<>();
+
     private final long allIndicesInteractiveSize;
 
     private final int searchPowerMin;
@@ -144,6 +145,10 @@ class ReplicaRankingContext {
             replicationSizeOveruse = ((double) sumTwoReplicasInteractiveSize - getThreshold()) / this.allIndicesInteractiveSize;
         }
         return replicationSizeOveruse;
+    }
+
+    public long getAllIndicesInteractiveSize() {
+        return allIndicesInteractiveSize;
     }
 
     @Override

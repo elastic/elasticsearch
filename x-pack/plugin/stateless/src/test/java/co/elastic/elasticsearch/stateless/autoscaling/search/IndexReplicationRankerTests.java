@@ -84,7 +84,7 @@ public class IndexReplicationRankerTests extends ESTestCase {
     }
 
     public void testGetRankedIndicesBelowThreshold() {
-        assertEquals(0, getRankedIndicesBelowThreshold(Collections.emptyList(), randomLong()).size());
+        assertEquals(0, getRankedIndicesBelowThreshold(Collections.emptyList(), randomLong()).twoReplicaEligableIndices().size());
 
         long now = System.currentTimeMillis();
         IndexRankingProperties systemIndexNonInteractive = createSystemIndex(0, randomLong());
@@ -107,7 +107,7 @@ public class IndexReplicationRankerTests extends ESTestCase {
             ds2backing2
         );
         Collection<IndexRankingProperties> copyOfOriginal = new ArrayList<>(indices);
-        Set<String> rankedIndicesBelowThreshold = getRankedIndicesBelowThreshold(indices, Long.MAX_VALUE);
+        Set<String> rankedIndicesBelowThreshold = getRankedIndicesBelowThreshold(indices, Long.MAX_VALUE).twoReplicaEligableIndices();
         assertEquals("ranking should not affect the input", copyOfOriginal, indices);
         assertTrue(
             "ranking should not remove system indices",
@@ -132,17 +132,38 @@ public class IndexReplicationRankerTests extends ESTestCase {
         );
 
         // check ordering by increasing threshold, total_interactive_bytes = 7500
-        assertEquals(0, getRankedIndicesBelowThreshold(indices, 0).size());
-        assertEquals(1, getRankedIndicesBelowThreshold(indices, 1000).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 1000).contains(systemIndexInteractive.indexProperties().name()));
-        assertEquals(2, getRankedIndicesBelowThreshold(indices, 3000).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 3000).contains(index2.indexProperties().name()));
-        assertEquals(3, getRankedIndicesBelowThreshold(indices, 4000).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 4000).contains(index1.indexProperties().name()));
-        assertEquals(4, getRankedIndicesBelowThreshold(indices, 5500).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 5500).contains(ds2backing2.indexProperties().name()));
-        assertEquals(5, getRankedIndicesBelowThreshold(indices, 6500).size());
-        assertTrue(getRankedIndicesBelowThreshold(indices, 6500).contains(ds1backing2.indexProperties().name()));
-        assertEquals(6, getRankedIndicesBelowThreshold(indices, 7500).size());
+        assertEquals(0, getRankedIndicesBelowThreshold(indices, 0).twoReplicaEligableIndices().size());
+        assertNull(getRankedIndicesBelowThreshold(indices, 0).lastTwoReplicaIndex());
+        assertEquals(systemIndexInteractive, getRankedIndicesBelowThreshold(indices, 0).firstOneReplicaIndex());
+        assertEquals(1, getRankedIndicesBelowThreshold(indices, 1000).twoReplicaEligableIndices().size());
+        assertTrue(
+            getRankedIndicesBelowThreshold(indices, 1000).twoReplicaEligableIndices()
+                .contains(systemIndexInteractive.indexProperties().name())
+        );
+        assertEquals(systemIndexInteractive, getRankedIndicesBelowThreshold(indices, 1000).lastTwoReplicaIndex());
+        assertEquals(index2, getRankedIndicesBelowThreshold(indices, 1000).firstOneReplicaIndex());
+        assertEquals(2, getRankedIndicesBelowThreshold(indices, 3000).twoReplicaEligableIndices().size());
+        assertTrue(getRankedIndicesBelowThreshold(indices, 3000).twoReplicaEligableIndices().contains(index2.indexProperties().name()));
+        assertEquals(index2, getRankedIndicesBelowThreshold(indices, 3000).lastTwoReplicaIndex());
+        assertEquals(index1, getRankedIndicesBelowThreshold(indices, 3000).firstOneReplicaIndex());
+        assertEquals(3, getRankedIndicesBelowThreshold(indices, 4000).twoReplicaEligableIndices().size());
+        assertTrue(getRankedIndicesBelowThreshold(indices, 4000).twoReplicaEligableIndices().contains(index1.indexProperties().name()));
+        assertEquals(index1, getRankedIndicesBelowThreshold(indices, 4000).lastTwoReplicaIndex());
+        assertEquals(ds2backing2, getRankedIndicesBelowThreshold(indices, 4000).firstOneReplicaIndex());
+        assertEquals(4, getRankedIndicesBelowThreshold(indices, 5500).twoReplicaEligableIndices().size());
+        assertTrue(
+            getRankedIndicesBelowThreshold(indices, 5500).twoReplicaEligableIndices().contains(ds2backing2.indexProperties().name())
+        );
+        assertEquals(ds2backing2, getRankedIndicesBelowThreshold(indices, 5500).lastTwoReplicaIndex());
+        assertEquals(ds1backing2, getRankedIndicesBelowThreshold(indices, 5500).firstOneReplicaIndex());
+        assertEquals(5, getRankedIndicesBelowThreshold(indices, 6500).twoReplicaEligableIndices().size());
+        assertTrue(
+            getRankedIndicesBelowThreshold(indices, 6500).twoReplicaEligableIndices().contains(ds1backing2.indexProperties().name())
+        );
+        assertEquals(ds1backing2, getRankedIndicesBelowThreshold(indices, 6500).lastTwoReplicaIndex());
+        assertEquals(ds2backing1, getRankedIndicesBelowThreshold(indices, 6500).firstOneReplicaIndex());
+        assertEquals(6, getRankedIndicesBelowThreshold(indices, 7500).twoReplicaEligableIndices().size());
+        assertEquals(ds2backing1, getRankedIndicesBelowThreshold(indices, 7500).lastTwoReplicaIndex());
+        assertNull(getRankedIndicesBelowThreshold(indices, 7500).firstOneReplicaIndex());
     }
 }

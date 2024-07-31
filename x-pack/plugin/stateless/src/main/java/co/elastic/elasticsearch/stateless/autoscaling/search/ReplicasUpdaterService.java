@@ -177,7 +177,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     Map<Integer, Set<String>> getRecommendedReplicaChanges(ReplicaRankingContext rankingContext) {
         assert rankingContext.getSearchPowerMin() >= 100 : "we should not have to call this method for SP < 100";
         Map<Integer, Set<String>> numReplicaChanges = new HashMap<>(2);
-        LOGGER.trace("Calculating index replica recommendations for " + rankingContext.indices());
+        LOGGER.debug("Calculating index replica recommendations for " + rankingContext.indices());
         if (rankingContext.getSearchPowerMin() >= SEARCH_POWER_MIN_FULL_REPLICATION) {
             for (IndexRankingProperties properties : rankingContext.properties()) {
                 int replicas = properties.indexProperties().replicas();
@@ -193,10 +193,14 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             }
         } else {
             // search power should be between 100 and 250 here
-            Set<String> twoReplicaEligibleIndices = getRankedIndicesBelowThreshold(
-                rankingContext.properties(),
-                rankingContext.getThreshold()
+            var rankingResult = getRankedIndicesBelowThreshold(rankingContext.properties(), rankingContext.getThreshold());
+            LOGGER.debug(
+                "last two replica eligible index: "
+                    + rankingResult.lastTwoReplicaIndex()
+                    + ", next candidate index: "
+                    + rankingResult.firstOneReplicaIndex()
             );
+            Set<String> twoReplicaEligibleIndices = rankingResult.twoReplicaEligableIndices();
             for (var rankedIndex : rankingContext.properties()) {
                 String indexName = rankedIndex.indexProperties().name();
                 int replicas = rankedIndex.indexProperties().replicas();
@@ -342,8 +346,12 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                         + indicesScaledUp
                         + ", scaled down: "
                         + indicesScaledDown
-                        + ", at SPmin: "
+                        + ". SPmin: "
                         + rankingContext.getSearchPowerMin()
+                        + ", totalInteractiveSize: "
+                        + rankingContext.getAllIndicesInteractiveSize()
+                        + ", replica threshold: "
+                        + rankingContext.getThreshold()
                 );
             } finally {
                 boolean running = this.running.compareAndSet(true, false);

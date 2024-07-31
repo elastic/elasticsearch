@@ -44,11 +44,14 @@ public class EsqlMediaTypeParser {
     }
 
     /*
-     *  Get requests do not have a Content-Type in headers, default to json
+     * If requests have no media type in params nor headers, default to JSON
      */
     public static MediaType getResponseMediaType(RestRequest request) {
-        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : XContentType.JSON;
-        return checkNonNullMediaType(mediaType, request);
+        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        if (mediaType == null) {
+            mediaType = XContentType.JSON;
+        }
+        return mediaType;
     }
 
     private static MediaType mediaTypeFromHeaders(RestRequest request) {

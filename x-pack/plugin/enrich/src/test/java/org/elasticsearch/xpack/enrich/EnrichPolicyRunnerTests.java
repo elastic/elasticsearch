@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -34,7 +33,6 @@ import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettin
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
@@ -79,18 +77,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -147,17 +142,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -227,17 +215,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -318,17 +299,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -415,17 +389,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -514,17 +481,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -633,17 +593,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -756,17 +709,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -820,7 +766,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
-    public void testRunnerNoSourceIndex() throws Exception {
+    public void testRunnerNoSourceIndex() {
         final String sourceIndex = "source-index";
 
         List<String> enrichFields = List.of("field2", "field5");
@@ -829,24 +775,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            Exception thrown = exception.get();
-            assertThat(thrown, instanceOf(IndexNotFoundException.class));
-            assertThat(thrown.getMessage(), containsString("no such index [" + sourceIndex + "]"));
-        } else {
-            fail("Expected exception but nothing was thrown");
-        }
+        assertThat(
+            asInstanceOf(IndexNotFoundException.class, safeExecuteExpectFailure(enrichPolicyRunner)).getMessage(),
+            containsString("no such index [" + sourceIndex + "]")
+        );
     }
 
-    public void testRunnerNoSourceMapping() throws Exception {
+    public void testRunnerNoSourceMapping() {
         final String sourceIndex = "source-index";
         CreateIndexResponse createResponse = indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
         assertTrue(createResponse.isAcknowledged());
@@ -857,32 +795,21 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            Exception thrown = exception.get();
-            assertThat(thrown, instanceOf(ElasticsearchException.class));
-            assertThat(
-                thrown.getMessage(),
-                containsString(
-                    "Enrich policy execution for ["
-                        + policyName
-                        + "] failed. No mapping available on source ["
-                        + sourceIndex
-                        + "] included in [["
-                        + sourceIndex
-                        + "]]"
-                )
-            );
-        } else {
-            fail("Expected exception but nothing was thrown");
-        }
+        assertThat(
+            asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner)).getMessage(),
+            containsString(
+                "Enrich policy execution for ["
+                    + policyName
+                    + "] failed. No mapping available on source ["
+                    + sourceIndex
+                    + "] included in [["
+                    + sourceIndex
+                    + "]]"
+            )
+        );
     }
 
     public void testRunnerKeyNestedSourceMapping() throws Exception {
@@ -914,36 +841,22 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            Exception thrown = exception.get();
-            assertThat(thrown, instanceOf(ElasticsearchException.class));
-            assertThat(
-                thrown.getMessage(),
-                containsString(
-                    "Enrich policy execution for ["
-                        + policyName
-                        + "] failed while validating field mappings for index ["
-                        + sourceIndex
-                        + "]"
-                )
-            );
-            assertThat(
-                thrown.getCause().getMessage(),
-                containsString(
-                    "Could not traverse mapping to field [nesting.key]. The [nesting" + "] field must be regular object but was [nested]."
-                )
-            );
-        } else {
-            fail("Expected exception but nothing was thrown");
-        }
+        final var thrown = asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner));
+        assertThat(
+            thrown.getMessage(),
+            containsString(
+                "Enrich policy execution for [" + policyName + "] failed while validating field mappings for index [" + sourceIndex + "]"
+            )
+        );
+        assertThat(
+            thrown.getCause().getMessage(),
+            containsString(
+                "Could not traverse mapping to field [nesting.key]. The [nesting" + "] field must be regular object but was [nested]."
+            )
+        );
     }
 
     public void testRunnerValueNestedSourceMapping() throws Exception {
@@ -975,37 +888,22 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            Exception thrown = exception.get();
-            assertThat(thrown, instanceOf(ElasticsearchException.class));
-            assertThat(
-                thrown.getMessage(),
-                containsString(
-                    "Enrich policy execution for ["
-                        + policyName
-                        + "] failed while validating field mappings for index ["
-                        + sourceIndex
-                        + "]"
-                )
-            );
-            assertThat(
-                thrown.getCause().getMessage(),
-                containsString(
-                    "Could not traverse mapping to field [nesting.field2]. "
-                        + "The [nesting] field must be regular object but was [nested]."
-                )
-            );
-        } else {
-            fail("Expected exception but nothing was thrown");
-        }
+        final var thrown = asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner));
+        assertThat(
+            thrown.getMessage(),
+            containsString(
+                "Enrich policy execution for [" + policyName + "] failed while validating field mappings for index [" + sourceIndex + "]"
+            )
+        );
+        assertThat(
+            thrown.getCause().getMessage(),
+            containsString(
+                "Could not traverse mapping to field [nesting.field2]. " + "The [nesting] field must be regular object but was [nested]."
+            )
+        );
     }
 
     public void testRunnerObjectSourceMapping() throws Exception {
@@ -1062,17 +960,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -1176,17 +1067,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -1290,17 +1174,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -1414,17 +1291,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -1544,17 +1414,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -1678,17 +1541,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -1815,17 +1671,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -1903,9 +1752,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
         Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
@@ -1931,22 +1777,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         });
         ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
-        // The executor would wrap the listener in order to clean up the task in the
-        // task manager, but we're just testing the runner, so we make sure to clean
-        // up after ourselves.
-        ActionListener<ExecuteEnrichPolicyStatus> wrappedListener = new ActionListener<>() {
-            @Override
-            public void onResponse(ExecuteEnrichPolicyStatus policyExecutionResult) {
-                testTaskManager.unregister(task);
-                listener.onResponse(policyExecutionResult);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                testTaskManager.unregister(task);
-                listener.onFailure(e);
-            }
-        };
         AtomicInteger forceMergeAttempts = new AtomicInteger(0);
         final XContentBuilder unmergedDocument = SmileXContent.contentBuilder()
             .startObject()
@@ -1958,7 +1788,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             policyName,
             policy,
             task,
-            wrappedListener,
             clusterService,
             getInstanceFromNode(IndicesService.class),
             client(),
@@ -1968,7 +1797,19 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             randomIntBetween(3, 10)
         ) {
             @Override
-            protected void ensureSingleSegment(String destinationIndexName, int attempt) {
+            public void run(ActionListener<ExecuteEnrichPolicyStatus> listener) {
+                // The executor would wrap the listener in order to clean up the task in the
+                // task manager, but we're just testing the runner, so we make sure to clean
+                // up after ourselves.
+                super.run(ActionListener.runBefore(listener, () -> testTaskManager.unregister(task)));
+            }
+
+            @Override
+            protected void ensureSingleSegment(
+                String destinationIndexName,
+                int attempt,
+                ActionListener<ExecuteEnrichPolicyStatus> listener
+            ) {
                 forceMergeAttempts.incrementAndGet();
                 if (attempt == 1) {
                     // Put and flush a document to increase the number of segments, simulating not
@@ -1980,16 +1821,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     ).actionGet();
                     assertEquals(RestStatus.CREATED, indexRequest.status());
                 }
-                super.ensureSingleSegment(destinationIndexName, attempt);
+                super.ensureSingleSegment(destinationIndexName, attempt, listener);
             }
         };
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        if (exception.get() != null) {
-            throw exception.get();
-        }
+        safeExecute(enrichPolicyRunner);
 
         // Validate number of force merges
         assertThat(forceMergeAttempts.get(), equalTo(2));
@@ -2080,9 +1917,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
         Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
@@ -2108,13 +1942,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         });
         ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
-        // The executor would wrap the listener in order to clean up the task in the
-        // task manager, but we're just testing the runner, so we make sure to clean
-        // up after ourselves.
-        ActionListener<ExecuteEnrichPolicyStatus> wrappedListener = ActionListener.runBefore(
-            listener,
-            () -> testTaskManager.unregister(task)
-        );
 
         // Wrap the client so that when we receive the indices segments action, we intercept the request and complete it on another thread
         // with an empty segments response.
@@ -2141,7 +1968,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             policyName,
             policy,
             task,
-            wrappedListener,
             clusterService,
             getInstanceFromNode(IndicesService.class),
             client,
@@ -2149,21 +1975,21 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             createdEnrichIndex,
             randomIntBetween(1, 10000),
             randomIntBetween(3, 10)
-        );
+        ) {
+            @Override
+            public void run(ActionListener<ExecuteEnrichPolicyStatus> listener) {
+                // The executor would wrap the listener in order to clean up the task in the
+                // task manager, but we're just testing the runner, so we make sure to clean
+                // up after ourselves.
+                super.run(ActionListener.runBefore(listener, () -> testTaskManager.unregister(task)));
+            }
+        };
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        if (latch.await(1, TimeUnit.MINUTES) == false) {
-            fail("Timeout while waiting for runner to complete");
-        }
-        Exception exceptionThrown = exception.get();
-        if (exceptionThrown == null) {
-            fail("Expected exception to be thrown from segment api");
-        }
-
-        // Validate exception information
-        assertThat(exceptionThrown, instanceOf(ElasticsearchException.class));
-        assertThat(exceptionThrown.getMessage(), containsString("Could not locate segment information for newly created index"));
+        assertThat(
+            asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner)).getMessage(),
+            containsString("Could not locate segment information for newly created index")
+        );
     }
 
     public void testRunnerWithShardFailuresInSegmentResponse() throws Exception {
@@ -2197,9 +2023,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
         Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
@@ -2228,10 +2051,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         // The executor would wrap the listener in order to clean up the task in the
         // task manager, but we're just testing the runner, so we make sure to clean
         // up after ourselves.
-        ActionListener<ExecuteEnrichPolicyStatus> wrappedListener = ActionListener.runBefore(
-            listener,
-            () -> testTaskManager.unregister(task)
-        );
 
         // Wrap the client so that when we receive the indices segments action, we intercept the request and complete it on another thread
         // with an failed segments response.
@@ -2270,7 +2089,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             policyName,
             policy,
             task,
-            wrappedListener,
             clusterService,
             getInstanceFromNode(IndicesService.class),
             client,
@@ -2278,26 +2096,23 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             createdEnrichIndex,
             randomIntBetween(1, 10000),
             randomIntBetween(3, 10)
-        );
+        ) {
+            @Override
+            public void run(ActionListener<ExecuteEnrichPolicyStatus> listener) {
+                // The executor would wrap the listener in order to clean up the task in the
+                // task manager, but we're just testing the runner, so we make sure to clean
+                // up after ourselves.
+                super.run(ActionListener.runBefore(listener, () -> testTaskManager.unregister(task)));
+            }
+        };
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        if (latch.await(1, TimeUnit.MINUTES) == false) {
-            fail("Timeout while waiting for runner to complete");
-        }
-        Exception exceptionThrown = exception.get();
-        if (exceptionThrown == null) {
-            fail("Expected exception to be thrown from segment api");
-        }
-
-        // Validate exception information
-        assertThat(exceptionThrown, instanceOf(ElasticsearchException.class));
+        final var exceptionThrown = asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner));
         assertThat(exceptionThrown.getMessage(), containsString("Could not obtain segment information for newly created index"));
-        assertThat(exceptionThrown.getCause(), instanceOf(ElasticsearchException.class));
-        assertThat(exceptionThrown.getCause().getMessage(), containsString("failure1"));
+        assertThat(asInstanceOf(ElasticsearchException.class, exceptionThrown.getCause()).getMessage(), containsString("failure1"));
     }
 
-    public void testRunnerCancel() throws Exception {
+    public void testRunnerCancel() {
         final String sourceIndex = "source-index";
         DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
@@ -2315,9 +2130,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
 
         ActionType<?> randomActionType = randomFrom(
             EnrichReindexAction.INSTANCE,
@@ -2349,12 +2161,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         };
 
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(client, policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(client, policyName, policy, createdEnrichIndex);
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        assertThat(exception.get(), notNullValue());
-        assertThat(exception.get().getMessage(), containsString("cancelled policy execution [test1], status ["));
+        assertThat(
+            safeExecuteExpectFailure(enrichPolicyRunner).getMessage(),
+            containsString("cancelled policy execution [test1], status [")
+        );
     }
 
     public void testRunRangePolicyWithObjectFieldAsMatchField() throws Exception {
@@ -2386,17 +2198,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        Exception e = exception.get();
-        assertThat(e, notNullValue());
-        assertThat(e.getMessage(), equalTo("Field 'field1' has type [object] which doesn't appear to be a range type"));
+        assertThat(
+            safeExecuteExpectFailure(enrichPolicyRunner).getMessage(),
+            equalTo("Field 'field1' has type [object] which doesn't appear to be a range type")
+        );
     }
 
     public void testEnrichFieldsConflictMappingTypes() throws Exception {
@@ -2427,10 +2235,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         String policyName = "test1";
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        PlainActionFuture<ExecuteEnrichPolicyStatus> future = new PlainActionFuture<>();
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, future, createdEnrichIndex);
-        enrichPolicyRunner.run();
-        future.actionGet();
+        safeExecute(createPolicyRunner(policyName, policy, createdEnrichIndex));
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -2473,10 +2278,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         String policyName = "test1";
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        PlainActionFuture<ExecuteEnrichPolicyStatus> future = new PlainActionFuture<>();
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, future, createdEnrichIndex);
-        enrichPolicyRunner.run();
-        future.actionGet();
+        safeExecute(createPolicyRunner(policyName, policy, createdEnrichIndex));
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -2508,10 +2310,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         String policyName = "test1";
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        PlainActionFuture<ExecuteEnrichPolicyStatus> future = new PlainActionFuture<>();
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, future, createdEnrichIndex);
-        enrichPolicyRunner.run();
-        future.actionGet();
+        safeExecute(createPolicyRunner(policyName, policy, createdEnrichIndex));
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -2566,12 +2365,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        PlainActionFuture<ExecuteEnrichPolicyStatus> future = new PlainActionFuture<>();
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, future, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        future.actionGet();
+        safeExecute(enrichPolicyRunner);
 
         // Validate Index definition
         GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
@@ -2625,9 +2422,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         final long createTime = randomNonNegativeLong();
         String createdEnrichIndex = ".enrich-test1-" + createTime;
-        final AtomicReference<Exception> exception = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
 
         // Wrap the client so that when we receive the reindex action, we delete the index then resume operation. This mimics an invalid
         // state for the resulting index.
@@ -2654,36 +2448,20 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 }
             }
         };
-        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(client, policyName, policy, listener, createdEnrichIndex);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(client, policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
-        enrichPolicyRunner.run();
-        latch.await();
-        Exception runnerException = exception.get();
-        if (runnerException == null) {
-            fail("Expected the runner to fail when the underlying index was deleted during policy execution!");
-        }
-        assertThat(runnerException, is(instanceOf(ElasticsearchException.class)));
-        assertThat(runnerException.getMessage(), containsString("Could not verify enrich index"));
-        assertThat(runnerException.getMessage(), containsString("mapping meta field missing"));
+        assertThat(
+            asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner)).getMessage(),
+            allOf(containsString("Could not verify enrich index"), containsString("mapping meta field missing"))
+        );
     }
 
-    private EnrichPolicyRunner createPolicyRunner(
-        String policyName,
-        EnrichPolicy policy,
-        ActionListener<ExecuteEnrichPolicyStatus> listener,
-        String targetIndex
-    ) {
-        return createPolicyRunner(client(), policyName, policy, listener, targetIndex);
+    private EnrichPolicyRunner createPolicyRunner(String policyName, EnrichPolicy policy, String targetIndex) {
+        return createPolicyRunner(client(), policyName, policy, targetIndex);
     }
 
-    private EnrichPolicyRunner createPolicyRunner(
-        Client client,
-        String policyName,
-        EnrichPolicy policy,
-        ActionListener<ExecuteEnrichPolicyStatus> listener,
-        String targetIndex
-    ) {
+    private EnrichPolicyRunner createPolicyRunner(Client client, String policyName, EnrichPolicy policy, String targetIndex) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
         Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
@@ -2709,27 +2487,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         });
         ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
-        // The executor would wrap the listener in order to clean up the task in the
-        // task manager, but we're just testing the runner, so we make sure to clean
-        // up after ourselves.
-        ActionListener<ExecuteEnrichPolicyStatus> wrappedListener = new ActionListener<>() {
-            @Override
-            public void onResponse(ExecuteEnrichPolicyStatus policyExecutionResult) {
-                testTaskManager.unregister(task);
-                listener.onResponse(policyExecutionResult);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                testTaskManager.unregister(task);
-                listener.onFailure(e);
-            }
-        };
         return new EnrichPolicyRunner(
             policyName,
             policy,
             task,
-            wrappedListener,
             clusterService,
             getInstanceFromNode(IndicesService.class),
             client,
@@ -2737,14 +2498,24 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             targetIndex,
             randomIntBetween(1, 10000),
             randomIntBetween(1, 10)
-        );
+        ) {
+            @Override
+            public void run(ActionListener<ExecuteEnrichPolicyStatus> listener) {
+                // The executor would wrap the listener in order to clean up the task in the
+                // task manager, but we're just testing the runner, so we make sure to clean
+                // up after ourselves.
+                super.run(ActionListener.runBefore(listener, () -> testTaskManager.unregister(task)));
+            }
+        };
     }
 
-    private ActionListener<ExecuteEnrichPolicyStatus> createTestListener(
-        final CountDownLatch latch,
-        final Consumer<Exception> exceptionConsumer
-    ) {
-        return new LatchedActionListener<>(ActionListener.wrap((r) -> logger.debug("Run complete"), exceptionConsumer), latch);
+    private void safeExecute(EnrichPolicyRunner enrichPolicyRunner) {
+        safeAwait(enrichPolicyRunner::run);
+        logger.debug("Run complete");
+    }
+
+    private Exception safeExecuteExpectFailure(EnrichPolicyRunner enrichPolicyRunner) {
+        return safeAwaitFailure(enrichPolicyRunner::run);
     }
 
     private void validateMappingMetadata(Map<?, ?> mapping, String policyName, EnrichPolicy policy) {

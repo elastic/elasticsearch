@@ -320,9 +320,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         boolean scroll = scroll() != null;
+        boolean allowPartialSearchResults = allowPartialSearchResults() != null && allowPartialSearchResults();
 
         if (source != null) {
-            validationException = source.validate(validationException, scroll);
+            validationException = source.validate(validationException, scroll, allowPartialSearchResults);
         }
         if (scroll) {
             if (requestCache != null && requestCache) {

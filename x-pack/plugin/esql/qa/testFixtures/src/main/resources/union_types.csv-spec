@@ -1026,6 +1026,6 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:unsupported   | client_ip:ip | event_duration:long | event_message:keyword
+@timestamp:null          | client_ip:ip | event_duration:long | event_message:keyword
 2023-10-23T13:33:34.937Z | 172.21.0.5   |             1232382 | Disconnected
 ;

@@ -21,6 +21,8 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
+import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
+import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -33,6 +35,8 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.CodecReader;
@@ -50,6 +54,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -57,6 +62,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -70,6 +76,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -179,6 +186,28 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 cacheWarmingService,
                 telemetryProvider
             );
+        }
+
+        @Override
+        protected SearchShardSizeCollector createSearchShardSizeCollector(
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool,
+            Client client
+        ) {
+            // We have to disable the search shard size collector in this test suite as some test checks that
+            // the search node has a particular set of commits open and the shard size collector might hold a
+            // commit for too long breaking such assertions.
+            return new SearchShardSizeCollector(clusterSettings, threadPool, new ShardSizeStatsClient(client) {
+                @Override
+                public void getAllShardSizes(TimeValue boostWindowInterval, ActionListener<Map<ShardId, ShardSize>> listener) {
+                    ActionListener.completeWith(listener, Map::of);
+                }
+
+                @Override
+                public void getShardSize(ShardId shardId, TimeValue boostWindowInterval, ActionListener<ShardSize> listener) {
+                    ActionListener.completeWith(listener, () -> null);
+                }
+            }, new ShardSizesPublisher(client));
         }
 
         @Override

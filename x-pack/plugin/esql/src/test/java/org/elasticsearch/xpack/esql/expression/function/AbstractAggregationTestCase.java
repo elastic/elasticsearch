@@ -263,24 +263,26 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
     private void evaluate(Expression evaluableExpression) {
         assertTrue(evaluableExpression.foldable());
-        if (testCase.foldingExceptionClass() == null) {
-            Object result = evaluableExpression.fold();
-            // Decode unsigned longs into BigIntegers
-            if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
-            }
-            assertThat(result, not(equalTo(Double.NaN)));
-            assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-            assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-            assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-            assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-            assertThat(result, testCase.getMatcher());
-            if (testCase.getExpectedWarnings() != null) {
-                assertWarnings(testCase.getExpectedWarnings());
-            }
-        } else {
+
+        if (testCase.foldingExceptionClass() != null) {
             Throwable t = expectThrows(testCase.foldingExceptionClass(), evaluableExpression::fold);
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
+            return;
+        }
+
+        Object result = evaluableExpression.fold();
+        // Decode unsigned longs into BigIntegers
+        if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
+            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+        }
+        assertThat(result, not(equalTo(Double.NaN)));
+        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+        assertThat(result, testCase.getMatcher());
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
         }
     }
 
@@ -438,16 +440,23 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      */
     private void processPageGrouping(GroupingAggregator aggregator, Page inputPage, int groupCount) {
         var groupSliceSize = 1;
+        var allValuesNull = IntStream.range(0, inputPage.getBlockCount())
+            .<Block>mapToObj(inputPage::getBlock)
+            .anyMatch(Block::areAllValuesNull);
         // Add data to chunks of groups
         for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
-            var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
+            int groupSliceRemainingSize = Math.min(groupSliceSize, groupCount - currentGroupOffset);
+            var seenGroupIds = new SeenGroupIds.Range(0, allValuesNull ? 0 : currentGroupOffset + groupSliceRemainingSize);
             var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
 
             var positionCount = inputPage.getPositionCount();
             var dataSliceSize = 1;
             // Divide data in chunks
             for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
-                try (var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceSize, dataSliceSize)) {
+                int dataSliceRemainingSize = Math.min(dataSliceSize, positionCount - currentDataOffset);
+                try (
+                    var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceRemainingSize, dataSliceRemainingSize)
+                ) {
                     addInput.add(currentDataOffset, groups);
                 }
 

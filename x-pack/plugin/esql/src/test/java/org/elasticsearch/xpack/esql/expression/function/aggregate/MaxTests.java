@@ -180,7 +180,11 @@ public class MaxTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            suppliers,
+            false,
+            (v, p) -> "boolean, datetime, ip or numeric except unsigned_long or counter types"
+        );
     }
 
     @Override

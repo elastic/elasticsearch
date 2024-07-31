@@ -1583,7 +1583,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     throw new IllegalStateException("Multirow values require exactly 1 element to be a literal, got " + values.size());
                 }
 
-                return new Literal(Source.synthetic(name), values, type);
+                return new Literal(Source.synthetic(name), values.get(0), type);
             }
             return new Literal(Source.synthetic(name), data, type);
         }

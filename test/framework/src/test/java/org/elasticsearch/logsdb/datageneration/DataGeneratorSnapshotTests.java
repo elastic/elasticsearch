@@ -207,5 +207,5 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         public int objectArraySize() {
             return 2;
         }
-    };
+    }
 }

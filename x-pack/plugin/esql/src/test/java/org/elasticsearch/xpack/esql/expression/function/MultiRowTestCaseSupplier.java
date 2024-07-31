@@ -14,7 +14,9 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.versionfield.Version;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -144,6 +146,55 @@ public final class MultiRowTestCaseSupplier {
                 }
                 return randomBoolean() ? ESTestCase.randomLongBetween(min, -1) : ESTestCase.randomLongBetween(1, max);
             }), DataType.LONG, false, true));
+        }
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> ulongCases(int minRows, int maxRows, BigInteger min, BigInteger max, boolean includeZero) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        // Zero
+        if (BigInteger.ZERO.compareTo(max) <= 0 && BigInteger.ZERO.compareTo(min) >= 0 && includeZero) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<0 unsigned longs>",
+                    () -> randomList(minRows, maxRows, () -> BigInteger.ZERO),
+                    DataType.UNSIGNED_LONG,
+                    false,
+                    true
+                )
+            );
+        }
+
+        // Small values, less than Long.MAX_VALUE
+        BigInteger lower1 = min.max(BigInteger.ONE);
+        BigInteger upper1 = max.min(BigInteger.valueOf(Long.MAX_VALUE));
+        if (lower1.compareTo(upper1) < 0) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<small unsigned longs>",
+                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomUnsignedLongBetween(lower1, upper1)),
+                    DataType.UNSIGNED_LONG,
+                    false,
+                    true
+                )
+            );
+        }
+
+        // Big values, greater than Long.MAX_VALUE
+        BigInteger lower2 = min.max(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
+        BigInteger upper2 = max.min(ESTestCase.UNSIGNED_LONG_MAX);
+        if (lower2.compareTo(upper2) < 0) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<big unsigned longs>",
+                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomUnsignedLongBetween(lower2, upper2)),
+                    DataType.UNSIGNED_LONG,
+                    false,
+                    true
+                )
+            );
         }
 
         return cases;
@@ -326,6 +377,41 @@ public final class MultiRowTestCaseSupplier {
         );
     }
 
+    public static List<TypedDataSupplier> versionCases(int minRows, int maxRows) {
+        return List.of(
+            new TypedDataSupplier(
+                "<major versions>",
+                () -> randomList(minRows, maxRows, () -> new Version(Integer.toString(ESTestCase.between(0, 100))).toBytesRef()),
+                DataType.VERSION,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<major.minor versions>",
+                () -> randomList(
+                    minRows,
+                    maxRows,
+                    () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100)).toBytesRef()
+                ),
+                DataType.VERSION,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<major.minor.patch versions>",
+                () -> randomList(
+                    minRows,
+                    maxRows,
+                    () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100))
+                        .toBytesRef()
+                ),
+                DataType.VERSION,
+                false,
+                true
+            )
+        );
+    }
+
     public static List<TypedDataSupplier> geoPointCases(int minRows, int maxRows, boolean withAltitude) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -343,7 +429,7 @@ public final class MultiRowTestCaseSupplier {
             cases.add(
                 new TypedDataSupplier(
                     "<with alt geo_points>",
-                    () -> randomList(minRows, maxRows, () -> GEO.asWkb(GeometryTestUtils.randomPoint(true))),
+                    () -> randomList(minRows, maxRows, () -> GEO.asWkb(GeometryTestUtils.randomPoint(false))),
                     DataType.GEO_POINT,
                     false,
                     true
@@ -380,5 +466,39 @@ public final class MultiRowTestCaseSupplier {
         }
 
         return cases;
+    }
+
+    public static List<TypedDataSupplier> stringCases(int minRows, int maxRows, DataType type) {
+        return List.of(
+            new TypedDataSupplier("<empty " + type + "s>", () -> randomList(minRows, maxRows, () -> new BytesRef("")), type, false, true),
+            new TypedDataSupplier(
+                "<short alpha " + type + "s>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(1, 30))),
+                type,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<long alpha " + type + "s>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(300, 3000))),
+                type,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<short unicode " + type + "s>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 30))),
+                type,
+                false,
+                true
+            ),
+            new TypedDataSupplier(
+                "<long unicode " + type + "s>",
+                () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(300, 3000))),
+                type,
+                false,
+                true
+            )
+        );
     }
 }

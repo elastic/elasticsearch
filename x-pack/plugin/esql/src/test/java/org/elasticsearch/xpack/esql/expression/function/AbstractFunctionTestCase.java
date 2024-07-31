@@ -256,7 +256,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     TestCaseSupplier.TestCase oc = original.get();
                     List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
                         TestCaseSupplier.TypedData od = oc.getData().get(i);
-                        return i == finalNullPosition ? od.withData(od.isMultiRow() ? Collections.singletonList(null) : null) : od;
+                        if (i != finalNullPosition) {
+                            return od;
+                        }
+                        return od.withData(od.isMultiRow() ? Collections.singletonList(null) : null);
                     }).toList();
                     TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
                     return new TestCaseSupplier.TestCase(

@@ -50,7 +50,7 @@ public class CCSUsageTelemetryTests extends ESTestCase {
                 builder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
             }
             if (skippedRemote) {
-                builder.skipRemote("remote1");
+                builder.skippedRemote("remote1");
             }
             builder.perClusterUsage("(local)", new TimeValue(tookLocal));
             builder.perClusterUsage("remote1", new TimeValue(took1Remote1));
@@ -129,7 +129,7 @@ public class CCSUsageTelemetryTests extends ESTestCase {
                 builder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
             }
             if (skippedRemote) {
-                builder.skipRemote("remote1");
+                builder.skippedRemote("remote1");
             }
             builder.perClusterUsage("remote1", new TimeValue(took2Remote1));
 

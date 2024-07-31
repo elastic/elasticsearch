@@ -41,8 +41,7 @@ public class CCSUsageTelemetry {
         SUCCESS("success"),
         REMOTES_UNAVAILABLE("remotes_unavailable"),
         CANCELED("canceled"),
-        // TODO: do we need this? If we subtract all known reasons, the rest is unknown.
-        // May be helpful though if there's a lot of other reasons and it may be hard to calculate the unknowns for some clients.
+        // May be helpful if there's a lot of other reasons, and it may be hard to calculate the unknowns for some clients.
         UNKNOWN("unknown");
 
         private final String name;
@@ -67,8 +66,17 @@ public class CCSUsageTelemetry {
     private final LongAdder successCount;
     private final Map<Result, LongAdder> failureReasons;
 
+    /**
+     * Latency metrics overall
+     */
     private final LongMetric took;
+    /**
+     * Latency metrics with minimize_roundtrips=true
+     */
     private final LongMetric tookMrtTrue;
+    /**
+     * Latency metrics with minimize_roundtrips=false
+     */
     private final LongMetric tookMrtFalse;
     private final LongMetric remotesPerSearch;
     private final LongAdder skippedRemotes;
@@ -143,9 +151,9 @@ public class CCSUsageTelemetry {
      */
     public static class PerClusterCCSTelemetry {
         private final String clusterAlias;
-        // TODO: are we OK to use long and not LongAdder here?
         // Right now, this is the number of successful (not skipped) requests to this cluster.
         // We need to make it clear in the docs that it does not count skipped requests.
+        // TODO: are we OK to use long and not LongAdder here?
         private long count;
         private long skippedCount;
         private final LongMetric took;

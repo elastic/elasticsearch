@@ -1947,7 +1947,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             for (String clusterAlias : searchResponse.getClusters().getClusterAliases()) {
                 SearchResponse.Cluster cluster = searchResponse.getClusters().getCluster(clusterAlias);
                 if (cluster.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
-                    usageBuilder.skipRemote(clusterAlias);
+                    usageBuilder.skippedRemote(clusterAlias);
                 } else {
                     usageBuilder.perClusterUsage(clusterAlias, cluster.getTook());
                 }

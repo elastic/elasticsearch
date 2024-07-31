@@ -67,7 +67,7 @@ public class CCSUsage {
             return this;
         }
 
-        public Builder skipRemote(String remote) {
+        public Builder skippedRemote(String remote) {
             this.skippedRemotes.add(remote);
             return this;
         }

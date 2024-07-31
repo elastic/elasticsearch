@@ -44,6 +44,9 @@ public class LongMetric {
      * Can be added with another {@link LongMetricValue} object.
      */
     public static final class LongMetricValue implements Writeable {
+        // We have to carry the full histogram around since we might need to calculate aggregate percentiles
+        // after collecting individual stats from the nodes, and we can't do that without having the full histogram.
+        // This costs about 2K per metric, which was deemed acceptable.
         private final DoubleHistogram values;
 
         public LongMetricValue(DoubleHistogram values) {

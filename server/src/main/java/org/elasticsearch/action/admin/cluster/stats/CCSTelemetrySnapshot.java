@@ -26,14 +26,33 @@ import java.util.Objects;
  * Holds a snapshot of the CCS telemetry statistics from {@link CCSUsageTelemetry}.
  * Used to hold the stats for a single node that's part of a {@link ClusterStatsNodeResponse}, as well as to
  * accumulate stats for the entire cluster and return them as part of the {@link ClusterStatsResponse}.
+ * <br>
+ * Theory of operation:
+ * - The snapshot is created on each particular node with the stats for the node, and is sent to the coordinating node
+ * - Coordinating node creates an empty snapshot and merges all the node snapshots into it using add()
+ * <br>
+ * The snapshot contains {@link LongMetricValue}s for latencies, which currently contain full histograms (since you can't
+ * produce p90 from a set of node p90s, you need the full histogram for that). To avoid excessive copying (histogram weights several KB),
+ * the snapshot is designed to be mutable, so that you can add multiple snapshots to it without copying the histograms all the time.
+ * It is not the intent to mutate the snapshot objects otherwise.
+ * <br>
  */
 public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment {
     private long totalCount;
     private long successCount;
     private final Map<String, Long> failureReasons;
 
+    /**
+     * Latency metrics, overall.
+     */
     private final LongMetricValue took;
+    /**
+     * Latency metrics with minimize_roundtrips=true
+     */
     private final LongMetricValue tookMrtTrue;
+    /**
+     * Latency metrics with minimize_roundtrips=false
+     */
     private final LongMetricValue tookMrtFalse;
     private long remotesPerSearchMax;
     private double remotesPerSearchAvg;
@@ -43,6 +62,82 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
     private final Map<String, Long> clientCounts;
     private final Map<String, PerClusterCCSTelemetry> byRemoteCluster;
+
+    /**
+    * Creates a new stats instance with the provided info.
+    */
+    public CCSTelemetrySnapshot(
+        long totalCount,
+        long successCount,
+        Map<String, Long> failureReasons,
+        LongMetricValue took,
+        LongMetricValue tookMrtTrue,
+        LongMetricValue tookMrtFalse,
+        long remotesPerSearchMax,
+        double remotesPerSearchAvg,
+        long skippedRemotes,
+        Map<String, Long> featureCounts,
+        Map<String, Long> clientCounts,
+        Map<String, PerClusterCCSTelemetry> byRemoteCluster
+    ) {
+        this.totalCount = totalCount;
+        this.successCount = successCount;
+        this.failureReasons = failureReasons;
+        this.took = took;
+        this.tookMrtTrue = tookMrtTrue;
+        this.tookMrtFalse = tookMrtFalse;
+        this.remotesPerSearchMax = remotesPerSearchMax;
+        this.remotesPerSearchAvg = remotesPerSearchAvg;
+        this.skippedRemotes = skippedRemotes;
+        this.featureCounts = featureCounts;
+        this.clientCounts = clientCounts;
+        this.byRemoteCluster = byRemoteCluster;
+    }
+
+    /**
+     * Creates a new empty stats instance, that will get additional stats added through {@link #add(CCSTelemetrySnapshot)}
+     */
+    public CCSTelemetrySnapshot() {
+        // Note this produces modifyable maps, so other snapshots can be added to it
+        failureReasons = new HashMap<>();
+        featureCounts = new HashMap<>();
+        clientCounts = new HashMap<>();
+        byRemoteCluster = new HashMap<>();
+        took = new LongMetricValue();
+        tookMrtTrue = new LongMetricValue();
+        tookMrtFalse = new LongMetricValue();
+    }
+
+    public CCSTelemetrySnapshot(StreamInput in) throws IOException {
+        this.totalCount = in.readVLong();
+        this.successCount = in.readVLong();
+        this.failureReasons = in.readMap(StreamInput::readLong);
+        this.took = LongMetricValue.fromStream(in);
+        this.tookMrtTrue = LongMetricValue.fromStream(in);
+        this.tookMrtFalse = LongMetricValue.fromStream(in);
+        this.remotesPerSearchMax = in.readVLong();
+        this.remotesPerSearchAvg = in.readDouble();
+        this.skippedRemotes = in.readVLong();
+        this.featureCounts = in.readMap(StreamInput::readLong);
+        this.clientCounts = in.readMap(StreamInput::readLong);
+        this.byRemoteCluster = in.readMap(PerClusterCCSTelemetry::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(totalCount);
+        out.writeVLong(successCount);
+        out.writeMap(failureReasons, StreamOutput::writeLong);
+        took.writeTo(out);
+        tookMrtTrue.writeTo(out);
+        tookMrtFalse.writeTo(out);
+        out.writeVLong(remotesPerSearchMax);
+        out.writeDouble(remotesPerSearchAvg);
+        out.writeVLong(skippedRemotes);
+        out.writeMap(featureCounts, StreamOutput::writeLong);
+        out.writeMap(clientCounts, StreamOutput::writeLong);
+        out.writeMap(byRemoteCluster, StreamOutput::writeWriteable);
+    }
 
     public long getTotalCount() {
         return totalCount;
@@ -174,85 +269,16 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
     }
 
     /**
-    * Creates a new stats instance with the provided info.
-    */
-    public CCSTelemetrySnapshot(
-        long totalCount,
-        long successCount,
-        Map<String, Long> failureReasons,
-        LongMetricValue took,
-        LongMetricValue tookMrtTrue,
-        LongMetricValue tookMrtFalse,
-        long remotesPerSearchMax,
-        double remotesPerSearchAvg,
-        long skippedRemotes,
-        Map<String, Long> featureCounts,
-        Map<String, Long> clientCounts,
-        Map<String, PerClusterCCSTelemetry> byRemoteCluster
-    ) {
-        this.totalCount = totalCount;
-        this.successCount = successCount;
-        this.failureReasons = failureReasons;
-        this.took = took;
-        this.tookMrtTrue = tookMrtTrue;
-        this.tookMrtFalse = tookMrtFalse;
-        this.remotesPerSearchMax = remotesPerSearchMax;
-        this.remotesPerSearchAvg = remotesPerSearchAvg;
-        this.skippedRemotes = skippedRemotes;
-        this.featureCounts = featureCounts;
-        this.clientCounts = clientCounts;
-        this.byRemoteCluster = byRemoteCluster;
-    }
-
-    /**
-     * Creates a new empty stats instance, that will get additional stats added through {@link #add(CCSTelemetrySnapshot)}
-     */
-    public CCSTelemetrySnapshot() {
-        // Note this produces modifyable maps, so other snapshots can be added to it
-        failureReasons = new HashMap<>();
-        featureCounts = new HashMap<>();
-        clientCounts = new HashMap<>();
-        byRemoteCluster = new HashMap<>();
-        took = new LongMetricValue();
-        tookMrtTrue = new LongMetricValue();
-        tookMrtFalse = new LongMetricValue();
-    }
-
-    public CCSTelemetrySnapshot(StreamInput in) throws IOException {
-        this.totalCount = in.readVLong();
-        this.successCount = in.readVLong();
-        this.failureReasons = in.readMap(StreamInput::readLong);
-        this.took = LongMetricValue.fromStream(in);
-        this.tookMrtTrue = LongMetricValue.fromStream(in);
-        this.tookMrtFalse = LongMetricValue.fromStream(in);
-        this.remotesPerSearchMax = in.readVLong();
-        this.remotesPerSearchAvg = in.readDouble();
-        this.skippedRemotes = in.readVLong();
-        this.featureCounts = in.readMap(StreamInput::readLong);
-        this.clientCounts = in.readMap(StreamInput::readLong);
-        this.byRemoteCluster = in.readMap(PerClusterCCSTelemetry::new);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(totalCount);
-        out.writeVLong(successCount);
-        out.writeMap(failureReasons, StreamOutput::writeLong);
-        took.writeTo(out);
-        tookMrtTrue.writeTo(out);
-        tookMrtFalse.writeTo(out);
-        out.writeVLong(remotesPerSearchMax);
-        out.writeDouble(remotesPerSearchAvg);
-        out.writeVLong(skippedRemotes);
-        out.writeMap(featureCounts, StreamOutput::writeLong);
-        out.writeMap(clientCounts, StreamOutput::writeLong);
-        out.writeMap(byRemoteCluster, StreamOutput::writeWriteable);
-    }
-
-    /**
-     * Add the provided stats to the ones held by the current instance, effectively merging the two
+     * Add the provided stats to the ones held by the current instance, effectively merging the two.
+     * @param stats the other stats object to add to this one
      */
     public void add(CCSTelemetrySnapshot stats) {
+        // This should be called in ClusterStatsResponse ctor only, so we don't need to worry about concurrency
+        if (stats.totalCount == 0) {
+            // Just ignore the empty stats.
+            // This could happen if the node is brand new or if the stats are not available, e.g. because it runs an old version.
+            return;
+        }
         long oldCount = totalCount;
         totalCount += stats.totalCount;
         successCount += stats.successCount;
@@ -314,13 +340,9 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
             builder.startObject("remote_clusters");
             {
                 builder.field("count", byRemoteCluster.size());
-                byRemoteCluster.forEach((name, clusterData) -> {
-                    try {
-                        builder.field(name, clusterData);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                for (var entry : byRemoteCluster.entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
             }
             builder.endObject();
         }

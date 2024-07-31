@@ -27,6 +27,8 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.internal.PostingsFormatExtension;
+import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -49,6 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 
 /**
@@ -369,8 +372,20 @@ public class CompletionFieldMapper extends FieldMapper {
         return (CompletionFieldType) super.fieldType();
     }
 
-    static PostingsFormat postingsFormat() {
-        return PostingsFormat.forName("Completion99");
+    public static PostingsFormat postingsFormat() {
+        return PostingsFormatHolder.POSTINGS_FORMAT;
+    }
+
+    private static class PostingsFormatHolder {
+        private static final PostingsFormat POSTINGS_FORMAT = getPostingsFormat();
+
+        private static PostingsFormat getPostingsFormat() {
+            String defaultName = "Completion99";
+            String codecName = ExtensionLoader.loadSingleton(ServiceLoader.load(PostingsFormatExtension.class))
+                .map(PostingsFormatExtension::getCompletionPostingsFormatName)
+                .orElse(defaultName);
+            return PostingsFormat.forName(codecName);
+        }
     }
 
     @Override

@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -70,7 +69,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
-import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -386,19 +384,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 Metadata.Custom.class,
                 new ParseField(RoleMappingMetadata.TYPE),
                 RoleMappingMetadata::fromXContent
-            )
-        );
-    }
-
-    // TODO: The WeightedTokensBuilder is slated for removal after the SparseVectorQueryBuilder is available.
-    // The logic to create a Boolean query based on weighted tokens will remain and/or be moved to server.
-    @Override
-    public List<SearchPlugin.QuerySpec<?>> getQueries() {
-        return List.of(
-            new SearchPlugin.QuerySpec<QueryBuilder>(
-                WeightedTokensQueryBuilder.NAME,
-                WeightedTokensQueryBuilder::new,
-                WeightedTokensQueryBuilder::fromXContent
             )
         );
     }

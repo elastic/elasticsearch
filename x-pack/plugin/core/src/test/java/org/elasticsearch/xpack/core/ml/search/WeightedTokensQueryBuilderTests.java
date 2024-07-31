@@ -14,7 +14,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -23,6 +22,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
@@ -42,7 +42,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.TOKENS_FIELD;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -116,102 +115,26 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
      */
     @Override
     public void testToQuery() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            // Index at least one document so we have a freq > 0
-            Document document = new Document();
-            document.add(new FeatureField(RANK_FEATURES_FIELD, "foo", 1.0f));
-            iw.addDocument(document);
-            try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                // We need to force token pruning config here, to get repeatable lucene queries for comparison
-                WeightedTokensQueryBuilder firstQuery = createTestQueryBuilder(false);
-                WeightedTokensQueryBuilder controlQuery = copyQuery(firstQuery);
-                QueryBuilder rewritten = rewriteQuery(firstQuery, context);
-                Query firstLuceneQuery = rewritten.toQuery(context);
-                assertNotNull("toQuery should not return null", firstLuceneQuery);
-                assertLuceneQuery(firstQuery, firstLuceneQuery, context);
-                assertEquals(
-                    "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
-                    firstQuery,
-                    controlQuery
-                );
-                assertEquals(
-                    "equals is not symmetric after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
-                    controlQuery,
-                    firstQuery
-                );
-                assertThat(
-                    "query copy's hashcode is different from original hashcode after calling toQuery, firstQuery: "
-                        + firstQuery
-                        + ", secondQuery: "
-                        + controlQuery,
-                    controlQuery.hashCode(),
-                    equalTo(firstQuery.hashCode())
-                );
-                WeightedTokensQueryBuilder secondQuery = copyQuery(firstQuery);
-
-                // query _name never should affect the result of toQuery, we randomly set it to make sure
-                if (randomBoolean()) {
-                    secondQuery.queryName(
-                        secondQuery.queryName() == null
-                            ? randomAlphaOfLengthBetween(1, 30)
-                            : secondQuery.queryName() + randomAlphaOfLengthBetween(1, 10)
-                    );
-                }
-                context = new SearchExecutionContext(context);
-                Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
-                assertNotNull("toQuery should not return null", secondLuceneQuery);
-                assertLuceneQuery(secondQuery, secondLuceneQuery, context);
-
-                if (builderGeneratesCacheableQueries()) {
-                    assertEquals(
-                        "two equivalent query builders lead to different lucene queries hashcode",
-                        secondLuceneQuery.hashCode(),
-                        firstLuceneQuery.hashCode()
-                    );
-                    assertEquals(
-                        "two equivalent query builders lead to different lucene queries",
-                        rewrite(secondLuceneQuery),
-                        rewrite(firstLuceneQuery)
-                    );
-                }
-
-                if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
-                    secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                    Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
-                    assertNotEquals(
-                        "modifying the boost doesn't affect the corresponding lucene query",
-                        rewrite(firstLuceneQuery),
-                        rewrite(thirdLuceneQuery)
-                    );
-                }
-
-            }
-        }
+        AssertionError e = expectThrows(AssertionError.class, super::testToQuery);
+        assertEquals("Unknown NamedWriteable [org.elasticsearch.index.query.QueryBuilder][weighted_tokens]", e.getMessage());
     }
 
     @Override
-    public void testFromXContent() throws IOException {
-        super.testFromXContent();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+    public void testFromXContent() {
+        ParsingException e = expectThrows(ParsingException.class, super::testFromXContent);
+        assertEquals("unknown query [weighted_tokens]", e.getMessage());
     }
 
     @Override
-    public void testUnknownField() throws IOException {
-        super.testUnknownField();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+    public void testUnknownField() {
+        AssertionError e = expectThrows(AssertionError.class, super::testUnknownField);
+        assertTrue(e.getMessage().contains("unknown query [weighted_tokens]"));
     }
 
     @Override
-    public void testUnknownObjectException() throws IOException {
-        super.testUnknownObjectException();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
-    }
-
-    @Override
-    public void testValidOutput() throws IOException {
-        super.testValidOutput();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+    public void testValidOutput() {
+        ParsingException e = expectThrows(ParsingException.class, super::testValidOutput);
+        assertEquals("unknown query [weighted_tokens]", e.getMessage());
     }
 
     public void testPruningIsAppliedCorrectly() throws IOException {
@@ -303,24 +226,22 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         return document;
     }
 
-    /**
-     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
-     */
     @Override
-    public void testCacheability() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            Document document = new Document();
-            document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
-            iw.addDocument(document);
-            try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                WeightedTokensQueryBuilder queryBuilder = createTestQueryBuilder();
-                QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+    public void testCacheability() {
+        AssertionError e = expectThrows(AssertionError.class, super::testToQuery);
+        assertEquals("Unknown NamedWriteable [org.elasticsearch.index.query.QueryBuilder][weighted_tokens]", e.getMessage());
+    }
 
-                assertNotNull(rewriteQuery.toQuery(context));
-                assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
-            }
-        }
+    @Override
+    public void testSerialization() {
+        AssertionError e = expectThrows(AssertionError.class, super::testSerialization);
+        assertEquals("Unknown NamedWriteable [org.elasticsearch.index.query.QueryBuilder][weighted_tokens]", e.getMessage());
+    }
+
+    @Override
+    public void testEqualsAndHashcode() {
+        AssertionError e = expectThrows(AssertionError.class, super::testEqualsAndHashcode);
+        assertEquals("Unknown NamedWriteable [org.elasticsearch.index.query.QueryBuilder][weighted_tokens]", e.getMessage());
     }
 
     /**

@@ -41,10 +41,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
+import static org.elasticsearch.xpack.core.ml.search.TokenPruningConfig.PRUNING_CONFIG;
 
 /**
  * @deprecated Replaced by sparse_vector query
+ * TODO Remove this and {@link WeightedTokensQueryBuilder} in 9.0
  */
 @Deprecated
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {

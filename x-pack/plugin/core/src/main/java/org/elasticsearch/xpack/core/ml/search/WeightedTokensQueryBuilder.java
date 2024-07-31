@@ -33,6 +33,8 @@ import java.util.Set;
 
 /**
  * @deprecated Replaced by sparse_vector query
+ * This class still exists as a dependency of the TextExpansionQueryBuilder, though the support for the query itself has been removed.
+ * TODO Remove in 9.0
  */
 @Deprecated
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
@@ -51,10 +53,6 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
     public static final String WEIGHTED_TOKENS_DEPRECATION_MESSAGE = NAME
         + " is deprecated and will be removed. Use sparse_vector instead.";
-
-    public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
-        this(fieldName, tokens, null);
-    }
 
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");

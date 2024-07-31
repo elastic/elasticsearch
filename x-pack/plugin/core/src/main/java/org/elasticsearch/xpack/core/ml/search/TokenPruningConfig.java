@@ -22,9 +22,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
-
 public class TokenPruningConfig implements Writeable, ToXContentObject {
+    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     public static final ParseField TOKENS_FREQ_RATIO_THRESHOLD = new ParseField("tokens_freq_ratio_threshold");
     public static final ParseField TOKENS_WEIGHT_THRESHOLD = new ParseField("tokens_weight_threshold");
     public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");

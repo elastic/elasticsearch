@@ -43,7 +43,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      * <p>
      * TODO should this be a cluster setting...?
      */
-    private static final int MAX_ATTRIBUTE_CACHE_SIZE = 100_000;
+    private static final int MAX_ATTRIBUTE_CACHE_SIZE = 1_000_000;
 
     /**
      * Cache of written blocks. We use an {@link IdentityHashMap} for this
@@ -186,18 +186,12 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
             Integer cacheId = attributeIdFromCache(attribute);
             if (cacheId != null) {
-                writeByte(org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.CACHED);
                 writeZLong(cacheId);
                 return false;
             }
 
             cacheId = cacheAttribute(attribute);
-            if (cacheId == null) {
-                writeByte(org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.NO_CACHE);
-            } else {
-                writeByte(org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.NEW);
-                writeZLong(cacheId);
-            }
+            writeZLong(-1 - cacheId);
         }
         return true;
     }
@@ -206,13 +200,13 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         return cachedAttributes.get(attr);
     }
 
-    private Integer cacheAttribute(Attribute attr) {
+    private int cacheAttribute(Attribute attr) {
         if (cachedAttributes.containsKey(attr)) {
             throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
         }
         int id = cachedAttributes.size();
         if (id >= maxAttributeCacheSize) {
-            return null;
+            throw new IllegalStateException("Limit of the number of serialized attributes exceeded [" + maxAttributeCacheSize + "]");
         }
         cachedAttributes.put(attr, id);
         return id;

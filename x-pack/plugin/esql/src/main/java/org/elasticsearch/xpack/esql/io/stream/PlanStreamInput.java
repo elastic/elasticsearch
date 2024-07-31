@@ -215,21 +215,15 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     public Attribute readAttributeWithCache(CheckedFunction<StreamInput, Attribute, IOException> constructor) throws IOException {
         if (getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
-            byte cacheStatus = readByte();
-            return switch (cacheStatus) {
-                case org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.NEW -> {
-                    int cacheId = Math.toIntExact(readZLong());
-                    Attribute result = constructor.apply(this);
-                    cacheAttribute(cacheId, result);
-                    yield result;
-                }
-                case org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.CACHED -> {
-                    int cacheId = Math.toIntExact(readZLong());
-                    yield attributeFromCache(cacheId);
-                }
-                case org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.NO_CACHE -> constructor.apply(this);
-                default -> throw new IllegalStateException("Invalid cache state for attribute: " + cacheStatus);
-            };
+            int cacheId = Math.toIntExact(readZLong());
+            if (cacheId < 0) {
+                cacheId = -1 - cacheId;
+                Attribute result = constructor.apply(this);
+                cacheAttribute(cacheId, result);
+                return result;
+            } else {
+                return attributeFromCache(cacheId);
+            }
         } else {
             return constructor.apply(this);
         }

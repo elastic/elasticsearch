@@ -202,34 +202,11 @@ public class PlanStreamOutputTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration, PlanNamedTypes::name, 10)
         ) {
-            List<Attribute> attrs = new ArrayList<>();
-            int occurrences = randomIntBetween(2, 300);
-            for (int i = 0; i < occurrences; i++) {
-
-                attrs.add(randomAttribute());
-            }
-
-            // send all the attributes, three times
-            for (int i = 0; i < 3; i++) {
-                for (Attribute attr : attrs) {
-                    planStream.writeNamedWriteable(attr);
+            expectThrows(IllegalStateException.class, () -> {
+                for (int i = 0; i <= 10; i++) {
+                    planStream.writeNamedWriteable(randomAttribute());
                 }
-            }
-
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), PlanNameRegistry.INSTANCE, REGISTRY, configuration)) {
-                List<Attribute> readAttrs = new ArrayList<>();
-                for (int i = 0; i < occurrences; i++) {
-                    readAttrs.add(in.readNamedWriteable(Attribute.class));
-                    assertThat(readAttrs.get(i), equalTo(attrs.get(i)));
-                }
-                // two more times
-                for (int i = 0; i < 2; i++) {
-                    for (int j = 0; j < occurrences; j++) {
-                        Attribute attr = in.readNamedWriteable(Attribute.class);
-                        assertThat(attr, equalTo(readAttrs.get(j)));
-                    }
-                }
-            }
+            });
         }
     }
 

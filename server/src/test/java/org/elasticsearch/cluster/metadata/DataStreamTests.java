@@ -99,7 +99,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var autoShardingEvent = instance.getAutoShardingEvent();
         var failureRolloverOnWrite = instance.getFailureIndices().isRolloverOnWrite();
         var failureAutoShardingEvent = instance.getBackingIndices().getAutoShardingEvent();
-        switch (between(0, 14)) {
+        var backingPendingIndices = instance.getBackingIndices().getPendingIndices();
+        var failurePendingIndices = instance.getFailureIndices().getPendingIndices();
+        switch (between(0, 16)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomNonEmptyIndexInstances();
             case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
@@ -170,6 +172,18 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                         randomMillisUpToYear9999()
                     );
             }
+            case 15 -> {
+                backingPendingIndices = randomValueOtherThan(
+                    backingPendingIndices,
+                    () -> new HashSet<>(randomSubsetOf(instance.getIndices()))
+                );
+            }
+            case 16 -> {
+                failurePendingIndices = randomValueOtherThan(
+                    failurePendingIndices,
+                    () -> new HashSet<>(randomSubsetOf(instance.getIndices()))
+                );
+            }
         }
 
         return new DataStream(
@@ -184,12 +198,19 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indexMode,
             lifecycle,
             failureStore,
-            new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, indices, rolloverOnWrite, autoShardingEvent),
+            new DataStream.DataStreamIndices(
+                DataStream.BACKING_INDEX_PREFIX,
+                indices,
+                rolloverOnWrite,
+                autoShardingEvent,
+                backingPendingIndices
+            ),
             new DataStream.DataStreamIndices(
                 DataStream.BACKING_INDEX_PREFIX,
                 failureIndices,
                 failureRolloverOnWrite,
-                failureAutoShardingEvent
+                failureAutoShardingEvent,
+                failurePendingIndices
             )
         );
     }

@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -347,10 +348,16 @@ public class MetadataCreateDataStreamService {
             indexMode,
             lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
             template.getDataStreamTemplate().hasFailureStore(),
-            new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, dsBackingIndices, false, null),
+            new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, dsBackingIndices, false, null, Set.of()),
             // If the failure store shouldn't be initialized on data stream creation, we're marking it for "lazy rollover", which will
             // initialize the failure store on first write.
-            new DataStream.DataStreamIndices(DataStream.FAILURE_STORE_PREFIX, failureIndices, initializeFailureStore == false, null)
+            new DataStream.DataStreamIndices(
+                DataStream.FAILURE_STORE_PREFIX,
+                failureIndices,
+                initializeFailureStore == false,
+                null,
+                Set.of()
+            )
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

@@ -50,8 +50,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testPreload
   issue: https://github.com/elastic/elasticsearch/issues/110211
-- class: "org.elasticsearch.rest.RestControllerIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/110225"
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
@@ -116,15 +114,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
   method: testIngestWithMultipleInputFields
   issue: https://github.com/elastic/elasticsearch/issues/111384
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testTransformLegacyTemplateCleanup {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111385
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testRollupAfterRestart {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111392
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testRollupAfterRestart {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111393
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithCodeFlowAndClientPost
   issue: https://github.com/elastic/elasticsearch/issues/111396
@@ -144,17 +133,14 @@ tests:
   method: testGroupingAggregate {TestCase=<long unicode KEYWORDs>}
   issue: https://github.com/elastic/elasticsearch/issues/111428
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testSingleDoc {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111430
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111434
 - class: org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.AzureSnapshotBasedRecoveryIT
   method: testRecoveryUsingSnapshots
   issue: https://github.com/elastic/elasticsearch/issues/111377
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDataStreams {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111389
+  method: testDataStreams {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111448
 
 # Examples:
 #

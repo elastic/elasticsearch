@@ -64,10 +64,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
@@ -122,7 +118,9 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
@@ -284,15 +282,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new CancelTasksRequestBuilder(this).setNodesIds(nodesIds);
     }
 
-    public void searchShards(final ClusterSearchShardsRequest request, final ActionListener<ClusterSearchShardsResponse> listener) {
-        execute(TransportClusterSearchShardsAction.TYPE, request, listener);
-    }
-
-    @Deprecated(forRemoval = true) // temporary compatibility shim
-    public ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices) {
-        return new ClusterSearchShardsRequestBuilder(this).setIndices(indices);
-    }
-
     public void putRepository(PutRepositoryRequest request, ActionListener<AcknowledgedResponse> listener) {
         execute(TransportPutRepositoryAction.TYPE, request, listener);
     }
@@ -439,27 +428,38 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     @Deprecated(forRemoval = true) // temporary compatibility shim
     public PutStoredScriptRequestBuilder preparePutStoredScript() {
-        return new PutStoredScriptRequestBuilder(this);
+        return new PutStoredScriptRequestBuilder(
+            this,
+            MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
+        );
     }
 
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
         execute(TransportDeleteStoredScriptAction.TYPE, request, listener);
     }
 
     @Deprecated(forRemoval = true) // temporary compatibility shim
     public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
-        return new DeleteStoredScriptRequestBuilder(client).setId(id);
+        return new DeleteStoredScriptRequestBuilder(
+            client,
+            MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
+        ).setId(id);
     }
 
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public void putStoredScript(final PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
         execute(TransportPutStoredScriptAction.TYPE, request, listener);
     }
 
     @Deprecated(forRemoval = true) // temporary compatibility shim
     public GetStoredScriptRequestBuilder prepareGetStoredScript(String id) {
-        return new GetStoredScriptRequestBuilder(this).setId(id);
+        return new GetStoredScriptRequestBuilder(this, MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT).setId(id);
     }
 
+    @Deprecated(forRemoval = true) // temporary compatibility shim
     public void getStoredScript(final GetStoredScriptRequest request, final ActionListener<GetStoredScriptResponse> listener) {
         execute(GetStoredScriptAction.INSTANCE, request, listener);
     }

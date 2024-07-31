@@ -32,7 +32,6 @@ import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
-import co.elastic.elasticsearch.stateless.utils.BytesCountingFilterInputStream;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.Directory;
@@ -50,6 +49,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CountingFilterInputStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -724,9 +724,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             @Override
                             public InputStream getRangeInputStream(long position, int length) throws IOException {
                                 assert length > 0;
-                                final var in = new BytesCountingFilterInputStream(
-                                    originalCacheBlobReader.getRangeInputStream(position, length)
-                                );
+                                final var in = new CountingFilterInputStream(originalCacheBlobReader.getRangeInputStream(position, length));
                                 getRangeInputStreamCalls.add(new GetRangeInputStreamCall(position, length, in::getBytesRead));
                                 return in;
                             }

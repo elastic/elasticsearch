@@ -22,7 +22,6 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.utils.BytesCountingFilterInputStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,6 +38,7 @@ import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.RangeMissingHandler;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.SourceInputStreamFactory;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.io.stream.CountingFilterInputStream;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -314,7 +314,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                 }
 
                 private InputStream bytesCountingFilterInputStream(InputStream in) {
-                    return new BytesCountingFilterInputStream(in) {
+                    return new CountingFilterInputStream(in) {
                         @Override
                         public void close() {
                             currentRelativePos += getBytesRead();

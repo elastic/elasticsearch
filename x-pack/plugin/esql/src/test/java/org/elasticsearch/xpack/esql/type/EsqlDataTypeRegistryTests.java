@@ -51,7 +51,8 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         );
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = new IndexResolver(null, EsqlDataTypeRegistry.INSTANCE).mergedMappings("idx-*", caps);
+        // IndexResolver uses EsqlDataTypeRegistry directly
+        IndexResolution resolution = new IndexResolver(null).mergedMappings("idx-*", caps);
         EsField f = resolution.get().mapping().get(field);
         assertThat(f.getDataType(), equalTo(expected));
     }

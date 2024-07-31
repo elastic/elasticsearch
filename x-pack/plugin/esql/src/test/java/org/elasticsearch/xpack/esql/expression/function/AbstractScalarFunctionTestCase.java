@@ -46,7 +46,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -701,17 +700,5 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     protected static Stream<DataType> representable() {
         return DataType.types().stream().filter(DataType::isRepresentable);
-    }
-
-    protected static DataType[] representableTypes() {
-        return representable().toArray(DataType[]::new);
-    }
-
-    protected static Stream<DataType> representableNonSpatial() {
-        return representable().filter(t -> isSpatial(t) == false);
-    }
-
-    protected static DataType[] representableNonSpatialTypes() {
-        return representableNonSpatial().toArray(DataType[]::new);
     }
 }

@@ -123,8 +123,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
-        builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
+        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
+        } else {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
+            builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
+        }
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
@@ -136,8 +140,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     @Override
     public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
-        builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
+        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
+        } else {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
+            builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
+        }
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());

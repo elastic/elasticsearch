@@ -1,11 +1,10 @@
 pr: 111492
 summary: Remove support for the `weighted_tokens` query
-area: "Relevance, Search"
+area: "Search"
 type: deprecation
-issues: []
+issues: [ ]
 deprecation:
   title: Remove support for the `weighted_tokens` query
-  area: "Relevance, Search"
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: "Java API"
+  details: The `weighted_tokens` query, originally released in technical preview only, has been removed in favor of the `sparse_vector` query.
+  impact: The `weighted_tokens` query has been removed in favor of the `sparse_vector` query.

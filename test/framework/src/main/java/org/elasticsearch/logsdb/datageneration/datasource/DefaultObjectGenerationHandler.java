@@ -19,48 +19,46 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class DefaultObjectGenerationHandler implements DataSourceHandler {
-    public DataSourceResponse handle(DataSourceRequest request) {
-        if (request instanceof DataSourceRequest.ChildFieldGenerator cfg) {
-            return new DataSourceResponse.ChildFieldGenerator() {
-                @Override
-                public int generateChildFieldCount() {
-                    return ESTestCase.randomIntBetween(0, cfg.specification().maxFieldCountPerLevel());
-                }
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
+        return new DataSourceResponse.ChildFieldGenerator() {
+            @Override
+            public int generateChildFieldCount() {
+                return ESTestCase.randomIntBetween(0, request.specification().maxFieldCountPerLevel());
+            }
 
-                @Override
-                public boolean generateNestedSubObject() {
-                    // Using a static 10% change, this is just a chosen value that can be tweaked.
-                    return randomDouble() <= 0.1;
-                }
+            @Override
+            public boolean generateNestedSubObject() {
+                // Using a static 10% change, this is just a chosen value that can be tweaked.
+                return randomDouble() <= 0.1;
+            }
 
-                @Override
-                public boolean generateRegularSubObject() {
-                    // Using a static 10% change, this is just a chosen value that can be tweaked.
-                    return randomDouble() <= 0.1;
-                }
+            @Override
+            public boolean generateRegularSubObject() {
+                // Using a static 10% change, this is just a chosen value that can be tweaked.
+                return randomDouble() <= 0.1;
+            }
 
-                @Override
-                public String generateFieldName() {
-                    return randomAlphaOfLengthBetween(1, 10);
-                }
+            @Override
+            public String generateFieldName() {
+                return randomAlphaOfLengthBetween(1, 10);
+            }
+        };
+    }
 
-                @Override
-                public FieldType generateFieldType() {
-                    return randomFrom(FieldType.values());
-                }
-            };
-        }
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+        return new DataSourceResponse.FieldTypeGenerator(() -> randomFrom(FieldType.values()));
+    }
 
-        if (request instanceof DataSourceRequest.ObjectArrayGenerator) {
-            return new DataSourceResponse.ObjectArrayGenerator(() -> {
-                if (ESTestCase.randomBoolean()) {
-                    return Optional.of(randomIntBetween(0, 5));
-                }
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.ObjectArrayGenerator request) {
+        return new DataSourceResponse.ObjectArrayGenerator(() -> {
+            if (ESTestCase.randomBoolean()) {
+                return Optional.of(randomIntBetween(0, 5));
+            }
 
-                return Optional.empty();
-            });
-        }
-
-        return new DataSourceResponse.NotMatched();
+            return Optional.empty();
+        });
     }
 }

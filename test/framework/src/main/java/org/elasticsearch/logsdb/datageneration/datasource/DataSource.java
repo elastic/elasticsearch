@@ -38,7 +38,7 @@ public class DataSource {
 
     public DataSourceResponse get(DataSourceRequest request) {
         for (var handler : handlers) {
-            var response = handler.handle(request);
+            var response = request.accept(handler);
             if (response instanceof DataSourceResponse.NotMatched == false) {
                 return response;
             }

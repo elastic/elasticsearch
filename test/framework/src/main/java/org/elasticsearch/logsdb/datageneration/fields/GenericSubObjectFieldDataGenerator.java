@@ -53,7 +53,7 @@ public class GenericSubObjectFieldDataGenerator {
             } else if (context.shouldAddNestedField()) {
                 result.add(new ChildField(fieldName, new NestedFieldDataGenerator(context.nestedObject())));
             } else {
-                var fieldType = context.childFieldGenerator().generateFieldType();
+                var fieldType = context.fieldTypeGenerator().generator().get();
                 result.add(leafField(fieldType, fieldName));
             }
         }

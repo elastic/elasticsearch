@@ -13,6 +13,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.logsdb.datageneration.DataGenerator;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
@@ -31,6 +32,8 @@ import java.util.function.Function;
 public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
     private final DataGenerator dataGenerator;
 
+    private final boolean fullyDynamicMapping;
+
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
         super();
         this.dataGenerator = new DataGenerator(
@@ -41,30 +44,42 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                 // Currently matching fails because in synthetic source all fields are flat (given that we have subobjects: false)
                 // but stored source is identical to original document which has nested structure.
                 .withMaxObjectDepth(0)
-                .withDataSourceHandlers(List.of(request -> {
+                .withDataSourceHandlers(List.of(new DataSourceHandler() {
                     // TODO enable null values
                     // Matcher does not handle nulls currently
-                    if (request instanceof DataSourceRequest.NullWrapper) {
+                    @Override
+                    public DataSourceResponse handle(DataSourceRequest.NullWrapper request) {
                         return new DataSourceResponse.NullWrapper(Function.identity());
                     }
 
                     // TODO enable arrays
                     // List matcher currently does not apply matching logic recursively
                     // and equality check fails because arrays are sorted in synthetic source.
-                    if (request instanceof DataSourceRequest.ArrayWrapper) {
+                    @Override
+                    public DataSourceResponse handle(DataSourceRequest.ArrayWrapper request) {
                         return new DataSourceResponse.ArrayWrapper(Function.identity());
                     }
 
-                    return new DataSourceResponse.NotMatched();
+                    // TODO enable scaled_float fields
+                    // There a difference in synthetic source (precision loss)
+                    // specific to this fields which matcher can't handle.
+                    @Override
+                    public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+                        return new DataSourceResponse.FieldTypeGenerator(
+                            () -> randomValueOtherThan(FieldType.SCALED_FLOAT, () -> randomFrom(FieldType.values()))
+                        );
+                    }
                 }))
                 .withPredefinedFields(List.of(new PredefinedField("host.name", FieldType.KEYWORD)))
                 .build()
         );
+
+        this.fullyDynamicMapping = randomBoolean();
     }
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        if (randomBoolean()) {
+        if (fullyDynamicMapping == false) {
             dataGenerator.writeMapping(builder);
         } else {
             // We want dynamic mapping, but we need host.name to be a keyword instead of text to support aggregations.
@@ -83,10 +98,9 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        if (randomBoolean()) {
+        if (fullyDynamicMapping == false) {
             dataGenerator.writeMapping(builder, b -> builder.field("subobjects", false));
         } else {
-            // Sometimes we go with full dynamic mapping.
             builder.startObject();
             builder.field("subobjects", false);
             builder.endObject();

@@ -11,31 +11,95 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 
 public interface DataSourceRequest {
-    record LongGenerator() implements DataSourceRequest {}
+    DataSourceResponse accept(DataSourceHandler handler);
 
-    record UnsignedLongGenerator() implements DataSourceRequest {}
+    record LongGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record IntegerGenerator() implements DataSourceRequest {}
+    record UnsignedLongGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record ShortGenerator() implements DataSourceRequest {}
+    record IntegerGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record ByteGenerator() implements DataSourceRequest {}
+    record ShortGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record DoubleGenerator() implements DataSourceRequest {}
+    record ByteGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record DoubleInRangeGenerator(double minExclusive, double maxExclusive) implements DataSourceRequest {}
+    record DoubleGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record FloatGenerator() implements DataSourceRequest {}
+    record DoubleInRangeGenerator(double minExclusive, double maxExclusive) implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record HalfFloatGenerator() implements DataSourceRequest {}
+    record FloatGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record StringGenerator() implements DataSourceRequest {}
+    record HalfFloatGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record NullWrapper() implements DataSourceRequest {}
+    record StringGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record ArrayWrapper() implements DataSourceRequest {}
+    record NullWrapper() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record ChildFieldGenerator(DataGeneratorSpecification specification) implements DataSourceRequest {}
+    record ArrayWrapper() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
-    record ObjectArrayGenerator() implements DataSourceRequest {}
+    record ChildFieldGenerator(DataGeneratorSpecification specification) implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record FieldTypeGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record ObjectArrayGenerator() implements DataSourceRequest {
+        public DataSourceResponse accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 }

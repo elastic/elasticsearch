@@ -52,9 +52,9 @@ public interface DataSourceResponse {
         boolean generateRegularSubObject();
 
         String generateFieldName();
-
-        FieldType generateFieldType();
     }
+
+    record FieldTypeGenerator(Supplier<FieldType> generator) implements DataSourceResponse {}
 
     record ObjectArrayGenerator(Supplier<Optional<Integer>> lengthGenerator) implements DataSourceResponse {}
 }

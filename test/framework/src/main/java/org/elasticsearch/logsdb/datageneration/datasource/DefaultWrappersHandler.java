@@ -15,16 +15,14 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class DefaultWrappersHandler implements DataSourceHandler {
-    public DataSourceResponse handle(DataSourceRequest request) {
-        if (request instanceof DataSourceRequest.NullWrapper) {
-            return new DataSourceResponse.NullWrapper(injectNulls());
-        }
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.NullWrapper ignored) {
+        return new DataSourceResponse.NullWrapper(injectNulls());
+    }
 
-        if (request instanceof DataSourceRequest.ArrayWrapper) {
-            return new DataSourceResponse.ArrayWrapper(wrapInArray());
-        }
-
-        return new DataSourceResponse.NotMatched();
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.ArrayWrapper ignored) {
+        return new DataSourceResponse.ArrayWrapper(wrapInArray());
     }
 
     private static Function<Supplier<Object>, Supplier<Object>> injectNulls() {

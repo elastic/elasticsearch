@@ -13,42 +13,55 @@ import org.elasticsearch.test.ESTestCase;
 import java.math.BigInteger;
 
 public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
-    public DataSourceResponse handle(DataSourceRequest request) {
-        if (request instanceof DataSourceRequest.LongGenerator) {
-            return new DataSourceResponse.LongGenerator(ESTestCase::randomLong);
-        }
-        if (request instanceof DataSourceRequest.UnsignedLongGenerator) {
-            return new DataSourceResponse.UnsignedLongGenerator(() -> new BigInteger(64, ESTestCase.random()).toString());
-        }
-        if (request instanceof DataSourceRequest.IntegerGenerator) {
-            return new DataSourceResponse.IntegerGenerator(ESTestCase::randomInt);
-        }
-        if (request instanceof DataSourceRequest.ShortGenerator) {
-            return new DataSourceResponse.ShortGenerator(ESTestCase::randomShort);
-        }
-        if (request instanceof DataSourceRequest.ByteGenerator) {
-            return new DataSourceResponse.ByteGenerator(ESTestCase::randomByte);
-        }
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.LongGenerator request) {
+        return new DataSourceResponse.LongGenerator(ESTestCase::randomLong);
+    }
 
-        if (request instanceof DataSourceRequest.DoubleGenerator) {
-            return new DataSourceResponse.DoubleGenerator(ESTestCase::randomDouble);
-        }
-        if (request instanceof DataSourceRequest.DoubleInRangeGenerator req) {
-            return new DataSourceResponse.DoubleInRangeGenerator(
-                () -> ESTestCase.randomDoubleBetween(req.minExclusive(), req.maxExclusive(), false)
-            );
-        }
-        if (request instanceof DataSourceRequest.FloatGenerator) {
-            return new DataSourceResponse.FloatGenerator(ESTestCase::randomFloat);
-        }
-        if (request instanceof DataSourceRequest.HalfFloatGenerator) {
-            return new DataSourceResponse.HalfFloatGenerator(() -> ESTestCase.randomFloat());
-        }
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.UnsignedLongGenerator request) {
+        return new DataSourceResponse.UnsignedLongGenerator(() -> new BigInteger(64, ESTestCase.random()).toString());
+    }
 
-        if (request instanceof DataSourceRequest.StringGenerator) {
-            return new DataSourceResponse.StringGenerator(() -> ESTestCase.randomAlphaOfLengthBetween(0, 50));
-        }
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.IntegerGenerator request) {
+        return new DataSourceResponse.IntegerGenerator(ESTestCase::randomInt);
+    }
 
-        return new DataSourceResponse.NotMatched();
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.ShortGenerator request) {
+        return new DataSourceResponse.ShortGenerator(ESTestCase::randomShort);
+    }
+
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.ByteGenerator request) {
+        return new DataSourceResponse.ByteGenerator(ESTestCase::randomByte);
+    }
+
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.DoubleGenerator request) {
+        return new DataSourceResponse.DoubleGenerator(ESTestCase::randomDouble);
+    }
+
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.DoubleInRangeGenerator request) {
+        return new DataSourceResponse.DoubleInRangeGenerator(
+            () -> ESTestCase.randomDoubleBetween(request.minExclusive(), request.maxExclusive(), false)
+        );
+    }
+
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.FloatGenerator request) {
+        return new DataSourceResponse.FloatGenerator(ESTestCase::randomFloat);
+    }
+
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.HalfFloatGenerator request) {
+        return new DataSourceResponse.HalfFloatGenerator(() -> ESTestCase.randomFloat());
+    }
+
+    @Override
+    public DataSourceResponse handle(DataSourceRequest.StringGenerator request) {
+        return new DataSourceResponse.StringGenerator(() -> ESTestCase.randomAlphaOfLengthBetween(0, 50));
     }
 }

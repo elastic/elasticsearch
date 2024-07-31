@@ -18,6 +18,7 @@ class Context {
     private final DataGeneratorSpecification specification;
 
     private final DataSourceResponse.ChildFieldGenerator childFieldGenerator;
+    private final DataSourceResponse.FieldTypeGenerator fieldTypeGenerator;
     private final DataSourceResponse.ObjectArrayGenerator objectArrayGenerator;
     private final int objectDepth;
     private final int nestedFieldsCount;
@@ -30,6 +31,8 @@ class Context {
         this.specification = specification;
         this.childFieldGenerator = (DataSourceResponse.ChildFieldGenerator) specification.dataSource()
             .get(new DataSourceRequest.ChildFieldGenerator(specification));
+        this.fieldTypeGenerator = (DataSourceResponse.FieldTypeGenerator) specification.dataSource()
+            .get(new DataSourceRequest.FieldTypeGenerator());
         this.objectArrayGenerator = (DataSourceResponse.ObjectArrayGenerator) specification.dataSource()
             .get(new DataSourceRequest.ObjectArrayGenerator());
         this.objectDepth = objectDepth;
@@ -42,6 +45,10 @@ class Context {
 
     public DataSourceResponse.ChildFieldGenerator childFieldGenerator() {
         return childFieldGenerator;
+    }
+
+    public DataSourceResponse.FieldTypeGenerator fieldTypeGenerator() {
+        return fieldTypeGenerator;
     }
 
     public Context subObject() {

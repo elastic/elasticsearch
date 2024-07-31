@@ -138,55 +138,71 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         private int generateNullChecks = 0;
         private int generateArrayChecks = 0;
         private boolean producedObjectArray = false;
+        private FieldType fieldType = FieldType.KEYWORD;
         private StaticChildFieldGenerator childFieldGenerator = new StaticChildFieldGenerator();
 
         @Override
-        public DataSourceResponse handle(DataSourceRequest request) {
-            if (request instanceof DataSourceRequest.LongGenerator) {
-                return new DataSourceResponse.LongGenerator(() -> longValue++);
-            }
+        public DataSourceResponse handle(DataSourceRequest.LongGenerator request) {
+            return new DataSourceResponse.LongGenerator(() -> longValue++);
+        }
 
-            if (request instanceof DataSourceRequest.StringGenerator) {
-                return new DataSourceResponse.StringGenerator(() -> "string" + (generatedStrings++ + 1));
-            }
+        @Override
+        public DataSourceResponse handle(DataSourceRequest.StringGenerator request) {
+            return new DataSourceResponse.StringGenerator(() -> "string" + (generatedStrings++ + 1));
+        }
 
-            if (request instanceof DataSourceRequest.NullWrapper) {
-                return new DataSourceResponse.NullWrapper((values) -> () -> generateNullChecks++ % 4 == 0 ? null : values.get());
-            }
+        @Override
+        public DataSourceResponse handle(DataSourceRequest.NullWrapper request) {
+            return new DataSourceResponse.NullWrapper((values) -> () -> generateNullChecks++ % 4 == 0 ? null : values.get());
+        }
 
-            if (request instanceof DataSourceRequest.ArrayWrapper) {
-                return new DataSourceResponse.ArrayWrapper((values) -> () -> {
-                    if (generateArrayChecks++ % 4 == 0) {
-                        // we have nulls so can't use List.of
-                        return new Object[] { values.get(), values.get() };
-                    }
+        @Override
+        public DataSourceResponse handle(DataSourceRequest.ArrayWrapper request) {
 
-                    return values.get();
-                });
-            }
+            return new DataSourceResponse.ArrayWrapper((values) -> () -> {
+                if (generateArrayChecks++ % 4 == 0) {
+                    // we have nulls so can't use List.of
+                    return new Object[] { values.get(), values.get() };
+                }
 
-            if (request instanceof DataSourceRequest.ChildFieldGenerator) {
-                return childFieldGenerator;
-            }
+                return values.get();
+            });
+        }
 
-            if (request instanceof DataSourceRequest.ObjectArrayGenerator) {
-                return new DataSourceResponse.ObjectArrayGenerator(() -> {
-                    if (producedObjectArray == false) {
-                        producedObjectArray = true;
-                        return Optional.of(2);
-                    }
+        @Override
+        public DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
 
-                    return Optional.empty();
-                });
-            }
+            return childFieldGenerator;
+        }
 
-            return new DataSourceResponse.NotMatched();
+        @Override
+        public DataSourceResponse handle(DataSourceRequest.ObjectArrayGenerator request) {
+            return new DataSourceResponse.ObjectArrayGenerator(() -> {
+                if (producedObjectArray == false) {
+                    producedObjectArray = true;
+                    return Optional.of(2);
+                }
+
+                return Optional.empty();
+            });
+        }
+
+        @Override
+        public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+            return new DataSourceResponse.FieldTypeGenerator(() -> {
+                if (fieldType == FieldType.KEYWORD) {
+                    fieldType = FieldType.LONG;
+                    return FieldType.KEYWORD;
+                }
+
+                fieldType = FieldType.KEYWORD;
+                return FieldType.LONG;
+            });
         }
     }
 
     private static class StaticChildFieldGenerator implements DataSourceResponse.ChildFieldGenerator {
         private int generatedFields = 0;
-        private FieldType fieldType = FieldType.KEYWORD;
 
         @Override
         public int generateChildFieldCount() {
@@ -206,17 +222,6 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         @Override
         public String generateFieldName() {
             return "f" + (generatedFields++ + 1);
-        }
-
-        @Override
-        public FieldType generateFieldType() {
-            if (fieldType == FieldType.KEYWORD) {
-                fieldType = FieldType.LONG;
-                return FieldType.KEYWORD;
-            }
-
-            fieldType = FieldType.KEYWORD;
-            return FieldType.LONG;
         }
     }
 }

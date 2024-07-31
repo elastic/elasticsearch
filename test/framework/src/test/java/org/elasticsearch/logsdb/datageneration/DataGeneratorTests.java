@@ -76,21 +76,19 @@ public class DataGeneratorTests extends ESTestCase {
             public String generateFieldName() {
                 return "f" + generatedFields++;
             }
-
-            @Override
-            public FieldType generateFieldType() {
-                return FieldType.values()[generatedFields % FieldType.values().length];
-            }
         };
 
         var dataSourceOverride = new DataSourceHandler() {
-            @Override
-            public DataSourceResponse handle(DataSourceRequest request) {
-                if (request instanceof DataSourceRequest.ChildFieldGenerator) {
-                    return testChildFieldGenerator;
-                }
+            private int generatedFields = 0;
 
-                return new DataSourceResponse.NotMatched();
+            @Override
+            public DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
+                return testChildFieldGenerator;
+            }
+
+            @Override
+            public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+                return new DataSourceResponse.FieldTypeGenerator(() -> FieldType.values()[generatedFields++ % FieldType.values().length]);
             }
         };
 
@@ -138,25 +136,22 @@ public class DataGeneratorTests extends ESTestCase {
             public String generateFieldName() {
                 return "f" + generatedFields++;
             }
-
-            @Override
-            public FieldType generateFieldType() {
-                return FieldType.LONG;
-            }
         };
 
         var dataSourceOverride = new DataSourceHandler() {
             @Override
-            public DataSourceResponse handle(DataSourceRequest request) {
-                if (request instanceof DataSourceRequest.ChildFieldGenerator) {
-                    return testChildFieldGenerator;
-                }
+            public DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
+                return testChildFieldGenerator;
+            }
 
-                if (request instanceof DataSourceRequest.ObjectArrayGenerator) {
-                    return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
-                }
+            @Override
+            public DataSourceResponse handle(DataSourceRequest.ObjectArrayGenerator request) {
+                return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
+            }
 
-                return new DataSourceResponse.NotMatched();
+            @Override
+            public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+                return new DataSourceResponse.FieldTypeGenerator(() -> FieldType.LONG);
             }
         };
 

@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,7 +36,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomScheduleOrInterval;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -196,19 +196,13 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             }
         }
 
-        var scheduleInterval = randomScheduleOrInterval();
         return new SnapshotLifecyclePolicy(
             id,
             randomAlphaOfLength(4),
-            scheduleInterval.v1(),
-            scheduleInterval.v2(),
+            SnapshotLifecyclePolicyMetadataTests.randomSchedule(),
             randomAlphaOfLength(4),
             config,
             null
         );
-    }
-
-    private static String randomSchedule() {
-        return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
     }
 }

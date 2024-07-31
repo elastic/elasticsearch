@@ -100,16 +100,12 @@ Minimum number of snapshots to retain, even if the snapshots have expired.
 ====
 
 `schedule`::
-(Optional, <<api-cron-expressions,Cron syntax>>)
+(Required, <<api-cron-expressions,Cron syntax>> or <<time-units, time units>>)
 Periodic or absolute schedule at which the policy creates snapshots. {slm-init}
 applies `schedule` changes immediately.
-Either `schedule` or `interval` must be defined.
+Schedule may either be a Cron schedule, or a time unit describing the interval between snapshots.
+When using time unit intervals, the first snapshot is scheduled one interval after the policy modification time, and then again every interval after.
 
-`interval`::
-(Optional, <<time-units, time units>>)
-An alternative to `schedule` for creating periodic snapshots.
-The first snapshot is scheduled one interval after the policy modification time, and then again every `interval` after.
-Either `schedule` or `interval` must be defined.
 
 [[slm-api-put-example]]
 ==== {api-examples-title}
@@ -151,16 +147,15 @@ PUT /_slm/policy/daily-snapshots
 <9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
 
 
-
 [[slm-api-put-hourly-policy]]
 ===== Use Interval Scheduling
-Create an `hourly-snapshots` lifecycle policy using `interval` scheduling:
+Create an `hourly-snapshots` lifecycle policy using interval scheduling:
 
 [source,console]
 --------------------------------------------------
 PUT /_slm/policy/hourly-snapshots
 {
-  "interval": "1h",
+  "schedule": "1h",
   "name": "<hourly-snap-{now/d}>",
   "repository": "my_repository",
   "config": {
@@ -169,7 +164,5 @@ PUT /_slm/policy/hourly-snapshots
 }
 --------------------------------------------------
 // TEST[setup:setup-repository]
-Creates a snapshot once every hour. The first snapshot will be created one hour after the policy is modified.
-Using `interval` rather than `schedule` allows a simple means of scheduling that does not require Cron syntax.
-
-
+Creates a snapshot once every hour. The first snapshot will be created one hour after the policy is modified,
+with subsequent snapshots being created every hour afterward.

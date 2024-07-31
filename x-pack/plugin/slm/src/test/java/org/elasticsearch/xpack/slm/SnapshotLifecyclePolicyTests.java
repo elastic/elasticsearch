@@ -28,10 +28,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomInterval;
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSchedule;
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomScheduleOrInterval;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
+import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomTimeValueString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,12 +40,11 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
     private String id;
 
     public void testToRequest() {
-        var scheduleInterval = randomScheduleOrInterval("0 1 2 3 4 ? 2099", "30m");
+        var schedule = randomBoolean() ? "0 1 2 3 4 ? 2099" : "30m";
         SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
             "id",
             "name",
-            scheduleInterval.v1(),
-            scheduleInterval.v2(),
+            schedule,
             "repo",
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
@@ -57,7 +54,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             Collections.singletonMap("policy", "id")
         );
 
-        p = new SnapshotLifecyclePolicy("id", "name", scheduleInterval.v1(), scheduleInterval.v2(), "repo", null, null);
+        p = new SnapshotLifecyclePolicy("id", "name", schedule, "repo", null, null);
         request = p.toRequest(TEST_REQUEST_TIMEOUT);
         expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo");
         assertEquals(expected, request);
@@ -68,7 +65,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             "id",
             "name",
             "0 1 2 3 4 ? 2099",
-            null,
             "repo",
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
@@ -80,7 +76,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
         SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
             "id",
             "name",
-            null,
             "30m",
             "repo",
             Collections.emptyMap(),
@@ -146,7 +141,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
                 "id",
                 "name",
-                null,
                 "30m",
                 "repo",
                 Collections.emptyMap(),
@@ -155,17 +149,16 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.timeValueMinutes(30)));
         }
         {
-            String interval = randomInterval();
+            String schedule = randomTimeValueString();
             SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
                 "id",
                 "name",
-                null,
-                interval,
+                schedule,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
             );
-            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.parseTimeValue(interval, "")));
+            assertThat(p.calculateNextInterval(Clock.systemUTC()), equalTo(TimeValue.parseTimeValue(schedule, "schedule")));
         }
     }
 
@@ -175,7 +168,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "id",
                 "name",
                 "0 0/5 * * * ?",
-                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -188,7 +180,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "id",
                 "name",
                 "0 1 2 3 4 ? 2099",
-                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -201,7 +192,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "id",
                 "name",
                 "* * * 31 FEB ? *",
-                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -216,7 +206,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "a,b",
                 "<my, snapshot-{now/M}>",
                 "* * * * * L",
-                null,
                 "  ",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -231,7 +220,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                         + " the following characters "
                         + Strings.INVALID_FILENAME_CHARS,
                     "invalid repository name [  ]: cannot be empty",
-                    "invalid schedule: invalid cron expression [* * * * * L]"
+                    "invalid schedule [* * * * * L]: must be a valid cron expression or time unit"
                 )
             );
         }
@@ -241,7 +230,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "_my_policy",
                 "mySnap",
                 " ",
-                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -253,7 +241,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 containsInAnyOrder(
                     "invalid policy id [_my_policy]: must not start with '_'",
                     "invalid snapshot name [mySnap]: must be lowercase",
-                    "invalid schedule/interval: either schedule or interval must not be empty"
+                    "invalid schedule [ ]: schedule must not be empty"
                 )
             );
         }
@@ -262,43 +250,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
                 "my_policy",
                 "my_snap",
-                null,
-                " ",
-                "repo",
-                Collections.emptyMap(),
-                SnapshotRetentionConfiguration.EMPTY
-            );
-
-            ValidationException e = policy.validate();
-            assertThat(
-                e.validationErrors(),
-                containsInAnyOrder("invalid schedule/interval: either schedule or interval must not be empty")
-            );
-        }
-
-        {
-            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
-                "my_policy",
-                "my_snap",
-                "0 0/30 * * * ?",
-                "30m",
-                "repo",
-                Collections.emptyMap(),
-                SnapshotRetentionConfiguration.EMPTY
-            );
-
-            ValidationException e = policy.validate();
-            assertThat(
-                e.validationErrors(),
-                containsInAnyOrder("invalid schedule/interval: only one of schedule or interval can be non-empty")
-            );
-        }
-
-        {
-            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
-                "my_policy",
-                "my_snap",
-                null,
                 "0d",
                 "repo",
                 Collections.emptyMap(),
@@ -306,7 +257,21 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             );
 
             ValidationException e = policy.validate();
-            assertThat(e.validationErrors(), containsInAnyOrder("invalid interval: interval size must be non-zero"));
+            assertThat(e.validationErrors(), containsInAnyOrder("invalid schedule [0d]: time unit must be at least 1 millisecond"));
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                "999micros",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), containsInAnyOrder("invalid schedule [999micros]: time unit must be at least 1 millisecond"));
         }
 
         {
@@ -314,7 +279,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "my_policy",
                 "my_snap",
                 "0 0/30 * * * ?",
-                null,
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
@@ -327,12 +291,25 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
                 "my_policy",
                 "my_snap",
-                null,
                 "30m",
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY
             );
+            ValidationException e = policy.validate();
+            assertThat(e, nullValue());
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                "1ms",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY
+            );
+
             ValidationException e = policy.validate();
             assertThat(e, nullValue());
         }
@@ -348,7 +325,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "mypolicy",
                 "<mysnapshot-{now/M}>",
                 "1 * * * * ?",
-                null,
                 "myrepo",
                 configuration,
                 SnapshotRetentionConfiguration.EMPTY
@@ -370,7 +346,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "mypolicy",
                 "<mysnapshot-{now/M}>",
                 "1 * * * * ?",
-                null,
                 "myrepo",
                 configuration,
                 SnapshotRetentionConfiguration.EMPTY
@@ -401,7 +376,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "mypolicy",
                 "<mysnapshot-{now/M}>",
                 "1 * * * * ?",
-                null,
                 "myrepo",
                 configuration,
                 SnapshotRetentionConfiguration.EMPTY
@@ -427,13 +401,12 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
 
     @Override
     protected SnapshotLifecyclePolicy mutateInstance(SnapshotLifecyclePolicy instance) {
-        switch (between(0, 7)) {
+        switch (between(0, 5)) {
             case 0:
                 return new SnapshotLifecyclePolicy(
                     instance.getId() + randomAlphaOfLength(2),
                     instance.getName(),
                     instance.getSchedule(),
-                    instance.getInterval(),
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy()
@@ -443,7 +416,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName() + randomAlphaOfLength(2),
                     instance.getSchedule(),
-                    instance.getInterval(),
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy()
@@ -453,7 +425,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName(),
                     randomValueOtherThan(instance.getSchedule(), SnapshotLifecyclePolicyMetadataTests::randomSchedule),
-                    instance.getInterval(),
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy()
@@ -463,7 +434,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName(),
                     instance.getSchedule(),
-                    instance.getInterval(),
                     instance.getRepository() + randomAlphaOfLength(2),
                     instance.getConfig(),
                     instance.getRetentionPolicy()
@@ -477,7 +447,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName() + randomAlphaOfLength(2),
                     instance.getSchedule(),
-                    instance.getInterval(),
                     instance.getRepository(),
                     newConfig,
                     instance.getRetentionPolicy()
@@ -487,31 +456,9 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getId(),
                     instance.getName(),
                     instance.getSchedule(),
-                    instance.getInterval(),
                     instance.getRepository(),
                     instance.getConfig(),
                     randomValueOtherThan(instance.getRetentionPolicy(), SnapshotLifecyclePolicyMetadataTests::randomRetention)
-                );
-            case 6:
-                return new SnapshotLifecyclePolicy(
-                    instance.getId(),
-                    instance.getName(),
-                    instance.getSchedule(),
-                    randomValueOtherThan(instance.getInterval(), () -> randomTimeValue().toString()),
-                    instance.getRepository(),
-                    instance.getConfig(),
-                    instance.getRetentionPolicy()
-                );
-            case 7:
-                // Since only one of interval or schedule may be defined, this case toggles between defining schedule or interval
-                return new SnapshotLifecyclePolicy(
-                    instance.getId(),
-                    instance.getName(),
-                    instance.getSchedule() == null ? randomSchedule() : null,
-                    instance.getInterval() == null ? randomTimeValue().toString() : null,
-                    instance.getRepository(),
-                    instance.getConfig(),
-                    instance.getRetentionPolicy()
                 );
             default:
                 throw new AssertionError("failure, got illegal switch case");

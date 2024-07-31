@@ -42,7 +42,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomRetention;
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomScheduleOrInterval;
+import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSchedule;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
@@ -63,7 +63,6 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put("location", "repo").build())
             .get();
 
-        var scheduleInterval = randomScheduleOrInterval();
         client().execute(
             PutSnapshotLifecycleAction.INSTANCE,
             new PutSnapshotLifecycleAction.Request(
@@ -73,8 +72,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
                 new SnapshotLifecyclePolicy(
                     "slm-policy",
                     randomAlphaOfLength(4).toLowerCase(Locale.ROOT),
-                    scheduleInterval.v1(),
-                    scheduleInterval.v2(),
+                    randomSchedule(),
                     "repo",
                     null,
                     randomRetention()

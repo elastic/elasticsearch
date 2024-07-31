@@ -609,7 +609,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             "test-policy",
             "test-policy",
             "* * * 31 FEB ? *",
-            null,
             "test-repo",
             Collections.singletonMap("indices", Collections.singletonList("*")),
             null

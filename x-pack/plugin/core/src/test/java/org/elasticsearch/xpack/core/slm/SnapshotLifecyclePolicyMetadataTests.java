@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -106,12 +105,10 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
         }
 
-        var scheduleInterval = randomScheduleOrInterval();
         return new SnapshotLifecyclePolicy(
             policyId,
             randomAlphaOfLength(4),
-            scheduleInterval.v1(),
-            scheduleInterval.v2(),
+            randomSchedule(),
             randomAlphaOfLength(4),
             config,
             randomRetention()
@@ -128,22 +125,18 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
             );
     }
 
-    public static String randomSchedule() {
+    public static String randomCronSchedule() {
         return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
     }
 
-    public static String randomInterval() {
-        List<String> units = List.of("nanos", "micros", "ms", "s", "m", "h", "d");
-        return randomIntBetween(0, 1000) + randomFrom(units);
+    public static String randomTimeValueString() {
+        // minimum valid time value for schedule is 1ms
+        List<String> units = List.of("ms", "s", "m", "h", "d");
+        return randomIntBetween(1, 1000) + randomFrom(units);
     }
 
-    public static Tuple<String, String> randomScheduleOrInterval(String schedule, String interval) {
-        boolean useSchedule = randomBoolean();
-        return new Tuple<>(useSchedule ? schedule : null, useSchedule ? null : interval);
-    }
-
-    public static Tuple<String, String> randomScheduleOrInterval() {
-        return randomScheduleOrInterval(randomSchedule(), randomInterval());
+    public static String randomSchedule() {
+        return randomBoolean() ? randomCronSchedule() : randomTimeValueString();
     }
 
     public static long randomModifiedTime() {

@@ -14,7 +14,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.createRandomPolicyMetadata;
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomModifiedTime;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 
 public class SnapshotLifecyclePolicyItemTests extends AbstractWireSerializingTestCase<SnapshotLifecyclePolicyItem> {

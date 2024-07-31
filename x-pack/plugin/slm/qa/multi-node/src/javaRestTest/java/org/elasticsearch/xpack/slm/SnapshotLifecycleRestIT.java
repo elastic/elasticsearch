@@ -49,7 +49,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomScheduleOrInterval;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryItem.CREATE_OPERATION;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
 import static org.hamcrest.Matchers.anyOf;
@@ -76,7 +75,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             "missing-repo-policy",
             "snap",
             "0 0/15 * * * ?",
-            null,
             "missing-repo",
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
@@ -110,8 +108,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // allow arbitrarily frequent slm snapshots
         disableSLMMinimumIntervalValidation();
 
-        var scheduleOrInterval = randomScheduleOrInterval("*/1 * * * * ?", "1s");
-        createSnapshotPolicy(policyName, "snap", scheduleOrInterval.v1(), scheduleOrInterval.v2(), repoId, indexName, true);
+        var schedule = randomBoolean() ? "*/1 * * * * ?" : "1s";
+        createSnapshotPolicy(policyName, "snap", schedule, repoId, indexName, true);
 
         // Check that the snapshot was actually taken
         assertBusy(() -> {
@@ -179,8 +177,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         disableSLMMinimumIntervalValidation();
 
         // Create a policy with ignore_unavailable: false and an index that doesn't exist
-        var scheduleOrInterval = randomScheduleOrInterval("*/1 * * * * ?", "1s");
-        createSnapshotPolicy(policyName, "snap", scheduleOrInterval.v1(), scheduleOrInterval.v2(), repoName, indexPattern, false);
+        var schedule = randomBoolean() ? "*/1 * * * * ?" : "1s";
+        createSnapshotPolicy(policyName, "snap", schedule, repoName, indexPattern, false);
 
         assertBusy(() -> {
             // Check that the failure is written to the cluster state
@@ -237,7 +235,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // Create a snapshot repo
         initializeRepo(repoId);
 
-        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, null, repoId, indexName, true);
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, indexName, true);
 
         ResponseException badResp = expectThrows(
             ResponseException.class,
@@ -304,12 +302,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         });
 
         try {
-            var scheduleInterval = randomScheduleOrInterval("0 0/15 * * * ?", "30m");
+            var schedule = randomBoolean() ? "0 0/15 * * * ?" : "30m";
             createSnapshotPolicy(
                 policyName,
                 "snap",
-                scheduleInterval.v1(),
-                scheduleInterval.v2(),
+                schedule,
                 repoId,
                 indexName,
                 true,
@@ -405,7 +402,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             policyName,
             "snap",
             NEVER_EXECUTE_CRON_SCHEDULE,
-            null,
             repoId,
             indexName,
             true,
@@ -524,7 +520,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // Create a snapshot repo
         initializeRepo(repoId);
 
-        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, null, repoId, dataStreamName, true);
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, dataStreamName, true);
 
         final String snapshotName = executePolicy(policyName);
 
@@ -571,7 +567,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             "policy",
             "snap",
             NEVER_EXECUTE_CRON_SCHEDULE,
-            null,
             "repo",
             "*",
             true,
@@ -625,7 +620,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             policyName,
             "snap",
             NEVER_EXECUTE_CRON_SCHEDULE,
-            null,
             repo,
             indexName,
             true,
@@ -636,7 +630,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             policyWithMissingRepo,
             "snap",
             NEVER_EXECUTE_CRON_SCHEDULE,
-            null,
             missingRepo,
             indexName,
             true,
@@ -815,7 +808,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         String policyName,
         String snapshotNamePattern,
         String schedule,
-        String interval,
         String repoId,
         String indexPattern,
         boolean ignoreUnavailable
@@ -824,7 +816,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             policyName,
             snapshotNamePattern,
             schedule,
-            interval,
             repoId,
             indexPattern,
             ignoreUnavailable,
@@ -836,7 +827,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         String policyName,
         String snapshotNamePattern,
         String schedule,
-        String interval,
         String repoId,
         String indexPattern,
         boolean ignoreUnavailable,
@@ -859,7 +849,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             policyName,
             snapshotNamePattern,
             schedule,
-            interval,
             repoId,
             snapConfig,
             retention
@@ -869,6 +858,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
+
+
+        logger.warn("waz: " +  Strings.toString(lifecycleBuilder));
+
         final Response response = client().performRequest(putLifecycle);
         assertAcked(response);
     }

@@ -346,7 +346,6 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 POLICY_ID,
                 "snap",
                 "1 * * * * ?",
-                null,
                 REPO_NAME,
                 null,
                 new SnapshotRetentionConfiguration(null, null, null) {
@@ -366,7 +365,6 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 OTHER_REPO_POLICY_ID,
                 "snap",
                 "1 * * * * ?",
-                null,
                 "other-repo",
                 null,
                 new SnapshotRetentionConfiguration(null, null, null) {
@@ -384,7 +382,6 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 NO_RETENTION_POLICY_ID,
                 "snap",
                 "1 * * * * ?",
-                null,
                 "other-repo",
                 null,
                 randomBoolean() ? null : SnapshotRetentionConfiguration.EMPTY

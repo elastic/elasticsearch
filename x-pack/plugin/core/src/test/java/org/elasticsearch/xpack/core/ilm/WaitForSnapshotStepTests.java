@@ -108,7 +108,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         WaitForSnapshotStep instance = createRandomInstance();
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
-            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", "", null, null))
+            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
             .build();
         SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(
             Map.of(instance.getPolicy(), slmPolicy),
@@ -221,7 +221,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         WaitForSnapshotStep instance = createRandomInstance();
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
-            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", repoName, null, null))
+            .setPolicy(new SnapshotLifecyclePolicy("", "", "", repoName, null, null))
             .setLastSuccess(new SnapshotInvocationRecord(snapshotName, actionTime + 10, actionTime + 100, ""))
             .build();
         SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(
@@ -278,7 +278,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         WaitForSnapshotStep instance = createRandomInstance();
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
-            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", repoName, null, null))
+            .setPolicy(new SnapshotLifecyclePolicy("", "", "", repoName, null, null))
             .setLastSuccess(
                 new SnapshotInvocationRecord(
                     snapshotName,
@@ -342,7 +342,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         WaitForSnapshotStep instance = createRandomInstance();
         SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
             .setModifiedDate(randomLong())
-            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", "", null, null))
+            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", null, null))
             .setLastSuccess(new SnapshotInvocationRecord("", null, phaseTime + 100, ""))
             .build();
         SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(

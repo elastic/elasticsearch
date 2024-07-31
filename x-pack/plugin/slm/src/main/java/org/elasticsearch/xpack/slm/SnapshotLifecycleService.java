@@ -201,11 +201,10 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
             }
 
             final SchedulerEngine.Job job;
-            if (snapshotLifecyclePolicy.getPolicy().getSchedule() != null) {
+            if (snapshotLifecyclePolicy.getPolicy().isCronSchedule()) {
                 job = new SchedulerEngine.Job(jobId, new CronSchedule(snapshotLifecyclePolicy.getPolicy().getSchedule()));
             } else {
-                final String interval = snapshotLifecyclePolicy.getPolicy().getInterval();
-                TimeValue timeValue = TimeValue.parseTimeValue(interval, "interval");
+                TimeValue timeValue = TimeValue.parseTimeValue(snapshotLifecyclePolicy.getPolicy().getSchedule(), "schedule");
                 job = new SchedulerEngine.Job(jobId, new TimeValueSchedule(timeValue), snapshotLifecyclePolicy.getModifiedDate());
             }
 
@@ -259,7 +258,8 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         TimeValue next = lifecycle.calculateNextInterval(Clock.systemUTC());
         if (next.duration() > 0 && minimum.duration() > 0 && next.millis() < minimum.millis()) {
             throw new IllegalArgumentException(
-                (lifecycle.useSchedule() ? "invalid schedule [" + lifecycle.getSchedule() : "invalid interval [" + lifecycle.getInterval())
+                "invalid schedule ["
+                    + lifecycle.getSchedule()
                     + "]: "
                     + "schedule would be too frequent, executing more than every ["
                     + minimum.getStringRep()

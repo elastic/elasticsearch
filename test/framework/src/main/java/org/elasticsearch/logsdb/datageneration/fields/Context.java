@@ -29,12 +29,9 @@ class Context {
 
     private Context(DataGeneratorSpecification specification, int objectDepth, int nestedFieldsCount) {
         this.specification = specification;
-        this.childFieldGenerator = (DataSourceResponse.ChildFieldGenerator) specification.dataSource()
-            .get(new DataSourceRequest.ChildFieldGenerator(specification));
-        this.fieldTypeGenerator = (DataSourceResponse.FieldTypeGenerator) specification.dataSource()
-            .get(new DataSourceRequest.FieldTypeGenerator());
-        this.objectArrayGenerator = (DataSourceResponse.ObjectArrayGenerator) specification.dataSource()
-            .get(new DataSourceRequest.ObjectArrayGenerator());
+        this.childFieldGenerator = specification.dataSource().get(new DataSourceRequest.ChildFieldGenerator(specification));
+        this.fieldTypeGenerator = specification.dataSource().get(new DataSourceRequest.FieldTypeGenerator());
+        this.objectArrayGenerator = specification.dataSource().get(new DataSourceRequest.ObjectArrayGenerator());
         this.objectDepth = objectDepth;
         this.nestedFieldsCount = nestedFieldsCount;
     }

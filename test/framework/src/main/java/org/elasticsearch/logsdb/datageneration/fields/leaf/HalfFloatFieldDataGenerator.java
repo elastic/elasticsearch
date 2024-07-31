@@ -12,7 +12,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -22,9 +21,9 @@ public class HalfFloatFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
     public HalfFloatFieldDataGenerator(DataSource dataSource) {
-        var halfFloats = (DataSourceResponse.HalfFloatGenerator) dataSource.get(new DataSourceRequest.HalfFloatGenerator());
-        var nulls = (DataSourceResponse.NullWrapper) dataSource.get(new DataSourceRequest.NullWrapper());
-        var arrays = (DataSourceResponse.ArrayWrapper) dataSource.get(new DataSourceRequest.ArrayWrapper());
+        var halfFloats = dataSource.get(new DataSourceRequest.HalfFloatGenerator());
+        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
+        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
         this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> halfFloats.generator().get());
     }

@@ -12,7 +12,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -22,9 +21,9 @@ public class UnsignedLongFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
     public UnsignedLongFieldDataGenerator(DataSource dataSource) {
-        var unsignedLongs = (DataSourceResponse.UnsignedLongGenerator) dataSource.get(new DataSourceRequest.UnsignedLongGenerator());
-        var nulls = (DataSourceResponse.NullWrapper) dataSource.get(new DataSourceRequest.NullWrapper());
-        var arrays = (DataSourceResponse.ArrayWrapper) dataSource.get(new DataSourceRequest.ArrayWrapper());
+        var unsignedLongs = dataSource.get(new DataSourceRequest.UnsignedLongGenerator());
+        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
+        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
         this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> unsignedLongs.generator().get());
     }

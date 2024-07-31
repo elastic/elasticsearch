@@ -12,7 +12,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,14 +22,12 @@ public class ScaledFloatFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
     public ScaledFloatFieldDataGenerator(DataSource dataSource) {
-        var positiveDoubles = (DataSourceResponse.DoubleInRangeGenerator) dataSource.get(
-            new DataSourceRequest.DoubleInRangeGenerator(0, Double.MAX_VALUE)
-        );
+        var positiveDoubles = dataSource.get(new DataSourceRequest.DoubleInRangeGenerator(0, Double.MAX_VALUE));
         this.scalingFactor = positiveDoubles.generator().get();
 
-        var doubles = (DataSourceResponse.DoubleGenerator) dataSource.get(new DataSourceRequest.DoubleGenerator());
-        var nulls = (DataSourceResponse.NullWrapper) dataSource.get(new DataSourceRequest.NullWrapper());
-        var arrays = (DataSourceResponse.ArrayWrapper) dataSource.get(new DataSourceRequest.ArrayWrapper());
+        var doubles = dataSource.get(new DataSourceRequest.DoubleGenerator());
+        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
+        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
         this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> doubles.generator().get());
     }

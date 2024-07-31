@@ -12,7 +12,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -22,9 +21,9 @@ public class FloatFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
     public FloatFieldDataGenerator(DataSource dataSource) {
-        var floats = (DataSourceResponse.FloatGenerator) dataSource.get(new DataSourceRequest.FloatGenerator());
-        var nulls = (DataSourceResponse.NullWrapper) dataSource.get(new DataSourceRequest.NullWrapper());
-        var arrays = (DataSourceResponse.ArrayWrapper) dataSource.get(new DataSourceRequest.ArrayWrapper());
+        var floats = dataSource.get(new DataSourceRequest.FloatGenerator());
+        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
+        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
         this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> floats.generator().get());
     }

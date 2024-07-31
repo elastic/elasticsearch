@@ -1,0 +1,5 @@
+pr: 111490
+summary: Return both `modelId` and `inferenceId`
+area: Machine Learning
+type: bug
+issues: []

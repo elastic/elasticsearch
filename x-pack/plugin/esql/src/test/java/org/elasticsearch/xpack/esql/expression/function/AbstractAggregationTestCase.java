@@ -57,6 +57,20 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
      */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        List<TestCaseSupplier> suppliers,
+        boolean entirelyNullPreservesType,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
+    ) {
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(
+                withNoRowsExpectingNull(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers))),
+                positionalErrorMessageSupplier
+            )
+        );
+    }
+
+    // TODO: Remove and migrate everything to the method with all the parameters
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
@@ -119,24 +133,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         Expression expression = buildLiteralExpression(testCase);
 
         resolveExpression(expression, aggregatorFunctionSupplier -> {
-            // An aggregation cannot be folded
-        }, evaluableExpression -> {
-            assertTrue(evaluableExpression.foldable());
-            if (testCase.foldingExceptionClass() == null) {
-                Object result = evaluableExpression.fold();
-                // Decode unsigned longs into BigIntegers
-                if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-                    result = NumericUtils.unsignedLongAsBigInteger((Long) result);
-                }
-                assertThat(result, testCase.getMatcher());
-                if (testCase.getExpectedWarnings() != null) {
-                    assertWarnings(testCase.getExpectedWarnings());
-                }
-            } else {
-                Throwable t = expectThrows(testCase.foldingExceptionClass(), evaluableExpression::fold);
-                assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
-            }
-        });
+            // An aggregation cannot be folded.
+            // It's not an error either as not all aggregations are foldable.
+        }, this::evaluate);
     }
 
     private void aggregateSingleMode(Expression expression) {
@@ -263,21 +262,25 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private void evaluate(Expression evaluableExpression) {
-        Object result;
-        try (var evaluator = evaluator(evaluableExpression).get(driverContext())) {
-            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
-                result = toJavaObjectUnsignedLongAware(block, 0);
+        assertTrue(evaluableExpression.foldable());
+        if (testCase.foldingExceptionClass() == null) {
+            Object result = evaluableExpression.fold();
+            // Decode unsigned longs into BigIntegers
+            if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
+                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
             }
-        }
-
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
+            assertThat(result, not(equalTo(Double.NaN)));
+            assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+            assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+            assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+            assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+            assertThat(result, testCase.getMatcher());
+            if (testCase.getExpectedWarnings() != null) {
+                assertWarnings(testCase.getExpectedWarnings());
+            }
+        } else {
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), evaluableExpression::fold);
+            assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }
 

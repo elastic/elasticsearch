@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -1453,6 +1454,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      */
     public static class TypedData {
         public static final TypedData NULL = new TypedData(null, DataType.NULL, "<null>");
+        public static final TypedData MULTI_ROW_NULL = TypedData.multiRow(Collections.singletonList(null), DataType.NULL, "<null>");
 
         private final Object data;
         private final DataType type;

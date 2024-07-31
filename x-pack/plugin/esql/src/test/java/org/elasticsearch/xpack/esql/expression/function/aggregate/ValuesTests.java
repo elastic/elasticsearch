@@ -53,7 +53,11 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.stringCases(1, 100, DataType.TEXT)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            suppliers,
+            false,
+            (v, p) -> "any type except unsigned_long and spatial types"
+        );
     }
 
     @Override

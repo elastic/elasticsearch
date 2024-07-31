@@ -25,9 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
@@ -371,152 +369,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    /**
-     * Adds cases with {@code null} and asserts that the result is {@code null}.
-     * <p>
-     * Note: This won't add more than a single null to any existing test case,
-     * just to keep the number of test cases from exploding totally.
-     * </p>
-     *
-     * @param entirelyNullPreservesType should a test case that only contains parameters
-     *                                  with the {@code null} type keep it's expected type?
-     *                                  This is <strong>mostly</strong> going to be {@code true}
-     *                                  except for functions that base their type entirely
-     *                                  on input types like {@link Greatest} or {@link Coalesce}.
-     */
-    protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
-        return anyNullIsNull(
-            testCaseSuppliers,
-            (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
-                && nullValueDataType == DataType.NULL
-                && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
-            (nullPosition, nullData, original) -> original
-        );
-    }
-
-    public interface ExpectedType {
-        DataType expectedType(int nullPosition, DataType nullValueDataType, TestCaseSupplier.TestCase original);
-    }
-
-    public interface ExpectedEvaluatorToString {
-        Matcher<String> evaluatorToString(int nullPosition, TestCaseSupplier.TypedData nullData, Matcher<String> original);
-    }
-
-    protected static List<TestCaseSupplier> anyNullIsNull(
-        List<TestCaseSupplier> testCaseSuppliers,
-        ExpectedType expectedType,
-        ExpectedEvaluatorToString evaluatorToString
-    ) {
-        typesRequired(testCaseSuppliers);
-        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
-        suppliers.addAll(testCaseSuppliers);
-
-        /*
-         * For each original test case, add as many copies as there were
-         * arguments, replacing one of the arguments with null and keeping
-         * the others.
-         *
-         * Also, if this was the first time we saw the signature we copy it
-         * *again*, replacing the argument with null, but annotating the
-         * argument's type as `null` explicitly.
-         */
-        Set<List<DataType>> uniqueSignatures = new HashSet<>();
-        for (TestCaseSupplier original : testCaseSuppliers) {
-            boolean firstTimeSeenSignature = uniqueSignatures.add(original.types());
-            for (int nullPosition = 0; nullPosition < original.types().size(); nullPosition++) {
-                int finalNullPosition = nullPosition;
-                suppliers.add(new TestCaseSupplier(original.name() + " null in " + nullPosition, original.types(), () -> {
-                    TestCaseSupplier.TestCase oc = original.get();
-                    List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
-                        TestCaseSupplier.TypedData od = oc.getData().get(i);
-                        return i == finalNullPosition ? od.withData(null) : od;
-                    }).toList();
-                    TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
-                    return new TestCaseSupplier.TestCase(
-                        data,
-                        evaluatorToString.evaluatorToString(finalNullPosition, nulledData, oc.evaluatorToString()),
-                        expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
-                        nullValue(),
-                        null,
-                        oc.getExpectedTypeError(),
-                        null,
-                        null
-                    );
-                }));
-
-                if (firstTimeSeenSignature) {
-                    List<DataType> typesWithNull = IntStream.range(0, original.types().size())
-                        .mapToObj(i -> i == finalNullPosition ? DataType.NULL : original.types().get(i))
-                        .toList();
-                    boolean newSignature = uniqueSignatures.add(typesWithNull);
-                    if (newSignature) {
-                        suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
-                            TestCaseSupplier.TestCase oc = original.get();
-                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size())
-                                .mapToObj(i -> i == finalNullPosition ? TestCaseSupplier.TypedData.NULL : oc.getData().get(i))
-                                .toList();
-                            return new TestCaseSupplier.TestCase(
-                                data,
-                                equalTo("LiteralsEvaluator[lit=null]"),
-                                expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
-                                nullValue(),
-                                null,
-                                oc.getExpectedTypeError(),
-                                null,
-                                null
-                            );
-                        }));
-                    }
-                }
-            }
-        }
-
-        return suppliers;
-
-    }
-
-    /**
-     * Adds test cases containing unsupported parameter types that assert
-     * that they throw type errors.
-     */
-    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
-        List<TestCaseSupplier> testCaseSuppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return errorsForCasesWithoutExamples(
-            testCaseSuppliers,
-            (i, v, t) -> AbstractScalarFunctionTestCase.typeErrorMessage(i, v, t, positionalErrorMessageSupplier)
-        );
-    }
-
-    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
-        List<TestCaseSupplier> testCaseSuppliers,
-        TypeErrorMessageSupplier typeErrorMessageSupplier
-    ) {
-        typesRequired(testCaseSuppliers);
-        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
-        suppliers.addAll(testCaseSuppliers);
-
-        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
-        List<Set<DataType>> validPerPosition = validPerPosition(valid);
-
-        testCaseSuppliers.stream()
-            .map(s -> s.types().size())
-            .collect(Collectors.toSet())
-            .stream()
-            .flatMap(count -> allPermutations(count))
-            .filter(types -> valid.contains(types) == false)
-            /*
-             * Skip any cases with more than one null. Our tests don't generate
-             * the full combinatorial explosions of all nulls - just a single null.
-             * Hopefully <null>, <null> cases will function the same as <null>, <valid>
-             * cases.
-             */.filter(types -> types.stream().filter(t -> t == DataType.NULL).count() <= 1)
-            .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types, typeErrorMessageSupplier))
-            .forEach(suppliers::add);
-        return suppliers;
-    }
-
     public static String errorMessageStringForBinaryOperators(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
@@ -572,17 +424,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return suppliers;
     }
 
-    /**
-     * Validate that we know the types for all the test cases already created
-     * @param suppliers - list of suppliers before adding in the illegal type combinations
-     */
-    private static void typesRequired(List<TestCaseSupplier> suppliers) {
-        String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
-        if (bad.equals("") == false) {
-            throw new IllegalArgumentException("types required but not found for these tests:\n" + bad);
-        }
-    }
-
     private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
         int max = valid.stream().mapToInt(List::size).max().getAsInt();
         List<Set<DataType>> result = new ArrayList<>(max);
@@ -616,59 +457,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         longer.addAll(orig);
         longer.add(extra);
         return longer;
-    }
-
-    @FunctionalInterface
-    protected interface TypeErrorMessageSupplier {
-        String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
-    }
-
-    @FunctionalInterface
-    protected interface PositionalErrorMessageSupplier {
-        /**
-         * This interface defines functions to supply error messages for incorrect types in specific positions.  Functions which have
-         * the same type requirements for all positions can simplify this with a lambda returning a string constant.
-         *
-         * @param validForPosition - the set of {@link DataType}s that the test infrastructure believes to be allowable in the
-         *                         given position.
-         * @param position - the zero-index position in the list of parameters the function has detected the bad argument to be.
-         * @return The string describing the acceptable parameters for that position.  Note that this function should not return
-         *         the full error string; that will be constructed by the test.  Just return the type string for that position.
-         */
-        String apply(Set<DataType> validForPosition, int position);
-    }
-
-    protected static TestCaseSupplier typeErrorSupplier(
-        boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
-        PositionalErrorMessageSupplier errorMessageSupplier
-    ) {
-        return typeErrorSupplier(
-            includeOrdinal,
-            validPerPosition,
-            types,
-            (o, v, t) -> AbstractScalarFunctionTestCase.typeErrorMessage(o, v, t, errorMessageSupplier)
-        );
-    }
-
-    /**
-     * Build a test case that asserts that the combination of parameter types is an error.
-     */
-    protected static TestCaseSupplier typeErrorSupplier(
-        boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
-        TypeErrorMessageSupplier errorMessageSupplier
-    ) {
-        return new TestCaseSupplier(
-            "type error for " + TestCaseSupplier.nameFromTypes(types),
-            types,
-            () -> TestCaseSupplier.TestCase.typeError(
-                types.stream().map(type -> new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, type.typeName())).toList(),
-                errorMessageSupplier.apply(includeOrdinal, validPerPosition, types)
-            )
-        );
     }
 
     /**

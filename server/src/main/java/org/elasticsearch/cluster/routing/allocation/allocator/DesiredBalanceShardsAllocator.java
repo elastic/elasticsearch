@@ -246,7 +246,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         } else {
             logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
         }
-        computedShardMovements.inc(DesiredBalance.shardMovements(currentDesiredBalance, newDesiredBalance));
+        int shardMovements = DesiredBalance.shardMovements(currentDesiredBalance, newDesiredBalance);
+        logger.debug("Computed [{}] shard movements", shardMovements);
+        computedShardMovements.inc(shardMovements);
         currentDesiredBalance = newDesiredBalance;
     }
 

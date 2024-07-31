@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -38,16 +37,11 @@ public class MvMaxTests extends AbstractMultivalueFunctionTestCase {
         longs(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.max().getAsLong()));
         unsignedLongs(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.reduce(BigInteger::max).get()));
         dateTimes(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.max().getAsLong()));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "representableNonSpatial");
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvMax(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNonSpatialTypes();
     }
 }

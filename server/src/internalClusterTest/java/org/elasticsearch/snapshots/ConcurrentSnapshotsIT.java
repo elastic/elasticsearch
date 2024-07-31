@@ -2209,7 +2209,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals("snapshot-with-index-1") && e.state().completed())
             )
             // execute the index deletion _directly on the master_ so it happens before the snapshot finalization executes
-            .andThen((l, ignored) -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
+            .andThen(l -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
                 assertTrue(r.isAcknowledged());
                 return null;
             })).indices(new Index[] { internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex() })

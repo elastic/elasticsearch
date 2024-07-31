@@ -9,31 +9,22 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeRegistry;
-
-import java.util.Collection;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrDatePeriod;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTimeDuration;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;
 
-public class EsqlDataTypeRegistry implements DataTypeRegistry {
+public class EsqlDataTypeRegistry {
 
-    public static final DataTypeRegistry INSTANCE = new EsqlDataTypeRegistry();
+    public static final EsqlDataTypeRegistry INSTANCE = new EsqlDataTypeRegistry();
 
     private EsqlDataTypeRegistry() {}
 
-    @Override
-    public Collection<DataType> dataTypes() {
-        return DataType.types();
-    }
-
-    @Override
     public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
         DataType type = DataType.fromEs(typeName);
         /*
@@ -45,27 +36,6 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
         return metricType == TimeSeriesParams.MetricType.COUNTER ? type.widenSmallNumeric().counter() : type;
     }
 
-    @Override
-    public DataType fromJava(Object value) {
-        return DataType.fromJava(value);
-    }
-
-    @Override
-    public boolean isUnsupported(DataType type) {
-        return type == DataType.UNSUPPORTED;
-    }
-
-    @Override
-    public boolean canConvert(DataType from, DataType to) {
-        return EsqlDataTypeConverter.canConvert(from, to);
-    }
-
-    @Override
-    public Object convert(Object value, DataType type) {
-        return EsqlDataTypeConverter.convert(value, type);
-    }
-
-    @Override
     public DataType commonType(DataType left, DataType right) {
         if (isDateTimeOrTemporal(left) || isDateTimeOrTemporal(right)) {
             if ((isDateTime(left) && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && isDateTime(right))) {

@@ -21,7 +21,7 @@ import java.io.IOException;
 
 public class DataGeneratorTests extends ESTestCase {
     public void testDataGeneratorSanity() throws IOException {
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification());
+        var dataGenerator = new DataGenerator(DataGeneratorSpecification.buildDefault());
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);
@@ -33,8 +33,50 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorProducesValidMappingAndDocument() throws IOException {
-        // Let's keep number of fields under 1000 field limit
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(10, 3, new RandomBasedArbitrary()));
+        // Make sure objects, nested objects and all field types are covered.
+        var testArbitrary = new RandomBasedArbitrary() {
+            private boolean subObjectCovered = false;
+            private boolean nestedCovered = false;
+            private int generatedFields = 0;
+
+            @Override
+            public boolean generateSubObject() {
+                if (subObjectCovered == false) {
+                    subObjectCovered = true;
+                    return true;
+                }
+
+                return false;
+            }
+
+            @Override
+            public boolean generateNestedObject() {
+                if (nestedCovered == false) {
+                    nestedCovered = true;
+                    return true;
+                }
+
+                return false;
+            }
+
+            @Override
+            public int childFieldCount(int lowerBound, int upperBound) {
+                // Make sure to generate enough fields to go through all field types.
+                return 20;
+            }
+
+            @Override
+            public String fieldName(int lengthLowerBound, int lengthUpperBound) {
+                return "f" + generatedFields++;
+            }
+
+            @Override
+            public FieldType fieldType() {
+                return FieldType.values()[generatedFields % FieldType.values().length];
+            }
+        };
+
+        var dataGenerator = new DataGenerator(DataGeneratorSpecification.builder().withArbitrary(testArbitrary).build());
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);
@@ -49,13 +91,18 @@ public class DataGeneratorTests extends ESTestCase {
     }
 
     public void testDataGeneratorStressTest() throws IOException {
-        // Let's generate 1000000 fields to test an extreme case (2 levels of nested objects + 1 leaf level with 100 fields per object).
+        // Let's generate 1000000 fields to test an extreme case (2 levels of objects + 1 leaf level with 100 fields per object).
         var arbitrary = new Arbitrary() {
             private int generatedFields = 0;
 
             @Override
             public boolean generateSubObject() {
                 return true;
+            }
+
+            @Override
+            public boolean generateNestedObject() {
+                return false;
             }
 
             @Override
@@ -82,8 +129,35 @@ public class DataGeneratorTests extends ESTestCase {
             public String stringValue(int lengthLowerBound, int lengthUpperBound) {
                 return "";
             }
+
+            @Override
+            public boolean generateNullValue() {
+                return false;
+            }
+
+            @Override
+            public boolean generateArrayOfValues() {
+                return false;
+            }
+
+            @Override
+            public int valueArraySize() {
+                return 3;
+            }
+
+            @Override
+            public boolean generateArrayOfObjects() {
+                return false;
+            }
+
+            @Override
+            public int objectArraySize() {
+                return 3;
+            }
         };
-        var dataGenerator = new DataGenerator(new DataGeneratorSpecification(100, 2, arbitrary));
+        var dataGenerator = new DataGenerator(
+            DataGeneratorSpecification.builder().withArbitrary(arbitrary).withMaxFieldCountPerLevel(100).withMaxObjectDepth(2).build()
+        );
 
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
         dataGenerator.writeMapping(mapping);

@@ -161,7 +161,7 @@ public class ExplainDataStreamLifecycleAction {
             super(in);
             this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            this.globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+            this.globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
                 ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
                 : null;
         }
@@ -182,7 +182,7 @@ public class ExplainDataStreamLifecycleAction {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(indices);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
         }

@@ -37,10 +37,10 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 [[update-trained-model-deployment-request-body]]
 == {api-request-body-title}
 
-`adaptive_allocation`::
+`adaptive_allocations`::
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
-If `adaptive_allocation` is enabled, do not set the value of `number_of_allocations`.
+If `adaptive_allocations` is enabled, do not set the value of `number_of_allocations`.
 
 `enabled`:::
 (Optional, Boolean)

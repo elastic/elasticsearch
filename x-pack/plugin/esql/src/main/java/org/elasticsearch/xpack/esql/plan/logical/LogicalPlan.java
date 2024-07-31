@@ -24,7 +24,7 @@ import java.util.List;
  */
 public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Resolvable {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(LocalRelation.ENTRY, Lookup.ENTRY, Join.ENTRY);
+        return List.of(LocalRelation.ENTRY, Lookup.ENTRY, Join.ENTRY, TopN.ENTRY);
     }
 
     /**

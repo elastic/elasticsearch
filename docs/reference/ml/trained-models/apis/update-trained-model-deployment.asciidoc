@@ -40,7 +40,6 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 `adaptive_allocations`::
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
-If `adaptive_allocations` is enabled, do not set the value of `number_of_allocations`.
 
 `enabled`:::
 (Optional, Boolean)

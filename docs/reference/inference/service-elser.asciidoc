@@ -51,10 +51,6 @@ These settings are specific to the `elser` service.
 `adaptive_allocations`:::
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
-+
---
-If `adaptive_allocations` is enabled, do not set the value of `num_allocations`.
---
 
 `enabled`::::
 (Optional, Boolean)
@@ -66,7 +62,7 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-max-number]
 
 `min_number_of_allocations`::::
 (Optional, integer)
-include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-min-number]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-min-number] 
 
 `num_allocations`:::
 (Required, integer)

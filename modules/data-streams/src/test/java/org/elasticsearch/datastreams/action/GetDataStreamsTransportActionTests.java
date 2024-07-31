@@ -52,7 +52,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
-        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamName)));
     }
@@ -64,19 +64,22 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             List.of()
         );
 
-        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1].substring(0, 5) + "*" });
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamNames[1].substring(0, 5) + "*" }
+        );
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
-        req = new GetDataStreamAction.Request(new String[] { "*" });
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
-        req = new GetDataStreamAction.Request((String[]) null);
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, (String[]) null);
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
-        req = new GetDataStreamAction.Request(new String[] { "matches-none*" });
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "matches-none*" });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
         assertThat(dataStreams, empty());
     }
@@ -88,19 +91,22 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             List.of()
         );
 
-        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0], dataStreamNames[1] });
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamNames[0], dataStreamNames[1] }
+        );
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1], dataStreamNames[0])));
 
-        req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1] });
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[1] });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[1])));
 
-        req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0] });
+        req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamNames[0] });
         dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, resolver, req);
         assertThat(dataStreams, transformedItemsMatch(DataStream::getName, contains(dataStreamNames[0])));
 
-        GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(new String[] { "foo" });
+        GetDataStreamAction.Request req2 = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "foo" });
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
             () -> GetDataStreamsTransportAction.getDataStreams(cs, resolver, req2)
@@ -111,7 +117,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
     public void testGetNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
-        GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
             () -> GetDataStreamsTransportAction.getDataStreams(cs, resolver, req)
@@ -152,7 +158,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
         }
 
-        var req = new GetDataStreamAction.Request(new String[] {});
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = GetDataStreamsTransportAction.innerOperation(
             state,
             req,
@@ -232,7 +238,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
         }
 
-        var req = new GetDataStreamAction.Request(new String[] {});
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = GetDataStreamsTransportAction.innerOperation(
             state,
             req,
@@ -275,7 +281,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
         }
 
-        var req = new GetDataStreamAction.Request(new String[] {});
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = GetDataStreamsTransportAction.innerOperation(
             state,
             req,
@@ -320,7 +326,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
         }
 
-        var req = new GetDataStreamAction.Request(new String[] {});
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = GetDataStreamsTransportAction.innerOperation(
             state,
             req,

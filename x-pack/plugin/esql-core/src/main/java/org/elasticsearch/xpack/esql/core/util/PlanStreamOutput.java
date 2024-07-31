@@ -13,10 +13,6 @@ import java.io.IOException;
 
 public interface PlanStreamOutput {
 
-    byte NEW = 0;
-    byte CACHED = 1;
-    byte NO_CACHE = 2;
-
     /**
      * Writes cache header for {@link Attribute}s. It also handles the cache itself.
      * After this, the Attribute will also have to serialize itself

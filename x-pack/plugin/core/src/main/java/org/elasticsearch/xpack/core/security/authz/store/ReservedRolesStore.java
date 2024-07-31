@@ -183,7 +183,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             entry("kibana_admin", kibanaAdminUser("kibana_admin", MetadataUtils.DEFAULT_RESERVED_ROLE_METADATA)),
             entry(
                 "kibana_user",
-                kibanaAdminUser("kibana_user", MetadataUtils.getDeprecatedReservedRoleMetadata("Please use the [kibana_admin] role instead"))
+                kibanaAdminUser(
+                    "kibana_user",
+                    MetadataUtils.getDeprecatedReservedRoleMetadata("Please use the [kibana_admin] role instead")
+                )
             ),
             entry(
                 "monitoring_user",

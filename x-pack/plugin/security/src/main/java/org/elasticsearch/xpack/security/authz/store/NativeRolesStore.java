@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
-import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -672,8 +671,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     // Package private for testing
     XContentBuilder createRoleXContentBuilder(RoleDescriptor role) throws IOException {
-        assert NativeRealmValidationUtil.validateRoleName(role.getName(), false) == null
-            : "Role name was invalid or reserved: " + role.getName();
         assert false == role.hasRestriction() : "restriction is not supported for native roles";
 
         XContentBuilder builder = jsonBuilder().startObject();

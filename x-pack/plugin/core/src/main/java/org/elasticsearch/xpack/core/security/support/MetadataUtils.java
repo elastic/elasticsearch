@@ -19,15 +19,12 @@ public class MetadataUtils {
      * reserved role version must be incremented when builtin reserved roles are changed
      */
     public static final String RESERVED_ROLE_VERSION_VALUE = "2";
-    public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Map.of(
-        RESERVED_METADATA_KEY,
-        true
-    );
+    public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Map.of(RESERVED_METADATA_KEY, true);
     public static final Map<String, Object> DEFAULT_RESERVED_ROLE_METADATA = Map.of(
-            RESERVED_METADATA_KEY,
-            true,
-            RESERVED_ROLE_VERSION_METADATA_KEY,
-            RESERVED_ROLE_VERSION_VALUE
+        RESERVED_METADATA_KEY,
+        true,
+        RESERVED_ROLE_VERSION_METADATA_KEY,
+        RESERVED_ROLE_VERSION_VALUE
     );
 
     private MetadataUtils() {}
@@ -42,26 +39,19 @@ public class MetadataUtils {
     }
 
     public static Map<String, Object> getDeprecatedReservedMetadata(String reason) {
+        return Map.of(RESERVED_METADATA_KEY, true, DEPRECATED_METADATA_KEY, true, DEPRECATED_REASON_METADATA_KEY, reason);
+    }
+
+    public static Map<String, Object> getDeprecatedReservedRoleMetadata(String reason) {
         return Map.of(
             RESERVED_METADATA_KEY,
             true,
             DEPRECATED_METADATA_KEY,
             true,
             DEPRECATED_REASON_METADATA_KEY,
-            reason
-        );
-    }
-
-    public static Map<String, Object> getDeprecatedReservedRoleMetadata(String reason) {
-        return Map.of(
-                RESERVED_METADATA_KEY,
-                true,
-                DEPRECATED_METADATA_KEY,
-                true,
-                DEPRECATED_REASON_METADATA_KEY,
-                reason,
-                RESERVED_ROLE_VERSION_METADATA_KEY,
-                RESERVED_ROLE_VERSION_VALUE
+            reason,
+            RESERVED_ROLE_VERSION_METADATA_KEY,
+            RESERVED_ROLE_VERSION_VALUE
         );
     }
 }

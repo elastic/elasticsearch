@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -107,55 +106,21 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out instanceof PlanStreamOutput;
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
-            Integer cacheId = ((PlanStreamOutput) out).attributeIdFromCache(this);
-            if (cacheId != null) {
-                out.writeByte(PlanStreamOutput.CACHED);
-                out.writeZLong(cacheId);
-                return;
-            }
-
-            cacheId = ((PlanStreamOutput) out).cacheAttribute(this);
-            if (cacheId == null) {
-                out.writeByte(PlanStreamOutput.NO_CACHE);
-            } else {
-                out.writeByte(PlanStreamOutput.NEW);
-                out.writeZLong(cacheId);
-            }
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            out.writeOptionalWriteable(parent);
+            out.writeString(name());
+            dataType().writeTo(out);
+            out.writeNamedWriteable(field);
+            out.writeOptionalString(qualifier());
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
         }
-        Source.EMPTY.writeTo(out);
-        out.writeOptionalWriteable(parent);
-        out.writeString(name());
-        dataType().writeTo(out);
-        out.writeNamedWriteable(field);
-        out.writeOptionalString(qualifier());
-        out.writeEnum(nullable());
-        id().writeTo(out);
-        out.writeBoolean(synthetic());
     }
 
     public static FieldAttribute readFrom(StreamInput in) throws IOException {
-        assert in instanceof PlanStreamInput;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
-            byte cacheStatus = in.readByte();
-            return switch (cacheStatus) {
-                case PlanStreamOutput.NEW -> {
-                    int cacheId = Math.toIntExact(in.readZLong());
-                    FieldAttribute result = new FieldAttribute(in);
-                    ((PlanStreamInput) in).cacheAttribute(cacheId, result);
-                    yield result;
-                }
-                case PlanStreamOutput.CACHED -> {
-                    int cacheId = Math.toIntExact(in.readZLong());
-                    yield (FieldAttribute) ((PlanStreamInput) in).attributeFromCache(cacheId);
-                }
-                case PlanStreamOutput.NO_CACHE -> new FieldAttribute(in);
-                default -> throw new IllegalStateException("Invalid cache state for attribute: " + cacheStatus);
-            };
-        } else {
-            return new FieldAttribute(in);
-        }
+        return (FieldAttribute) ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::new);
     }
 
     @Override

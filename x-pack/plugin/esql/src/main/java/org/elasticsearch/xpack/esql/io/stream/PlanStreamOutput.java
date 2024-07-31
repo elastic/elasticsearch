@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -181,12 +182,31 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     }
 
     @Override
-    public Integer attributeIdFromCache(Attribute attr) {
+    public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            Integer cacheId = attributeIdFromCache(attribute);
+            if (cacheId != null) {
+                writeByte(org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.CACHED);
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheAttribute(attribute);
+            if (cacheId == null) {
+                writeByte(org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.NO_CACHE);
+            } else {
+                writeByte(org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.NEW);
+                writeZLong(cacheId);
+            }
+        }
+        return true;
+    }
+
+    private Integer attributeIdFromCache(Attribute attr) {
         return cachedAttributes.get(attr);
     }
 
-    @Override
-    public Integer cacheAttribute(Attribute attr) {
+    private Integer cacheAttribute(Attribute attr) {
         if (cachedAttributes.containsKey(attr)) {
             throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
         }

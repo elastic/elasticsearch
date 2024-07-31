@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.core.util;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
+import java.io.IOException;
+
 public interface PlanStreamOutput {
 
     byte NEW = 0;
@@ -16,19 +18,11 @@ public interface PlanStreamOutput {
     byte NO_CACHE = 2;
 
     /**
-     * Retrieves the ID for a FieldAttribute from the cache.
-     * It is just a serialization ID, valid only for the single plan serialization.
-     * (For clarity, it has nothing to do with {@link org.elasticsearch.xpack.esql.core.expression.NameId}s.)
-     * @param attr the attribute to be serialized
-     * @return the serialization ID if the attribute was already cached;
-     * null otherwise
+     * Writes cache header for {@link Attribute}s. It also handles the cache itself.
+     * After this, the Attribute will also have to serialize itself
+     * @param attribute The attribute to serialize
+     * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
+     * @throws IOException
      */
-    Integer attributeIdFromCache(Attribute attr);
-
-    /**
-     * Adds a FieldAttribute to the cache, returning the new serialization ID assigned to it.
-     * @return the cache ID; or null if the attribute cannot be added to the cache
-     * @throws IllegalArgumentException if the attribute is already present in the cache
-     */
-    Integer cacheAttribute(Attribute attr);
+    boolean writeAttributeCacheHeader(Attribute attribute) throws IOException;
 }

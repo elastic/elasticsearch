@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.data.BooleanBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -211,8 +213,29 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         return nameIdFunction.apply(l);
     }
 
-    @Override
-    public Attribute attributeFromCache(int id) throws IOException {
+    public Attribute readAttributeWithCache(CheckedFunction<StreamInput, Attribute, IOException> constructor) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            byte cacheStatus = readByte();
+            return switch (cacheStatus) {
+                case org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.NEW -> {
+                    int cacheId = Math.toIntExact(readZLong());
+                    Attribute result = constructor.apply(this);
+                    cacheAttribute(cacheId, result);
+                    yield result;
+                }
+                case org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.CACHED -> {
+                    int cacheId = Math.toIntExact(readZLong());
+                    yield attributeFromCache(cacheId);
+                }
+                case org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.NO_CACHE -> constructor.apply(this);
+                default -> throw new IllegalStateException("Invalid cache state for attribute: " + cacheStatus);
+            };
+        } else {
+            return constructor.apply(this);
+        }
+    }
+
+    private Attribute attributeFromCache(int id) throws IOException {
         if (attributesCache[id] == null) {
             throw new IOException("Attribute ID not found in serialization cache [" + id + "]");
         }
@@ -224,8 +247,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * @param id The ID that will reference the attribute. Generated  at serialization time
      * @param attr The attribute to cache
      */
-    @Override
-    public void cacheAttribute(int id, Attribute attr) {
+    private void cacheAttribute(int id, Attribute attr) {
         assert id >= 0;
         if (id >= attributesCache.length) {
             attributesCache = ArrayUtil.grow(attributesCache);

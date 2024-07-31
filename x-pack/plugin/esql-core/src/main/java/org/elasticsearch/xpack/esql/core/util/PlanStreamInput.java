@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,14 +38,10 @@ public interface PlanStreamInput {
     NameId mapNameId(long id) throws IOException;
 
     /**
-     * Retrieves a FieldAttribute from the cache
-     * @param id the serialization ID for the FieldAttribute
-     * @throws IllegalArgumentException if the id is not in the cache
+     * Reads an Attribute using the attribute cache.
+     * @param constructor the constructor needed to build the actual attribute when read from the wire
+     * @return A field attribute
+     * @throws IOException
      */
-    Attribute attributeFromCache(int id) throws IOException;
-
-    /**
-     * Adds a FieldAttribute to the cache, with the corresponding serialization ID
-     */
-    void cacheAttribute(int id, Attribute attr);
+    Attribute readAttributeWithCache(CheckedFunction<StreamInput, Attribute, IOException> constructor) throws IOException;
 }

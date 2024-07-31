@@ -20,10 +20,12 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.MetadataAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttributeTests;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
 
@@ -232,7 +234,14 @@ public class PlanStreamOutputTests extends ESTestCase {
     }
 
     private static Attribute randomAttribute() {
-        return randomBoolean() ? PlanNamedTypesTests.randomFieldAttribute() : ReferenceAttributeTests.randomReferenceAttribute();
+        return switch (randomInt(3)) {
+            case 0 -> PlanNamedTypesTests.randomFieldAttribute();
+            case 1 -> ReferenceAttributeTests.randomReferenceAttribute();
+            case 2 -> UnsupportedAttributeTests.randomUnsupportedAttribute();
+            case 3 -> MetadataAttributeTests.randomMetadataAttribute();
+            default -> throw new IllegalArgumentException();
+
+        };
     }
 
     private EsqlConfiguration randomConfiguration(Map<String, Map<String, Column>> tables) {
@@ -260,8 +269,8 @@ public class PlanStreamOutputTests extends ESTestCase {
     static {
         List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
         writeables.addAll(Block.getNamedWriteables());
-        writeables.addAll(FieldAttribute.getNamedWriteables());
-        writeables.addAll(ReferenceAttribute.getNamedWriteables());
+        writeables.addAll(Attribute.getNamedWriteables());
+        writeables.add(UnsupportedAttribute.ENTRY);
         writeables.addAll(EsField.getNamedWriteables());
         REGISTRY = new NamedWriteableRegistry(new ArrayList<>(new HashSet<>(writeables)));
     }

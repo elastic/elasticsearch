@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
@@ -55,6 +56,8 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.action.EsqlResponseListener.HEADER_NAME_ASYNC_ID;
+import static org.elasticsearch.xpack.esql.action.EsqlResponseListener.HEADER_NAME_ASYNC_RUNNING;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.hamcrest.Matchers.containsString;
@@ -309,21 +312,33 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
+        if (mode == ASYNC) {
+            assertEquals(expectedTextBody("txt", count, null), runEsqlAsyncAsTextWithFormat(builder, "txt", null));
+        } else {
+            assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
+        }
     }
 
     public void testCSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
+        if (mode == ASYNC) {
+            assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsyncAsTextWithFormat(builder, "csv", '|'));
+        } else {
+            assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
+        }
     }
 
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
         var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
-        assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
+        if (mode == ASYNC) {
+            assertEquals(expectedTextBody("tsv", count, null), runEsqlAsyncAsTextWithFormat(builder, "tsv", null));
+        } else {
+            assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
+        }
     }
 
     public void testCSVNoHeaderMode() throws IOException {
@@ -793,6 +808,95 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         HttpEntity entity = performRequest(request, NO_WARNINGS, NO_WARNINGS_REGEX);
         return Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+    }
+
+    static String runEsqlAsyncAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter)
+        throws IOException {
+        Request request = prepareRequest(ASYNC);
+        addAsyncParameters(builder);
+
+        String mediaType = attachBody(builder.build(), request);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+
+        boolean addParam = randomBoolean();
+        if (addParam) {
+            request.addParameter("format", format);
+        } else {
+            switch (format) {
+                case "txt" -> options.addHeader("Accept", "text/plain");
+                case "csv" -> options.addHeader("Accept", "text/csv");
+                case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
+            }
+        }
+        if (delimiter != null) {
+            request.addParameter("delimiter", String.valueOf(delimiter));
+        }
+        request.setOptions(options);
+        Response response = performRequest(request);
+        HttpEntity entity = response.getEntity();
+
+        // get the content, it could be empty because the request might have not completed
+        String initialValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+
+        String id = response.getHeader(HEADER_NAME_ASYNC_ID);
+        if (builder.keepOnCompletion()) {
+            assertThat(id, not(emptyOrNullString()));
+        }
+
+        if (id == null) {
+            // no id returned from an async call, must have completed immediately and without keep_on_completion
+            assertThat(builder.keepOnCompletion(), either(nullValue()).or(is(false)));
+            assertNull(response.getHeader("is_running"));
+            // the content cant be empty
+            assertThat(initialValue, not(emptyOrNullString()));
+            return initialValue;
+        } else {
+            // async may not return results immediately, so may need an async get
+            assertThat(id, is(not(emptyOrNullString())));
+            String isRunning = response.getHeader(HEADER_NAME_ASYNC_RUNNING);
+            if (Objects.equals(isRunning, "false")) {
+                // must have completed immediately so keep_on_completion must be true
+                assertThat(builder.keepOnCompletion(), is(true));
+            } else {
+                // did not return results immediately, so we will need an async get
+                // Also, different format modes return different results.
+                switch (format) {
+                    case "txt" -> assertThat(initialValue, emptyOrNullString());
+                    case "csv" -> {
+                        assertEquals(initialValue, "\r\n");
+                        initialValue = "";
+                    }
+                    case "tsv" -> {
+                        assertEquals(initialValue, "\n");
+                        initialValue = "";
+                    }
+                }
+            }
+            // issue a second request to "async get" the results
+            Request getRequest = prepareAsyncGetRequest(id);
+            if (delimiter != null) {
+                getRequest.addParameter("delimiter", String.valueOf(delimiter));
+            }
+            // If the `format` parameter is not added, the GET request will return a response
+            // with the `Content-Type` type due to the lack of an `Accept` header.
+            if (addParam) {
+                getRequest.addParameter("format", format);
+            }
+            // if `addParam` is false, `options` will already have an `Accept` header
+            getRequest.setOptions(options);
+            response = performRequest(getRequest);
+            entity = response.getEntity();
+        }
+        String newValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+
+        // assert initial contents, if any, are the same as async get contents
+        if (initialValue != null && initialValue.isEmpty() == false) {
+            assertEquals(initialValue, newValue);
+        }
+
+        assertDeletable(id);
+        return newValue;
     }
 
     private static Request prepareRequest(Mode mode) {

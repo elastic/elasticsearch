@@ -115,9 +115,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkShardRequest::new,
             BulkShardRequest::new,
             ExecutorSelector.getWriteExecutorForShard(threadPool),
-            false,
+            PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;

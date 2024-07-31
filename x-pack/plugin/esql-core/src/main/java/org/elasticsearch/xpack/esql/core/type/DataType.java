@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -28,6 +30,10 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public enum DataType {
+    /**
+     * Fields of this type are unsupported by any functions and are always
+     * rendered as {@code null} in the response.
+     */
     UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
     NULL(builder().esType("null").estimatedSize(0)),
     BOOLEAN(builder().esType("boolean").estimatedSize(1)),
@@ -43,14 +49,52 @@ public enum DataType {
     COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
     COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
 
+    /**
+     * 64-bit signed numbers loaded as a java {@code long}.
+     */
     LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
+    /**
+     * 32-bit signed numbers loaded as a java {@code int}.
+     */
     INTEGER(builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
-    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
-    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 64-bit unsigned numbers packed into a java {@code long}.
+     */
     UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues()),
+    /**
+     * 64-bit floating point number loaded as a java {@code double}.
+     */
     DOUBLE(builder().esType("double").estimatedSize(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
+
+    /**
+     * 16-bit signed numbers widened on load to {@link #INTEGER}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
+    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 8-bit signed numbers widened on load to {@link #INTEGER}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
+    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 32-bit floating point numbers widened on load to {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
     FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    /**
+     * 16-bit floating point numbers widened on load to {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
     HALF_FLOAT(builder().esType("half_float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    /**
+     * Signed 64-bit fixed point numbers converted on load to a {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions, operators,
+     * and results should never encounter one.
+     */
     SCALED_FLOAT(builder().esType("scaled_float").estimatedSize(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
 
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
@@ -72,8 +116,29 @@ public enum DataType {
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
 
+    /**
+     * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
+     * <ul>
+     *     <li>One copy of it is always added at the start of every query</li>
+     *     <li>It is implicitly dropped before being returned to the user</li>
+     *     <li>It is not "target-able" by any functions</li>
+     *     <li>Users shouldn't know it's there at all</li>
+     *     <li>It is used as an input for things that interact with Lucene like
+     *         loading field values</li>
+     * </ul>
+     */
     DOC_DATA_TYPE(builder().esType("_doc").estimatedSize(Integer.BYTES * 3)),
+    /**
+     * Fields with this type represent values from the {@link TimeSeriesIdFieldMapper}.
+     * Every document in {@link IndexMode#TIME_SERIES} index will have a single value
+     * for this field and the segments themselves are sorted on this value.
+     */
     TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
+    /**
+     * Fields with this type are the partial result of running a non-time-series aggregation
+     * inside alongside time-series aggregations. These fields are not parsable from the
+     * mapping and should be hidden from users.
+     */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
 
     private final String typeName;
@@ -217,8 +282,12 @@ public enum DataType {
         return t == KEYWORD || t == TEXT;
     }
 
+    public static boolean isPrimitiveAndSupported(DataType t) {
+        return isPrimitive(t) && t != UNSUPPORTED;
+    }
+
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED && t != UNSUPPORTED;
+        return t != OBJECT && t != NESTED;
     }
 
     public static boolean isNull(DataType t) {
@@ -229,23 +298,67 @@ public enum DataType {
         return t.isNumeric() || isNull(t);
     }
 
-    public static boolean isSigned(DataType t) {
-        return t.isNumeric() && t.equals(UNSIGNED_LONG) == false;
-    }
-
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
+    }
+
+    public static boolean isNullOrTimeDuration(DataType t) {
+        return t == TIME_DURATION || isNull(t);
+    }
+
+    public static boolean isNullOrDatePeriod(DataType t) {
+        return t == DATE_PERIOD || isNull(t);
+    }
+
+    public static boolean isTemporalAmount(DataType t) {
+        return t == DATE_PERIOD || t == TIME_DURATION;
+    }
+
+    public static boolean isNullOrTemporalAmount(DataType t) {
+        return isTemporalAmount(t) || isNull(t);
+    }
+
+    public static boolean isDateTimeOrTemporal(DataType t) {
+        return isDateTime(t) || isTemporalAmount(t);
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;
         } else {
-            return (left == NULL || right == NULL)
-                || (isString(left) && isString(right))
-                || (left.isNumeric() && right.isNumeric())
-                || (isDateTime(left) && isDateTime(right));
+            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
         }
+    }
+
+    /**
+     * Supported types that can be contained in a block.
+     */
+    public static boolean isRepresentable(DataType t) {
+        return t != OBJECT
+            && t != NESTED
+            && t != UNSUPPORTED
+            && t != DATE_PERIOD
+            && t != TIME_DURATION
+            && t != BYTE
+            && t != SHORT
+            && t != FLOAT
+            && t != SCALED_FLOAT
+            && t != SOURCE
+            && t != HALF_FLOAT
+            && t != PARTIAL_AGG
+            && t.isCounter() == false;
+    }
+
+    public static boolean isSpatialPoint(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
+    }
+
+    public static boolean isSpatialGeo(DataType t) {
+        return t == GEO_POINT || t == GEO_SHAPE;
+    }
+
+    public static boolean isSpatial(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
     public String nameUpper() {
@@ -386,7 +499,8 @@ public enum DataType {
 
         /**
          * If this is a "small" numeric type this contains the type ESQL will
-         * widen it into, otherwise this is {@code null}.
+         * widen it into, otherwise this is {@code null}. "Small" numeric types
+         * aren't supported by ESQL proper and are "widened" on load.
          */
         private DataType widenSmallNumeric;
 
@@ -438,6 +552,11 @@ public enum DataType {
             return this;
         }
 
+        /**
+         * If this is a "small" numeric type this contains the type ESQL will
+         * widen it into, otherwise this is {@code null}. "Small" numeric types
+         * aren't supported by ESQL proper and are "widened" on load.
+         */
         Builder widenSmallNumeric(DataType widenSmallNumeric) {
             this.widenSmallNumeric = widenSmallNumeric;
             return this;

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.optimizer.rules.SubstituteSurrogates.rawTemporaryName;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.rawTemporaryName;
 
 public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
     private static int counter = 0;

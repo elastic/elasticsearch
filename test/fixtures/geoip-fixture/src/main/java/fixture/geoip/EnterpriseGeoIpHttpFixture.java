@@ -32,7 +32,6 @@ import java.security.MessageDigest;
 public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
     private final Path source;
-    private final boolean enabled;
     private final String[] databaseTypes;
     private HttpServer server;
 
@@ -40,8 +39,7 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
      * The values in databaseTypes must be in DatabaseConfiguration.MAXMIND_NAMES, and must be one of the databases copied in the
      * copyFiles method of thisi class.
      */
-    public EnterpriseGeoIpHttpFixture(boolean enabled, String... databaseTypes) {
-        this.enabled = enabled;
+    public EnterpriseGeoIpHttpFixture(String... databaseTypes) {
         this.databaseTypes = databaseTypes;
         try {
             this.source = Files.createTempDirectory("source");
@@ -56,28 +54,26 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
     @Override
     protected void before() throws Throwable {
-        if (enabled) {
-            copyFiles();
-            this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        copyFiles();
+        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
 
-            // for expediency reasons, it is handy to have this test fixture be able to serve the dual purpose of actually stubbing
-            // out the download protocol for downloading files from maxmind (see the looped context creation after this stanza), as
-            // we as to serve an empty response for the geoip.elastic.co service here
-            this.server.createContext("/", exchange -> {
-                String response = "[]"; // an empty json array
-                exchange.sendResponseHeaders(200, response.length());
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes(StandardCharsets.UTF_8));
-                }
-            });
-
-            // register the file types for the download fixture
-            for (String databaseType : databaseTypes) {
-                createContextForEnterpriseDatabase(databaseType);
+        // for expediency reasons, it is handy to have this test fixture be able to serve the dual purpose of actually stubbing
+        // out the download protocol for downloading files from maxmind (see the looped context creation after this stanza), as
+        // we as to serve an empty response for the geoip.elastic.co service here
+        this.server.createContext("/", exchange -> {
+            String response = "[]"; // an empty json array
+            exchange.sendResponseHeaders(200, response.length());
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(response.getBytes(StandardCharsets.UTF_8));
             }
+        });
 
-            server.start();
+        // register the file types for the download fixture
+        for (String databaseType : databaseTypes) {
+            createContextForEnterpriseDatabase(databaseType);
         }
+
+        server.start();
     }
 
     private void createContextForEnterpriseDatabase(String databaseType) {
@@ -108,9 +104,7 @@ public class EnterpriseGeoIpHttpFixture extends ExternalResource {
 
     @Override
     protected void after() {
-        if (enabled) {
-            server.stop(0);
-        }
+        server.stop(0);
     }
 
     private void copyFiles() throws Exception {

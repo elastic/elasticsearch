@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -101,10 +102,11 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareGet("idx", "id").execute(new AssertingActionListener<>(TransportGetAction.TYPE.name(), client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(TransportSearchAction.TYPE.name(), client.threadPool()));
         client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(TransportDeleteAction.NAME, client.threadPool()));
-        client.admin()
-            .cluster()
-            .prepareDeleteStoredScript("id")
-            .execute(new AssertingActionListener<>(TransportDeleteStoredScriptAction.TYPE.name(), client.threadPool()));
+        client.execute(
+            TransportDeleteStoredScriptAction.TYPE,
+            new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "id"),
+            new AssertingActionListener<>(TransportDeleteStoredScriptAction.TYPE.name(), client.threadPool())
+        );
         client.prepareIndex("idx")
             .setId("id")
             .setSource("source", XContentType.JSON)

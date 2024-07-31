@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
 import java.time.ZoneId;
@@ -38,7 +40,26 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         Map.entry(DataType.IP, LessThanKeywordsEvaluator.Factory::new)
     );
 
-    public LessThan(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = "Check if one field is less than another. "
+            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+        note = "This is pushed to the underlying search index if one side of the comparison is constant "
+            + "and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>."
+    )
+    public LessThan(
+        Source source,
+        @Param(
+            name = "lhs",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression right
+    ) {
         this(source, left, right, null);
     }
 

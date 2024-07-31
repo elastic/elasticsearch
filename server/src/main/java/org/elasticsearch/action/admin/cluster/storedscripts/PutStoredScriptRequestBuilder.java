@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
 public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
@@ -19,8 +20,8 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
     AcknowledgedResponse,
     PutStoredScriptRequestBuilder> {
 
-    public PutStoredScriptRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportPutStoredScriptAction.TYPE, new PutStoredScriptRequest());
+    public PutStoredScriptRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(client, TransportPutStoredScriptAction.TYPE, new PutStoredScriptRequest(masterNodeTimeout, ackTimeout));
     }
 
     public PutStoredScriptRequestBuilder setId(String id) {

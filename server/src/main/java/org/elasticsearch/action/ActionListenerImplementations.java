@@ -9,6 +9,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
@@ -251,6 +252,33 @@ class ActionListenerImplementations {
         @Override
         public String toString() {
             return super.toString() + "/" + bc;
+        }
+    }
+
+    /**
+     * The same as {@link ResponseWrappingActionListener} except that the response is dropped
+     */
+    static final class ResponseDroppingActionListener<T, R> extends DelegatingActionListener<T, R> {
+
+        private final CheckedConsumer<ActionListener<R>, ? extends Exception> consumer;
+
+        ResponseDroppingActionListener(ActionListener<R> delegate, CheckedConsumer<ActionListener<R>, ? extends Exception> consumer) {
+            super(delegate);
+            this.consumer = consumer;
+        }
+
+        @Override
+        public void onResponse(T ignored) {
+            try {
+                consumer.accept(delegate);
+            } catch (Exception e) {
+                onFailure(e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "/" + consumer;
         }
     }
 

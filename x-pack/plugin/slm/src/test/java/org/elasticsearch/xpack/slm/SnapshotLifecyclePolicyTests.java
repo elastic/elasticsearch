@@ -241,7 +241,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 containsInAnyOrder(
                     "invalid policy id [_my_policy]: must not start with '_'",
                     "invalid snapshot name [mySnap]: must be lowercase",
-                    "invalid schedule [ ]: schedule must not be empty"
+                    "invalid schedule [ ]: must not be empty"
                 )
             );
         }

@@ -206,7 +206,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
         // Schedule validation
         if (Strings.hasText(schedule) == false) {
-            err.addValidationError("invalid schedule [" + schedule + "]: schedule must not be empty");
+            err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
         } else {
             try {
                 var intervalTimeValue = TimeValue.parseTimeValue(schedule, SCHEDULE.getPreferredName());

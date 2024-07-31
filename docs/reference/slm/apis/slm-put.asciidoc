@@ -103,8 +103,8 @@ Minimum number of snapshots to retain, even if the snapshots have expired.
 (Required, <<api-cron-expressions,Cron syntax>> or <<time-units, time units>>)
 Periodic or absolute schedule at which the policy creates snapshots. {slm-init}
 applies `schedule` changes immediately.
-Schedule may either be a Cron schedule, or a time unit describing the interval between snapshots.
-When using time unit intervals, the first snapshot is scheduled one interval after the policy modification time, and then again every interval after.
+Schedule may be either a Cron schedule or a time unit describing the interval between snapshots.
+When using a time unit interval, the first snapshot is scheduled one interval after the policy modification time, and then again every interval after.
 
 
 [[slm-api-put-example]]

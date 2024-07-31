@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -78,6 +79,17 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     //
     // pass Object.class as a type token to pick Collections of expressions not just expressions
     //
+
+    public <E extends Expression> PlanType transformExpressionsOnlyUsingParent(
+        Class<E> typeToken,
+        BiFunction<Expression, Expression, ? extends Expression> rule
+    ) {
+        return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDownUsingParent(typeToken, rule)));
+    }
+
+    public PlanType transformExpressionsOnlyUsingParent(BiFunction<Expression, Expression, ? extends Expression> rule) {
+        return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDownUsingParent(rule)));
+    }
 
     public PlanType transformExpressionsOnly(Function<Expression, ? extends Expression> rule) {
         return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(rule)));

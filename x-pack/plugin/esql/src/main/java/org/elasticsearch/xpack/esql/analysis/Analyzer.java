@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -432,7 +433,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveLookup(l, childrenOutput);
             }
 
-            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            return plan.transformExpressionsOnlyUsingParent(
+                UnresolvedAttribute.class,
+                (ua, parent) -> maybeResolveAttribute((UnresolvedAttribute) ua, parent, childrenOutput)
+            );
         }
 
         private LogicalPlan resolveStats(Stats stats, List<Attribute> childrenOutput) {
@@ -445,7 +449,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (Resolvables.resolved(groupings) == false) {
                 List<Expression> newGroupings = new ArrayList<>(groupings.size());
                 for (Expression g : groupings) {
-                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                    Expression resolved = g.transformUpUsingParent(
+                        UnresolvedAttribute.class,
+                        (ua, parent) -> maybeResolveAttribute((UnresolvedAttribute) ua, parent, childrenOutput)
+                    );
                     if (resolved != g) {
                         changed.set(true);
                     }
@@ -470,9 +477,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<NamedExpression> newAggregates = new ArrayList<>();
 
                 for (NamedExpression aggregate : stats.aggregates()) {
-                    var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
+                    var agg = (NamedExpression) aggregate.transformUpUsingParent(UnresolvedAttribute.class, (ua, parent) -> {
                         Expression ne = ua;
-                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                        Attribute maybeResolved = maybeResolveAttribute((UnresolvedAttribute) ua, parent, resolvedList);
                         if (maybeResolved != null) {
                             changed.set(true);
                             ne = maybeResolved;
@@ -490,7 +497,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
             if (p.target() instanceof UnresolvedAttribute ua) {
-                Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
+                Attribute resolved = maybeResolveAttribute(ua, null, childrenOutput);
                 if (resolved == ua) {
                     return p;
                 }
@@ -529,7 +536,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Attribute matchFieldChildReference = matchField;
                 if (matchField instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
                     modified = true;
-                    Attribute joinedAttribute = maybeResolveAttribute(ua, localOutput);
+                    Attribute joinedAttribute = maybeResolveAttribute(ua, null, localOutput);
                     // can't find the field inside the local relation
                     if (joinedAttribute instanceof UnresolvedAttribute lua) {
                         // adjust message
@@ -538,7 +545,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         );
                     } else {
                         // check also the child output by resolving to it
-                        Attribute attr = maybeResolveAttribute(ua, childrenOutput);
+                        Attribute attr = maybeResolveAttribute(ua, null, childrenOutput);
                         matchFieldChildReference = attr;
                         if (attr instanceof UnresolvedAttribute == false) {
                             /*
@@ -578,24 +585,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return l;
         }
 
-        private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
-            return maybeResolveAttribute(ua, childrenOutput, log);
+        private Attribute maybeResolveAttribute(UnresolvedAttribute ua, Expression parent, List<Attribute> childrenOutput) {
+            return maybeResolveAttribute(ua, parent, childrenOutput, log);
         }
 
-        private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+        private static Attribute maybeResolveAttribute(
+            UnresolvedAttribute ua,
+            Expression parent,
+            List<Attribute> childrenOutput,
+            Logger logger
+        ) {
             if (ua.customMessage()) {
                 return ua;
             }
-            return resolveAttribute(ua, childrenOutput, logger);
+            return resolveAttribute(ua, parent, childrenOutput, logger);
         }
 
-        private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
-            return resolveAttribute(ua, childrenOutput, log);
+        private Attribute resolveAttribute(UnresolvedAttribute ua, Expression parent, List<Attribute> childrenOutput) {
+            return resolveAttribute(ua, parent, childrenOutput, log);
         }
 
-        private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+        private static Attribute resolveAttribute(
+            UnresolvedAttribute ua,
+            Expression parent,
+            List<Attribute> childrenOutput,
+            Logger logger
+        ) {
             Attribute resolved = ua;
-            var named = resolveAgainstList(ua, childrenOutput);
+            var named = resolveAgainstList(ua, parent, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -615,7 +632,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : eval.fields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                Alias result = (Alias) field.transformUpUsingParent(
+                    UnresolvedAttribute.class,
+                    (ua, parent) -> resolveAttribute((UnresolvedAttribute) ua, parent, allResolvedInputs)
+                );
 
                 changed |= result != field;
                 newFields.add(result);
@@ -683,10 +703,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved = childOutput;
                         priority = 2;
                     } else if (proj instanceof UnresolvedNamePattern up) {
-                        resolved = resolveAgainstList(up, childOutput);
+                        resolved = resolveAgainstList(up, null, childOutput);
                         priority = 1;
                     } else if (proj instanceof UnresolvedAttribute ua) {
-                        resolved = resolveAgainstList(ua, childOutput);
+                        resolved = resolveAgainstList(ua, null, childOutput);
                         priority = 0;
                     } else {
                         throw new EsqlIllegalArgumentException("unexpected projection: " + proj);
@@ -712,9 +732,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<? extends NamedExpression> resolved;
 
                 if (ne instanceof UnresolvedNamePattern np) {
-                    resolved = resolveAgainstList(np, childOutput);
+                    // TODO: Dirty hack, pass any conversion function as "parent" so that union types do not get flagged as unresolved;
+                    // using them in DROP is fine.
+                    resolved = resolveAgainstList(np, new ToString(Source.EMPTY, np), childOutput);
                 } else if (ne instanceof UnresolvedAttribute ua) {
-                    resolved = resolveAgainstList(ua, childOutput);
+                    // TODO: Same dirty hack
+                    resolved = resolveAgainstList(ua, new ToString(Source.EMPTY, ua), childOutput);
                 } else {
                     resolved = singletonList(ne);
                 }
@@ -754,9 +777,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
                     projections.removeIf(x -> x.name().equals(alias.name()));
 
-                    var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
+                    var resolved = maybeResolveAttribute(ua, alias, childrenOutput, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
-                        var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
+                        var realiased = alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
                         childrenOutput.removeIf(x -> x.equals(resolved));
                         reverseAliasing.put(resolved.name(), alias.name());
@@ -803,7 +826,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
 
             if (enrich.matchField().toAttribute() instanceof UnresolvedAttribute ua) {
-                Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
+                Attribute resolved = maybeResolveAttribute(ua, null, childrenOutput);
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
@@ -840,15 +863,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
+    private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Expression parent, Collection<Attribute> attrList) {
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern(), null);
         Predicate<Attribute> matcher = a -> up.match(a.name()) || up.match(a.qualifiedName());
-        var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
+        var matches = AnalyzerRules.maybeResolveAgainstList(
+            matcher,
+            () -> ua,
+            parent,
+            attrList,
+            true,
+            (a, p) -> Analyzer.tryResolveUnionTypeFields(ua, p, a)
+        );
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
     }
 
-    private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
-        var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
+    private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Expression parent, Collection<Attribute> attrList) {
+        var matches = AnalyzerRules.maybeResolveAgainstList(ua, parent, attrList, (a, p) -> Analyzer.tryResolveUnionTypeFields(ua, p, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
     }
 
@@ -874,8 +904,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return matches;
     }
 
-    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named) {
-        return named.withLocation(u.source());
+    private static Attribute tryResolveUnionTypeFields(UnresolvedAttribute toResolve, Expression parent, Attribute resolveTo) {
+        if (resolveTo instanceof FieldAttribute fa) {
+            // incompatible mappings
+            var field = fa.field();
+            // Multi-typed fields are allowed if and only if we convert them to a single type immediately.
+            if (field instanceof InvalidMappedField imf && (parent instanceof AbstractConvertFunction == false)) {
+                resolveTo = toResolve.withUnresolvedMessage(
+                    "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage()
+                );
+            }
+        }
+
+        return resolveTo.withLocation(toResolve.source());
     }
 
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
@@ -1138,7 +1179,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved.put(attr, e);
                     }
                 }
-                plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
+                plan = plan.transformExpressionsOnlyUsingParent(
+                    UnresolvedAttribute.class,
+                    (ua, parent) -> resolveAttribute((UnresolvedAttribute) ua, parent, resolved)
+                );
             }
 
             // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
@@ -1162,8 +1206,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Expression resolveAttribute(UnresolvedAttribute ua, Map<Attribute, Expression> resolved) {
-            var named = resolveAgainstList(ua, resolved.keySet());
+        private Expression resolveAttribute(UnresolvedAttribute ua, Expression parent, Map<Attribute, Expression> resolved) {
+            var named = resolveAgainstList(ua, parent, resolved.keySet());
             return switch (named.size()) {
                 case 0 -> ua;
                 case 1 -> named.get(0).equals(ua) ? ua : resolved.get(named.get(0));

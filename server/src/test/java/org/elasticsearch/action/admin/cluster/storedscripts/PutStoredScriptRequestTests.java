@@ -25,6 +25,8 @@ public class PutStoredScriptRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             "bar",
             "context",
             new BytesArray("{}"),
@@ -54,7 +56,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
 
         BytesReference expectedRequestBody = BytesReference.bytes(builder);
 
-        PutStoredScriptRequest request = new PutStoredScriptRequest();
+        PutStoredScriptRequest request = new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.id("test1");
         request.content(expectedRequestBody, xContentType);
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.Maps;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -59,6 +60,27 @@ public class CCSUsageTelemetry {
     public static final String MRT_FEATURE = "mrt_on";
     public static final String ASYNC_FEATURE = "async";
     public static final String WILDCARD_FEATURE = "wildcards";
+
+    // The list of known Elastic clients. May be incomplete.
+    public static final Set<String> KNOWN_CLIENTS = Set.of(
+        "kibana",
+        "cloud",
+        "logstash",
+        "beats",
+        "fleet",
+        "ml",
+        "security",
+        "observability",
+        "enterprise-search",
+        "elasticsearch",
+        "connectors",
+        "connectors-cli"
+    );
+
+    /**
+     * Maximum number of clients to keep in the telemetry. The clients from KNOWN_CLIENTS are always kept.
+     */
+    public static final int MAX_CLIENTS = 20;
 
     // TODO: do we need LongAdder here or long is enough? Since updateUsage is synchronized, worst that can happen is
     // we may miss a count on read.
@@ -129,8 +151,12 @@ public class CCSUsageTelemetry {
             ccsUsage.getSkippedRemotes().forEach(remote -> byRemoteCluster.computeIfAbsent(remote, PerClusterCCSTelemetry::new).skipped());
         }
         ccsUsage.getFeatures().forEach(f -> featureCounts.computeIfAbsent(f, k -> new LongAdder()).increment());
-        if (ccsUsage.getClient() != null) {
-            clientCounts.computeIfAbsent(ccsUsage.getClient(), k -> new LongAdder()).increment();
+        String client = ccsUsage.getClient();
+        if (client != null) {
+            // We only keep limited number of unknown clients to prevent memory exhaustion
+            if (KNOWN_CLIENTS.contains(client) || clientCounts.containsKey(client) || clientCounts.size() < MAX_CLIENTS) {
+                clientCounts.computeIfAbsent(ccsUsage.getClient(), k -> new LongAdder()).increment();
+            } // else we ignore the client
         }
     }
 

@@ -60,7 +60,8 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
             ShardFlushRequest::new,
             threadPool.executor(ThreadPool.Names.FLUSH),
             SyncGlobalCheckpointAfterOperation.DoNotSync,
-            PrimaryActionExecution.RejectOnOverload
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
         transportService.registerRequestHandler(
             PRE_SYNCED_FLUSH_ACTION_NAME,

@@ -84,9 +84,9 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     /**
      * HTTP header names
      */
-    public static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
-    public static final String HEADER_NAME_ASYNC_ID = "Async-ID";
-    public static final String HEADER_NAME_ASYNC_RUNNING = "Async-running";
+    private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
+    private static final String HEADER_NAME_ASYNC_ID = "Async-ID";
+    private static final String HEADER_NAME_ASYNC_RUNNING = "Async-running";
 
     private final RestChannel channel;
     private final RestRequest restRequest;

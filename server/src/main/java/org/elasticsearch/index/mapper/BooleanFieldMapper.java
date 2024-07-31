@@ -25,6 +25,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -60,6 +61,8 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
+    static final NodeFeature BOOLEAN_DIMENSION = new NodeFeature("mapper.boolean_dimension");
+
     public static class Values {
         public static final BytesRef TRUE = new BytesRef("T");
         public static final BytesRef FALSE = new BytesRef("F");
@@ -69,7 +72,7 @@ public class BooleanFieldMapper extends FieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    public static final class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -94,6 +97,8 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
 
+        private final Parameter<Boolean> dimension;
+
         public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -106,15 +111,36 @@ public class BooleanFieldMapper extends FieldMapper {
             );
             this.script.precludesParameters(ignoreMalformed, nullValue);
             addScriptValidation(script, indexed, docValues);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension()).addValidator(v -> {
+                if (v && (indexed.getValue() == false || docValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + docValues.name
+                            + "] are true"
+                    );
+                }
+            });
+        }
+
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, docValues, indexed, nullValue, stored, script, onScriptError, ignoreMalformed };
+            return new Parameter<?>[] { meta, docValues, indexed, nullValue, stored, script, onScriptError, ignoreMalformed, dimension };
         }
 
         @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
+            if (inheritDimensionParameterFromParentObject(context)) {
+                dimension(true);
+            }
             MappedFieldType ft = new BooleanFieldType(
                 context.buildFullName(leafName()),
                 indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
@@ -122,7 +148,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 docValues.getValue(),
                 nullValue.getValue(),
                 scriptValues(),
-                meta.getValue()
+                meta.getValue(),
+                dimension.getValue()
             );
             return new BooleanFieldMapper(
                 leafName(),
@@ -158,6 +185,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final Boolean nullValue;
         private final FieldValues<Boolean> scriptValues;
+        private final boolean isDimension;
 
         public BooleanFieldType(
             String name,
@@ -166,11 +194,13 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean hasDocValues,
             Boolean nullValue,
             FieldValues<Boolean> scriptValues,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isDimension
         ) {
             super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
+            this.isDimension = isDimension;
         }
 
         public BooleanFieldType(String name) {
@@ -182,7 +212,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         public BooleanFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap());
+            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap(), false);
         }
 
         @Override
@@ -193,6 +223,11 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public boolean isSearchable() {
             return isIndexed() || hasDocValues();
+        }
+
+        @Override
+        public boolean isDimension() {
+            return isDimension;
         }
 
         @Override
@@ -455,6 +490,10 @@ public class BooleanFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
+
+        if (fieldType().isDimension()) {
+            context.getDimensions().addBoolean(fieldType().name(), value).validate(context.indexSettings());
+        }
         if (indexed) {
             context.doc().add(new StringField(fieldType().name(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));
         }
@@ -480,7 +519,17 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(fieldType().isDimension())
+            .init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fullPath())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + fullPath() + "]"
+            );
+        }
     }
 
     @Override

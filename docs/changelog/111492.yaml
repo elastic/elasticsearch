@@ -1,0 +1,11 @@
+pr: 111492
+summary: Remove support for the `weighted_tokens` query
+area: "Relevance, Search"
+type: deprecation
+issues: []
+deprecation:
+  title: Remove support for the `weighted_tokens` query
+  area: "Relevance, Search"
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

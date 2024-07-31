@@ -25,7 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * This response is used by {@link PutDataStreamGlobalRetentionAction} and {@link DeleteDataStreamGlobalRetentionAction} to
+ * This response is used by {@link PutDataStreamGlobalRetentionAction} to
  * communicate to the user the result of a global retention update and the affected data streams.
  */
 public final class UpdateDataStreamGlobalRetentionResponse extends ActionResponse implements ChunkedToXContentObject {

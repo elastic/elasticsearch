@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -261,10 +260,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 );
             }
         } finally {
-            client().execute(
-                DeleteDataStreamGlobalRetentionAction.INSTANCE,
-                new DeleteDataStreamGlobalRetentionAction.Request(TEST_REQUEST_TIMEOUT)
-            );
+            // reset properties
         }
     }
 

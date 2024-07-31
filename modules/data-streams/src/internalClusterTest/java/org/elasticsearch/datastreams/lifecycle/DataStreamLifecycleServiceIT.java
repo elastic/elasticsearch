@@ -51,7 +51,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
 import org.elasticsearch.health.Diagnosis;
@@ -299,10 +298,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
                 client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME)).actionGet();
             } finally {
-                client().execute(
-                    DeleteDataStreamGlobalRetentionAction.INSTANCE,
-                    new DeleteDataStreamGlobalRetentionAction.Request(TEST_REQUEST_TIMEOUT)
-                );
+                // reset properties
             }
         } finally {
             dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(clock::millis));

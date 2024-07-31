@@ -45,7 +45,6 @@ import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.UpdateDataStreamGlobalRetentionService;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
@@ -250,12 +249,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             new ActionHandler<>(
                 GetDataStreamGlobalRetentionAction.INSTANCE,
                 GetDataStreamGlobalRetentionAction.TransportGetDataStreamGlobalSettingsAction.class
-            )
-        );
-        actions.add(
-            new ActionHandler<>(
-                DeleteDataStreamGlobalRetentionAction.INSTANCE,
-                DeleteDataStreamGlobalRetentionAction.TransportDeleteDataStreamGlobalRetentionAction.class
             )
         );
         return actions;

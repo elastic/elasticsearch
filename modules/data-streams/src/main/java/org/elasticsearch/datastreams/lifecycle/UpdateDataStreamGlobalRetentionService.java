@@ -26,7 +26,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.action.UpdateDataStreamGlobalRetentionResponse;
 
@@ -78,18 +77,6 @@ public class UpdateDataStreamGlobalRetentionService {
                 listener,
                 request.masterNodeTimeout()
             ),
-            request.masterNodeTimeout()
-        );
-    }
-
-    public void removeGlobalRetention(
-        DeleteDataStreamGlobalRetentionAction.Request request,
-        List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams,
-        final ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
-    ) {
-        taskQueue.submitTask(
-            "remove-data-stream-global-retention",
-            new UpsertGlobalDataStreamMetadataTask(null, affectedDataStreams, listener, request.masterNodeTimeout()),
             request.masterNodeTimeout()
         );
     }

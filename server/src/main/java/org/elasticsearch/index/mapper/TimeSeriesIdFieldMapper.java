@@ -348,7 +348,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         public DocumentDimensions addBoolean(String fieldName, boolean value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.write((byte) 'b');
-                out.writeBoolean(value);
+                out.write(value ? 't' : 'f');
                 add(fieldName, out.bytes());
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
@@ -428,7 +428,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     case (byte) 'd' -> // parse a double
                         result.put(name, in.readDouble());
                     case (byte) 'b' -> // parse a boolean
-                        result.put(name, in.readBoolean());
+                        result.put(name, in.read() == 't');
                     default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
             }

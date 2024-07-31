@@ -1120,6 +1120,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
+            // TODO: Is the next block even required? Aggregates shouldn't directly reference invalid mapped fields, only their converted,
+            // union type versions.
+
             // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
             // Now that we have resolved those, we need to re-resolve the aggregates.
             if (plan instanceof Aggregate agg) {
@@ -1235,30 +1238,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
-     * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
-     * then there could still be some {@code FieldAttribute}s that contain unresolved {@link MultiTypeEsField}s.
-     * These need to be converted back to actual {@code UnresolvedAttribute} in order for validation to generate appropriate failures.
-     * <p>
-     * Finally, if {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
-     * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
+     * If {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword}, using
+     * {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip} in {@link ResolveUnionTypes}.
      * This should not spill into the query output, so we drop such attributes at the end.
      */
     private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
-            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(LogicalPlan.class, p -> {
-                if (p instanceof EsRelation esRelation) {
-                    // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
-                    return esRelation;
-                }
-                return p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
-            });
-
             // To drop synthetic attributes at the end, we need to compute the plan's output.
             // This is only legal to do if the plan is resolved.
-            return planWithCheckedUnionTypes.resolved()
-                ? planWithoutSyntheticAttributes(planWithCheckedUnionTypes)
-                : planWithCheckedUnionTypes;
+            return plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
         }
 
         static Attribute checkUnresolved(FieldAttribute fa) {

@@ -1017,9 +1017,7 @@ client_ip:ip | event_duration:long |    message:keyword    |    @timestamp:keywo
 # Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats
 
 multiIndexNoUnionRename
-// TODO: union types not really required, this is only needed because csv tests currently can't load more than one
-// index/csv.
-required_capability: union_types
+required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | RENAME message AS event_message
 | SORT client_ip ASC

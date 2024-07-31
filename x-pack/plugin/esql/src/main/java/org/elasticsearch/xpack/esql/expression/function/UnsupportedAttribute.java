@@ -93,7 +93,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     public static UnsupportedAttribute readFrom(StreamInput in) throws IOException {
-        return (UnsupportedAttribute) ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::new);
     }
 
     @Override

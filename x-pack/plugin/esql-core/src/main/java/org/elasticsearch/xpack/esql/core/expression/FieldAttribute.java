@@ -120,7 +120,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public static FieldAttribute readFrom(StreamInput in) throws IOException {
-        return (FieldAttribute) ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::new);
     }
 
     @Override

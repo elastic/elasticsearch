@@ -78,7 +78,7 @@ public class ReferenceAttribute extends TypedAttribute {
     }
 
     public static ReferenceAttribute readFrom(StreamInput in) throws IOException {
-        return (ReferenceAttribute) ((PlanStreamInput) in).readAttributeWithCache(ReferenceAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(ReferenceAttribute::new);
     }
 
     @Override

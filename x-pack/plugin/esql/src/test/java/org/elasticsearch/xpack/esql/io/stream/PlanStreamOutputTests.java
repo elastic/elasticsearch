@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -202,7 +203,7 @@ public class PlanStreamOutputTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration, PlanNamedTypes::name, 10)
         ) {
-            expectThrows(IllegalStateException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 for (int i = 0; i <= 10; i++) {
                     planStream.writeNamedWriteable(randomAttribute());
                 }

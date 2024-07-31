@@ -40,8 +40,8 @@ public interface PlanStreamInput {
     /**
      * Reads an Attribute using the attribute cache.
      * @param constructor the constructor needed to build the actual attribute when read from the wire
-     * @return A field attribute
+     * @return An attribute; this will generally be the same type as the provided constructor
      * @throws IOException
      */
-    Attribute readAttributeWithCache(CheckedFunction<StreamInput, Attribute, IOException> constructor) throws IOException;
+    <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException;
 }

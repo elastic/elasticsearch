@@ -109,7 +109,7 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     public static MetadataAttribute readFrom(StreamInput in) throws IOException {
-        return (MetadataAttribute) ((PlanStreamInput) in).readAttributeWithCache(MetadataAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(MetadataAttribute::new);
     }
 
     @Override

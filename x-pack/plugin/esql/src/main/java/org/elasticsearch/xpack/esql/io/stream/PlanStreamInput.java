@@ -213,17 +213,23 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         return nameIdFunction.apply(l);
     }
 
+    /**
+     * @param constructor the constructor needed to build the actual attribute when read from the wire
+     * @throws IOException
+     */
     @Override
-    public Attribute readAttributeWithCache(CheckedFunction<StreamInput, Attribute, IOException> constructor) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
+    @SuppressWarnings("unchecked")
+    public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
                 cacheId = -1 - cacheId;
                 Attribute result = constructor.apply(this);
                 cacheAttribute(cacheId, result);
-                return result;
+                return (A) result;
             } else {
-                return attributeFromCache(cacheId);
+                return (A) attributeFromCache(cacheId);
             }
         } else {
             return constructor.apply(this);

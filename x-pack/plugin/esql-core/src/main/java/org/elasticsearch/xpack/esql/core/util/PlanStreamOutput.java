@@ -14,8 +14,8 @@ import java.io.IOException;
 public interface PlanStreamOutput {
 
     /**
-     * Writes cache header for {@link Attribute}s. It also handles the cache itself.
-     * After this, the Attribute will also have to serialize itself
+     * Writes a cache header for an {@link Attribute} and caches it if it is not already in the cache.
+     * In that case, the attribute will have to serialize itself into this stream immediately after this method call.
      * @param attribute The attribute to serialize
      * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
      * @throws IOException

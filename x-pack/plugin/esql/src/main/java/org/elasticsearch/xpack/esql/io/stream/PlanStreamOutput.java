@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -43,7 +44,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      * <p>
      * TODO should this be a cluster setting...?
      */
-    private static final int MAX_ATTRIBUTE_CACHE_SIZE = 1_000_000;
+    protected static final int MAX_SERIALIZED_ATTRIBUTES = 1_000_000;
 
     /**
      * Cache of written blocks. We use an {@link IdentityHashMap} for this
@@ -70,11 +71,11 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     private int nextCachedBlock = 0;
 
-    private int maxAttributeCacheSize;
+    private int maxSerializedAttributes;
 
     public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable EsqlConfiguration configuration)
         throws IOException {
-        this(delegate, registry, configuration, PlanNamedTypes::name, MAX_ATTRIBUTE_CACHE_SIZE);
+        this(delegate, registry, configuration, PlanNamedTypes::name, MAX_SERIALIZED_ATTRIBUTES);
     }
 
     public PlanStreamOutput(
@@ -82,7 +83,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         PlanNameRegistry registry,
         @Nullable EsqlConfiguration configuration,
         Function<Class<?>, String> nameSupplier,
-        int maxAttributeCacheSize
+        int maxSerializedAttributes
     ) throws IOException {
         this.delegate = delegate;
         this.registry = registry;
@@ -94,7 +95,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
                 }
             }
         }
-        this.maxAttributeCacheSize = maxAttributeCacheSize;
+        this.maxSerializedAttributes = maxSerializedAttributes;
     }
 
     public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
@@ -183,7 +184,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_FIELD_ATTRIBUTE_CACHED_SERIALIZATION)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)) {
             Integer cacheId = attributeIdFromCache(attribute);
             if (cacheId != null) {
                 writeZLong(cacheId);
@@ -205,8 +206,8 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
         }
         int id = cachedAttributes.size();
-        if (id >= maxAttributeCacheSize) {
-            throw new IllegalStateException("Limit of the number of serialized attributes exceeded [" + maxAttributeCacheSize + "]");
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized attributes exceeded [{}]", maxSerializedAttributes);
         }
         cachedAttributes.put(attr, id);
         return id;

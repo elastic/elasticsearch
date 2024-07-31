@@ -228,53 +228,6 @@ public enum DataType {
         return TYPES;
     }
 
-    /**
-     * The types that are valid in function parameters. This is used by the
-     * function tests to enumerate all possible parameters to test error messages
-     * for invalid combinations.
-     */
-    public static Stream<DataType> validFunctionParameters() {
-        return Arrays.stream(values()).filter(t -> {
-            if (t == UNSUPPORTED) {
-                // By definition, functions never support UNSUPPORTED
-                return false;
-            }
-            if (t == DOC_DATA_TYPE || t == PARTIAL_AGG) {
-                /*
-                 * Doc and partial_agg are special and functions aren't
-                 * defined to take these. They'll use them implicitly if needed.
-                 */
-                return false;
-            }
-            if (t == OBJECT || t == NESTED) {
-                // Object and nested fields aren't supported by any functions yet
-                return false;
-            }
-            if (t == SOURCE || t == TSID_DATA_TYPE) {
-                // No functions take source or tsid fields yet. We'll make some eventually and remove this.
-                return false;
-            }
-            if (t == DATE_PERIOD || t == TIME_DURATION) {
-                // We don't test that functions don't take date_period or time_duration. We should.
-                return false;
-            }
-            if (t.isCounter) {
-                /*
-                 * For now, we're assuming no functions take counters
-                 * as parameters. That's not true - some do. But we'll
-                 * need to update the tests to handle that.
-                 */
-                return false;
-            }
-            if (t.widenSmallNumeric != null) {
-                // Small numeric types are widened long before they arrive at functions.
-                return false;
-            }
-
-            return true;
-        }).sorted();
-    }
-
     public static DataType fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }

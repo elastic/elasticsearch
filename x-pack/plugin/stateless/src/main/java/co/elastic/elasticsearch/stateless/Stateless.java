@@ -562,12 +562,7 @@ public class Stateless extends Plugin
             );
             clusterService.addListener(searchLoadSampler);
             components.add(searchLoadSampler);
-            var searchShardSizeCollector = new SearchShardSizeCollector(
-                clusterService.getClusterSettings(),
-                threadPool,
-                new ShardSizeStatsClient(client),
-                new ShardSizesPublisher(client)
-            );
+            var searchShardSizeCollector = createSearchShardSizeCollector(clusterService.getClusterSettings(), threadPool, client);
             clusterService.addListener(searchShardSizeCollector);
             shardSizeCollector = searchShardSizeCollector;
         } else {
@@ -601,6 +596,14 @@ public class Stateless extends Plugin
         components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
         return components;
+    }
+
+    protected SearchShardSizeCollector createSearchShardSizeCollector(
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        Client client
+    ) {
+        return new SearchShardSizeCollector(clusterSettings, threadPool, new ShardSizeStatsClient(client), new ShardSizesPublisher(client));
     }
 
     protected ObjectStoreService createObjectStoreService(

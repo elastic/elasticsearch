@@ -50,11 +50,6 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
-    protected DataType[] supportedTypes() {
-        return representableTypes();
-    }
-
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);
     }

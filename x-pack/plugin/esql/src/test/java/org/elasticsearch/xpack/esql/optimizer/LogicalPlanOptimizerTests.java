@@ -4807,11 +4807,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertSemanticMatching("integer * integer >= 3", "((integer * integer + 1) * 2 - 4) * 4 >= 16");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108524")
-    public void testSimplifyComparisionArithmetics_floatDivision() {
-        doTestSimplifyComparisonArithmetics("2 / float < 4", "float", GT, .5);
-    }
-
     public void testSimplifyComparisonArithmeticWithMultipleOps() {
         // i >= 3
         doTestSimplifyComparisonArithmetics("((integer + 1) * 2 - 4) * 4 >= 16", "integer", GTE, 3);
@@ -4829,7 +4824,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) == -120 AND integer < 6 ", "integer", EQ, 5);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108525")
     public void testSimplifyComparisonArithmeticWithDisjunction() {
         doTestSimplifyComparisonArithmetics("12 * (-integer - 5) >= -120 OR integer < 5", "integer", LTE, 5);
     }
@@ -4879,6 +4873,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testSimplifyComparisonArithmeticSkippedOnResultingFloatLiteral() {
         assertNotSimplified("integer * 2 " + randomBinaryComparison() + " 3");
+        assertNotSimplified("float * 4.0 " + randomBinaryComparison() + " 1");
     }
 
     public void testSimplifyComparisonArithmeticSkippedOnFloatFieldWithPlusMinus() {

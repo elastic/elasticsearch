@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -32,6 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
@@ -40,10 +42,45 @@ public class ObjectMapper extends Mapper {
 
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
+    static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto");
+
+    /**
+     * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
+     * any objects that are present in the mappings and flattens any fields defined outside the predefined objects.
+     */
+    public enum Subobjects {
+        ENABLED(Boolean.TRUE),
+        DISABLED(Boolean.FALSE),
+        AUTO("auto");
+
+        private final Object printedValue;
+
+        Subobjects(Object printedValue) {
+            this.printedValue = printedValue;
+        }
+
+        static Subobjects from(Object node) {
+            if (node instanceof Boolean value) {
+                return value ? Subobjects.ENABLED : Subobjects.DISABLED;
+            }
+            if (node instanceof String value) {
+                if (value.equalsIgnoreCase("true")) {
+                    return ENABLED;
+                }
+                if (value.equalsIgnoreCase("false")) {
+                    return DISABLED;
+                }
+                if (value.equalsIgnoreCase("auto")) {
+                    return AUTO;
+                }
+            }
+            throw new ElasticsearchParseException("unknown subobjects value: " + node);
+        }
+    }
 
     public static class Defaults {
         public static final boolean ENABLED = true;
-        public static final Explicit<Boolean> SUBOBJECTS = Explicit.IMPLICIT_TRUE;
+        public static final Optional<Subobjects> SUBOBJECTS = Optional.empty();
         public static final Explicit<Boolean> STORE_ARRAY_SOURCE = Explicit.IMPLICIT_FALSE;
         public static final Dynamic DYNAMIC = Dynamic.TRUE;
     }
@@ -80,13 +117,13 @@ public class ObjectMapper extends Mapper {
     }
 
     public static class Builder extends Mapper.Builder {
-        protected final Explicit<Boolean> subobjects;
+        protected Optional<Subobjects> subobjects;
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
         protected Explicit<Boolean> storeArraySource = Defaults.STORE_ARRAY_SOURCE;
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
-        public Builder(String name, Explicit<Boolean> subobjects) {
+        public Builder(String name, Optional<Subobjects> subobjects) {
             super(name);
             this.subobjects = subobjects;
         }
@@ -131,20 +168,25 @@ public class ObjectMapper extends Mapper {
         public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
-            if (name.contains(".") == false || subobjects.value() == false) {
+            if (name.contains(".") == false || (subobjects.isPresent() && (subobjects.get() == Subobjects.DISABLED))) {
                 add(name, mapper);
-            }
-            // otherwise we strip off the first object path of the mapper name, load or create
-            // the relevant object mapper, and then recurse down into it, passing the remainder
-            // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
-            // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
-            else {
+            } else {
+                // otherwise we strip off the first object path of the mapper name, load or create
+                // the relevant object mapper, and then recurse down into it, passing the remainder
+                // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
+                // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
                 int firstDotIndex = name.indexOf('.');
                 String immediateChild = name.substring(0, firstDotIndex);
                 String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
                 ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
-                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
-                add(parentBuilder);
+                if (parentBuilder != null) {
+                    parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
+                    add(parentBuilder);
+                } else if (subobjects.isPresent() && subobjects.get() == Subobjects.AUTO) {
+                    add(name, mapper);
+                } else {
+                    throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);
+                }
             }
         }
 
@@ -159,7 +201,7 @@ public class ObjectMapper extends Mapper {
             if (objectMapper != null) {
                 return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            throw new IllegalStateException("Missing intermediate object " + fullName);
+            return null;
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
@@ -175,7 +217,7 @@ public class ObjectMapper extends Mapper {
                     // mix of object notation and dot notation.
                     mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
-                if (subobjects.value() == false && mapper instanceof ObjectMapper objectMapper) {
+                if (subobjects.isPresent() && subobjects.get() == Subobjects.DISABLED && mapper instanceof ObjectMapper objectMapper) {
                     // We're parsing a mapping that has set `subobjects: false` but has defined sub-objects
                     objectMapper.asFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.leafName(), m));
                 } else {
@@ -214,7 +256,7 @@ public class ObjectMapper extends Mapper {
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             parserContext.incrementMappingObjectDepth(); // throws MapperParsingException if depth limit is exceeded
-            Explicit<Boolean> subobjects = parseSubobjects(node);
+            Optional<Subobjects> subobjects = parseSubobjects(node);
             ObjectMapper.Builder builder = new Builder(name, subobjects);
             parseObjectFields(node, parserContext, builder);
             parserContext.decrementMappingObjectDepth();
@@ -276,10 +318,10 @@ public class ObjectMapper extends Mapper {
             return false;
         }
 
-        protected static Explicit<Boolean> parseSubobjects(Map<String, Object> node) {
+        protected static Optional<Subobjects> parseSubobjects(Map<String, Object> node) {
             Object subobjectsNode = node.remove("subobjects");
             if (subobjectsNode != null) {
-                return Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(subobjectsNode, "subobjects.subobjects"));
+                return Optional.of(Subobjects.from(subobjectsNode));
             }
             return Defaults.SUBOBJECTS;
         }
@@ -320,7 +362,9 @@ public class ObjectMapper extends Mapper {
                         }
                     }
 
-                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
+                    if (objBuilder.subobjects.isPresent()
+                        && objBuilder.subobjects.get() == Subobjects.DISABLED
+                        && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
                         throw new MapperParsingException(
                             "Tried to add nested object ["
                                 + fieldName
@@ -334,7 +378,7 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     Mapper.Builder fieldBuilder;
-                    if (objBuilder.subobjects.value() == false) {
+                    if (objBuilder.subobjects.isPresent() && objBuilder.subobjects.get() != Subobjects.ENABLED) {
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
@@ -382,7 +426,7 @@ public class ObjectMapper extends Mapper {
     private final String fullPath;
 
     protected final Explicit<Boolean> enabled;
-    protected final Explicit<Boolean> subobjects;
+    protected final Optional<Subobjects> subobjects;
     protected final Explicit<Boolean> storeArraySource;
     protected final Dynamic dynamic;
 
@@ -392,7 +436,7 @@ public class ObjectMapper extends Mapper {
         String name,
         String fullPath,
         Explicit<Boolean> enabled,
-        Explicit<Boolean> subobjects,
+        Optional<Subobjects> subobjects,
         Explicit<Boolean> storeArraySource,
         Dynamic dynamic,
         Map<String, Mapper> mappers
@@ -410,7 +454,9 @@ public class ObjectMapper extends Mapper {
         } else {
             this.mappers = Map.copyOf(mappers);
         }
-        assert subobjects.value() || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
+        assert subobjects.isEmpty()
+            || subobjects.get() != Subobjects.DISABLED
+            || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
             : "When subobjects is false, mappers must not contain an ObjectMapper";
     }
 
@@ -463,8 +509,8 @@ public class ObjectMapper extends Mapper {
         return dynamic;
     }
 
-    public final boolean subobjects() {
-        return subobjects.value();
+    public final Subobjects subobjects() {
+        return subobjects.orElse(Subobjects.ENABLED);
     }
 
     public final boolean storeArraySource() {
@@ -508,7 +554,7 @@ public class ObjectMapper extends Mapper {
 
     protected record MergeResult(
         Explicit<Boolean> enabled,
-        Explicit<Boolean> subObjects,
+        Optional<Subobjects> subObjects,
         Explicit<Boolean> trackArraySource,
         ObjectMapper.Dynamic dynamic,
         Map<String, Mapper> mappers
@@ -529,11 +575,11 @@ public class ObjectMapper extends Mapper {
             } else {
                 enabled = existing.enabled;
             }
-            final Explicit<Boolean> subObjects;
-            if (mergeWithObject.subobjects.explicit()) {
+            final Optional<Subobjects> subObjects;
+            if (mergeWithObject.subobjects.isPresent()) {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     subObjects = mergeWithObject.subobjects;
-                } else if (existing.subobjects != mergeWithObject.subobjects) {
+                } else if (existing.subobjects() != mergeWithObject.subobjects()) {
                     throw new MapperException(
                         "the [subobjects] parameter can't be updated for the object mapping [" + existing.fullPath() + "]"
                     );
@@ -558,7 +604,7 @@ public class ObjectMapper extends Mapper {
                 trackArraySource = existing.storeArraySource;
             }
             MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.leafName());
-            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, objectMergeContext, subObjects.value());
+            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, objectMergeContext, subObjects);
             return new MergeResult(
                 enabled,
                 subObjects,
@@ -572,11 +618,13 @@ public class ObjectMapper extends Mapper {
             ObjectMapper existing,
             ObjectMapper mergeWithObject,
             MapperMergeContext objectMergeContext,
-            boolean subobjects
+            Optional<Subobjects> subobjects
         ) {
             Map<String, Mapper> mergedMappers = new HashMap<>();
             for (Mapper childOfExistingMapper : existing.mappers.values()) {
-                if (subobjects == false && childOfExistingMapper instanceof ObjectMapper objectMapper) {
+                if (subobjects.isPresent()
+                    && subobjects.get() == Subobjects.DISABLED
+                    && childOfExistingMapper instanceof ObjectMapper objectMapper) {
                     // An existing mapping with sub-objects is merged with a mapping that has set `subobjects: false`
                     objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
                         .forEach(m -> mergedMappers.put(m.leafName(), m));
@@ -587,7 +635,9 @@ public class ObjectMapper extends Mapper {
             for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.leafName());
                 if (mergeIntoMapper == null) {
-                    if (subobjects == false && mergeWithMapper instanceof ObjectMapper objectMapper) {
+                    if (subobjects.isPresent()
+                        && subobjects.get() == Subobjects.DISABLED
+                        && mergeWithMapper instanceof ObjectMapper objectMapper) {
                         // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects
                         objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
                             .stream()
@@ -599,7 +649,8 @@ public class ObjectMapper extends Mapper {
                         putMergedMapper(mergedMappers, truncateObjectMapper(objectMergeContext, om));
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                    assert subobjects : "existing object mappers are supposed to be flattened if subobjects is false";
+                    assert subobjects.isEmpty() || subobjects.get() != Subobjects.DISABLED
+                        : "existing object mappers are supposed to be flattened if subobjects is false";
                     putMergedMapper(mergedMappers, objectMapper.merge(mergeWithMapper, objectMergeContext));
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
@@ -681,7 +732,7 @@ public class ObjectMapper extends Mapper {
         if (isEnabled() == false) {
             throwAutoFlatteningException(path, "the value of [enabled] is [false]");
         }
-        if (subobjects.explicit() && subobjects()) {
+        if (subobjects.isPresent() && subobjects.get() == Subobjects.ENABLED) {
             throwAutoFlatteningException(path, "the value of [subobjects] is [true]");
         }
     }
@@ -716,8 +767,8 @@ public class ObjectMapper extends Mapper {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (subobjects != Defaults.SUBOBJECTS) {
-            builder.field("subobjects", subobjects.value());
+        if (subobjects.isPresent()) {
+            builder.field("subobjects", subobjects.get().printedValue);
         }
         if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
             builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());

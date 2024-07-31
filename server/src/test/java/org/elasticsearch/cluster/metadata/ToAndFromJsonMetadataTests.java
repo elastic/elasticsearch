@@ -141,36 +141,30 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         }
 
         // templates
-        assertThat(parsedMetadata.projectMetadata.templates().get("foo").name(), is("foo"));
-        assertThat(parsedMetadata.projectMetadata.templates().get("foo").patterns(), is(Collections.singletonList("bar")));
-        assertThat(parsedMetadata.projectMetadata.templates().get("foo").settings().get("index.setting1"), is("value1"));
-        assertThat(parsedMetadata.projectMetadata.templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
-        assertThat(parsedMetadata.projectMetadata.templates().get("foo").aliases().size(), equalTo(3));
-        assertThat(parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
-        assertThat(parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
+        assertThat(parsedMetadata.getProject().templates().get("foo").name(), is("foo"));
+        assertThat(parsedMetadata.getProject().templates().get("foo").patterns(), is(Collections.singletonList("bar")));
+        assertThat(parsedMetadata.getProject().templates().get("foo").settings().get("index.setting1"), is("value1"));
+        assertThat(parsedMetadata.getProject().templates().get("foo").settings().getByPrefix("index.").get("setting2"), is("value2"));
+        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().size(), equalTo(3));
+        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar1").alias(), equalTo("alias-bar1"));
+        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar2").alias(), equalTo("alias-bar2"));
         assertThat(
-            parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar2").filter().string(),
+            parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar2").filter().string(),
             equalTo("{\"term\":{\"user\":\"kimchy\"}}")
         );
-        assertThat(parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
-        assertThat(
-            parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar3").indexRouting(),
-            equalTo("routing-bar")
-        );
-        assertThat(
-            parsedMetadata.projectMetadata.templates().get("foo").aliases().get("alias-bar3").searchRouting(),
-            equalTo("routing-bar")
-        );
+        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar3").alias(), equalTo("alias-bar3"));
+        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar3").indexRouting(), equalTo("routing-bar"));
+        assertThat(parsedMetadata.getProject().templates().get("foo").aliases().get("alias-bar3").searchRouting(), equalTo("routing-bar"));
 
         // component template
-        assertNotNull(parsedMetadata.projectMetadata.componentTemplates().get("component_template"));
-        assertThat(parsedMetadata.projectMetadata.componentTemplates().get("component_template").version(), is(5L));
+        assertNotNull(parsedMetadata.getProject().componentTemplates().get("component_template"));
+        assertThat(parsedMetadata.getProject().componentTemplates().get("component_template").version(), is(5L));
         assertThat(
-            parsedMetadata.projectMetadata.componentTemplates().get("component_template").metadata(),
+            parsedMetadata.getProject().componentTemplates().get("component_template").metadata(),
             equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("foo", "bar")))
         );
         assertThat(
-            parsedMetadata.projectMetadata.componentTemplates().get("component_template").template(),
+            parsedMetadata.getProject().componentTemplates().get("component_template").template(),
             equalTo(
                 new Template(
                     Settings.builder().put("setting", "value").build(),
@@ -181,20 +175,20 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         );
 
         // index template v2
-        assertNotNull(parsedMetadata.projectMetadata.templatesV2().get("index_templatev2"));
-        assertThat(parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").priority(), is(5L));
-        assertThat(parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").version(), is(4L));
-        assertThat(parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").indexPatterns(), is(Arrays.asList("foo", "bar*")));
+        assertNotNull(parsedMetadata.getProject().templatesV2().get("index_templatev2"));
+        assertThat(parsedMetadata.getProject().templatesV2().get("index_templatev2").priority(), is(5L));
+        assertThat(parsedMetadata.getProject().templatesV2().get("index_templatev2").version(), is(4L));
+        assertThat(parsedMetadata.getProject().templatesV2().get("index_templatev2").indexPatterns(), is(Arrays.asList("foo", "bar*")));
         assertThat(
-            parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").composedOf(),
+            parsedMetadata.getProject().templatesV2().get("index_templatev2").composedOf(),
             is(Collections.singletonList("component_template"))
         );
         assertThat(
-            parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").metadata(),
+            parsedMetadata.getProject().templatesV2().get("index_templatev2").metadata(),
             equalTo(Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")))
         );
         assertThat(
-            parsedMetadata.projectMetadata.templatesV2().get("index_templatev2").template(),
+            parsedMetadata.getProject().templatesV2().get("index_templatev2").template(),
             equalTo(
                 new Template(
                     Settings.builder().put("setting", "value").build(),
@@ -205,12 +199,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         );
 
         // data streams
-        assertNotNull(parsedMetadata.projectMetadata.dataStreams().get("data-stream1"));
-        assertThat(parsedMetadata.projectMetadata.dataStreams().get("data-stream1").getName(), is("data-stream1"));
-        assertThat(parsedMetadata.projectMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
-        assertNotNull(parsedMetadata.projectMetadata.dataStreams().get("data-stream2"));
-        assertThat(parsedMetadata.projectMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
-        assertThat(parsedMetadata.projectMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
+        assertNotNull(parsedMetadata.getProject().dataStreams().get("data-stream1"));
+        assertThat(parsedMetadata.getProject().dataStreams().get("data-stream1").getName(), is("data-stream1"));
+        assertThat(parsedMetadata.getProject().dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
+        assertNotNull(parsedMetadata.getProject().dataStreams().get("data-stream2"));
+        assertThat(parsedMetadata.getProject().dataStreams().get("data-stream2").getName(), is("data-stream2"));
+        assertThat(parsedMetadata.getProject().dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
 
         // reserved 'operator' metadata
         assertEquals(reservedStateMetadata, parsedMetadata.reservedStateMetadata().get(reservedStateMetadata.namespace()));

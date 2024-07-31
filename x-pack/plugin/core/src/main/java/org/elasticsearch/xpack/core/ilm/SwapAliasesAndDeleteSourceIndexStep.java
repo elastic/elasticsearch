@@ -79,7 +79,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
     ) {
         String originalIndex = indexMetadata.getIndex().getName();
         final String targetIndexName = targetIndexNameSupplier.apply(originalIndex, indexMetadata.getLifecycleExecutionState());
-        IndexMetadata targetIndexMetadata = currentClusterState.metadata().projectMetadata.index(targetIndexName);
+        IndexMetadata targetIndexMetadata = currentClusterState.metadata().getProject().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
             String policyName = indexMetadata.getLifecyclePolicyName();

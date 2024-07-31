@@ -77,7 +77,7 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         Metadata metadata = state.metadata();
         Set<String> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices();
         List<GetDataStreamLifecycleStatsAction.Response.DataStreamStats> dataStreamStats = new ArrayList<>();
-        for (DataStream dataStream : state.metadata().projectMetadata.dataStreams().values()) {
+        for (DataStream dataStream : state.metadata().getProject().dataStreams().values()) {
             if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
                 int total = 0;
                 int inError = 0;

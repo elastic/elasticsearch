@@ -61,7 +61,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
         );
         terminal.println(
             Terminal.Verbosity.VERBOSE,
-            "project scoped custom metadata names: " + oldClusterState.metadata().projectMetadata.customs().keySet()
+            "project scoped custom metadata names: " + oldClusterState.metadata().getProject().customs().keySet()
         );
         final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
         for (String customToRemove : customsToRemove) {
@@ -77,7 +77,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
                     terminal.println(customKey);
                 }
             }
-            for (String customKey : oldClusterState.metadata().projectMetadata.customs().keySet()) {
+            for (String customKey : oldClusterState.metadata().getProject().customs().keySet()) {
                 if (Regex.simpleMatch(customToRemove, customKey)) {
                     metadataBuilder.removeProjectCustom(customKey);
                     if (matched == false) {

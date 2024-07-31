@@ -93,7 +93,7 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        IndexMetadata indexMetadata = allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index());
+        IndexMetadata indexMetadata = allocation.metadata().getProject().getIndexSafe(shardRouting.index());
         if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // only for unassigned - we filter allocation right after the index creation (for shard shrinking) to ensure
             // that once it has been allocated post API the replicas can be allocated elsewhere without user interaction
@@ -232,7 +232,7 @@ public class FilterAllocationDecider extends AllocationDecider {
     @Override
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            var indexMetadata = allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index());
+            var indexMetadata = allocation.metadata().getProject().getIndexSafe(shardRouting.index());
             var initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMetadata.getInitialRecoveryFilters());
 
             if (initialRecoveryFilters != null) {

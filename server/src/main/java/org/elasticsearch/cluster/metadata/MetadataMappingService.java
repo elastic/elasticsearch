@@ -105,7 +105,7 @@ public class MetadataMappingService {
                     final PutMappingClusterStateUpdateRequest request = task.request;
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
-                            final IndexMetadata indexMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
+                            final IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
                                 MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
@@ -139,7 +139,7 @@ public class MetadataMappingService {
                 MapperService mapperService = indexMapperServices.get(index);
                 // IMPORTANT: always get the metadata from the state since it get's batched
                 // and if we pull it from the indexService we might miss an update etc.
-                final IndexMetadata indexMetadata = currentState.getMetadata().projectMetadata.getIndexSafe(index);
+                final IndexMetadata indexMetadata = currentState.getMetadata().getProject().getIndexSafe(index);
                 DocumentMapper existingMapper = mapperService.documentMapper();
                 if (existingMapper != null && existingMapper.mappingSource().equals(mappingUpdateSource)) {
                     continue;
@@ -224,7 +224,7 @@ public class MetadataMappingService {
         final Metadata metadata = clusterService.state().metadata();
         boolean noop = true;
         for (Index index : request.indices()) {
-            final IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
+            final IndexMetadata indexMetadata = metadata.getProject().index(index);
             if (indexMetadata == null) {
                 // local store recovery sends a mapping update request during application of a cluster state on the data node which we might
                 // receive here before the CS update that created the index has been applied on all nodes and thus the index isn't found in

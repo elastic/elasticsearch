@@ -191,12 +191,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public Index[] getIndices(ClusterState state) {
-        return state.metadata().projectMetadata.indices()
-            .values()
-            .stream()
-            .map(IndexMetadata::getIndex)
-            .toList()
-            .toArray(Index.EMPTY_ARRAY);
+        return state.metadata().getProject().indices().values().stream().map(IndexMetadata::getIndex).toList().toArray(Index.EMPTY_ARRAY);
     }
 
     private ClusterState createClusterStateForReplicaUpdate(int nodesInCluster, int shardsPerNode, String group) {
@@ -293,7 +288,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     private static Metadata.Builder freezeMetadata(Metadata.Builder builder, Metadata metadata) {
-        metadata.projectMetadata.indices()
+        metadata.getProject()
+            .indices()
             .values()
             .stream()
             .map(

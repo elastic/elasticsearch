@@ -170,7 +170,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
     private Set<String> getAllocationIds(String indexName) {
         final ClusterState state = clusterAdmin().prepareState().get().getState();
-        return state.metadata().projectMetadata.index(indexName).inSyncAllocationIds(0);
+        return state.metadata().getProject().index(indexName).inSyncAllocationIds(0);
     }
 
     private IndexSettings getIndexSettings(String indexName, String nodeName) {

@@ -137,7 +137,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
         // test when its not the same IndexMetadata
         final Index index = initialIndices.get(0);
-        final IndexMetadata originalIndexMeta = state.metadata().projectMetadata.index(index);
+        final IndexMetadata originalIndexMeta = state.metadata().getProject().index(index);
         // make sure the metadata is actually on the cluster state
         assertNotNull("IndexMetadata for " + index + " should exist on the cluster state", originalIndexMeta);
         IndexMetadata newIndexMeta = createIndexMetadata(index, originalIndexMeta.getVersion() + 1);
@@ -561,7 +561,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
         final RoutingTable.Builder builder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).version(version);
-        for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
+        for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
             builder.addAsNew(indexMetadata);
         }
         return builder.build();
@@ -593,7 +593,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     ) {
         final int numAdd = randomIntBetween(0, 5); // add random # of indices to the next cluster state
         final List<Index> stateIndices = new ArrayList<>();
-        for (IndexMetadata indexMetadata : previousState.metadata().projectMetadata.indices().values()) {
+        for (IndexMetadata indexMetadata : previousState.metadata().getProject().indices().values()) {
             stateIndices.add(indexMetadata.getIndex());
         }
         final int numDel = switch (deletionQuantity) {
@@ -616,8 +616,8 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertThat(new HashSet<>(addsFromEvent), equalTo(addedIndices.stream().map(Index::getName).collect(Collectors.toSet())));
         assertThat(new HashSet<>(delsFromEvent), equalTo(new HashSet<>(delIndices)));
         assertThat(event.metadataChanged(), equalTo(changeClusterUUID || addedIndices.size() > 0 || delIndices.size() > 0));
-        final IndexGraveyard newGraveyard = event.state().metadata().projectMetadata.indexGraveyard();
-        final IndexGraveyard oldGraveyard = event.previousState().metadata().projectMetadata.indexGraveyard();
+        final IndexGraveyard newGraveyard = event.state().metadata().getProject().indexGraveyard();
+        final IndexGraveyard oldGraveyard = event.previousState().metadata().getProject().indexGraveyard();
         assertThat(((IndexGraveyard.IndexGraveyardDiff) newGraveyard.diff(oldGraveyard)).getAdded().size(), equalTo(delIndices.size()));
         return newState;
     }

@@ -180,7 +180,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 randomBoolean()
                     ? Map.of()
                     : Map.of(
-                        new ShardId(clusterState.metadata().projectMetadata.index(DesiredBalanceComputerTests.TEST_INDEX).getIndex(), 0),
+                        new ShardId(clusterState.metadata().getProject().index(DesiredBalanceComputerTests.TEST_INDEX).getIndex(), 0),
                         new ShardAssignment(Set.of("node-0"), 1, 0, 0)
                     )
             )

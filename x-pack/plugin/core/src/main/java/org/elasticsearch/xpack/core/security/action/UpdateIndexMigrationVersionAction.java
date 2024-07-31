@@ -143,7 +143,7 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
 
             ClusterState execute(ClusterState currentState) {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(
-                    currentState.metadata().projectMetadata.indices().get(indexName)
+                    currentState.metadata().getProject().indices().get(indexName)
                 );
                 indexMetadataBuilder.putCustom(
                     MIGRATION_VERSION_CUSTOM_KEY,
@@ -152,7 +152,7 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
                 indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
 
                 final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(
-                    currentState.metadata().projectMetadata.indices()
+                    currentState.metadata().getProject().indices()
                 );
                 builder.put(indexName, indexMetadataBuilder.build());
 

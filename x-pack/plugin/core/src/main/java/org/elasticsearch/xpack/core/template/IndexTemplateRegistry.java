@@ -273,7 +273,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = newTemplate.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                IndexTemplateMetadata currentTemplate = state.metadata().projectMetadata.templates().get(templateName);
+                IndexTemplateMetadata currentTemplate = state.metadata().getProject().templates().get(templateName);
                 if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding legacy template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putLegacyTemplate(newTemplate, creationCheck);
@@ -313,7 +313,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                ComponentTemplate currentTemplate = state.metadata().projectMetadata.componentTemplates().get(templateName);
+                ComponentTemplate currentTemplate = state.metadata().getProject().componentTemplates().get(templateName);
                 if (templateDependenciesSatisfied(state, newTemplate.getValue()) == false) {
                     creationCheck.set(false);
                     logger.trace(
@@ -366,7 +366,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         if (settings == null) {
             return true;
         }
-        IngestMetadata ingestMetadata = state.metadata().projectMetadata.custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = state.metadata().getProject().custom(IngestMetadata.TYPE);
         String defaultPipeline = settings.get("index.default_pipeline");
         if (defaultPipeline != null) {
             if (ingestMetadata == null || ingestMetadata.getPipelines().containsKey(defaultPipeline) == false) {
@@ -386,7 +386,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                ComposableIndexTemplate currentTemplate = state.metadata().projectMetadata.templatesV2().get(templateName);
+                ComposableIndexTemplate currentTemplate = state.metadata().getProject().templatesV2().get(templateName);
                 boolean componentTemplatesAvailable = componentTemplatesInstalled(state, newTemplate.getValue());
                 if (componentTemplatesAvailable == false) {
                     creationCheck.set(false);
@@ -440,12 +440,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         if (applyRolloverAfterTemplateV2Upgrade() == false) {
             // component templates and index templates can be updated independently, we only need to know that the required component
             // templates are available
-            return state.metadata().projectMetadata.componentTemplates()
-                .keySet()
-                .containsAll(indexTemplate.getRequiredComponentTemplates());
+            return state.metadata().getProject().componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
         }
         Map<String, ComponentTemplate> componentTemplateConfigs = getComponentTemplateConfigs();
-        Map<String, ComponentTemplate> installedTemplates = state.metadata().projectMetadata.componentTemplates();
+        Map<String, ComponentTemplate> installedTemplates = state.metadata().getProject().componentTemplates();
         for (String templateName : indexTemplate.getRequiredComponentTemplates()) {
             ComponentTemplate installedTemplate = installedTemplates.get(templateName);
             // if a required component templates is not installed - the current cluster state cannot allow this index template yet
@@ -582,7 +580,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             logger.trace("running in data stream lifecycle only mode. skipping the installation of ILM policies.");
             return;
         }
-        IndexLifecycleMetadata metadata = state.metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata metadata = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         for (LifecyclePolicy policy : getLifecyclePolicies()) {
             final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(
                 policy.getName(),
@@ -719,7 +717,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     @Nullable
     private static PipelineConfiguration findInstalledPipeline(ClusterState state, String pipelineId) {
-        Optional<IngestMetadata> maybeMeta = Optional.ofNullable(state.metadata().projectMetadata.custom(IngestMetadata.TYPE));
+        Optional<IngestMetadata> maybeMeta = Optional.ofNullable(state.metadata().getProject().custom(IngestMetadata.TYPE));
         return maybeMeta.map(ingestMetadata -> ingestMetadata.getPipelines().get(pipelineId)).orElse(null);
     }
 
@@ -862,7 +860,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      */
     static List<String> findRolloverTargetDataStreams(ClusterState state, String templateName, ComposableIndexTemplate indexTemplate) {
         final Metadata metadata = state.metadata();
-        return metadata.projectMetadata.dataStreams()
+        return metadata.getProject()
+            .dataStreams()
             .values()
             .stream()
             // Limit to checking data streams that match any of the index template's index patterns

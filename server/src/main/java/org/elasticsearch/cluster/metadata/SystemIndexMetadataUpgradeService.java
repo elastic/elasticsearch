@@ -52,9 +52,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         if (updateTaskPending == false
             && event.localNodeMaster()
             && (event.previousState().nodes().isLocalNodeElectedMaster() == false
-                || event.state().metadata().projectMetadata.indices() != event.previousState().metadata().projectMetadata.indices())) {
-            final Map<String, IndexMetadata> indexMetadataMap = event.state().metadata().projectMetadata.indices();
-            final var previousIndices = event.previousState().metadata().projectMetadata.indices();
+                || event.state().metadata().getProject().indices() != event.previousState().metadata().getProject().indices())) {
+            final Map<String, IndexMetadata> indexMetadataMap = event.state().metadata().getProject().indices();
+            final var previousIndices = event.previousState().metadata().getProject().indices();
             final long triggerV = event.state().version();
             triggeredVersion = triggerV;
             // Fork to the management pool to avoid blocking the cluster applier thread unnecessarily for very large index counts
@@ -136,7 +136,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            final Map<String, IndexMetadata> indexMetadataMap = currentState.metadata().projectMetadata.indices();
+            final Map<String, IndexMetadata> indexMetadataMap = currentState.metadata().getProject().indices();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
             for (Map.Entry<String, IndexMetadata> entry : indexMetadataMap.entrySet()) {
                 final IndexMetadata indexMetadata = entry.getValue();

@@ -147,9 +147,16 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertShardFolders(indexName, false);
 
         assertThat(
-            clusterAdmin().prepareState().clear().setMetadata(true).setIndices(indexName).get().getState().metadata().projectMetadata.index(
-                indexName
-            ).getTimestampRange(),
+            clusterAdmin().prepareState()
+                .clear()
+                .setMetadata(true)
+                .setIndices(indexName)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .index(indexName)
+                .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
         );
 
@@ -311,7 +318,9 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 .setIndices(restoredIndexName)
                 .get()
                 .getState()
-                .metadata().projectMetadata.index(restoredIndexName)
+                .metadata()
+                .getProject()
+                .index(restoredIndexName)
                 .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
         );

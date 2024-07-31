@@ -69,11 +69,11 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         Metadata metadata = state.metadata();
-        IndexLifecycleMetadata lifecycleMetadata = metadata.projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata lifecycleMetadata = metadata.getProject().custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
         if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metadata.projectMetadata.indices().values().forEach(value -> {
+            metadata.getProject().indices().values().forEach(value -> {
                 String policyName = value.getLifecyclePolicyName();
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {

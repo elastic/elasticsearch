@@ -127,9 +127,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
 
         ClusterState state = clusterService.state();
         Exception mappingValidationException = null;
-        IndexAbstraction indexAbstraction = state.metadata().projectMetadata.getIndicesLookup().get(request.index());
+        IndexAbstraction indexAbstraction = state.metadata().getProject().getIndicesLookup().get(request.index());
         if (indexAbstraction != null) {
-            IndexMetadata imd = state.metadata().projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
+            IndexMetadata imd = state.metadata().getProject().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
             try {
                 indicesService.withTempIndexService(imd, indexService -> {
                     indexService.mapperService().updateMapping(null, imd);

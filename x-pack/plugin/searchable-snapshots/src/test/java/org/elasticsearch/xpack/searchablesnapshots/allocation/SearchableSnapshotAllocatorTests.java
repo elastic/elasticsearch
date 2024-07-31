@@ -65,7 +65,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsRestore(metadata.projectMetadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
+        routingTableBuilder.addAsRestore(metadata.getProject().index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
         final long shardSize = randomNonNegativeLong();
@@ -139,7 +139,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsRestore(metadata.projectMetadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
+        routingTableBuilder.addAsRestore(metadata.getProject().index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
         final RoutingAllocation allocation = buildAllocation(
@@ -176,7 +176,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId, builder -> builder.put(SNAPSHOT_PARTIAL_SETTING.getKey(), true));
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsRestore(metadata.projectMetadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
+        routingTableBuilder.addAsRestore(metadata.getProject().index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
         final RoutingAllocation allocation = buildAllocation(

@@ -124,7 +124,7 @@ public class ShardLimitValidator {
         int frozen = 0;
         int normal = 0;
         for (Index index : indicesToOpen) {
-            IndexMetadata imd = currentState.metadata().projectMetadata.index(index);
+            IndexMetadata imd = currentState.metadata().getProject().index(index);
             if (imd.getState().equals(IndexMetadata.State.CLOSE)) {
                 int totalNewShards = imd.getNumberOfShards() * (1 + imd.getNumberOfReplicas());
                 if (FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()))) {
@@ -147,7 +147,7 @@ public class ShardLimitValidator {
         int frozen = 0;
         int normal = 0;
         for (Index index : indices) {
-            IndexMetadata imd = currentState.metadata().projectMetadata.index(index);
+            IndexMetadata imd = currentState.metadata().getProject().index(index);
             int totalNewShards = getTotalNewShards(index, currentState, replicas);
             if (FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()))) {
                 frozen += totalNewShards;
@@ -165,7 +165,7 @@ public class ShardLimitValidator {
     }
 
     private static int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
-        IndexMetadata indexMetadata = currentState.metadata().projectMetadata.index(index);
+        IndexMetadata indexMetadata = currentState.metadata().getProject().index(index);
         int shardsInIndex = indexMetadata.getNumberOfShards();
         int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();
         int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;
@@ -250,7 +250,7 @@ public class ShardLimitValidator {
 
     private static Result checkShardLimit(int newShards, ClusterState state, int maxConfiguredShardsPerNode, int nodeCount, String group) {
         int maxShardsInCluster = maxConfiguredShardsPerNode * nodeCount;
-        int currentOpenShards = state.getMetadata().projectMetadata.getTotalOpenIndexShards();
+        int currentOpenShards = state.getMetadata().getProject().getTotalOpenIndexShards();
 
         // Only enforce the shard limit if we have at least one data node, so that we don't block
         // index creation during cluster setup
@@ -261,7 +261,9 @@ public class ShardLimitValidator {
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             Predicate<IndexMetadata> indexMetadataPredicate = imd -> imd.getState().equals(IndexMetadata.State.OPEN)
                 && group.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()));
-            long currentFilteredShards = state.metadata().projectMetadata.indices()
+            long currentFilteredShards = state.metadata()
+                .getProject()
+                .indices()
                 .values()
                 .stream()
                 .filter(indexMetadataPredicate)

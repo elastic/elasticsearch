@@ -610,7 +610,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     }
                 });
             };
-            final IndexMetadata indexMetadata = clusterService.state().metadata().projectMetadata.index(request.shardId().getIndex());
+            final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(request.shardId().getIndex());
             final long mappingVersionOnTarget = indexMetadata != null ? indexMetadata.getMappingVersion() : 0L;
             recoveryTarget.indexTranslogOperations(
                 request.operations(),

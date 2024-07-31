@@ -235,7 +235,7 @@ public class PersistentTasksService {
                 listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
             }
         },
-            clusterState -> predicate.test(clusterState.metadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE)),
+            clusterState -> predicate.test(clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE)),
             timeout,
             logger
         );

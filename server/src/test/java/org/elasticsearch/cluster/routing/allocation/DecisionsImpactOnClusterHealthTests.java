@@ -107,7 +107,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.projectMetadata.index(indexName))
+            .addAsNew(metadata.getProject().index(indexName))
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(clusterName))

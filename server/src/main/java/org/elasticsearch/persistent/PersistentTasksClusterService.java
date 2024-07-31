@@ -494,8 +494,8 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     static boolean persistentTasksChanged(final ClusterChangedEvent event) {
         String type = PersistentTasksCustomMetadata.TYPE;
         return Objects.equals(
-            event.state().metadata().projectMetadata.custom(type),
-            event.previousState().metadata().projectMetadata.custom(type)
+            event.state().metadata().getProject().custom(type),
+            event.previousState().metadata().getProject().custom(type)
         ) == false;
     }
 
@@ -505,7 +505,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     }
 
     private static PersistentTasksCustomMetadata.Builder builder(ClusterState currentState) {
-        return PersistentTasksCustomMetadata.builder(currentState.getMetadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE));
+        return PersistentTasksCustomMetadata.builder(currentState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE));
     }
 
     private static ClusterState update(ClusterState currentState, PersistentTasksCustomMetadata.Builder tasksInProgress) {

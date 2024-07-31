@@ -160,7 +160,7 @@ public class AliasValidator {
     }
 
     private static Function<String, String> lookup(Metadata metadata) {
-        return name -> Optional.ofNullable(metadata.projectMetadata.getIndicesLookup().get(name))
+        return name -> Optional.ofNullable(metadata.getProject().getIndicesLookup().get(name))
             .filter(indexAbstraction -> indexAbstraction.getType() != IndexAbstraction.Type.ALIAS)
             .map(IndexAbstraction::getName)
             .orElse(null);

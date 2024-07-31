@@ -296,9 +296,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                 TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
                 TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia);
-                docWriteRequest.routing(
-                    metadata.projectMetadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index())
-                );
+                docWriteRequest.routing(metadata.getProject().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
 
                 final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, metadata);
                 if (addFailureIfIndexIsClosed(docWriteRequest, concreteIndex, bulkItemRequest.id(), metadata)) {
@@ -371,7 +369,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     requests.toArray(new BulkItemRequest[0]),
                     bulkRequest.isSimulated()
                 );
-                var indexMetadata = clusterState.getMetadata().projectMetadata.index(shardId.getIndexName());
+                var indexMetadata = clusterState.getMetadata().getProject().index(shardId.getIndexName());
                 if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
                     bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
                 }
@@ -503,7 +501,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return null;
         }
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
-        IndexAbstraction ia = metadata.projectMetadata.getIndicesLookup().get(docWriteRequest.index());
+        IndexAbstraction ia = metadata.getProject().getIndicesLookup().get(docWriteRequest.index());
         if (ia == null) {
             return null;
         }
@@ -512,7 +510,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // will write to, not which _data stream_.
             // We work backward to find the data stream from the concrete write index to cover this case.
             Index concreteIndex = ia.getWriteIndex();
-            IndexAbstraction writeIndexAbstraction = metadata.projectMetadata.getIndicesLookup().get(concreteIndex.getName());
+            IndexAbstraction writeIndexAbstraction = metadata.getProject().getIndicesLookup().get(concreteIndex.getName());
             DataStream parentDataStream = writeIndexAbstraction.getParentDataStream();
             if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
                 // Keep the data stream name around to resolve the redirect to failure store if the shard level request fails.
@@ -644,7 +642,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
-        if (request.isRequireAlias() && (metadata.projectMetadata.hasAlias(request.index()) == false)) {
+        if (request.isRequireAlias() && (metadata.getProject().hasAlias(request.index()) == false)) {
             Exception exception = new IndexNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + request.index() + "] is not an alias",
                 request.index()
@@ -668,7 +666,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private boolean addFailureIfIndexIsClosed(DocWriteRequest<?> request, Index concreteIndex, int idx, final Metadata metadata) {
-        IndexMetadata indexMetadata = metadata.projectMetadata.getIndexSafe(concreteIndex);
+        IndexMetadata indexMetadata = metadata.getProject().getIndexSafe(concreteIndex);
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             addFailureAndDiscardRequest(request, idx, request.index(), new IndexClosedException(concreteIndex));
             return true;
@@ -790,7 +788,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexRouting routing(Index index) {
             IndexRouting routing = routings.get(index);
             if (routing == null) {
-                routing = IndexRouting.fromIndexMetadata(state.metadata().projectMetadata.getIndexSafe(index));
+                routing = IndexRouting.fromIndexMetadata(state.metadata().getProject().getIndexSafe(index));
                 routings.put(index, routing);
             }
             return routing;

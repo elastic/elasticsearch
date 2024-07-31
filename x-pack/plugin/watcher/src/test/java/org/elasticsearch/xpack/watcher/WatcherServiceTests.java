@@ -165,7 +165,7 @@ public class WatcherServiceTests extends ESTestCase {
         // response setup, successful refresh response
         BroadcastResponse refreshResponse = mock(BroadcastResponse.class);
         when(refreshResponse.getSuccessfulShards()).thenReturn(
-            clusterState.getMetadata().projectMetadata.indices().get(Watch.INDEX).getNumberOfShards()
+            clusterState.getMetadata().getProject().indices().get(Watch.INDEX).getNumberOfShards()
         );
         doAnswer(invocation -> {
             ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];

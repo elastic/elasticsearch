@@ -130,7 +130,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             memoryTrackerRefreshListener.onResponse(null);
         } else {
             memoryTracker.refresh(
-                state.getMetadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE),
+                state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE),
                 memoryTrackerRefreshListener
             );
         }

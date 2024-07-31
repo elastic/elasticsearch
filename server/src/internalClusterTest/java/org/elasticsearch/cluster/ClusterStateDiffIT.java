@@ -172,17 +172,17 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 assertThat(clusterStateFromDiffs.metadata().transientSettings(), equalTo(clusterState.metadata().transientSettings()));
                 assertThat(clusterStateFromDiffs.metadata().persistentSettings(), equalTo(clusterState.metadata().persistentSettings()));
                 assertThat(
-                    clusterStateFromDiffs.metadata().projectMetadata.indices(),
-                    equalTo(clusterState.metadata().projectMetadata.indices())
+                    clusterStateFromDiffs.metadata().getProject().indices(),
+                    equalTo(clusterState.metadata().getProject().indices())
                 );
                 assertThat(
-                    clusterStateFromDiffs.metadata().projectMetadata.templates(),
-                    equalTo(clusterState.metadata().projectMetadata.templates())
+                    clusterStateFromDiffs.metadata().getProject().templates(),
+                    equalTo(clusterState.metadata().getProject().templates())
                 );
                 assertThat(clusterStateFromDiffs.metadata().customs(), equalTo(clusterState.metadata().customs()));
                 assertThat(
-                    clusterStateFromDiffs.metadata().projectMetadata.customs(),
-                    equalTo(clusterState.metadata().projectMetadata.customs())
+                    clusterStateFromDiffs.metadata().getProject().customs(),
+                    equalTo(clusterState.metadata().getProject().customs())
                 );
                 assertThat(clusterStateFromDiffs.metadata().getProject().equalsAliases(clusterState.metadata().getProject()), is(true));
 
@@ -557,7 +557,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public Map<String, IndexMetadata> parts(Metadata metadata) {
-                return metadata.projectMetadata.indices();
+                return metadata.getProject().indices();
             }
 
             @Override
@@ -621,7 +621,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "template", new RandomPart<IndexTemplateMetadata>() {
             @Override
             public Map<String, IndexTemplateMetadata> parts(Metadata metadata) {
-                return metadata.projectMetadata.templates();
+                return metadata.getProject().templates();
             }
 
             @Override
@@ -678,7 +678,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public Map<String, Metadata.ProjectCustom> parts(Metadata metadata) {
-                return metadata.projectMetadata.customs();
+                return metadata.getProject().customs();
             }
 
             @Override

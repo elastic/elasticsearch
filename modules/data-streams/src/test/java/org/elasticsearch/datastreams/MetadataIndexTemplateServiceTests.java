@@ -88,7 +88,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
             state = service.addIndexTemplateV2(state, false, "1", indexTemplate);
-            assertThat(state.getMetadata().projectMetadata.templatesV2().get("1"), equalTo(indexTemplate));
+            assertThat(state.getMetadata().getProject().templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing path defined in component template
@@ -107,7 +107,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
             state = service.addIndexTemplateV2(state, false, "1", indexTemplate);
-            assertThat(state.getMetadata().projectMetadata.templatesV2().get("1"), equalTo(indexTemplate));
+            assertThat(state.getMetadata().getProject().templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing path defined in index template
@@ -119,7 +119,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
             var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
-            assertThat(state.getMetadata().projectMetadata.templatesV2().get("1"), equalTo(indexTemplate));
+            assertThat(state.getMetadata().getProject().templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing fetched from mapping in index template
@@ -133,7 +133,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
             var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
-            assertThat(state.getMetadata().projectMetadata.templatesV2().get("1"), equalTo(indexTemplate));
+            assertThat(state.getMetadata().getProject().templatesV2().get("1"), equalTo(indexTemplate));
         }
     }
 

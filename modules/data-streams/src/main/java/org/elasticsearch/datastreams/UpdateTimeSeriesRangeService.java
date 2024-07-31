@@ -96,7 +96,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     ClusterState updateTimeSeriesTemporalRange(ClusterState current, Instant now) {
         Metadata.Builder mBuilder = null;
-        for (DataStream dataStream : current.metadata().projectMetadata.dataStreams().values()) {
+        for (DataStream dataStream : current.metadata().getProject().dataStreams().values()) {
             if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
                 continue;
             }
@@ -106,7 +106,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
             // getWriteIndex() selects the latest added index:
             Index head = dataStream.getWriteIndex();
-            IndexMetadata im = current.metadata().projectMetadata.getIndexSafe(head);
+            IndexMetadata im = current.metadata().getProject().getIndexSafe(head);
             Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(im.getSettings());
             Instant newEnd = DataStream.getCanonicalTimestampBound(

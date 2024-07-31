@@ -43,7 +43,7 @@ public class ModelAliasMetadata implements Metadata.ProjectCustom {
     public static final ModelAliasMetadata EMPTY = new ModelAliasMetadata(new HashMap<>());
 
     public static ModelAliasMetadata fromState(ClusterState cs) {
-        ModelAliasMetadata modelAliasMetadata = cs.metadata().projectMetadata.custom(NAME);
+        ModelAliasMetadata modelAliasMetadata = cs.metadata().getProject().custom(NAME);
         return modelAliasMetadata == null ? EMPTY : modelAliasMetadata;
     }
 

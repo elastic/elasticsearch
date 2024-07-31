@@ -101,7 +101,7 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(index);
+        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
@@ -142,7 +142,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        IndexMetadata indexMetadata = metadata.projectMetadata.index(indexAbstraction.getIndices().get(0));
+        IndexMetadata indexMetadata = metadata.getProject().index(indexAbstraction.getIndices().get(0));
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }

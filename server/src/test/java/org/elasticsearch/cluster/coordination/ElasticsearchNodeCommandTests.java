@@ -69,13 +69,13 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         }
         assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
         assertThat(loadedMetadata.clusterUUID(), equalTo(latestMetadata.clusterUUID()));
-        assertThat(loadedMetadata.projectMetadata.dataStreams(), equalTo(latestMetadata.projectMetadata.dataStreams()));
+        assertThat(loadedMetadata.getProject().dataStreams(), equalTo(latestMetadata.getProject().dataStreams()));
 
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {
-            assertNotNull(loadedMetadata.projectMetadata.custom(IndexGraveyard.TYPE));
+            assertNotNull(loadedMetadata.getProject().custom(IndexGraveyard.TYPE));
             assertThat(
-                loadedMetadata.projectMetadata.custom(IndexGraveyard.TYPE),
+                loadedMetadata.getProject().custom(IndexGraveyard.TYPE),
                 instanceOf(ElasticsearchNodeCommand.UnknownProjectCustom.class)
             );
 
@@ -84,10 +84,10 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
                 final Path tempdir = createTempDir();
                 Metadata.FORMAT.write(loadedMetadata, tempdir);
                 final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
-                assertThat(reloadedMetadata.projectMetadata.indexGraveyard(), equalTo(latestMetadata.projectMetadata.indexGraveyard()));
+                assertThat(reloadedMetadata.getProject().indexGraveyard(), equalTo(latestMetadata.getProject().indexGraveyard()));
             }
         } else {
-            assertThat(loadedMetadata.projectMetadata.indexGraveyard(), equalTo(latestMetadata.projectMetadata.indexGraveyard()));
+            assertThat(loadedMetadata.getProject().indexGraveyard(), equalTo(latestMetadata.getProject().indexGraveyard()));
         }
     }
 

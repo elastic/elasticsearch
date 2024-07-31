@@ -175,7 +175,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, twoPoliciesJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
-        SnapshotLifecycleMetadata slmMetadata = updatedState.state().metadata().projectMetadata.custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata slmMetadata = updatedState.state().metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
 
         String onePolicyRemovedJSON = """
@@ -200,7 +200,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRemovedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots"));
-        slmMetadata = updatedState.state().metadata().projectMetadata.custom(SnapshotLifecycleMetadata.TYPE);
+        slmMetadata = updatedState.state().metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots"));
 
         String onePolicyRenamedJSON = """
@@ -225,7 +225,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRenamedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots-2"));
-        slmMetadata = updatedState.state().metadata().projectMetadata.custom(SnapshotLifecycleMetadata.TYPE);
+        slmMetadata = updatedState.state().metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots-2"));
     }
 

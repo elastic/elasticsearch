@@ -448,7 +448,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
             if ((routing.active() || isRestarting || isNew) == false) {
                 String indexName = routing.getIndexName();
-                Settings indexSettings = state.getMetadata().projectMetadata.index(indexName).getSettings();
+                Settings indexSettings = state.getMetadata().getProject().index(indexName).getSettings();
                 if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
                     searchableSnapshotsState.addSearchableSnapshotWithUnavailableShard(indexName);
                 } else {
@@ -648,7 +648,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ClusterState state,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        IndexMetadata indexMetadata = state.metadata().projectMetadata.index(shardRouting.index());
+        IndexMetadata indexMetadata = state.metadata().getProject().index(shardRouting.index());
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (indexMetadata != null) {
             diagnosisDefs.addAll(checkIsAllocationDisabled(indexMetadata, nodeAllocationResults));
@@ -1219,11 +1219,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         // from the list of the unavailable searchable snapshots because the data is available via the original index.
         void updateSearchableSnapshotWithAvailableIndices(Metadata clusterMetadata, Set<String> indicesWithUnavailableShards) {
             for (String index : searchableSnapshotWithUnavailableShard) {
-                assert clusterMetadata.projectMetadata.index(index) != null : "Index metadata of index '" + index + "' should not be null";
-                Settings indexSettings = clusterMetadata.projectMetadata.index(index).getSettings();
+                assert clusterMetadata.getProject().index(index) != null : "Index metadata of index '" + index + "' should not be null";
+                Settings indexSettings = clusterMetadata.getProject().index(index).getSettings();
                 String originalIndex = indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY);
                 if (originalIndex != null
-                    && clusterMetadata.projectMetadata.indices().containsKey(originalIndex) != false
+                    && clusterMetadata.getProject().indices().containsKey(originalIndex) != false
                     && indicesWithUnavailableShards.contains(originalIndex) == false) {
                     addSearchableSnapshotWithOriginalIndexAvailable(index);
                 }

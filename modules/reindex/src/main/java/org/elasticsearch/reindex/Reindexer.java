@@ -232,7 +232,7 @@ public class Reindexer {
         }
 
         private IndexMode destinationIndexMode(ClusterState state) {
-            IndexMetadata destMeta = state.metadata().projectMetadata.index(mainRequest.getDestination().index());
+            IndexMetadata destMeta = state.metadata().getProject().index(mainRequest.getDestination().index());
             if (destMeta != null) {
                 return IndexSettings.MODE.get(destMeta.getSettings());
             }

@@ -115,7 +115,7 @@ public class AnnotationIndex {
                 .prepareAliases()
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(currentIndexName).alias(READ_ALIAS_NAME).isHidden(true))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(currentIndexName).alias(WRITE_ALIAS_NAME).isHidden(true));
-            SortedMap<String, IndexAbstraction> lookup = state.getMetadata().projectMetadata.getIndicesLookup();
+            SortedMap<String, IndexAbstraction> lookup = state.getMetadata().getProject().getIndicesLookup();
             for (String oldIndexName : OLD_INDEX_NAMES) {
                 IndexAbstraction oldIndexAbstraction = lookup.get(oldIndexName);
                 if (oldIndexAbstraction != null) {
@@ -140,7 +140,7 @@ public class AnnotationIndex {
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
         // Also, don't do this if there's a reset in progress or if ML upgrade mode is enabled.
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-        SortedMap<String, IndexAbstraction> mlLookup = state.getMetadata().projectMetadata.getIndicesLookup().tailMap(".ml");
+        SortedMap<String, IndexAbstraction> mlLookup = state.getMetadata().getProject().getIndicesLookup().tailMap(".ml");
         if (mlMetadata.isResetMode() == false
             && mlMetadata.isUpgradeMode() == false
             && mlLookup.isEmpty() == false

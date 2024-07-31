@@ -53,7 +53,7 @@ public class DataStreamsActionUtil {
         IndicesOptions indicesOptions
     ) {
         List<String> abstractionNames = getDataStreamNames(indexNameExpressionResolver, clusterState, names, indicesOptions);
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().projectMetadata.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getProject().getIndicesLookup();
 
         return abstractionNames.stream().flatMap(abstractionName -> {
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);

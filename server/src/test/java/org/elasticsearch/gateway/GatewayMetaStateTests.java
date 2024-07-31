@@ -51,7 +51,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertNotSame(upgrade, metadata);
         assertFalse(Metadata.isGlobalStateEquals(upgrade, metadata));
-        assertTrue(upgrade.projectMetadata.templates().containsKey("added_test_template"));
+        assertTrue(upgrade.getProject().templates().containsKey("added_test_template"));
     }
 
     public void testNoMetadataUpgrade() {
@@ -140,14 +140,14 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertNotSame(upgrade, metadata);
         assertFalse(Metadata.isGlobalStateEquals(upgrade, metadata));
-        assertNotNull(upgrade.projectMetadata.templates().get("template1"));
+        assertNotNull(upgrade.getProject().templates().get("template1"));
         assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(upgrade.projectMetadata.templates().get("template1").settings()),
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(upgrade.getProject().templates().get("template1").settings()),
             equalTo(20)
         );
-        assertNotNull(upgrade.projectMetadata.templates().get("template2"));
+        assertNotNull(upgrade.getProject().templates().get("template2"));
         assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(upgrade.projectMetadata.templates().get("template2").settings()),
+            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(upgrade.getProject().templates().get("template2").settings()),
             equalTo(10)
         );
         for (IndexMetadata indexMetadata : upgrade.getProject()) {

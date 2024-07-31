@@ -35,7 +35,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
@@ -49,7 +49,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareClose("test"));
 
         stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> trying to index into a closed index ...");
@@ -67,7 +67,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
 
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
@@ -103,7 +103,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
-        assertThat(stateResponse.getState().metadata().projectMetadata.index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),

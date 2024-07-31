@@ -74,7 +74,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
         ClusterState state,
         ActionListener<GetComposableIndexTemplateAction.Response> listener
     ) {
-        Map<String, ComposableIndexTemplate> allTemplates = state.metadata().projectMetadata.templatesV2();
+        Map<String, ComposableIndexTemplate> allTemplates = state.metadata().getProject().templatesV2();
         Map<String, ComposableIndexTemplate> results;
         // If we did not ask for a specific name, then we return all templates
         if (request.name() == null) {

@@ -44,7 +44,7 @@ public class CoordinatorRewriteContextProvider {
     @Nullable
     public CoordinatorRewriteContext getCoordinatorRewriteContext(Index index) {
         var clusterState = clusterStateSupplier.get();
-        var indexMetadata = clusterState.metadata().projectMetadata.index(index);
+        var indexMetadata = clusterState.metadata().getProject().index(index);
 
         if (indexMetadata == null) {
             return null;

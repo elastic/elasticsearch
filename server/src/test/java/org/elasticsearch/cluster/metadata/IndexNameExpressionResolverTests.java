@@ -3300,7 +3300,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .metadata(
                 Metadata.builder(state.getMetadata())
                     .put(
-                        IndexMetadata.builder(state.getMetadata().projectMetadata.index("my-index"))
+                        IndexMetadata.builder(state.getMetadata().getProject().index("my-index"))
                             .putAlias(new AliasMetadata.Builder("my-alias"))
                     )
                     .build()
@@ -3347,11 +3347,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .metadata(
                 Metadata.builder(state1.getMetadata())
                     .put(
-                        IndexMetadata.builder(state1.getMetadata().projectMetadata.index("my-index"))
+                        IndexMetadata.builder(state1.getMetadata().getProject().index("my-index"))
                             .putAlias(new AliasMetadata.Builder("my-alias"))
                     )
                     .put(
-                        IndexMetadata.builder(state1.getMetadata().projectMetadata.index("my-index2"))
+                        IndexMetadata.builder(state1.getMetadata().getProject().index("my-index2"))
                             .putAlias(new AliasMetadata.Builder("my-alias"))
                     )
                     .build()

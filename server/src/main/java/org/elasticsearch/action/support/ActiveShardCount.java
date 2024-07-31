@@ -129,7 +129,7 @@ public record ActiveShardCount(int value) implements Writeable {
         }
 
         for (final String indexName : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(indexName);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
             if (indexMetadata == null) {
                 // its possible the index was deleted while waiting for active shard copies,
                 // in this case, we'll just consider it that we have enough active shard copies

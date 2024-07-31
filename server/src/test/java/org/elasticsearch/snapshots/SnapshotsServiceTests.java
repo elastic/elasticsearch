@@ -194,7 +194,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         final ClusterState stateWithIndex = stateWithUnassignedIndices(indexName1);
         final Snapshot plainSnapshot = snapshot(repoName, "test-snapshot");
-        final ShardId routingShardId1 = new ShardId(stateWithIndex.metadata().projectMetadata.index(indexName1).getIndex(), 0);
+        final ShardId routingShardId1 = new ShardId(stateWithIndex.metadata().getProject().index(indexName1).getIndex(), 0);
         final SnapshotsInProgress.Entry snapshotSingleShard = snapshotEntry(
             plainSnapshot,
             Collections.singletonMap(indexId1.getName(), indexId1),
@@ -295,7 +295,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         final ClusterState stateWithIndex = stateWithUnassignedIndices(indexName);
         final Snapshot plainSnapshot = snapshot(repoName, "test-snapshot");
-        final ShardId routingShardId = new ShardId(stateWithIndex.metadata().projectMetadata.index(indexName).getIndex(), 0);
+        final ShardId routingShardId = new ShardId(stateWithIndex.metadata().getProject().index(indexName).getIndex(), 0);
         final SnapshotsInProgress.Entry snapshotSingleShard = snapshotEntry(
             plainSnapshot,
             Collections.singletonMap(indexId1.getName(), indexId1),
@@ -330,7 +330,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         final ClusterState stateWithIndex = stateWithUnassignedIndices(indexName);
         final Snapshot plainSnapshot = snapshot(repoName, "test-snapshot-1");
-        final ShardId routingShardId = new ShardId(stateWithIndex.metadata().projectMetadata.index(indexName).getIndex(), 0);
+        final ShardId routingShardId = new ShardId(stateWithIndex.metadata().getProject().index(indexName).getIndex(), 0);
         final SnapshotsInProgress.Entry snapshotSingleShard = snapshotEntry(
             plainSnapshot,
             Collections.singletonMap(indexId1.getName(), indexId1),
@@ -480,10 +480,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
 
         assertThat(
-            SnapshotsService.snapshottingIndices(
-                clusterState,
-                singleton(clusterState.metadata().projectMetadata.index(indexName).getIndex())
-            ),
+            SnapshotsService.snapshottingIndices(clusterState, singleton(clusterState.metadata().getProject().index(indexName).getIndex())),
             empty()
         );
     }

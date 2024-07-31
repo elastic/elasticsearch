@@ -203,7 +203,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         // For now just making sure that filter was stored with the alias
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
-        IndexMetadata indexMd = clusterState.metadata().projectMetadata.index("test");
+        IndexMetadata indexMd = clusterState.metadata().getProject().index("test");
         assertThat(indexMd.getAliases().get("alias1").filter().string(), equalTo("""
             {"term":{"user":{"value":"kimchy"}}}"""));
 
@@ -1418,20 +1418,32 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final var beforeAliasesVersions = new HashMap<String, Long>(indices.length);
         final var beforeMetadata = admin().cluster().prepareState().get().getState().metadata();
         for (final var index : indices) {
-            beforeAliasesVersions.put(index, beforeMetadata.projectMetadata.index(index).getAliasesVersion());
+            beforeAliasesVersions.put(index, beforeMetadata.getProject().index(index).getAliasesVersion());
         }
         runnable.run();
         final var afterMetadata = admin().cluster().prepareState().get().getState().metadata();
         for (final String index : indices) {
-            assertThat(afterMetadata.projectMetadata.index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
+            assertThat(afterMetadata.getProject().index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
         }
     }
 
     private void assertAliasesVersionUnchanged(final String index, final Runnable runnable) {
-        final long beforeAliasesVersion = admin().cluster().prepareState().get().getState().metadata().projectMetadata.index(index)
+        final long beforeAliasesVersion = admin().cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index(index)
             .getAliasesVersion();
         runnable.run();
-        final long afterAliasesVersion = admin().cluster().prepareState().get().getState().metadata().projectMetadata.index(index)
+        final long afterAliasesVersion = admin().cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index(index)
             .getAliasesVersion();
         assertThat(afterAliasesVersion, equalTo(beforeAliasesVersion));
     }

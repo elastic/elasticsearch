@@ -42,7 +42,7 @@ public class ResizeSourceIndexSettingsUpdater implements RoutingChangesObserver 
         if (changes.isEmpty() == false) {
             final Map<Index, Settings> updates = Maps.newHashMapWithExpectedSize(changes.size());
             for (Index index : changes) {
-                var indexMetadata = metadata.projectMetadata.getIndexSafe(index);
+                var indexMetadata = metadata.getProject().getIndexSafe(index);
                 if (routingTable.index(index).allPrimaryShardsActive()) {
                     assert indexMetadata.getResizeSourceIndex() != null : "no resize source index for " + index;
 

@@ -186,7 +186,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         boolean dryRun
     ) {
         if (dryRun == false) {
-            IndexLifecycleMetadata currentMetadata = currentState.metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata currentMetadata = currentState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
             if (currentMetadata != null && currentILMMode(currentState) != STOPPED) {
                 throw new IllegalStateException(
                     "stop ILM before migrating to data tiers, current state is [" + currentILMMode(currentState) + "]"
@@ -208,7 +208,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         String removedIndexTemplateName = null;
         if (Strings.hasText(indexTemplateToDelete)) {
-            if (currentState.metadata().projectMetadata.templates().containsKey(indexTemplateToDelete)) {
+            if (currentState.metadata().getProject().templates().containsKey(indexTemplateToDelete)) {
                 mb.removeTemplate(indexTemplateToDelete);
                 logger.debug("removing legacy template [{}]", indexTemplateToDelete);
                 removedIndexTemplateName = indexTemplateToDelete;
@@ -250,7 +250,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         Client client,
         XPackLicenseState licenseState
     ) {
-        IndexLifecycleMetadata currentLifecycleMetadata = currentState.metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentLifecycleMetadata = currentState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         if (currentLifecycleMetadata == null) {
             return Collections.emptyList();
         }
@@ -347,7 +347,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
         XPackLicenseState licenseState
     ) {
         String policyName = oldPolicy.getName();
-        final List<IndexMetadata> managedIndices = currentState.metadata().projectMetadata.indices()
+        final List<IndexMetadata> managedIndices = currentState.metadata()
+            .getProject()
+            .indices()
             .values()
             .stream()
             .filter(meta -> policyName.equals(meta.getLifecyclePolicyName()))
@@ -514,7 +516,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         String nodeAttrIndexRequireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
         String nodeAttrIndexIncludeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
         String nodeAttrIndexExcludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
-        for (var indexMetadata : currentState.metadata().projectMetadata.indices().values()) {
+        for (var indexMetadata : currentState.metadata().getProject().indices().values()) {
             String indexName = indexMetadata.getIndex().getName();
             Settings currentSettings = indexMetadata.getSettings();
 
@@ -657,7 +659,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         List<String> migratedLegacyTemplates = new ArrayList<>();
 
-        for (var template : clusterState.metadata().projectMetadata.templates().entrySet()) {
+        for (var template : clusterState.metadata().getProject().templates().entrySet()) {
             IndexTemplateMetadata templateMetadata = template.getValue();
             if (templateMetadata.settings().keySet().contains(requireRoutingSetting)
                 || templateMetadata.settings().keySet().contains(includeRoutingSetting)) {
@@ -682,7 +684,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         List<String> migratedComposableTemplates = new ArrayList<>();
 
-        for (Map.Entry<String, ComposableIndexTemplate> templateEntry : clusterState.metadata().projectMetadata.templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> templateEntry : clusterState.metadata().getProject().templatesV2().entrySet()) {
             ComposableIndexTemplate composableTemplate = templateEntry.getValue();
             if (composableTemplate.template() != null && composableTemplate.template().settings() != null) {
                 Settings settings = composableTemplate.template().settings();
@@ -729,8 +731,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         List<String> migratedComponentTemplates = new ArrayList<>();
 
-        for (Map.Entry<String, ComponentTemplate> componentEntry : clusterState.metadata().projectMetadata.componentTemplates()
-            .entrySet()) {
+        for (Map.Entry<String, ComponentTemplate> componentEntry : clusterState.metadata().getProject().componentTemplates().entrySet()) {
             ComponentTemplate componentTemplate = componentEntry.getValue();
             if (componentTemplate.template() != null && componentTemplate.template().settings() != null) {
                 Settings settings = componentTemplate.template().settings();

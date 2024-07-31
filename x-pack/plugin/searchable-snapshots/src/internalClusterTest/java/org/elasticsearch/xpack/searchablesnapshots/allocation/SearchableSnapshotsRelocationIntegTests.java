@@ -75,7 +75,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         });
 
         assertBusy(() -> assertSame(RecoveryState.Stage.FINALIZE, getRelocations(restoredIndex).get(0).getStage()));
-        final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().projectMetadata.index(restoredIndex).getIndex();
+        final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().getProject().index(restoredIndex).getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
         assertEquals(1, indicesService.indexService(restoredIdx).getShard(0).outstandingCleanFilesConditions());
         final ClusterState state = clusterAdmin().prepareState().get().getState();

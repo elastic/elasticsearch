@@ -82,7 +82,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias or a parent)
         request.request()
-            .routing(state.metadata().projectMetadata.resolveIndexRouting(request.request().routing(), request.request().index()));
+            .routing(state.metadata().getProject().resolveIndexRouting(request.request().routing(), request.request().index()));
     }
 
     @Override

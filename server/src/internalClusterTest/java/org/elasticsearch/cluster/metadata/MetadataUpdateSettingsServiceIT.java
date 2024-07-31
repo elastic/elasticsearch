@@ -128,9 +128,9 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         clusterService.addListener(event -> {
             // We want the cluster change event where the setting is applied. This will be the same one where shards are unassigned
             if (event.metadataChanged()
-                && event.state().metadata().projectMetadata.index(indexName) != null
+                && event.state().metadata().getProject().index(indexName) != null
                 && expectedSettingValue.get()
-                    .equals(event.state().metadata().projectMetadata.index(indexName).getSettings().get(expectedSetting.get()))) {
+                    .equals(event.state().metadata().getProject().index(indexName).getSettings().get(expectedSetting.get()))) {
                 expectedSettingsChangeInClusterState.set(true);
                 if (event.routingTableChanged() && event.state().routingTable().indicesRouting().containsKey(indexName)) {
                     if (hasUnassignedShards(event.state(), indexName)) {

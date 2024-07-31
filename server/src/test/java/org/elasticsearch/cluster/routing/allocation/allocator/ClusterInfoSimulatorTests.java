@@ -275,7 +275,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
         var shard = shardRoutingBuilder(
-            new ShardId(state.metadata().projectMetadata.index("my-index").getIndex(), 0),
+            new ShardId(state.metadata().getProject().index("my-index").getIndex(), 0),
             "node-0",
             true,
             ShardRoutingState.INITIALIZING
@@ -320,7 +320,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
         var shard = shardRoutingBuilder(
-            new ShardId(state.metadata().projectMetadata.index("my-index").getIndex(), 0),
+            new ShardId(state.metadata().getProject().index("my-index").getIndex(), 0),
             "node-0",
             true,
             ShardRoutingState.INITIALIZING
@@ -495,22 +495,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         assertThat(
             "Should keep index-1 on node-0",
-            decider.canRemain(
-                state.metadata().projectMetadata.index("index-1"),
-                shard1,
-                allocation.routingNodes().node("node-0"),
-                allocation
-            ).type(),
+            decider.canRemain(state.metadata().getProject().index("index-1"), shard1, allocation.routingNodes().node("node-0"), allocation)
+                .type(),
             equalTo(Decision.Type.YES)
         );
         assertThat(
             "Should keep index-2 on node-0",
-            decider.canRemain(
-                state.metadata().projectMetadata.index("index-2"),
-                shard2,
-                allocation.routingNodes().node("node-0"),
-                allocation
-            ).type(),
+            decider.canRemain(state.metadata().getProject().index("index-2"), shard2, allocation.routingNodes().node("node-0"), allocation)
+                .type(),
             equalTo(Decision.Type.YES)
         );
         assertThat(
@@ -574,23 +566,15 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         assertThat(
             "Should keep index-1 on node-0",
-            decider.canRemain(
-                state.metadata().projectMetadata.index("index-1"),
-                shard1,
-                allocation.routingNodes().node("node-0"),
-                allocation
-            ).type(),
+            decider.canRemain(state.metadata().getProject().index("index-1"), shard1, allocation.routingNodes().node("node-0"), allocation)
+                .type(),
             equalTo(Decision.Type.YES)
         );
 
         assertThat(
             "Should keep index-2 on node-0",
-            decider.canRemain(
-                state.metadata().projectMetadata.index("index-2"),
-                shard2,
-                allocation.routingNodes().node("node-0"),
-                allocation
-            ).type(),
+            decider.canRemain(state.metadata().getProject().index("index-2"), shard2, allocation.routingNodes().node("node-0"), allocation)
+                .type(),
             equalTo(Decision.Type.YES)
         );
 

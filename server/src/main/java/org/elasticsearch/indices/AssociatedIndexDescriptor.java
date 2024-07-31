@@ -107,7 +107,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
      */
     @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.projectMetadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
+        return metadata.getProject().indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
     /**

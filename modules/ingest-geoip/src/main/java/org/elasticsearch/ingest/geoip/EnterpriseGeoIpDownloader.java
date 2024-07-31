@@ -142,7 +142,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     void updateDatabases() throws IOException {
         var clusterState = clusterService.state();
-        var geoipIndex = clusterState.getMetadata().projectMetadata.getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
+        var geoipIndex = clusterState.getMetadata().getProject().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
             logger.trace("the geoip index [{}] exists", EnterpriseGeoIpDownloader.DATABASES_INDEX);
             if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
@@ -156,7 +156,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         }
 
         logger.trace("Updating geoip databases");
-        IngestGeoIpMetadata geoIpMeta = clusterState.metadata().projectMetadata.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = clusterState.metadata().getProject().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         // if there are entries in the cs that aren't in the persistent task state,
         // then download those (only)

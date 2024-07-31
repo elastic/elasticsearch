@@ -188,7 +188,7 @@ public class MetadataUpdateSettingsService {
             for (int i = 0; i < request.indices().length; i++) {
                 Index index = request.indices()[i];
                 actualIndices[i] = index.getName();
-                final IndexMetadata metadata = currentState.metadata().projectMetadata.getIndexSafe(index);
+                final IndexMetadata metadata = currentState.metadata().getProject().getIndexSafe(index);
 
                 if (metadata.getState() == IndexMetadata.State.OPEN) {
                     openIndices.add(index);
@@ -207,7 +207,7 @@ public class MetadataUpdateSettingsService {
                     );
                     for (Index index : openIndices) {
                         // We only want to take on the expense of reopening all shards for an index if the setting is really changing
-                        Settings existingSettings = currentState.getMetadata().projectMetadata.index(index).getSettings();
+                        Settings existingSettings = currentState.getMetadata().getProject().index(index).getSettings();
                         boolean needToReopenIndex = false;
                         for (String setting : skippedSettings) {
                             String newValue = request.settings().get(setting);
@@ -313,7 +313,7 @@ public class MetadataUpdateSettingsService {
             // increment settings versions
             for (final String index : actualIndices) {
                 if (same(
-                    currentState.metadata().projectMetadata.index(index).getSettings(),
+                    currentState.metadata().getProject().index(index).getSettings(),
                     metadataBuilder.get(index).getSettings()
                 ) == false) {
                     changed = true;
@@ -342,13 +342,13 @@ public class MetadataUpdateSettingsService {
 
             try {
                 for (Index index : openIndices) {
-                    final IndexMetadata currentMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
-                    final IndexMetadata updatedMetadata = updatedState.metadata().projectMetadata.getIndexSafe(index);
+                    final IndexMetadata currentMetadata = currentState.metadata().getProject().getIndexSafe(index);
+                    final IndexMetadata updatedMetadata = updatedState.metadata().getProject().getIndexSafe(index);
                     indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
                 }
                 for (Index index : closedIndices) {
-                    final IndexMetadata currentMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
-                    final IndexMetadata updatedMetadata = updatedState.metadata().projectMetadata.getIndexSafe(index);
+                    final IndexMetadata currentMetadata = currentState.metadata().getProject().getIndexSafe(index);
+                    final IndexMetadata updatedMetadata = updatedState.metadata().getProject().getIndexSafe(index);
                     // Verifies that the current index settings can be updated with the updated dynamic settings.
                     indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
                     // Now check that we can create the index with the updated settings (dynamic and non-dynamic).

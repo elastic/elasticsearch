@@ -84,10 +84,12 @@ public class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        LifecycleExecutionState lifecycleExecutionState = clusterState.metadata().projectMetadata.index(index.getName())
+        LifecycleExecutionState lifecycleExecutionState = clusterState.metadata()
+            .getProject()
+            .index(index.getName())
             .getLifecycleExecutionState();
         String indexName = indexNameSupplier.apply(index.getName(), lifecycleExecutionState);
-        IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(indexName);
+        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
         // check if the (potentially) derived index exists
         if (indexMetadata == null) {
             String errorMessage = String.format(

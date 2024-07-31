@@ -358,7 +358,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         assertBusy(() -> assertNotEquals(before, clusterService.state()));
-        LifecycleExecutionState newExecutionState = clusterService.state().metadata().projectMetadata.index(indexMetadata.getIndex())
+        LifecycleExecutionState newExecutionState = clusterService.state()
+            .metadata()
+            .getProject()
+            .index(indexMetadata.getIndex())
             .getLifecycleExecutionState();
         assertThat(newExecutionState.phase(), equalTo("phase"));
         assertThat(newExecutionState.action(), equalTo("action"));
@@ -445,7 +448,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         assertBusy(() -> assertNotEquals(before, clusterService.state()));
-        LifecycleExecutionState newExecutionState = clusterService.state().metadata().projectMetadata.index(indexMetadata.getIndex())
+        LifecycleExecutionState newExecutionState = clusterService.state()
+            .metadata()
+            .getProject()
+            .index(indexMetadata.getIndex())
             .getLifecycleExecutionState();
         assertThat(newExecutionState.phase(), equalTo("phase"));
         assertThat(newExecutionState.action(), equalTo("action"));
@@ -922,10 +928,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertNotSame(oldClusterState, newClusterState);
         Metadata newMetadata = newClusterState.metadata();
         assertNotSame(oldClusterState.metadata(), newMetadata);
-        IndexMetadata newIndexMetadata = newMetadata.projectMetadata.getIndexSafe(index);
-        assertNotSame(oldClusterState.metadata().projectMetadata.index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = newClusterState.metadata().projectMetadata.index(index).getLifecycleExecutionState();
-        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().projectMetadata.index(index).getLifecycleExecutionState();
+        IndexMetadata newIndexMetadata = newMetadata.getProject().getIndexSafe(index);
+        assertNotSame(oldClusterState.metadata().getProject().index(index), newIndexMetadata);
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
         assertEquals(nextStep.phase(), newLifecycleState.phase());
         assertEquals(nextStep.action(), newLifecycleState.action());

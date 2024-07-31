@@ -283,7 +283,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             }
             // Determine which data streams and failure stores need to be rolled over.
             if (lazyRolloverFeature) {
-                DataStream dataStream = state.metadata().projectMetadata.dataStreams().get(request.index());
+                DataStream dataStream = state.metadata().getProject().dataStreams().get(request.index());
                 if (dataStream != null) {
                     if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
                         dataStreamsToBeRolledOver.add(request.index());
@@ -573,7 +573,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
 
         // Get index abstraction, resolving date math if it exists
-        IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup()
+        IndexAbstraction indexAbstraction = metadata.getProject()
+            .getIndicesLookup()
             .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
 
         // We only store failures if the failure is being written to a data stream,
@@ -586,7 +587,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // This handles alias resolution as well as data stream resolution.
         Index writeIndex = indexAbstraction.getWriteIndex();
         assert writeIndex != null : "Could not resolve write index for resource [" + indexName + "]";
-        IndexAbstraction writeAbstraction = metadata.projectMetadata.getIndicesLookup().get(writeIndex.getName());
+        IndexAbstraction writeAbstraction = metadata.getProject().getIndicesLookup().get(writeIndex.getName());
         DataStream targetDataStream = writeAbstraction.getParentDataStream();
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
@@ -609,7 +610,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         String template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
         if (template != null) {
             // Check if this is a data stream template or if it is just a normal index.
-            ComposableIndexTemplate composableIndexTemplate = metadata.projectMetadata.templatesV2().get(template);
+            ComposableIndexTemplate composableIndexTemplate = metadata.getProject().templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
                 return Optional.of(composableIndexTemplate.getDataStreamTemplate().hasFailureStore());

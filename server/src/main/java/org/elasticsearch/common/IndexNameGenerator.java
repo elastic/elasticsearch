@@ -66,10 +66,10 @@ public final class IndexNameGenerator {
         } catch (InvalidIndexNameException e) {
             err.addValidationError(e.getMessage());
         }
-        if (state.routingTable().hasIndex(generatedIndexName) || state.metadata().projectMetadata.hasIndex(generatedIndexName)) {
+        if (state.routingTable().hasIndex(generatedIndexName) || state.metadata().getProject().hasIndex(generatedIndexName)) {
             err.addValidationError("the index name we generated [" + generatedIndexName + "] already exists");
         }
-        if (state.metadata().projectMetadata.hasAlias(generatedIndexName)) {
+        if (state.metadata().getProject().hasAlias(generatedIndexName)) {
             err.addValidationError("the index name we generated [" + generatedIndexName + "] already exists as alias");
         }
 

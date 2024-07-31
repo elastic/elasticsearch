@@ -35,7 +35,7 @@ public class HealthNode extends AllocatedPersistentTask {
 
     @Nullable
     public static PersistentTasksCustomMetadata.PersistentTask<?> findTask(ClusterState clusterState) {
-        PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         return taskMetadata == null ? null : taskMetadata.getTask(TASK_NAME);
     }
 

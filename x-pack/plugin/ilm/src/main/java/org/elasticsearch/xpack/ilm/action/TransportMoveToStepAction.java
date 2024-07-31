@@ -78,7 +78,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        IndexMetadata indexMetadata = state.metadata().projectMetadata.index(request.getIndex());
+        IndexMetadata indexMetadata = state.metadata().getProject().index(request.getIndex());
         if (indexMetadata == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));
             return;
@@ -160,7 +160,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    IndexMetadata newIndexMetadata = newState.metadata().projectMetadata.index(indexMetadata.getIndex());
+                    IndexMetadata newIndexMetadata = newState.metadata().getProject().index(indexMetadata.getIndex());
                     if (newIndexMetadata == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
                         logger.debug(

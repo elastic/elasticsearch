@@ -159,9 +159,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("test"))
-                    .build()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("test")).build()
             )
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
@@ -182,7 +180,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsRecovery(metadata.projectMetadata.index("test"))
+                    .addAsRecovery(metadata.getProject().index("test"))
                     .build()
             )
             .build();
@@ -216,7 +214,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .metadata(metadata0)
                 .routingTable(
                     RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                        .addAsNew(metadata0.projectMetadata.index("test"))
+                        .addAsNew(metadata0.getProject().index("test"))
                         .build()
                 )
                 .build(),
@@ -241,13 +239,13 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
         // cluster state 2: index closed and fully unassigned
         final var metadata1 = Metadata.builder(metadata0)
-            .put(IndexMetadata.builder(metadata0.projectMetadata.index("test")).state(IndexMetadata.State.CLOSE))
+            .put(IndexMetadata.builder(metadata0.getProject().index("test")).state(IndexMetadata.State.CLOSE))
             .build();
         final var clusterState2 = ClusterState.builder(clusterState1)
             .metadata(metadata1)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState1.routingTable())
-                    .addAsFromOpenToClose(metadata1.projectMetadata.index("test"))
+                    .addAsFromOpenToClose(metadata1.getProject().index("test"))
             )
             .build();
 
@@ -263,13 +261,13 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
         // cluster state 4: index reopened, fully unassigned again
         final var metadata4 = Metadata.builder(metadata0)
-            .put(IndexMetadata.builder(metadata1.projectMetadata.index("test")).state(IndexMetadata.State.OPEN))
+            .put(IndexMetadata.builder(metadata1.getProject().index("test")).state(IndexMetadata.State.OPEN))
             .build();
         final var clusterState4 = ClusterState.builder(clusterState3)
             .metadata(metadata4)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState3.routingTable())
-                    .addAsFromCloseToOpen(metadata4.projectMetadata.index("test"))
+                    .addAsFromCloseToOpen(metadata4.getProject().index("test"))
             )
             .build();
 
@@ -340,7 +338,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsFromCloseToOpen(metadata.projectMetadata.index("test"))
+                    .addAsFromCloseToOpen(metadata.getProject().index("test"))
                     .build()
             )
             .build();
@@ -363,7 +361,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsNewRestore(
-                        metadata.projectMetadata.index("test"),
+                        metadata.getProject().index("test"),
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
@@ -405,7 +403,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .metadata(metadata0)
                 .routingTable(
                     RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                        .addAsNew(metadata0.projectMetadata.index("test"))
+                        .addAsNew(metadata0.getProject().index("test"))
                         .build()
                 )
                 .build(),
@@ -415,13 +413,13 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
         // cluster state 1: index closed and reassigned
         final var metadata1 = Metadata.builder(metadata0)
-            .put(IndexMetadata.builder(metadata0.projectMetadata.index("test")).state(IndexMetadata.State.CLOSE))
+            .put(IndexMetadata.builder(metadata0.getProject().index("test")).state(IndexMetadata.State.CLOSE))
             .build();
         final var clusterState1 = ClusterState.builder(clusterState0)
             .metadata(metadata1)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState0.routingTable())
-                    .addAsFromOpenToClose(metadata1.projectMetadata.index("test"))
+                    .addAsFromOpenToClose(metadata1.getProject().index("test"))
             )
             .build();
 
@@ -449,7 +447,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState2.routingTable())
                     .addAsRestore(
-                        metadata3.projectMetadata.index("test"),
+                        metadata3.getProject().index("test"),
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
@@ -480,7 +478,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsFromDangling(metadata.projectMetadata.index("test"))
+                    .addAsFromDangling(metadata.getProject().index("test"))
                     .build()
             )
             .build();
@@ -494,13 +492,11 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
-        final Index index = metadata.projectMetadata.index("test").getIndex();
+        final Index index = metadata.getProject().index("test").getIndex();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index(index))
-                    .build()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index(index)).build()
             )
             .build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -551,9 +547,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("test"))
-                    .build()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("test")).build()
             )
             .build();
         clusterState = ClusterState.builder(clusterState)
@@ -593,9 +587,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("test"))
-                    .build()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("test")).build()
             )
             .build();
         clusterState = ClusterState.builder(clusterState)
@@ -815,8 +807,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("test1"))
-                    .addAsNew(metadata.projectMetadata.index("test2"))
+                    .addAsNew(metadata.getProject().index("test1"))
+                    .addAsNew(metadata.getProject().index("test2"))
                     .build()
             )
             .build();
@@ -865,8 +857,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(metadata.projectMetadata.index("test1"))
-                    .addAsNew(metadata.projectMetadata.index("test2"))
+                    .addAsNew(metadata.getProject().index("test1"))
+                    .addAsNew(metadata.getProject().index("test2"))
                     .build()
             )
             .build();

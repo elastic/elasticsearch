@@ -125,7 +125,7 @@ public class MetaStateService {
         final IndexGraveyard indexGraveyard;
         if (globalMetadata != null) {
             metadataBuilder = Metadata.builder(globalMetadata);
-            indexGraveyard = globalMetadata.projectMetadata.custom(IndexGraveyard.TYPE);
+            indexGraveyard = globalMetadata.getProject().custom(IndexGraveyard.TYPE);
         } else {
             metadataBuilder = Metadata.builder();
             indexGraveyard = IndexGraveyard.builder().build();

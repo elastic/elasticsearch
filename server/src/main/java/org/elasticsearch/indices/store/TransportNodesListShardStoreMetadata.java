@@ -157,7 +157,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 if (indexService != null) {
                     customDataPath = indexService.getIndexSettings().customDataPath();
                 } else {
-                    IndexMetadata metadata = clusterService.state().metadata().projectMetadata.index(shardId.getIndex());
+                    IndexMetadata metadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
                     if (metadata != null) {
                         customDataPath = new IndexSettings(metadata, settings).customDataPath();
                     } else {

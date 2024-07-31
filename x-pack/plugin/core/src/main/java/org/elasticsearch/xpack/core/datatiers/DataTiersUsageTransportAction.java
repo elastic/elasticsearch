@@ -125,7 +125,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             .collect(Collectors.toSet());
         Map<String, Set<String>> indicesByTierPreference = new HashMap<>();
         for (String indexName : indices) {
-            IndexMetadata indexMetadata = state.metadata().projectMetadata.index(indexName);
+            IndexMetadata indexMetadata = state.metadata().getProject().index(indexName);
             // If the index was deleted in the meantime, skip
             if (indexMetadata == null) {
                 continue;

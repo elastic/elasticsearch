@@ -161,7 +161,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
     private static void assertIndexIsBlocked(final String... indices) {
         final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         for (String index : indices) {
-            assertThat(clusterState.metadata().projectMetadata.indices().get(index).getState(), is(IndexMetadata.State.OPEN));
+            assertThat(clusterState.metadata().getProject().indices().get(index).getState(), is(IndexMetadata.State.OPEN));
             assertThat(clusterState.routingTable().index(index), notNullValue());
             assertThat(
                 "Index " + index + " must have only 1 block with [id=" + INDEX_CLOSED_BLOCK_ID + "]",

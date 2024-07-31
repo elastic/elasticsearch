@@ -42,7 +42,7 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
+        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());

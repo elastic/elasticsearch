@@ -204,7 +204,7 @@ public class AllocationService {
 
         for (FailedShard failedShardEntry : failedShards) {
             ShardRouting shardToFail = failedShardEntry.routingEntry();
-            assert allocation.metadata().projectMetadata.hasIndex(shardToFail.shardId().getIndex());
+            assert allocation.metadata().getProject().hasIndex(shardToFail.shardId().getIndex());
             allocation.addIgnoreShardForNode(shardToFail.shardId(), shardToFail.currentNodeId());
             // failing a primary also fails initializing replica shards, re-resolve ShardRouting
             ShardRouting failedShard = allocation.routingNodes()
@@ -431,7 +431,7 @@ public class AllocationService {
                 if (unassignedInfo.delayed()) {
                     final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                         allocation.getCurrentNanoTime(),
-                        metadata.projectMetadata.getIndexSafe(shardRouting.index()).getSettings(),
+                        metadata.getProject().getIndexSafe(shardRouting.index()).getSettings(),
                         metadata.nodeShutdowns()
                     );
                     if (newComputedLeftDelayNanos == 0) {
@@ -483,7 +483,7 @@ public class AllocationService {
         }
 
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        for (String index : clusterState.metadata().projectMetadata.getConcreteAllIndices()) {
+        for (String index : clusterState.metadata().getProject().getConcreteAllIndices()) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             if (indexRoutingTable == null) {
                 continue;
@@ -595,7 +595,7 @@ public class AllocationService {
 
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
-                final IndexMetadata indexMetadata = allocation.metadata().projectMetadata.getIndexSafe(shardRouting.index());
+                final IndexMetadata indexMetadata = allocation.metadata().getProject().getIndexSafe(shardRouting.index());
                 boolean delayed = delayedDueToKnownRestart
                     || INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
 
@@ -624,14 +624,14 @@ public class AllocationService {
         RoutingNodes routingNodes = routingAllocation.routingNodes();
         for (ShardRouting startedShard : startedShardEntries) {
             assert startedShard.initializing() : "only initializing shards can be started";
-            assert routingAllocation.metadata().projectMetadata.index(startedShard.shardId().getIndex()) != null
+            assert routingAllocation.metadata().getProject().index(startedShard.shardId().getIndex()) != null
                 : "shard started for unknown index (shard entry: " + startedShard + ")";
             assert startedShard == routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId())
                 : "shard routing to start does not exist in routing table, expected: "
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-            long expectedShardSize = routingAllocation.metadata().projectMetadata.getIndexSafe(startedShard.index()).isSearchableSnapshot()
+            long expectedShardSize = routingAllocation.metadata().getProject().getIndexSafe(startedShard.index()).isSearchableSnapshot()
                 ? startedShard.getExpectedShardSize()
                 : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
             routingNodes.startShard(startedShard, routingAllocation.changes(), expectedShardSize);
@@ -694,7 +694,7 @@ public class AllocationService {
     private ExistingShardsAllocator getAllocatorForShard(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert assertInitialized();
         final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            routingAllocation.metadata().projectMetadata.getIndexSafe(shardRouting.index()).getSettings()
+            routingAllocation.metadata().getProject().getIndexSafe(shardRouting.index()).getSettings()
         );
         final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);

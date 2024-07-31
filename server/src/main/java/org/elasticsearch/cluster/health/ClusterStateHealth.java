@@ -40,7 +40,7 @@ public final class ClusterStateHealth implements Writeable {
      * @param clusterState The current cluster state. Must not be null.
      */
     public ClusterStateHealth(final ClusterState clusterState) {
-        this(clusterState, clusterState.metadata().projectMetadata.getConcreteAllIndices());
+        this(clusterState, clusterState.metadata().getProject().getConcreteAllIndices());
     }
 
     /**
@@ -63,7 +63,7 @@ public final class ClusterStateHealth implements Writeable {
 
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
+            IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
             if (indexRoutingTable == null) {
                 continue;
             }

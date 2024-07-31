@@ -305,7 +305,7 @@ public class MetadataIndexStateService {
     ) {
         final Set<Index> indicesToClose = new HashSet<>();
         for (Index index : indices) {
-            final IndexMetadata indexMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
+            final IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
             if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                 indicesToClose.add(index);
             } else {
@@ -450,11 +450,11 @@ public class MetadataIndexStateService {
         }
         Metadata metadata = clusterService.state().metadata();
         List<String> writeIndices = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> lookup = metadata.projectMetadata.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> lookup = metadata.getProject().getIndicesLookup();
         for (Index index : concreteIndices) {
             IndexAbstraction ia = lookup.get(index.getName());
             if (ia != null && ia.getParentDataStream() != null) {
-                Index writeIndex = metadata.projectMetadata.index(ia.getParentDataStream().getWriteIndex()).getIndex();
+                Index writeIndex = metadata.getProject().index(ia.getParentDataStream().getWriteIndex()).getIndex();
                 if (writeIndex.equals(index)) {
                     writeIndices.add(index.getName());
                 }
@@ -599,7 +599,7 @@ public class MetadataIndexStateService {
             final ClusterState state,
             final Consumer<IndexResult> onResponse
         ) {
-            final IndexMetadata indexMetadata = state.metadata().projectMetadata.index(index);
+            final IndexMetadata indexMetadata = state.metadata().getProject().index(index);
             if (indexMetadata == null) {
                 logger.debug("index {} has been blocked before closing and is now deleted, ignoring", index);
                 onResponse.accept(new IndexResult(index));
@@ -730,7 +730,7 @@ public class MetadataIndexStateService {
             final ClusterState state,
             final Consumer<AddBlockResult> onResponse
         ) {
-            final IndexMetadata indexMetadata = state.metadata().projectMetadata.index(index);
+            final IndexMetadata indexMetadata = state.metadata().getProject().index(index);
             if (indexMetadata == null) {
                 logger.debug("index {} has since been deleted, ignoring", index);
                 onResponse.accept(new AddBlockResult(index));
@@ -1092,7 +1092,7 @@ public class MetadataIndexStateService {
         private ClusterState openIndices(final Index[] indices, final ClusterState currentState) {
             final List<IndexMetadata> indicesToOpen = new ArrayList<>(indices.length);
             for (Index index : indices) {
-                final IndexMetadata indexMetadata = currentState.metadata().projectMetadata.getIndexSafe(index);
+                final IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
                 if (indexMetadata.getState() != IndexMetadata.State.OPEN) {
                     indicesToOpen.add(indexMetadata);
                 } else if (currentState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID)) {
@@ -1159,9 +1159,7 @@ public class MetadataIndexStateService {
             );
             for (IndexMetadata previousIndexMetadata : indicesToOpen) {
                 if (previousIndexMetadata.getState() != IndexMetadata.State.OPEN) {
-                    routingTable.addAsFromCloseToOpen(
-                        updatedState.metadata().projectMetadata.getIndexSafe(previousIndexMetadata.getIndex())
-                    );
+                    routingTable.addAsFromCloseToOpen(updatedState.metadata().getProject().getIndexSafe(previousIndexMetadata.getIndex()));
                 }
             }
             return ClusterState.builder(updatedState).routingTable(routingTable).build();

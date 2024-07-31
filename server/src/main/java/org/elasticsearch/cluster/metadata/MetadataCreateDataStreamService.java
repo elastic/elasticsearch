@@ -104,7 +104,7 @@ public class MetadataCreateDataStreamService {
                     // When we're manually creating a data stream (i.e. not an auto creation), we don't need to initialize the failure store
                     // because we don't need to redirect any failures in the same request.
                     ClusterState clusterState = createDataStream(request, currentState, delegate.reroute(), false);
-                    DataStream createdDataStream = clusterState.metadata().projectMetadata.dataStreams().get(request.name);
+                    DataStream createdDataStream = clusterState.metadata().getProject().dataStreams().get(request.name);
                     firstBackingIndexRef.set(createdDataStream.getIndices().get(0).getName());
                     if (createdDataStream.getFailureIndices().getIndices().isEmpty() == false) {
                         firstFailureStoreRef.set(createdDataStream.getFailureIndices().getIndices().get(0).getName());
@@ -246,7 +246,7 @@ public class MetadataCreateDataStreamService {
         Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);
         Objects.requireNonNull(backingIndices);
-        if (currentState.metadata().projectMetadata.dataStreams().containsKey(dataStreamName)) {
+        if (currentState.metadata().getProject().dataStreams().containsKey(dataStreamName)) {
             throw new ResourceAlreadyExistsException("data_stream [" + dataStreamName + "] already exists");
         }
 
@@ -298,7 +298,7 @@ public class MetadataCreateDataStreamService {
                 failureStoreIndexName,
                 null
             );
-            failureStoreIndex = currentState.metadata().projectMetadata.index(failureStoreIndexName);
+            failureStoreIndex = currentState.metadata().getProject().index(failureStoreIndexName);
         }
 
         if (writeIndex == null) {
@@ -314,7 +314,7 @@ public class MetadataCreateDataStreamService {
                 template,
                 firstBackingIndexName
             );
-            writeIndex = currentState.metadata().projectMetadata.index(firstBackingIndexName);
+            writeIndex = currentState.metadata().getProject().index(firstBackingIndexName);
         } else {
             rerouteListener.onResponse(null);
         }
@@ -330,10 +330,10 @@ public class MetadataCreateDataStreamService {
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = metadata.projectMetadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
+        final IndexMode indexMode = metadata.getProject().isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
         final DataStreamLifecycle lifecycle = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
-            : MetadataIndexTemplateService.resolveLifecycle(template, metadata.projectMetadata.componentTemplates());
+            : MetadataIndexTemplateService.resolveLifecycle(template, metadata.getProject().componentTemplates());
         List<Index> failureIndices = failureStoreIndex == null ? List.of() : List.of(failureStoreIndex.getIndex());
         DataStream newDataStream = new DataStream(
             dataStreamName,
@@ -471,7 +471,7 @@ public class MetadataCreateDataStreamService {
         if (v2Template == null) {
             throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
         }
-        ComposableIndexTemplate composableIndexTemplate = metadata.projectMetadata.templatesV2().get(v2Template);
+        ComposableIndexTemplate composableIndexTemplate = metadata.getProject().templatesV2().get(v2Template);
         if (composableIndexTemplate.getDataStreamTemplate() == null) {
             throw new IllegalArgumentException(
                 "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"

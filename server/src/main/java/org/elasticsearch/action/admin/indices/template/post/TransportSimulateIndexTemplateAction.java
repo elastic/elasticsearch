@@ -149,7 +149,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         }
 
         final ClusterState tempClusterState = resolveTemporaryState(matchingTemplate, request.getIndexName(), stateWithTemplate);
-        ComposableIndexTemplate templateV2 = tempClusterState.metadata().projectMetadata.templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate templateV2 = tempClusterState.metadata().getProject().templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
         final Template template = resolveTemplate(
@@ -248,7 +248,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             matchingTemplate
         );
 
-        ComposableIndexTemplate template = simulatedState.metadata().projectMetadata.templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate template = simulatedState.metadata().getProject().templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -272,7 +272,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null && metadata.projectMetadata.isTimeSeriesTemplate(template),
+                template.getDataStreamTemplate() != null && metadata.getProject().isTimeSeriesTemplate(template),
                 simulatedState.getMetadata(),
                 now,
                 templateSettings,
@@ -332,7 +332,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     }
 
     private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {
-        final IndexMetadata indexMetadata = simulatedState.metadata().projectMetadata.index(indexName);
+        final IndexMetadata indexMetadata = simulatedState.metadata().getProject().index(indexName);
         return indexMetadata == null ? IndexLongFieldRange.NO_SHARDS : indexMetadata.getEventIngestedRange();
     }
 }

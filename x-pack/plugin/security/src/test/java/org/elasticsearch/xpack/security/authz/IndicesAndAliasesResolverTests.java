@@ -1880,7 +1880,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsAliasNameForDynamicPutMappingRequestOnWriteIndex() {
         String index = "logs-00003"; // write index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-        assert metadata.projectMetadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
+        assert metadata.getProject().getIndicesLookup().get("logs-alias").getIndices().size() == 3;
         String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
         String message = "user is authorized to access `logs-alias` and the put mapping request is for a write index"
             + "so this should have returned the alias name";
@@ -1890,7 +1890,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsIndexNameForDynamicPutMappingRequestOnReadIndex() {
         String index = "logs-00002"; // read index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-        assert metadata.projectMetadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
+        assert metadata.getProject().getIndicesLookup().get("logs-alias").getIndices().size() == 3;
         String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
         String message = "user is authorized to access `logs-alias` and the put mapping request is for a read index"
             + "so this should have returned the concrete index as fallback";
@@ -2167,7 +2167,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         for (String dsName : dataStreams) {
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dsName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dsName);
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
             for (Index i : dataStream.getIndices()) {
@@ -2186,7 +2186,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         for (String dsName : dataStreams) {
             assertThat(resolvedIndices.getLocal(), hasItem(dsName));
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dsName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dsName);
             assertThat(resolvedIndices.getLocal(), hasItem(dsName));
             for (Index i : dataStream.getIndices()) {
                 assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
@@ -2206,7 +2206,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
-        DataStream dataStream = metadata.projectMetadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
         assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
         for (Index i : dataStream.getIndices()) {
@@ -2238,7 +2238,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> expectedDataStreams = List.of("logs-foo", "logs-foobar");
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request);
         for (String dsName : expectedDataStreams) {
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dsName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dsName);
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
             for (Index i : dataStream.getIndices()) {
@@ -2262,7 +2262,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolvedIndices.getLocal(), hasItem("logs-00003"));
         assertThat(resolvedIndices.getLocal(), hasItem("logs-alias"));
         for (String dsName : expectedDataStreams) {
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dsName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dsName);
             assertNotNull(dataStream);
             for (Index i : dataStream.getIndices()) {
                 assertThat(resolvedIndices.getLocal(), not(hasItem(i.getName())));
@@ -2273,7 +2273,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testDataStreamsAreVisibleWhenIncludedByRequestWithoutWildcard() {
         final User user = new User("data-stream-tester3", "data_stream_test3");
         String dataStreamName = "logs-foobar";
-        DataStream dataStream = metadata.projectMetadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
         SearchRequest request = new SearchRequest(dataStreamName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
         assertThat(request.includeDataStreams(), is(true));
@@ -2311,7 +2311,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> expectedDataStreams = List.of("logs-foo", "logs-foobar");
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request);
         for (String dsName : expectedDataStreams) {
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dsName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dsName);
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
             for (Index i : dataStream.getIndices()) {
@@ -2329,7 +2329,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             authorizedIndices
         );
         for (String dsName : expectedDataStreams) {
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dsName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dsName);
             assertThat(resolvedIndices.getLocal(), not(hasItem(dsName)));
             for (Index i : dataStream.getIndices()) {
                 assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
@@ -2349,7 +2349,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
-        DataStream dataStream = metadata.projectMetadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
         assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
         for (Index i : dataStream.getIndices()) {
@@ -2383,7 +2383,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all().get(), not(hasItem("logs-foobar")));
         assertThat(authorizedIndices.check("logs-foobar"), is(false));
-        DataStream dataStream = metadata.projectMetadata.dataStreams().get("logs-foobar");
+        DataStream dataStream = metadata.getProject().dataStreams().get("logs-foobar");
         assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
         // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
         assertThat(authorizedIndices.check(indexName), is(true));
@@ -2445,7 +2445,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all().get(), not(hasItem("logs-foobar")));
         assertThat(authorizedIndices.check("logs-foobar"), is(false));
-        DataStream dataStream = metadata.projectMetadata.dataStreams().get("logs-foobar");
+        DataStream dataStream = metadata.getProject().dataStreams().get("logs-foobar");
         assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
         // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
         assertThat(authorizedIndices.check(indexName), is(true));
@@ -2552,7 +2552,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         return RBACEngine.resolveAuthorizedIndicesFromRole(
             rolesListener.actionGet(),
             getRequestInfo(request, action),
-            metadata.projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
     }

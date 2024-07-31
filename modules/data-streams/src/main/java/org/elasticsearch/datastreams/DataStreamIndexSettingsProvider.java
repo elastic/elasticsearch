@@ -65,7 +65,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         List<CompressedXContent> combinedTemplateMappings
     ) {
         if (dataStreamName != null) {
-            DataStream dataStream = metadata.projectMetadata.dataStreams().get(dataStreamName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
             // First backing index is created and then data stream is rolled over (in a single cluster state update).
             // So at this point we can't check index_mode==time_series,
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
@@ -93,7 +93,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookBackTime.getMillis()));
                         end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
                     } else {
-                        IndexMetadata currentLatestBackingIndex = metadata.projectMetadata.index(dataStream.getWriteIndex());
+                        IndexMetadata currentLatestBackingIndex = metadata.getProject().index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
                             throw new IllegalStateException(
                                 String.format(

@@ -90,7 +90,7 @@ public class AllocationFailuresResetTests extends ESTestCase {
 
         var routingTable = new RoutingTable.Builder().add(
             new IndexRoutingTable.Builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, indexMeta.getIndex()).initializeAsNew(
-                meta.projectMetadata.index(index)
+                meta.getProject().index(index)
             ).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting)).build()
         ).build();
 

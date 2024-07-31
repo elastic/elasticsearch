@@ -442,13 +442,13 @@ public class SecurityIndexManager implements ClusterStateListener {
      * that if supplied with an alias, the alias resolves to at most one concrete index.
      */
     private static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
-        final IndexAbstraction indexAbstraction = metadata.projectMetadata.getIndicesLookup().get(indexOrAliasName);
+        final IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(indexOrAliasName);
         if (indexAbstraction != null) {
             final List<Index> indices = indexAbstraction.getIndices();
             if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
                 throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " + indices);
             }
-            return metadata.projectMetadata.index(indices.get(0));
+            return metadata.getProject().index(indices.get(0));
         }
         return null;
     }

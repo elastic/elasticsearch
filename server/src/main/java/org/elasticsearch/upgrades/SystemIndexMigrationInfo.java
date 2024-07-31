@@ -264,7 +264,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     ) {
         SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(taskState.getCurrentIndex());
         SystemIndices.Feature feature = systemIndices.getFeature(taskState.getCurrentFeature());
-        IndexMetadata imd = metadata.projectMetadata.index(taskState.getCurrentIndex());
+        IndexMetadata imd = metadata.getProject().index(taskState.getCurrentIndex());
 
         // It's possible for one or both of these to happen if the executing node fails during execution and:
         // 1. The task gets assigned to a node with a different set of plugins installed.

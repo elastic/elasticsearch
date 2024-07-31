@@ -51,7 +51,7 @@ public final class PhaseCacheManagement {
         final String index,
         final LifecyclePolicyMetadata updatedPolicy
     ) {
-        final IndexMetadata idxMeta = state.metadata().projectMetadata.index(index);
+        final IndexMetadata idxMeta = state.metadata().getProject().index(index);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
         refreshPhaseDefinition(metadataBuilder, idxMeta, updatedPolicy);
         return ClusterState.builder(state).metadata(metadataBuilder.build()).build();
@@ -150,7 +150,9 @@ public final class PhaseCacheManagement {
             return false;
         }
 
-        final List<IndexMetadata> indicesThatCanBeUpdated = currentState.metadata().projectMetadata.indices()
+        final List<IndexMetadata> indicesThatCanBeUpdated = currentState.metadata()
+            .getProject()
+            .indices()
             .values()
             .stream()
             .filter(meta -> newPolicy.getName().equals(meta.getLifecyclePolicyName()))

@@ -110,14 +110,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected void resolveRequest(ClusterState state, UpdateRequest docWriteRequest) {
-        docWriteRequest.routing(
-            state.metadata().projectMetadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index())
-        );
+        docWriteRequest.routing(state.metadata().getProject().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
     }
 
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        if (request.isRequireAlias() && (clusterService.state().getMetadata().projectMetadata.hasAlias(request.index()) == false)) {
+        if (request.isRequireAlias() && (clusterService.state().getMetadata().getProject().hasAlias(request.index()) == false)) {
             throw new IndexNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + request.index() + "] is not an alias",
                 request.index()
@@ -165,7 +163,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         if (request.getShardId() != null) {
             return clusterState.routingTable().index(request.concreteIndex()).shard(request.getShardId().getId()).primaryShardIt();
         }
-        IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(request.concreteIndex());
+        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(request.concreteIndex());
         if (indexMetadata == null) {
             throw new IndexNotFoundException(request.concreteIndex());
         }

@@ -42,14 +42,14 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.getMetadata().projectMetadata.index(index);
+        IndexMetadata idxMeta = clusterState.getMetadata().getProject().index(index);
         if (idxMeta == null) {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             // Index must have been since deleted, ignore it
             return new Result(false, null);
         }
         String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(
-            clusterState.metadata().projectMetadata.index(index).getSettings()
+            clusterState.metadata().getProject().index(index).getSettings()
         );
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
@@ -58,7 +58,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState);
         boolean isConditionMet = index.getName().equals(targetIndexName)
-            && clusterState.metadata().projectMetadata.index(shrunkenIndexSource) == null;
+            && clusterState.metadata().getProject().index(shrunkenIndexSource) == null;
         if (isConditionMet) {
             return new Result(true, null);
         } else {

@@ -78,7 +78,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportMasterNode
             );
         }
 
-        final IngestGeoIpMetadata geoIpMeta = state.metadata().projectMetadata.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final IngestGeoIpMetadata geoIpMeta = state.metadata().getProject().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         List<DatabaseConfigurationMetadata> results = new ArrayList<>();
 
         for (String id : ids) {

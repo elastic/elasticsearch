@@ -98,7 +98,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             ClusterState state = clusterAdmin().prepareState().get().getState();
             assertTrue(
                 "Timed out waiting for indices to be created",
-                state.metadata().projectMetadata.indices().keySet().containsAll(indices)
+                state.metadata().getProject().indices().keySet().containsAll(indices)
             );
         });
     }

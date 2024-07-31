@@ -143,7 +143,7 @@ public final class EnrichCache {
 
     private String getEnrichIndexKey(SearchRequest searchRequest) {
         String alias = searchRequest.indices()[0];
-        IndexAbstraction ia = metadata.projectMetadata.getIndicesLookup().get(alias);
+        IndexAbstraction ia = metadata.getProject().getIndicesLookup().get(alias);
         if (ia == null) {
             throw new IndexNotFoundException("no generated enrich index [" + alias + "]");
         }

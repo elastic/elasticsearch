@@ -92,10 +92,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             )
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.projectMetadata.index("test"))
-            .addAsNew(metadata.projectMetadata.index("test_1"))
-            .addAsNew(metadata.projectMetadata.index("test_2"))
-            .addAsNew(metadata.projectMetadata.index("frozen"))
+            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject().index("test_1"))
+            .addAsNew(metadata.getProject().index("test_2"))
+            .addAsNew(metadata.getProject().index("frozen"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.DEFAULT)
@@ -183,10 +183,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         monitor.onNewInfo(clusterInfo(builder));
         assertTrue(reroute.get());
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indices.get());
-        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().projectMetadata.index("test_2"))
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().getProject().index("test_2"))
             .settings(
                 Settings.builder()
-                    .put(clusterState.metadata().projectMetadata.index("test_2").getSettings())
+                    .put(clusterState.metadata().getProject().index("test_2").getSettings())
                     .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
             )
             .build();
@@ -195,8 +195,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final ClusterState anotherFinalClusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
-                    .put(clusterState.metadata().projectMetadata.index("test"), false)
-                    .put(clusterState.metadata().projectMetadata.index("test_1"), false)
+                    .put(clusterState.metadata().getProject().index("test"), false)
+                    .put(clusterState.metadata().getProject().index("test_1"), false)
                     .put(indexMetadata, true)
                     .build()
             )
@@ -436,8 +436,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.projectMetadata.index("test_1"))
-            .addAsNew(metadata.projectMetadata.index("test_2"))
+            .addAsNew(metadata.getProject().index("test_1"))
+            .addAsNew(metadata.getProject().index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.DEFAULT)
@@ -541,10 +541,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToRelease.get());
 
         // Change cluster state so that "test_2" index is blocked (read only)
-        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().projectMetadata.index("test_2"))
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().getProject().index("test_2"))
             .settings(
                 Settings.builder()
-                    .put(clusterState.metadata().projectMetadata.index("test_2").getSettings())
+                    .put(clusterState.metadata().getProject().index("test_2").getSettings())
                     .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
             )
             .build();
@@ -772,8 +772,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.projectMetadata.index("test_1"))
-            .addAsNew(metadata.projectMetadata.index("test_2"))
+            .addAsNew(metadata.getProject().index("test_1"))
+            .addAsNew(metadata.getProject().index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.DEFAULT)
@@ -879,10 +879,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToRelease.get());
 
         // Change cluster state so that "test_2" index is blocked (read only)
-        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().projectMetadata.index("test_2"))
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().getProject().index("test_2"))
             .settings(
                 Settings.builder()
-                    .put(clusterState.metadata().projectMetadata.index("test_2").getSettings())
+                    .put(clusterState.metadata().getProject().index("test_2").getSettings())
                     .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
             )
             .build();
@@ -1303,7 +1303,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         }
         Metadata metadata = metadataBuilder.build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.projectMetadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder()
             .add(newNormalNode("node1", "node1"))

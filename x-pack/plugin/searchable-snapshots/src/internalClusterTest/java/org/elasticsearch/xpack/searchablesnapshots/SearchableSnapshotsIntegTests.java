@@ -151,7 +151,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .setIndices(indexName)
             .get()
             .getState()
-            .metadata().projectMetadata.index(indexName);
+            .metadata()
+            .getProject()
+            .index(indexName);
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
@@ -256,7 +258,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .setIndices(restoredIndexName)
             .get()
             .getState()
-            .metadata().projectMetadata.index(restoredIndexName);
+            .metadata()
+            .getProject()
+            .index(restoredIndexName);
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
@@ -759,7 +763,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .setIndices(indexName)
             .get()
             .getState()
-            .metadata().projectMetadata.index(indexName);
+            .metadata()
+            .getProject()
+            .index(indexName);
 
         final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         assertTrue(timestampRange.isComplete());

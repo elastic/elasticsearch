@@ -216,8 +216,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
 
-        boolean hasIndicesChanges = event.previousState().metadata().projectMetadata.indices()
-            .equals(event.state().metadata().projectMetadata.indices()) == false;
+        boolean hasIndicesChanges = event.previousState()
+            .metadata()
+            .getProject()
+            .indices()
+            .equals(event.state().metadata().getProject().indices()) == false;
         boolean hasIngestPipelineChanges = event.metadataChanged() && event.changedCustomProjectMetadataSet().contains(IngestMetadata.TYPE);
 
         if (hasIngestPipelineChanges || hasIndicesChanges) {
@@ -374,8 +377,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
         );
         persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, MASTER_TIMEOUT, ActionListener.runAfter(listener, () -> {
-            IndexAbstraction databasesAbstraction = clusterService.state().metadata().projectMetadata.getIndicesLookup()
-                .get(DATABASES_INDEX);
+            IndexAbstraction databasesAbstraction = clusterService.state().metadata().getProject().getIndicesLookup().get(DATABASES_INDEX);
             if (databasesAbstraction != null) {
                 // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
                 Index databasesIndex = databasesAbstraction.getWriteIndex();

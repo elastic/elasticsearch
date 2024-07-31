@@ -66,20 +66,20 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            results = new ArrayList<>(state.metadata().projectMetadata.templates().values());
+            results = new ArrayList<>(state.metadata().getProject().templates().values());
         } else {
             results = new ArrayList<>();
         }
 
         for (String name : request.names()) {
             if (Regex.isSimpleMatchPattern(name)) {
-                for (Map.Entry<String, IndexTemplateMetadata> entry : state.metadata().projectMetadata.templates().entrySet()) {
+                for (Map.Entry<String, IndexTemplateMetadata> entry : state.metadata().getProject().templates().entrySet()) {
                     if (Regex.simpleMatch(name, entry.getKey())) {
                         results.add(entry.getValue());
                     }
                 }
-            } else if (state.metadata().projectMetadata.templates().containsKey(name)) {
-                results.add(state.metadata().projectMetadata.templates().get(name));
+            } else if (state.metadata().getProject().templates().containsKey(name)) {
+                results.add(state.metadata().getProject().templates().get(name));
             }
         }
 

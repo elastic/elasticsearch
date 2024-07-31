@@ -2254,9 +2254,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected NumShards getNumShards(String index) {
         Metadata metadata = clusterAdmin().prepareState().get().getState().metadata();
-        assertThat(metadata.projectMetadata.hasIndex(index), equalTo(true));
-        int numShards = Integer.valueOf(metadata.projectMetadata.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
-        int numReplicas = Integer.valueOf(metadata.projectMetadata.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
+        assertThat(metadata.getProject().hasIndex(index), equalTo(true));
+        int numShards = Integer.valueOf(metadata.getProject().index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
+        int numReplicas = Integer.valueOf(metadata.getProject().index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
         return new NumShards(numShards, numReplicas);
     }
 

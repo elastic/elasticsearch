@@ -245,7 +245,7 @@ public class MlMetadata implements Metadata.ProjectCustom {
     }
 
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().projectMetadata.custom(TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().getProject().custom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

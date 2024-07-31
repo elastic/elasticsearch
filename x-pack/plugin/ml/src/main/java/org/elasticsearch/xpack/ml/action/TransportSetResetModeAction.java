@@ -55,7 +55,7 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
                     .build()
             );
         } else {
-            MlMetadata.Builder builder = MlMetadata.Builder.from(oldState.metadata().projectMetadata.custom(MlMetadata.TYPE))
+            MlMetadata.Builder builder = MlMetadata.Builder.from(oldState.metadata().getProject().custom(MlMetadata.TYPE))
                 .isResetMode(request.isEnabled());
             newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
         }

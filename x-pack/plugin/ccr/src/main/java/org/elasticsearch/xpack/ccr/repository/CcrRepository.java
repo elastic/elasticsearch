@@ -235,12 +235,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     }
 
                     Metadata responseMetadata = response.metadata();
-                    Map<String, IndexMetadata> indicesMap = responseMetadata.projectMetadata.indices();
+                    Map<String, IndexMetadata> indicesMap = responseMetadata.getProject().indices();
                     consumer.accept(
                         new SnapshotInfo(
                             snapshot,
                             List.copyOf(indicesMap.keySet()),
-                            List.copyOf(responseMetadata.projectMetadata.dataStreams().keySet()),
+                            List.copyOf(responseMetadata.getProject().dataStreams().keySet()),
                             List.of(),
                             maxIndexVersion,
                             SnapshotState.SUCCESS
@@ -297,7 +297,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         // Validates whether the leader cluster has been configured properly:
         PlainActionFuture<String[]> future = new PlainActionFuture<>();
-        IndexMetadata leaderIndexMetadata = clusterState.getState().metadata().projectMetadata.index(leaderIndex);
+        IndexMetadata leaderIndexMetadata = clusterState.getState().metadata().getProject().index(leaderIndex);
         CcrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet(ccrSettings.getRecoveryActionTimeout());
 
@@ -328,11 +328,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         try {
             csDeduplicator.execute(new ThreadedActionListener<>(responseExecutor, listener.map(response -> {
                 final Metadata remoteMetadata = response.getMetadata();
-                final String[] concreteAllIndices = remoteMetadata.projectMetadata.getConcreteAllIndices();
+                final String[] concreteAllIndices = remoteMetadata.getProject().getConcreteAllIndices();
                 final Map<String, SnapshotId> copiedSnapshotIds = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(concreteAllIndices.length);
-                final Map<String, IndexMetadata> remoteIndices = remoteMetadata.projectMetadata.indices();
+                final Map<String, IndexMetadata> remoteIndices = remoteMetadata.getProject().indices();
                 for (String indexName : concreteAllIndices) {
                     // Both the Snapshot name and UUID are set to _latest_
                     final SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);

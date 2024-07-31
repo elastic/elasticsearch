@@ -111,10 +111,9 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
 
         {
-            IndexLifecycleMetadata lifecycleMetadata = state.metadata().projectMetadata.custom(
-                IndexLifecycleMetadata.TYPE,
-                IndexLifecycleMetadata.EMPTY
-            );
+            IndexLifecycleMetadata lifecycleMetadata = state.metadata()
+                .getProject()
+                .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
             LifecyclePolicyMetadata existingPolicy = lifecycleMetadata.getPolicyMetadatas().get(request.getPolicy().getName());
             // Make the request a no-op if the policy and filtered headers match exactly
             if (isNoopUpdate(existingPolicy, request.getPolicy(), filteredHeaders)) {
@@ -177,10 +176,9 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            final IndexLifecycleMetadata currentMetadata = currentState.metadata().projectMetadata.custom(
-                IndexLifecycleMetadata.TYPE,
-                IndexLifecycleMetadata.EMPTY
-            );
+            final IndexLifecycleMetadata currentMetadata = currentState.metadata()
+                .getProject()
+                .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
             final LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas().get(request.getPolicy().getName());
 
             // Double-check for no-op in the state update task, in case it was changed/reset in the meantime
@@ -303,7 +301,9 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         for (Phase phase : phasesWithWaitForSnapshotActions) {
             WaitForSnapshotAction action = (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME);
             String slmPolicy = action.getPolicy();
-            if (state.metadata().projectMetadata.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
+            if (state.metadata()
+                .getProject()
+                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
                 .getSnapshotConfigurations()
                 .get(slmPolicy) == null) {
                 throw new IllegalArgumentException(

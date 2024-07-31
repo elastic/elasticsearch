@@ -123,7 +123,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, snapshotShardSizeInfo);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(snapshotShardSize));
-        if (state.metadata().projectMetadata.index("my-index").isPartialSearchableSnapshot() == false) {
+        if (state.metadata().getProject().index("my-index").isPartialSearchableSnapshot() == false) {
             assertTrue("Should reserve space for snapshot restore", shouldReserveSpaceForInitializingShard(shard, allocation));
         } else {
             assertFalse(

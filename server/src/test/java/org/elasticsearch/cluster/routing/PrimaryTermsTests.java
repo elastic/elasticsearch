@@ -67,14 +67,14 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         RoutingTable routingTable = new RoutingTable.Builder().add(
             new IndexRoutingTable.Builder(
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-                metadata.projectMetadata.index(TEST_INDEX_1).getIndex()
-            ).initializeAsNew(metadata.projectMetadata.index(TEST_INDEX_1)).build()
+                metadata.getProject().index(TEST_INDEX_1).getIndex()
+            ).initializeAsNew(metadata.getProject().index(TEST_INDEX_1)).build()
         )
             .add(
                 new IndexRoutingTable.Builder(
                     TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-                    metadata.projectMetadata.index(TEST_INDEX_2).getIndex()
-                ).initializeAsNew(metadata.projectMetadata.index(TEST_INDEX_2)).build()
+                    metadata.getProject().index(TEST_INDEX_2).getIndex()
+                ).initializeAsNew(metadata.getProject().index(TEST_INDEX_2)).build()
             )
             .build();
 
@@ -184,7 +184,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
 
     private void assertPrimaryTerm(String index) {
         final long[] terms = primaryTermsPerIndex.get(index);
-        final IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.index(index);
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
         final IndexRoutingTable indexRoutingTable = this.clusterState.routingTable().index(index);
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             final int shard = indexRoutingTable.shard(i).shardId().id();

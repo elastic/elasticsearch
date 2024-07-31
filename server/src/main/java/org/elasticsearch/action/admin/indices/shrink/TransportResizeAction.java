@@ -111,7 +111,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         final String sourceIndex = IndexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
         final String targetIndex = IndexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
 
-        final IndexMetadata sourceMetadata = state.metadata().projectMetadata.index(sourceIndex);
+        final IndexMetadata sourceMetadata = state.metadata().getProject().index(sourceIndex);
         if (sourceMetadata == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndex));
             return;

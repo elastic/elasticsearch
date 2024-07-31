@@ -670,7 +670,7 @@ public class RelocationIT extends ESIntegTestCase {
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
-            for (String index : clusterAdmin().prepareState().get().getState().metadata().projectMetadata.indices().keySet()) {
+            for (String index : clusterAdmin().prepareState().get().getState().metadata().getProject().indices().keySet()) {
                 Map<ShardId, List<ShardStats>> byShardId = Stream.of(indicesAdmin().prepareStats(index).get().getShards())
                     .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
                 for (List<ShardStats> shardStats : byShardId.values()) {

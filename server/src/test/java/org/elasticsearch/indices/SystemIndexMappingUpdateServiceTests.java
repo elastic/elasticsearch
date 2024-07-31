@@ -307,15 +307,13 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     private ClusterState markShardsAvailable(ClusterState.Builder clusterStateBuilder) {
         final ClusterState cs = clusterStateBuilder.build();
         return ClusterState.builder(cs)
-            .routingTable(buildIndexRoutingTable(cs.metadata().projectMetadata.index(DESCRIPTOR.getPrimaryIndex()).getIndex()))
+            .routingTable(buildIndexRoutingTable(cs.metadata().getProject().index(DESCRIPTOR.getPrimaryIndex()).getIndex()))
             .build();
     }
 
     private ClusterState markShardsUnavailable(ClusterState.Builder clusterStateBuilder) {
         final ClusterState cs = clusterStateBuilder.build();
-        final RoutingTable routingTable = buildIndexRoutingTable(
-            cs.metadata().projectMetadata.index(DESCRIPTOR.getPrimaryIndex()).getIndex()
-        );
+        final RoutingTable routingTable = buildIndexRoutingTable(cs.metadata().getProject().index(DESCRIPTOR.getPrimaryIndex()).getIndex());
 
         Index prevIndex = routingTable.index(DESCRIPTOR.getPrimaryIndex()).getIndex();
 

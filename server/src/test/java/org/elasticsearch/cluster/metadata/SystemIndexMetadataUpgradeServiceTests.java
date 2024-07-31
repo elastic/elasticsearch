@@ -222,7 +222,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         // Get a metadata upgrade task and execute it on the initial cluster state
         ClusterState newState = service.getTask().execute(clusterState);
 
-        IndexMetadata result = newState.metadata().projectMetadata.index(SYSTEM_INDEX_NAME);
+        IndexMetadata result = newState.metadata().getProject().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
         assertThat(result.isHidden(), equalTo(true));
     }
@@ -240,7 +240,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         // Get a metadata upgrade task and execute it on the initial cluster state
         ClusterState newState = service.getTask().execute(clusterState);
 
-        IndexMetadata result = newState.metadata().projectMetadata.index(SYSTEM_INDEX_NAME);
+        IndexMetadata result = newState.metadata().getProject().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
         assertThat(result.getAliases().values().stream().allMatch(AliasMetadata::isHidden), equalTo(true));
     }

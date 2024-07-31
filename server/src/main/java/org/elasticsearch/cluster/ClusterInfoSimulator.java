@@ -108,7 +108,7 @@ public class ClusterInfoSimulator {
                 }
                 shardSizes.put(
                     shardIdentifierFromRouting(shard),
-                    allocation.metadata().projectMetadata.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
+                    allocation.metadata().getProject().getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
                 );
             }
         }

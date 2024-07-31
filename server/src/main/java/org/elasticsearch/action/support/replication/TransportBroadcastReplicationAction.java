@@ -92,7 +92,7 @@ public abstract class TransportBroadcastReplicationAction<
 
                 final ClusterState clusterState = clusterService.state();
                 final List<ShardId> shards = shards(request, clusterState);
-                final Map<String, IndexMetadata> indexMetadataByName = clusterState.getMetadata().projectMetadata.indices();
+                final Map<String, IndexMetadata> indexMetadataByName = clusterState.getMetadata().getProject().indices();
 
                 try (var refs = new RefCountingRunnable(() -> finish(listener))) {
                     for (final ShardId shardId : shards) {
@@ -182,7 +182,7 @@ public abstract class TransportBroadcastReplicationAction<
         List<ShardId> shardIds = new ArrayList<>();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().projectMetadata.indices().get(index);
+            IndexMetadata indexMetadata = clusterState.metadata().getProject().indices().get(index);
             if (indexMetadata != null) {
                 final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().indicesRouting().get(index);
                 for (int i = 0; i < indexRoutingTable.size(); i++) {

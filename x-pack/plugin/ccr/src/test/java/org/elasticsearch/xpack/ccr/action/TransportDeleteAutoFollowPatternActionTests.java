@@ -102,7 +102,9 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             .build();
 
         Request request = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "name1");
-        AutoFollowMetadata result = TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState).getMetadata().projectMetadata
+        AutoFollowMetadata result = TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
+            .getMetadata()
+            .getProject()
             .custom(AutoFollowMetadata.TYPE);
         assertThat(result.getPatterns().size(), equalTo(1));
         assertThat(result.getPatterns().get("name2"), notNullValue());

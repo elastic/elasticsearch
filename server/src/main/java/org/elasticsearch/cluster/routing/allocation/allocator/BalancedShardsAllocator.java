@@ -337,7 +337,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.metadata = allocation.metadata();
             this.weight = weight;
             this.threshold = threshold;
-            avgShardsPerNode = ((float) metadata.projectMetadata.getTotalNumberOfShards()) / routingNodes.size();
+            avgShardsPerNode = ((float) metadata.getProject().getTotalNumberOfShards()) / routingNodes.size();
             avgWriteLoadPerNode = getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
             avgDiskUsageInBytesPerNode = ((double) getTotalDiskUsageInBytes(allocation.clusterInfo(), metadata) / routingNodes.size());
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
@@ -346,7 +346,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private static double getTotalWriteLoad(WriteLoadForecaster writeLoadForecaster, Metadata metadata) {
             double writeLoad = 0.0;
-            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
+            for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
                 writeLoad += getIndexWriteLoad(writeLoadForecaster, indexMetadata);
             }
             return writeLoad;
@@ -359,7 +359,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private static long getTotalDiskUsageInBytes(ClusterInfo clusterInfo, Metadata metadata) {
             long totalDiskUsageInBytes = 0;
-            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
+            for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
                 totalDiskUsageInBytes += getIndexDiskUsageInBytes(clusterInfo, indexMetadata);
             }
             return totalDiskUsageInBytes;
@@ -408,11 +408,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private float getShardWriteLoad(String index) {
-            return (float) writeLoadForecaster.getForecastedWriteLoad(metadata.projectMetadata.index(index)).orElse(0.0);
+            return (float) writeLoadForecaster.getForecastedWriteLoad(metadata.getProject().index(index)).orElse(0.0);
         }
 
         private float maxShardSizeBytes(String index) {
-            final var indexMetadata = metadata.projectMetadata.index(index);
+            final var indexMetadata = metadata.getProject().index(index);
             var maxShardSizeBytes = indexMetadata.getForecastedShardSizeInBytes().orElse(0L);
             for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
                 final var shardId = new ShardId(indexMetadata.getIndex(), shard);
@@ -437,7 +437,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * Returns the average of shards per node for the given index
          */
         public float avgShardsPerNode(String index) {
-            return ((float) metadata.projectMetadata.index(index).getTotalNumberOfShards()) / nodes.size();
+            return ((float) metadata.getProject().index(index).getTotalNumberOfShards()) / nodes.size();
         }
 
         /**
@@ -661,7 +661,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ModelNode[] modelNodes = sorter.modelNodes;
             final float[] weights = sorter.weights;
             for (String index : buildWeightOrderedIndices()) {
-                IndexMetadata indexMetadata = metadata.projectMetadata.index(index);
+                IndexMetadata indexMetadata = metadata.getProject().index(index);
 
                 // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
                 // move these nodes to the front of modelNodes so that we can only balance based on these nodes
@@ -1308,7 +1308,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
-            IndexMetadata indexMetadata = metadata.projectMetadata.index(shard.index());
+            IndexMetadata indexMetadata = metadata.getProject().index(shard.index());
             writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
             diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards++;
@@ -1322,7 +1322,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     indices.remove(shard.getIndexName());
                 }
             }
-            IndexMetadata indexMetadata = metadata.projectMetadata.index(shard.index());
+            IndexMetadata indexMetadata = metadata.getProject().index(shard.index());
             writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
             diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards--;

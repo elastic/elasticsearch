@@ -464,7 +464,9 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
 
     public void testUpdateDatabasesWriteBlock() {
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
-        var geoIpIndex = state.getMetadata().projectMetadata.getIndicesLookup()
+        var geoIpIndex = state.getMetadata()
+            .getProject()
+            .getIndicesLookup()
             .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
             .getWriteIndex()
             .getName();
@@ -487,7 +489,9 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
 
     public void testUpdateDatabasesIndexNotReady() throws IOException {
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
-        var geoIpIndex = state.getMetadata().projectMetadata.getIndicesLookup()
+        var geoIpIndex = state.getMetadata()
+            .getProject()
+            .getIndicesLookup()
             .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
             .getWriteIndex()
             .getName();

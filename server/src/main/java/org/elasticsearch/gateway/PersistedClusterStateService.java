@@ -941,7 +941,7 @@ public class PersistedClusterStateService {
                 commit(
                     currentTerm,
                     clusterState.version(),
-                    metadata.projectMetadata.oldestIndexVersion(),
+                    metadata.getProject().oldestIndexVersion(),
                     metadata.clusterUUID(),
                     metadata.clusterUUIDCommitted()
                 );
@@ -983,7 +983,7 @@ public class PersistedClusterStateService {
                 commit(
                     currentTerm,
                     clusterState.version(),
-                    metadata.projectMetadata.oldestIndexVersion(),
+                    metadata.getProject().oldestIndexVersion(),
                     metadata.clusterUUID(),
                     metadata.clusterUUIDCommitted()
                 );
@@ -1026,7 +1026,7 @@ public class PersistedClusterStateService {
                 return new WriterStats(
                     false,
                     false,
-                    metadata.projectMetadata.getMappingsByHash().size(),
+                    metadata.getProject().getMappingsByHash().size(),
                     0,
                     0,
                     metadata.getProject().size(),
@@ -1047,8 +1047,8 @@ public class PersistedClusterStateService {
             int numMappingsAdded = 0;
             int numMappingsRemoved = 0;
             int numMappingsUnchanged = 0;
-            final var previousMappingHashes = new HashSet<>(previouslyWrittenMetadata.projectMetadata.getMappingsByHash().keySet());
-            for (final var entry : metadata.projectMetadata.getMappingsByHash().entrySet()) {
+            final var previousMappingHashes = new HashSet<>(previouslyWrittenMetadata.getProject().getMappingsByHash().keySet());
+            for (final var entry : metadata.getProject().getMappingsByHash().entrySet()) {
                 if (previousMappingHashes.remove(entry.getKey()) == false) {
                     addMappingDocuments(entry.getKey(), entry.getValue());
                     numMappingsAdded++;
@@ -1066,9 +1066,9 @@ public class PersistedClusterStateService {
             }
 
             final Map<String, Long> indexMetadataVersionByUUID = Maps.newMapWithExpectedSize(
-                previouslyWrittenMetadata.projectMetadata.indices().size()
+                previouslyWrittenMetadata.getProject().indices().size()
             );
-            previouslyWrittenMetadata.projectMetadata.indices().forEach((name, indexMetadata) -> {
+            previouslyWrittenMetadata.getProject().indices().forEach((name, indexMetadata) -> {
                 final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                 assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
             });
@@ -1077,7 +1077,7 @@ public class PersistedClusterStateService {
             int numIndicesUpdated = 0;
             int numIndicesRemoved = 0;
             int numIndicesUnchanged = 0;
-            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
+            for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
                 final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
                 if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
                     logger.trace(
@@ -1211,11 +1211,11 @@ public class PersistedClusterStateService {
         private WriterStats addMetadata(Metadata metadata) throws IOException {
             addGlobalMetadataDocuments(metadata);
 
-            for (final var entry : metadata.projectMetadata.getMappingsByHash().entrySet()) {
+            for (final var entry : metadata.getProject().getMappingsByHash().entrySet()) {
                 addMappingDocuments(entry.getKey(), entry.getValue());
             }
 
-            for (IndexMetadata indexMetadata : metadata.projectMetadata.indices().values()) {
+            for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
                 addIndexMetadataDocuments(indexMetadata);
             }
 
@@ -1229,10 +1229,10 @@ public class PersistedClusterStateService {
                 true,
                 true,
                 0,
-                metadata.projectMetadata.getMappingsByHash().size(),
+                metadata.getProject().getMappingsByHash().size(),
                 0,
                 0,
-                metadata.projectMetadata.indices().size(),
+                metadata.getProject().indices().size(),
                 0,
                 0
             );

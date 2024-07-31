@@ -94,7 +94,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         logger.info("--> creating an index with auto-expand replicas");
         createIndex("test", Settings.builder().put(AutoExpandReplicas.SETTING.getKey(), "0-all").build());
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-        assertThat(clusterState.metadata().projectMetadata.index("test").getNumberOfReplicas(), equalTo(1));
+        assertThat(clusterState.metadata().getProject().index("test").getNumberOfReplicas(), equalTo(1));
         ensureGreen("test");
 
         logger.info("--> filter out the second node");
@@ -107,7 +107,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> verify all are allocated on node1 now");
         clusterState = clusterAdmin().prepareState().get().getState();
-        assertThat(clusterState.metadata().projectMetadata.index("test").getNumberOfReplicas(), equalTo(0));
+        assertThat(clusterState.metadata().getProject().index("test").getNumberOfReplicas(), equalTo(0));
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);

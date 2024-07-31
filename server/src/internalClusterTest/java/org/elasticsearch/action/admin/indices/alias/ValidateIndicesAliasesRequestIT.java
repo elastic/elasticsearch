@@ -51,7 +51,7 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
             return Collections.singletonList((request, state, indices) -> {
                 for (final Index index : indices) {
                     final List<String> allowedOrigins = ALLOWED_ORIGINS_SETTING.get(
-                        state.metadata().projectMetadata.index(index).getSettings()
+                        state.metadata().getProject().index(index).getSettings()
                     );
                     if (allowedOrigins.contains(request.origin()) == false) {
                         final String message = String.format(

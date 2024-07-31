@@ -296,7 +296,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         @Override
         public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
-            logger.info("recovered [{}] indices into cluster_state", newState.metadata().projectMetadata.indices().size());
+            logger.info("recovered [{}] indices into cluster_state", newState.metadata().getProject().indices().size());
             // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
             // not-recovered state, that we again do another state recovery.
             rerouteService.reroute("state recovered", Priority.NORMAL, ActionListener.noop());

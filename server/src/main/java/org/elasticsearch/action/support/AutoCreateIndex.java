@@ -121,7 +121,7 @@ public final class AutoCreateIndex {
 
     private static ComposableIndexTemplate findTemplate(String indexName, Metadata metadata) {
         final String templateName = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
-        return metadata.projectMetadata.templatesV2().get(templateName);
+        return metadata.getProject().templatesV2().get(templateName);
     }
 
     static class AutoCreate {

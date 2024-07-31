@@ -70,7 +70,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().getProject().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -81,7 +81,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().projectMetadata.index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newState.metadata().getProject().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
@@ -114,7 +114,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().getProject().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices - 1));
@@ -125,10 +125,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .toList();
         assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().toArray()));
 
-        IndexMetadata removedIndex = newState.metadata().projectMetadata.indices().get(indexToRemove.getIndex().getName());
+        IndexMetadata removedIndex = newState.metadata().getProject().indices().get(indexToRemove.getIndex().getName());
         assertThat(removedIndex, notNullValue());
         assertThat(removedIndex.getSettings().get("index.hidden"), equalTo("false"));
-        assertNull(newState.metadata().projectMetadata.getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
+        assertNull(newState.metadata().getProject().getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
     }
 
     public void testRemoveWriteIndexIsProhibited() {
@@ -213,7 +213,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().getProject().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -224,7 +224,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().projectMetadata.index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newState.metadata().getProject().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
@@ -276,7 +276,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             Settings.EMPTY
         );
 
-        IndexAbstraction ds = newState.metadata().projectMetadata.getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newState.metadata().getProject().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -287,7 +287,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().projectMetadata.index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newState.metadata().getProject().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
@@ -355,7 +355,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
     public void testRemoveBrokenBackingIndexReference() {
         var dataStreamName = "my-logs";
         var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
-        var original = state.getMetadata().projectMetadata.dataStreams().get(dataStreamName);
+        var original = state.getMetadata().getProject().dataStreams().get(dataStreamName);
         var broken = original.copy()
             .setBackingIndices(
                 original.getBackingIndices()
@@ -372,9 +372,9 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             this::getMapperService,
             Settings.EMPTY
         );
-        assertThat(result.getMetadata().projectMetadata.dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        assertThat(result.getMetadata().getProject().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
         assertThat(
-            result.getMetadata().projectMetadata.dataStreams().get(dataStreamName).getIndices().get(0),
+            result.getMetadata().getProject().dataStreams().get(dataStreamName).getIndices().get(0),
             equalTo(original.getIndices().get(1))
         );
     }
@@ -408,7 +408,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         {
             // Remove lifecycle
             ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), null);
-            DataStream updatedDataStream = after.metadata().projectMetadata.dataStreams().get(dataStream);
+            DataStream updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), nullValue());
             before = after;
@@ -417,7 +417,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         {
             // Set lifecycle
             ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
-            DataStream updatedDataStream = after.metadata().projectMetadata.dataStreams().get(dataStream);
+            DataStream updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
         }

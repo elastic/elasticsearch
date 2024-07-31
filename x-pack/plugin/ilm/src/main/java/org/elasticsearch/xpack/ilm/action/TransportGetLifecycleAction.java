@@ -68,7 +68,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
             return;
         }
 
-        IndexLifecycleMetadata metadata = clusterService.state().metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata metadata = clusterService.state().metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {
                 listener.onResponse(new Response(Collections.emptyList()));

@@ -78,7 +78,9 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
         @Override
         public ClusterState execute(ClusterState currentState) {
             String policyToDelete = request.getPolicyName();
-            List<String> indicesUsingPolicy = currentState.metadata().projectMetadata.indices()
+            List<String> indicesUsingPolicy = currentState.metadata()
+                .getProject()
+                .indices()
                 .values()
                 .stream()
                 .filter(idxMeta -> policyToDelete.equals(idxMeta.getLifecyclePolicyName()))
@@ -90,7 +92,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                 );
             }
             ClusterState.Builder newState = ClusterState.builder(currentState);
-            IndexLifecycleMetadata currentMetadata = currentState.metadata().projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata currentMetadata = currentState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
             if (currentMetadata == null || currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
                 throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
             }

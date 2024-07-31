@@ -181,7 +181,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
         MetadataRolloverService.validateIndexName(clusterState, trialRolloverIndexName);
 
-        boolean isDataStream = metadata.projectMetadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
+        boolean isDataStream = metadata.getProject().dataStreams().containsKey(rolloverRequest.getRolloverTarget());
         if (rolloverRequest.isLazy()) {
             if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {
                 String message;
@@ -221,7 +221,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             }
         }
 
-        final IndexAbstraction rolloverTargetAbstraction = clusterState.metadata().projectMetadata.getIndicesLookup()
+        final IndexAbstraction rolloverTargetAbstraction = clusterState.metadata()
+            .getProject()
+            .getIndicesLookup()
             .get(rolloverRequest.getRolloverTarget());
         if (rolloverTargetAbstraction.getType() == IndexAbstraction.Type.ALIAS && rolloverTargetAbstraction.isDataStreamRelated()) {
             listener.onFailure(
@@ -263,7 +265,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             listener.delegateFailureAndWrap((delegate, statsResponse) -> {
 
                 AutoShardingResult rolloverAutoSharding = null;
-                final IndexAbstraction indexAbstraction = clusterState.metadata().projectMetadata.getIndicesLookup()
+                final IndexAbstraction indexAbstraction = clusterState.metadata()
+                    .getProject()
+                    .getIndicesLookup()
                     .get(rolloverRequest.getRolloverTarget());
                 if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
                     DataStream dataStream = (DataStream) indexAbstraction;
@@ -303,7 +307,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(
                     rolloverRequest.getConditionValues(),
-                    buildStats(metadata.projectMetadata.index(trialSourceIndexName), statsResponse)
+                    buildStats(metadata.getProject().index(trialSourceIndexName), statsResponse)
                 );
 
                 final RolloverResponse trialRolloverResponse = new RolloverResponse(
@@ -499,7 +503,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             );
 
             // Re-evaluate the conditions, now with our final source index name
-            IndexMetadata rolloverSourceIndex = currentState.metadata().projectMetadata.index(rolloverNames.sourceName());
+            IndexMetadata rolloverSourceIndex = currentState.metadata().getProject().index(rolloverNames.sourceName());
             final Map<String, Boolean> postConditionResults = evaluateConditions(
                 rolloverRequest.getConditionValues(),
                 buildStats(rolloverSourceIndex, rolloverTask.statsResponse())
@@ -526,7 +530,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .filter(condition -> resultsIncludingDecreaseShards.get(condition.toString()))
                     .toList();
 
-                final IndexAbstraction rolloverTargetAbstraction = currentState.metadata().projectMetadata.getIndicesLookup()
+                final IndexAbstraction rolloverTargetAbstraction = currentState.metadata()
+                    .getProject()
+                    .getIndicesLookup()
                     .get(rolloverRequest.getRolloverTarget());
 
                 final IndexMetadataStats sourceIndexStats = rolloverTargetAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM

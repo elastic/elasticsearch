@@ -85,4 +85,4 @@ setup:
         body:
           fields: ["transaction.root"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: {"transaction.root": ["false"] }}
+  - match: { hits.hits.0.fields: {"transaction.root": [false] }}

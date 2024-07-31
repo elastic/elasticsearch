@@ -412,7 +412,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),
                 new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Set.of("kibana*")) },
             null,
-            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            MetadataUtils.DEFAULT_RESERVED_ROLE_METADATA,
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 getRemoteIndicesReadPrivileges(".monitoring-*"),

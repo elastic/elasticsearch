@@ -83,7 +83,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build() },
         null,
         new String[] { "*" },
-        MetadataUtils.DEFAULT_RESERVED_METADATA,
+        MetadataUtils.DEFAULT_RESERVED_ROLE_METADATA,
         Collections.emptyMap(),
         new RoleDescriptor.RemoteIndicesPrivileges[] {
             new RoleDescriptor.RemoteIndicesPrivileges(
@@ -143,7 +143,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         RESERVED_ROLES = ALL_RESERVED_ROLES.entrySet()
             .stream()
             .filter(entry -> includes.contains(entry.getKey()))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     static RoleDescriptor.RemoteIndicesPrivileges getRemoteIndicesReadPrivileges(String indexPattern) {

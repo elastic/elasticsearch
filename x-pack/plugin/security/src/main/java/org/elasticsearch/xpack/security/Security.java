@@ -130,6 +130,7 @@ import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyAction;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
@@ -782,6 +783,8 @@ public class Security extends Plugin
         // See Plugin#additionalSettings()
         this.settings = environment.settings();
 
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
+
         systemIndices.init(client, featureService, clusterService);
 
         this.securityMigrationExecutor.set(
@@ -915,7 +918,6 @@ public class Security extends Plugin
         );
         components.add(privilegeStore);
 
-        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
@@ -1596,6 +1598,7 @@ public class Security extends Plugin
             new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
             new ActionHandler<>(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
             new ActionHandler<>(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
+            new ActionHandler<>(SetIndexMetadataPropertyAction.INSTANCE, SetIndexMetadataPropertyAction.TransportAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();

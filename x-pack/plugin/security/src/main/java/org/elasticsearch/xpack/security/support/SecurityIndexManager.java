@@ -136,7 +136,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * should be reused for multiple checks in the same workflow.
      */
     public SecurityIndexManager defensiveCopy() {
-        return new SecurityIndexManager(null, null, systemIndexDescriptor, state, true);
+        return new SecurityIndexManager(null, client, systemIndexDescriptor, state, true);
     }
 
     public String aliasName() {

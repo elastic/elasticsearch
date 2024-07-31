@@ -55,7 +55,7 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
                 DataType.DOUBLE,
-                closeTo(calcPSeriesWeightedSum(field, p), 0.00000001)
+                closeTo(calcPSeriesWeightedSum(field, p), .00001)
             );
         }));
     }

@@ -126,12 +126,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111280
 - class: org.elasticsearch.xpack.repositories.metering.azure.AzureRepositoriesMeteringIT
   issue: https://github.com/elastic/elasticsearch/issues/111307
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
-  method: testGroupingAggregate {TestCase=<long unicode TEXTs>}
-  issue: https://github.com/elastic/elasticsearch/issues/111429
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
-  method: testGroupingAggregate {TestCase=<long unicode KEYWORDs>}
-  issue: https://github.com/elastic/elasticsearch/issues/111428
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111434
@@ -141,6 +135,12 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111448
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSumTests
+  method: testFold {TestCase=<double>, <double>}
+  issue: https://github.com/elastic/elasticsearch/issues/111479
+- class: org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerialiationTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/111480
 
 # Examples:
 #

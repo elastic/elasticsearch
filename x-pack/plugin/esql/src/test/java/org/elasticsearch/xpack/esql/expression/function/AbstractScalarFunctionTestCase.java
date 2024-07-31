@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -604,9 +605,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (argumentCount > 3) {
             throw new IllegalArgumentException("would generate too many combinations");
         }
-        Stream<List<DataType>> stream = representable().map(t -> List.of(t));
+        Stream<List<DataType>> stream = validFunctionParameters().map(List::of);
         for (int i = 1; i < argumentCount; i++) {
-            stream = stream.flatMap(types -> representable().map(t -> append(types, t)));
+            stream = stream.flatMap(types -> validFunctionParameters().map(t -> append(types, t)));
         }
         return stream;
     }
@@ -698,7 +699,51 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
     }
 
-    protected static Stream<DataType> representable() {
-        return DataType.types().stream().filter(DataType::isRepresentable);
+    /**
+     * The types that are valid in function parameters. This is used by the
+     * function tests to enumerate all possible parameters to test error messages
+     * for invalid combinations.
+     */
+    public static Stream<DataType> validFunctionParameters() {
+        return Arrays.stream(DataType.values()).filter(t -> {
+            if (t == DataType.UNSUPPORTED) {
+                // By definition, functions never support UNSUPPORTED
+                return false;
+            }
+            if (t == DataType.DOC_DATA_TYPE || t == DataType.PARTIAL_AGG) {
+                /*
+                 * Doc and partial_agg are special and functions aren't
+                 * defined to take these. They'll use them implicitly if needed.
+                 */
+                return false;
+            }
+            if (t == DataType.OBJECT || t == DataType.NESTED) {
+                // Object and nested fields aren't supported by any functions yet
+                return false;
+            }
+            if (t == DataType.SOURCE || t == DataType.TSID_DATA_TYPE) {
+                // No functions take source or tsid fields yet. We'll make some eventually and remove this.
+                return false;
+            }
+            if (t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION) {
+                // We don't test that functions don't take date_period or time_duration. We should.
+                return false;
+            }
+            if (t.isCounter()) {
+                /*
+                 * For now, we're assuming no functions take counters
+                 * as parameters. That's not true - some do. But we'll
+                 * need to update the tests to handle that.
+                 */
+                return false;
+            }
+            if (t.widenSmallNumeric() != t) {
+                // Small numeric types are widened long before they arrive at functions.
+                return false;
+            }
+
+            return true;
+        }).sorted();
     }
+
 }

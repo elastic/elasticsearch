@@ -30,6 +30,10 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public enum DataType {
+    /**
+     * Fields of this type are unsupported by any functions and are always
+     * rendered as {@code null} in the response.
+     */
     UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
     NULL(builder().esType("null").estimatedSize(0)),
     BOOLEAN(builder().esType("boolean").estimatedSize(1)),
@@ -45,14 +49,52 @@ public enum DataType {
     COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
     COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
 
+    /**
+     * 64-bit signed numbers loaded as a java {@code long}.
+     */
     LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
+    /**
+     * 32-bit signed numbers loaded as a java {@code int}.
+     */
     INTEGER(builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
-    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
-    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 64-bit unsigned numbers packed into a java {@code long}.
+     */
     UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues()),
+    /**
+     * 64-bit floating point number loaded as a java {@code double}.
+     */
     DOUBLE(builder().esType("double").estimatedSize(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
+
+    /**
+     * 16-bit signed numbers widened on load to {@link #INTEGER}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
+    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 8-bit signed numbers widened on load to {@link #INTEGER}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
+    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 32-bit floating point numbers widened on load to {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
     FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    /**
+     * 16-bit floating point numbers widened on load to {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
     HALF_FLOAT(builder().esType("half_float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    /**
+     * Signed 64-bit fixed point numbers converted on load to a {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions, operators,
+     * and results should never encounter one.
+     */
     SCALED_FLOAT(builder().esType("scaled_float").estimatedSize(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
 
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
@@ -458,7 +500,8 @@ public enum DataType {
 
         /**
          * If this is a "small" numeric type this contains the type ESQL will
-         * widen it into, otherwise this is {@code null}.
+         * widen it into, otherwise this is {@code null}. "Small" numeric types
+         * aren't supported by ESQL proper and are "widened" on load.
          */
         private DataType widenSmallNumeric;
 
@@ -510,6 +553,11 @@ public enum DataType {
             return this;
         }
 
+        /**
+         * If this is a "small" numeric type this contains the type ESQL will
+         * widen it into, otherwise this is {@code null}. "Small" numeric types
+         * aren't supported by ESQL proper and are "widened" on load.
+         */
         Builder widenSmallNumeric(DataType widenSmallNumeric) {
             this.widenSmallNumeric = widenSmallNumeric;
             return this;

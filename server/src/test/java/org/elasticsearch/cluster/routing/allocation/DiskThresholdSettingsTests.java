@@ -153,6 +153,8 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         newSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "0.50")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "500gb")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "150gb")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "100gb")
             .build();
         nss.applySettings(newSettings);
 
@@ -657,6 +659,42 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(cause, hasToString(containsString("low disk watermark [85%] more than high disk watermark [75%]")));
+    }
+
+    public void testMaxHeadroomDefaultWhenWatermarkIsSet() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
+
+        Settings.Builder newSettings = Settings.builder();
+        if (randomBoolean()) {
+            newSettings = newSettings.put(
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getDefault(Settings.EMPTY).getStringRep()
+            );
+        } else if (randomBoolean()) {
+            newSettings = newSettings.put(
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getDefault(Settings.EMPTY).getStringRep()
+            );
+        } else {
+            newSettings = newSettings.put(
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getDefault(Settings.EMPTY)
+                    .getStringRep()
+            );
+        }
+        newSettings = newSettings.put(
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(),
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getDefault(Settings.EMPTY)
+                .getStringRep()
+        );
+        nss.applySettings(newSettings.build());
+
+        // Test that max headroom values do not apply
+        assertEquals(ByteSizeValue.ofTb(150), diskThresholdSettings.getFreeBytesThresholdLowStage(ByteSizeValue.ofTb(1000)));
+        assertEquals(ByteSizeValue.ofTb(100), diskThresholdSettings.getFreeBytesThresholdHighStage(ByteSizeValue.ofTb(1000)));
+        assertEquals(ByteSizeValue.ofTb(50), diskThresholdSettings.getFreeBytesThresholdFloodStage(ByteSizeValue.ofTb(1000)));
+        assertEquals(ByteSizeValue.ofTb(50), diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(ByteSizeValue.ofTb(1000)));
     }
 
     public void testInvalidLowHighMaxHeadroomUpdate() {

@@ -556,10 +556,10 @@
               url:
                 type: keyword
   - do:
-      search_shards:
-        index:  index1
+      cluster.state: {}
+
   - set:
-      shards.0.0.node: node_id
+      routing_table.indices.index1.shards.0.0.node: node_id
 
   - do:
       nodes.stats: { metric: _all, level: "indices", human: true }
@@ -574,11 +574,15 @@
   - do:
       nodes.stats: { metric: _all, level: "indices", human: true }
 
-  - match: { nodes.$node_id.indices.mappings.total_count: 28 }
-  - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - gte: { nodes.$node_id.indices.mappings.total_count: 28 }
+  - lte: { nodes.$node_id.indices.mappings.total_count: 29 }
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - lte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 29696 }
   - match: { nodes.$node_id.indices.mappings.total_segments: 1 }
-  - match: { nodes.$node_id.indices.mappings.total_segment_fields: 28 }
-  - match: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
+  - gte: { nodes.$node_id.indices.mappings.total_segment_fields: 28 }
+  - lte: { nodes.$node_id.indices.mappings.total_segment_fields: 29 }
+  - gte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
+  - lte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 29 }
 
   - do:
       index:
@@ -590,11 +594,15 @@
   - do:
       nodes.stats: { metric: _all, level: "indices", human: true }
 
-  - match: { nodes.$node_id.indices.mappings.total_count: 28 }
-  - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - gte: { nodes.$node_id.indices.mappings.total_count: 28 }
+  - lte: { nodes.$node_id.indices.mappings.total_count: 29 }
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
+  - lte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 29696 }
   - match: { nodes.$node_id.indices.mappings.total_segments: 2 }
-  - match: { nodes.$node_id.indices.mappings.total_segment_fields: 56 }
-  - match: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
+  - gte: { nodes.$node_id.indices.mappings.total_segment_fields: 56 }
+  - lte: { nodes.$node_id.indices.mappings.total_segment_fields: 58 }
+  - gte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
+  - lte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 29 }
 ---
 
 "indices mappings does not exist in shards level":

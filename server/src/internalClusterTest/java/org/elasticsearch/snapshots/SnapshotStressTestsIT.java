@@ -1257,7 +1257,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         )
 
                         .<Void>andThen(
-                            (l, ignored) -> clusterService.submitUnbatchedStateUpdateTask(
+                            l -> clusterService.submitUnbatchedStateUpdateTask(
                                 "unmark [" + node + "] for removal",
                                 new ClusterStateUpdateTask() {
                                     @Override

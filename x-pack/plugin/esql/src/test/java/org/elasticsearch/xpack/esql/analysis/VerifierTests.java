@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -313,7 +312,7 @@ public class VerifierTests extends ESTestCase {
     public void testUnsignedLongTypeMixInComparisons() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -351,7 +350,7 @@ public class VerifierTests extends ESTestCase {
     public void testUnsignedLongTypeMixInArithmetics() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -625,6 +624,37 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:27: SECOND argument of [weighted_avg(salary, 0.0)] cannot be null or 0, received [0.0]",
             error("from test | stats w_avg = weighted_avg(salary, 0.0)")
+        );
+    }
+
+    public void testMatchInsideEval() throws Exception {
+        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+    }
+
+    public void testMatchFilter() throws Exception {
+        assertEquals(
+            "1:63: MATCH requires a mapped index field, found [name]",
+            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
+        );
+
+        assertEquals(
+            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
+            error("from test | where salary match \"100\"")
+        );
+
+        assertEquals(
+            "1:19: Invalid condition using MATCH",
+            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
+        );
+
+        assertEquals(
+            "1:51: Invalid condition using MATCH",
+            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
+        );
+
+        assertEquals(
+            "1:45: MATCH requires a mapped index field, found [fn]",
+            error("from test | rename first_name as fn | where fn match \"Anna\"")
         );
     }
 

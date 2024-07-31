@@ -2,5 +2,4 @@ pr: 111437
 summary: "[ES|QL] Add `CombineBinaryComparisons` with range query"
 area: ES|QL
 type: enhancement
-issues:
- - 108525
+issues: []

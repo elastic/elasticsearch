@@ -30,7 +30,7 @@ must be unique and should not match any other deployment ID or model ID, unless
 it is the same as the ID of the model being deployed. If `deployment_id` is not
 set, it defaults to the `model_id`.
 
-You can enable adaptive allocations for automatically scale model allocations up
+You can enable adaptive allocations to automatically scale model allocations up
 and down based on the actual resource requirement of the processes.
 
 Manually scaling inference performance can be achieved by setting the parameters

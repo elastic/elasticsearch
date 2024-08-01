@@ -30,6 +30,7 @@ import java.util.Optional;
 import static org.elasticsearch.ExceptionsHelper.maybeError;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class ExceptionsHelperTests extends ESTestCase {
@@ -228,6 +229,17 @@ public class ExceptionsHelperTests extends ESTestCase {
         RuntimeException exception = recurseAndCatchRuntime(randomIntBetween(10, 15), ExceptionsHelperTests::throwRegularException);
         String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
         int expectedLength = 1 + maxTraces + 1; // Exception message, traces, then the count of remaining traces
+        assertThat(limitedTrace.split("\n").length, equalTo(expectedLength));
+    }
+
+    public void testLimitedStackTraceShortened() {
+        // An exception has a smaller trace than is requested
+        // Set max traces very, very high, since this test is sensitive to the number of method calls on the thread's stack.
+        int maxTraces = 5000;
+        RuntimeException exception = new RuntimeException("Regular Exception");
+        String limitedTrace = ExceptionsHelper.limitedStackTrace(exception, maxTraces);
+        String fullTrace = ExceptionsHelper.stackTrace(exception);
+        int expectedLength = fullTrace.split("\n").length; // The resulting line count should not be reduced
         assertThat(limitedTrace.split("\n").length, equalTo(expectedLength));
     }
 

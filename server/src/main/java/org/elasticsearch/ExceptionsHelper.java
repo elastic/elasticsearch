@@ -137,33 +137,32 @@ public final class ExceptionsHelper {
         // using a Set with identity equality semantics.
         Set<Throwable> dejaVu = Collections.newSetFromMap(new IdentityHashMap<>());
         dejaVu.add(e);
-        synchronized (s) {
-            // Print our stack trace
-            s.println(compressExceptionMessage(e));
-            StackTraceElement[] trace = e.getStackTrace();
-            int linesPrinted = 0;
-            for (StackTraceElement traceElement : trace) {
-                if (linesPrinted >= maxLines) {
-                    break;
-                } else {
-                    s.println(compressStackTraceElement(new StringBuilder("\tat "), traceElement));
-                    linesPrinted++;
-                }
-            }
-            if (trace.length > linesPrinted) {
-                s.println("\t... " + (trace.length - linesPrinted) + " more");
-            }
 
-            // Print suppressed exceptions, if any
-            for (Throwable se : e.getSuppressed()) {
-                limitAndPrintEnclosedStackTrace(se, s, trace, SUPPRESSED_CAPTION, "\t", maxLines, dejaVu);
+        // Print our stack trace
+        s.println(compressExceptionMessage(e));
+        StackTraceElement[] trace = e.getStackTrace();
+        int linesPrinted = 0;
+        for (StackTraceElement traceElement : trace) {
+            if (linesPrinted >= maxLines) {
+                break;
+            } else {
+                s.println(compressStackTraceElement(new StringBuilder("\tat "), traceElement));
+                linesPrinted++;
             }
+        }
+        if (trace.length > linesPrinted) {
+            s.println("\t... " + (trace.length - linesPrinted) + " more");
+        }
 
-            // Print cause, if any
-            Throwable ourCause = e.getCause();
-            if (ourCause != null) {
-                limitAndPrintEnclosedStackTrace(ourCause, s, trace, CAUSE_CAPTION, "", maxLines, dejaVu);
-            }
+        // Print suppressed exceptions, if any
+        for (Throwable se : e.getSuppressed()) {
+            limitAndPrintEnclosedStackTrace(se, s, trace, SUPPRESSED_CAPTION, "\t", maxLines, dejaVu);
+        }
+
+        // Print cause, if any
+        Throwable ourCause = e.getCause();
+        if (ourCause != null) {
+            limitAndPrintEnclosedStackTrace(ourCause, s, trace, CAUSE_CAPTION, "", maxLines, dejaVu);
         }
     }
 
@@ -176,7 +175,6 @@ public final class ExceptionsHelper {
         int maxLines,
         Set<Throwable> dejaVu
     ) {
-        assert Thread.holdsLock(s);
         if (dejaVu.contains(e)) {
             s.println(prefix + caption + "[CIRCULAR REFERENCE: " + compressExceptionMessage(e) + "]");
         } else {

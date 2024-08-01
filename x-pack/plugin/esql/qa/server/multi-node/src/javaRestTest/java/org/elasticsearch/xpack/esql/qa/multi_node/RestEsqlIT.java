@@ -32,7 +32,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         return Arrays.stream(Mode.values()).map(m -> new Object[] { m }).toList();
     }
 
-    protected RestEsqlIT(Mode mode) {
+    public RestEsqlIT(Mode mode) {
         super(mode);
     }
 }

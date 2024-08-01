@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
 
@@ -656,7 +655,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testTopLevelFilter() throws IOException {
-        indexTimestampData(3);
+        indexTimestampData(3); // Multiple shards has caused a bug in the past with the merging case below
 
         RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
             b.startObject("range");
@@ -670,6 +669,56 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
                 .entry("values", List.of(List.of(499500)))
         );
+    }
+
+    public void testTopLevelFilterMerged() throws IOException {
+        indexTimestampData(3); // Multiple shards has caused a bug in the past with the merging case below
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("@timestamp").field("gte", "2020-12-12").endObject();
+            }
+            b.endObject();
+        }).query(fromIndex() + " | WHERE value == 12 | STATS SUM(value)");
+        assertMap(
+            runEsql(builder),
+            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                .entry("values", List.of(List.of(12)))
+        );
+    }
+
+    public void testTopLevelFilterBoolMerged() throws IOException {
+        indexTimestampData(3); // Multiple shards has caused a bug in the past
+
+        for (int i = 0; i < 100; i++) {
+            // Run the query many times so we're more likely to bump into any sort of modification problems
+            RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+                b.startObject("bool");
+                {
+                    b.startArray("filter");
+                    {
+                        b.startObject().startObject("range");
+                        {
+                            b.startObject("@timestamp").field("gte", "2020-12-12").endObject();
+                        }
+                        b.endObject().endObject();
+                        b.startObject().startObject("match");
+                        {
+                            b.field("test", "value12");
+                        }
+                        b.endObject().endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+            }).query(fromIndex() + " | WHERE @timestamp > \"2010-01-01\" | STATS SUM(value)");
+            assertMap(
+                runEsql(builder),
+                matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
+                    .entry("values", List.of(List.of(12)))
+            );
+        }
     }
 
     private static String queryWithComplexFieldNames(int field) {

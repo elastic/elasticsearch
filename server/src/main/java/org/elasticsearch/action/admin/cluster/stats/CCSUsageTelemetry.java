@@ -77,11 +77,6 @@ public class CCSUsageTelemetry {
         "connectors-cli"
     );
 
-    /**
-     * Maximum number of clients to keep in the telemetry. The clients from KNOWN_CLIENTS are always kept.
-     */
-    public static final int MAX_CLIENTS = 20;
-
     // TODO: do we need LongAdder here or long is enough? Since updateUsage is synchronized, worst that can happen is
     // we may miss a count on read.
     private final LongAdder totalCount;
@@ -152,11 +147,9 @@ public class CCSUsageTelemetry {
         }
         ccsUsage.getFeatures().forEach(f -> featureCounts.computeIfAbsent(f, k -> new LongAdder()).increment());
         String client = ccsUsage.getClient();
-        if (client != null) {
-            // We only keep limited number of unknown clients to prevent memory exhaustion
-            if (KNOWN_CLIENTS.contains(client) || clientCounts.containsKey(client) || clientCounts.size() < MAX_CLIENTS) {
-                clientCounts.computeIfAbsent(ccsUsage.getClient(), k -> new LongAdder()).increment();
-            } // else we ignore the client
+        if (client != null && KNOWN_CLIENTS.contains(client)) {
+            // We count only known clients for now
+            clientCounts.computeIfAbsent(ccsUsage.getClient(), k -> new LongAdder()).increment();
         }
     }
 

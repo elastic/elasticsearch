@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.action.admin.cluster.stats.ApproximateMatcher.closeTo;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.KNOWN_CLIENTS;
-import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MAX_CLIENTS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -178,16 +177,7 @@ public class CCSUsageTelemetryTests extends ESTestCase {
     // TODO: add tests for failure scenarios
 
     public void testClientsLimit() {
-        // Accept only MAX_CLIENTS clients
         CCSUsageTelemetry ccsUsageHolder = new CCSUsageTelemetry();
-        int howMany = randomIntBetween(MAX_CLIENTS, MAX_CLIENTS * 2);
-        for (int i = 0; i < howMany; i++) {
-            CCSUsage.Builder builder = new CCSUsage.Builder();
-            builder.took(randomLongBetween(5, 10000)).setRemotesCount(1).setClient("client" + i);
-            CCSUsage ccsUsage = builder.build();
-            ccsUsageHolder.updateUsage(ccsUsage);
-        }
-        assertThat(ccsUsageHolder.getCCSTelemetrySnapshot().getClientCounts().size(), equalTo(MAX_CLIENTS));
         // Add known clients
         for (String knownClient : KNOWN_CLIENTS) {
             CCSUsage.Builder builder = new CCSUsage.Builder();
@@ -198,17 +188,6 @@ public class CCSUsageTelemetryTests extends ESTestCase {
         var counts = ccsUsageHolder.getCCSTelemetrySnapshot().getClientCounts();
         for (String knownClient : KNOWN_CLIENTS) {
             assertThat(counts.get(knownClient), equalTo(1L));
-        }
-        // Check that existing clients are counted
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            CCSUsage.Builder builder = new CCSUsage.Builder();
-            builder.took(randomLongBetween(5, 10000)).setRemotesCount(1).setClient("client" + i);
-            CCSUsage ccsUsage = builder.build();
-            ccsUsageHolder.updateUsage(ccsUsage);
-        }
-        counts = ccsUsageHolder.getCCSTelemetrySnapshot().getClientCounts();
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            assertThat(counts.get("client" + i), equalTo(2L));
         }
         // Check that knowns are counted
         for (String knownClient : KNOWN_CLIENTS) {

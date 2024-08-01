@@ -200,7 +200,12 @@ public class EsqlCapabilities {
         /**
          * Add CombineBinaryComparisons rule.
          */
-        COMBINE_BINARY_COMPARISONS;
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
+         * Support CIDRMatch in CombineDisjunctives rule.
+         */
+        COMBINE_DISJUNCTIVE_CIDRMATCHES;
 
         private final boolean snapshotOnly;
 

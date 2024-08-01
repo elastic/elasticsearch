@@ -282,6 +282,28 @@ str1:keyword |str2:keyword |ip1:ip  |ip2:ip
 // end::to_ip-result[]
 ;
 
+cdirMatchOrs
+required_capability: combine_disjunctive_cidrmatches
+
+FROM hosts 
+| WHERE CIDR_MATCH(ip1, "127.0.0.2/32") or CIDR_MATCH(ip1, "127.0.0.3/32") or CIDR_MATCH(ip0, "127.0.0.1") or CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9")
+| KEEP card, host, ip0, ip1
+| sort host, card, ip0, ip1
+;
+warning:Line 2:20: evaluation of [ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:90: evaluation of [ip0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:90: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth0           |alpha          |127.0.0.1                |127.0.0.1
+eth0           |beta           |127.0.0.1                |::1
+eth1           |beta           |127.0.0.1                |127.0.0.2
+eth1           |beta           |127.0.0.1                |128.0.0.1
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
+;
+
 pushDownIP
 from hosts | where ip1 == to_ip("::1") | keep card, host, ip0, ip1;
 ignoreOrder:true

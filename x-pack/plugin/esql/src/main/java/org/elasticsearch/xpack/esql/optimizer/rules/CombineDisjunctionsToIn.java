@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
@@ -48,6 +49,10 @@ public final class CombineDisjunctionsToIn extends OptimizerRules.OptimizerExpre
         return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
     }
 
+    protected CIDRMatch createCIDRMatch(Expression k, List<Expression> v) {
+        return new CIDRMatch(k.source(), k, v);
+    }
+
     @Override
     public Expression rule(Or or) {
         Expression e = or;
@@ -55,8 +60,10 @@ public final class CombineDisjunctionsToIn extends OptimizerRules.OptimizerExpre
         List<Expression> exps = splitOr(e);
 
         Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
+        Map<Expression, Set<Expression>> cIDRMatch = new LinkedHashMap<>();
         ZoneId zoneId = null;
         List<Expression> ors = new LinkedList<>();
+        boolean changed = false;
 
         for (Expression exp : exps) {
             if (exp instanceof Equals eq) {
@@ -71,6 +78,8 @@ public final class CombineDisjunctionsToIn extends OptimizerRules.OptimizerExpre
                 }
             } else if (exp instanceof In in) {
                 found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
+            } else if (exp instanceof CIDRMatch cm) {
+                cIDRMatch.computeIfAbsent(cm.ipField(), k -> new LinkedHashSet<>()).addAll(cm.matches());
             } else {
                 ors.add(exp);
             }
@@ -83,6 +92,15 @@ public final class CombineDisjunctionsToIn extends OptimizerRules.OptimizerExpre
                 (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
             );
 
+            changed = true;
+        }
+
+        if (cIDRMatch.isEmpty() == false) {
+            cIDRMatch.forEach((k, v) -> { ors.add(createCIDRMatch(k, new ArrayList<>(v))); });
+            changed = true;
+        }
+
+        if (changed) {
             // TODO: this makes a QL `or`, not an ESQL `or`
             Expression combineOr = combineOr(ors);
             // check the result semantically since the result might different in order

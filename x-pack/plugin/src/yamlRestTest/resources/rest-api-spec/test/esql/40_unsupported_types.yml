@@ -416,16 +416,7 @@ nested:
         body:
           query: 'FROM test | WHERE find_me == 1 | KEEP n*'
 
-  - match: { columns.0.name: nested }
-  - match: { columns.0.type: unsupported }
-  - match: { columns.1.name: nested.bar }
-  - match: { columns.1.type: unsupported }
-  - match: { columns.2.name: nested.bar.keyword }
-  - match: { columns.2.type: unsupported }
-  - match: { columns.3.name: nested.baz }
-  - match: { columns.3.type: unsupported }
-  - match: { columns.4.name: nested.foo }
-  - match: { columns.4.type: unsupported }
-  - match:
-      values:
-        - [null, null, null, null, null]
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns.0.name: name }
+  - match: { columns.0.type: keyword }
+  - match: { values: [[null]] }

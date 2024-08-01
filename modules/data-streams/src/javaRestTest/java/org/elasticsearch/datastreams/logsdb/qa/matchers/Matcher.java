@@ -10,10 +10,12 @@ package org.elasticsearch.datastreams.logsdb.qa.matchers;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.logsdb.qa.matchers.source.SourceMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -23,6 +25,14 @@ public abstract class Matcher {
 
     public static <T> SettingsStep<T> mappings(final XContentBuilder actualMappings, final XContentBuilder expectedMappings) {
         return new Builder<>(expectedMappings, actualMappings);
+    }
+
+    public static MappingsStep<List<Map<String, Object>>> matchSource() {
+        return new SourceMatcherBuilder();
+    }
+
+    public interface MappingsStep<T> {
+        SettingsStep<T> mappings(XContentBuilder actualMappings, XContentBuilder expectedMappings);
     }
 
     public interface SettingsStep<T> {
@@ -40,7 +50,6 @@ public abstract class Matcher {
     }
 
     private static class Builder<T> implements SettingsStep<T>, CompareStep<T>, ExpectedStep<T> {
-
         private final XContentBuilder expectedMappings;
         private final XContentBuilder actualMappings;
         private Settings.Builder expectedSettings;
@@ -84,6 +93,57 @@ public abstract class Matcher {
         }
     }
 
+    private static class SourceMatcherBuilder
+        implements
+            MappingsStep<List<Map<String, Object>>>,
+            SettingsStep<List<Map<String, Object>>>,
+            CompareStep<List<Map<String, Object>>>,
+            ExpectedStep<List<Map<String, Object>>> {
+        private XContentBuilder expectedMappings;
+        private XContentBuilder actualMappings;
+        private Settings.Builder expectedSettings;
+        private Settings.Builder actualSettings;
+        private List<Map<String, Object>> expected;
+        private boolean ignoringSort;
+
+        @Override
+        public ExpectedStep<List<Map<String, Object>>> settings(Settings.Builder actualSettings, Settings.Builder expectedSettings) {
+            this.actualSettings = actualSettings;
+            this.expectedSettings = expectedSettings;
+            return this;
+        }
+
+        private SourceMatcherBuilder() {}
+
+        public SettingsStep<List<Map<String, Object>>> mappings(
+            final XContentBuilder actualMappings,
+            final XContentBuilder expectedMappings
+        ) {
+            this.actualMappings = actualMappings;
+            this.expectedMappings = expectedMappings;
+
+            return this;
+        }
+
+        @Override
+        public MatchResult isEqualTo(List<Map<String, Object>> actual) {
+            return new SourceMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected, ignoringSort)
+                .match();
+        }
+
+        @Override
+        public CompareStep<List<Map<String, Object>>> ignoringSort(boolean ignoringSort) {
+            this.ignoringSort = ignoringSort;
+            return this;
+        }
+
+        @Override
+        public CompareStep<List<Map<String, Object>>> expected(List<Map<String, Object>> expected) {
+            this.expected = expected;
+            return this;
+        }
+    }
+
     protected static String formatErrorMessage(
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,
@@ -112,11 +172,11 @@ public abstract class Matcher {
         return "actual: " + prettyPrintList(Arrays.asList(actualArray)) + ", expected: " + prettyPrintList(Arrays.asList(expectedArray));
     }
 
-    protected static String prettyPrintLists(final List<Object> actualList, final List<Object> expectedList) {
+    protected static <T> String prettyPrintLists(final List<T> actualList, final List<T> expectedList) {
         return "actual: " + prettyPrintList(actualList) + ", expected: " + prettyPrintList(expectedList);
     }
 
-    private static String prettyPrintList(final List<Object> list) {
+    private static <T> String prettyPrintList(final List<T> list) {
         return "[" + list.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
     }
 }

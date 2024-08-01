@@ -13,8 +13,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
 
-class ListEqualMatcher extends EqualMatcher<List<?>> {
-    ListEqualMatcher(
+public class ListEqualMatcher extends EqualMatcher<List<?>> {
+    public ListEqualMatcher(
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,
         final XContentBuilder expectedMappings,

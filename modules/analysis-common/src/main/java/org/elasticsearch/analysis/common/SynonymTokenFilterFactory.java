@@ -36,9 +36,9 @@ import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected enum SynonymsSource {
-        INLINE("synonyms", SynonymTokenFilterFactory::getRulesReader_Inline),
-        INDEX("synonyms_set", SynonymTokenFilterFactory::getRulesReader_Index),
-        LOCAL_FILE("synonyms_path", SynonymTokenFilterFactory::getRulesReader_LocalFile);
+        INLINE("synonyms", SynonymTokenFilterFactory::getRulesReaderInline),
+        INDEX("synonyms_set", SynonymTokenFilterFactory::getRulesReaderIndex),
+        LOCAL_FILE("synonyms_path", SynonymTokenFilterFactory::getRulesReaderLocalFile);
 
         private final String settingName;
         private final BiFunction<SynonymTokenFilterFactory, IndexCreationContext, ReaderWithOrigin> rulesReaderProvider;
@@ -213,7 +213,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    private static ReaderWithOrigin getRulesReader_Inline(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+    private static ReaderWithOrigin getRulesReaderInline(SynonymTokenFilterFactory factory, IndexCreationContext context) {
         List<String> rulesList = Analysis.getWordList(factory.environment, factory.settings, SynonymsSource.INLINE.getSettingName());
         StringBuilder sb = new StringBuilder();
         for (String line : rulesList) {
@@ -222,7 +222,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + factory.name() + "' analyzer settings");
     }
 
-    private static ReaderWithOrigin getRulesReader_Index(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+    private static ReaderWithOrigin getRulesReaderIndex(SynonymTokenFilterFactory factory, IndexCreationContext context) {
         if (factory.analysisMode != AnalysisMode.SEARCH_TIME) {
             throw new IllegalArgumentException(
                 "Can't apply ["
@@ -251,7 +251,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         return reader;
     }
 
-    private static ReaderWithOrigin getRulesReader_LocalFile(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+    private static ReaderWithOrigin getRulesReaderLocalFile(SynonymTokenFilterFactory factory, IndexCreationContext context) {
         String synonymsPath = factory.settings.get(SynonymsSource.LOCAL_FILE.getSettingName(), null);
         return new ReaderWithOrigin(
             // Pass the inline setting name because "_path" is appended by getReaderFromFile

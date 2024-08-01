@@ -69,7 +69,7 @@ The following configuration will not copy data from `field_1` to `field_3`:
 +
 [source,console]
 ----
-PUT /bad_example_index
+PUT bad_example_index
 {
   "mappings": {
     "properties": {
@@ -92,7 +92,7 @@ Instead, copy to multiple fields from the source field:
 +
 [source,console]
 ----
-PUT /good_example_index
+PUT good_example_index
 {
   "mappings": {
     "properties": {

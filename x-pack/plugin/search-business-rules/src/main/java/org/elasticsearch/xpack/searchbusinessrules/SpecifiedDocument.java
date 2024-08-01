@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.searchbusinessrules;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,13 +24,15 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.OPTIONAL_INDEX_IN_DOCS_VERSION;
 
 /**
- * A single item to be used for a {@link PinnedQueryBuilder} or query rules.
+ * A single specified document to be used for a {@link PinnedQueryBuilder} or query rules.
  */
 public final class SpecifiedDocument implements ToXContentObject, Writeable {
-    public static final String NAME = "item";
+
+    public static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersions.V_8_11_X;
+
+    public static final String NAME = "specified_document";
 
     public static final ParseField INDEX_FIELD = new ParseField("_index");
     public static final ParseField ID_FIELD = new ParseField("_id");
@@ -37,17 +41,17 @@ public final class SpecifiedDocument implements ToXContentObject, Writeable {
     private final String id;
 
     /**
-     * Constructor for a given item request
+     * Constructor for a given specified document request
      *
      * @param index the index where the document is located
      * @param id and its id
      */
     public SpecifiedDocument(String index, String id) {
         if (index != null && Regex.isSimpleMatchPattern(index)) {
-            throw new IllegalArgumentException("Item index cannot contain wildcard expressions");
+            throw new IllegalArgumentException("Specified document index cannot contain wildcard expressions");
         }
         if (id == null) {
-            throw new IllegalArgumentException("Item requires id to be non-null");
+            throw new IllegalArgumentException("Specified document requires id to be non-null");
         }
         this.index = index;
         this.id = id;

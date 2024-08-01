@@ -108,7 +108,7 @@ This adds a ruleset containing one or more query rules that will be applied to q
 The following command will create a query ruleset called `my-ruleset` with two query rules:
 
 * The first rule will generate a <<query-dsl-pinned-query>> pinning the <<mapping-id-field,`_id`>>s `id1` and `id2` when the `query_string` metadata value is a fuzzy match to either `puggles` or `pugs` _and_ the user's location is in the US.
-* The second rule will generate a query that excludes the <<mapping-id-field, `_id`>> of `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `query_string` metadata value contains `beagles`.
+* The second rule will generate a query that excludes the <<mapping-id-field, `_id`>> `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `query_string` metadata value contains `beagles`.
 
 ////
 [source,console]

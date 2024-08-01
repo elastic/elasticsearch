@@ -137,6 +137,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         if (pinnedDocsSupplier != null) {
             throw new IllegalStateException("pinnedDocsSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         }
+        if (excludedDocsSupplier != null) {
+            throw new IllegalStateException("excludedDocsSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        }
 
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);

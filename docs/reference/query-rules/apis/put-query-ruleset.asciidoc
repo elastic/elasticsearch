@@ -84,8 +84,7 @@ Only one value must match for the criteria to be met.
 Required for all criteria types except `always`.
 
 Actions depend on the rule type.
-For `pinned` and `exclude` rules, actions follow the format specified by the <<query-dsl-pinned-query,Pinned Query>>.
-The following actions are allowed:
+The following actions are allowed for `pinned` or `exclude` rules:
 
 - `ids` (Optional, array of strings) The unique <<mapping-id-field, document IDs>> of the documents to pin.
 Only one of `ids` or `docs` may be specified, and at least one must be specified.

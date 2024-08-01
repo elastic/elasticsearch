@@ -325,6 +325,7 @@ public class QueryRuleTests extends ESTestCase {
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));
         assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));

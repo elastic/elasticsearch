@@ -82,12 +82,12 @@ Required for all criteria types except `always`.
 (Required, object) The actions to take when the rule is matched.
 The format of this action depends on the rule type.
 
-Actions depend on the rule type..
+Actions depend on the rule type.
 The following actions are allowed for `pinned` or `exclude` rules:
 
-- `ids` (Optional, array of strings) The unique <<mapping-id-field, document IDs>> of the specified documents.
+- `ids` (Optional, array of strings) The unique <<mapping-id-field, document IDs>> of the documents to apply the rule to.
 Only one of `ids` or `docs` may be specified, and at least one must be specified.
-- `docs` (Optional, array of objects) The specified documents.
+- `docs` (Optional, array of objects) The documents to apply the rule to.
 Only one of `ids` or `docs` may be specified, and at least one must be specified.
 There is a maximum value of 100 documents in a rule.
 You can specify the following attributes for each document:

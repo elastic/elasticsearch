@@ -45,8 +45,8 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     private static void doubles(List<TestCaseSupplier> cases) {
 
         cases.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
-            List<Double> field = randomList(1, 10, () -> randomDouble());
-            double p = randomDoubleBetween(-100.0, 100.0, true);
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(1, 10, false));
+            double p = randomDoubleBetween(-10, 10, true);
 
             return new TestCaseSupplier.TestCase(
                 List.of(

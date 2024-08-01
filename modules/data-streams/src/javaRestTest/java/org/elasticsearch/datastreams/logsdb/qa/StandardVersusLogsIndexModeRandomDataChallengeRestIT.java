@@ -70,8 +70,10 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                         // Unsigned long is not used with dynamic mapping
                         // since it can initially look like long
                         // but later fail to parse once big values arrive.
+                        // Double is not used since it maps to float with dynamic mapping
+                        // resulting in precision loss compared to original source.
                         var excluded = fullyDynamicMapping
-                            ? List.of(FieldType.SCALED_FLOAT, FieldType.UNSIGNED_LONG)
+                            ? List.of(FieldType.DOUBLE, FieldType.SCALED_FLOAT, FieldType.UNSIGNED_LONG)
                             : List.of(FieldType.SCALED_FLOAT);
                         return new DataSourceResponse.FieldTypeGenerator(
                             () -> randomValueOtherThanMany(excluded::contains, () -> randomFrom(FieldType.values()))

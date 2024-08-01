@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.inference.external.action.elastic;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceSparseEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 //TODO: test
 public class ElasticInferenceServiceActionCreator implements ElasticInferenceServiceActionVisitor {
@@ -28,6 +32,8 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
 
     @Override
     public ExecutableAction create(ElasticInferenceServiceSparseEmbeddingsModel model) {
-        return new ElasticInferenceServiceSparseEmbeddingsAction(sender, model, serviceComponents);
+        var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents);
+        var errorMessage = constructFailedToSendRequestMessage(model.uri(), "Elastic Inference Service sparse embeddings");
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

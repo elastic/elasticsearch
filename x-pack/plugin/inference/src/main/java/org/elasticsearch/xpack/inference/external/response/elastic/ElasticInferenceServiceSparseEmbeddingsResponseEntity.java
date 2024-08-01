@@ -75,7 +75,7 @@ public class ElasticInferenceServiceSparseEmbeddingsResponseEntity {
             XContentParser.Token token = jsonParser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
+            positionParserAtTokenAfterField(jsonParser, "prediction", FAILED_TO_FIND_FIELD_TEMPLATE);
 
             var truncationResults = request.getTruncationInfo();
             List<SparseEmbeddingResults.Embedding> parsedEmbeddings = parseList(

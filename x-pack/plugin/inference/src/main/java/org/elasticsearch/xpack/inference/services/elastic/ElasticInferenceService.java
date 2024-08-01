@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -255,11 +254,7 @@ public class ElasticInferenceService extends SenderService {
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
         if (model instanceof ElasticInferenceServiceSparseEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel)))
-            );
+            listener.onResponse(updateModelWithEmbeddingDetails(embeddingsModel));
         } else {
             listener.onResponse(model);
         }
@@ -269,7 +264,7 @@ public class ElasticInferenceService extends SenderService {
         ElasticInferenceServiceSparseEmbeddingsModel model
     ) {
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings = new ElasticInferenceServiceSparseEmbeddingsServiceSettings(
-            model.getInferenceEntityId(),
+            model.getServiceSettings().modelId(),
             model.getServiceSettings().maxInputTokens(),
             model.getServiceSettings().rateLimitSettings()
         );

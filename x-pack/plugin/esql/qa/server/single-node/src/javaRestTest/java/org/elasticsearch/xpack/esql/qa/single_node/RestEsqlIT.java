@@ -72,7 +72,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testBasicEsql() throws IOException {
-        indexTestData();
+        indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats avg(value)");
         if (Build.current().isSnapshot()) {
@@ -274,50 +274,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(re.getMessage(), containsString("[6:10] Duplicate field 'a'"));
     }
 
-    /**
-     * INLINESTATS <strong>can</strong> group on {@code NOW()}. It's a little silly, but
-     * doing something like {@code DATE_TRUNC(1 YEAR, NOW() - 1970-01-01T00:00:00Z)} is
-     * much more sensible. But just grouping on {@code NOW()} is enough to test this.
-     * <p>
-     *     This works because {@code NOW()} locks it's value at the start of the entire
-     *     query. It's part of the "configuration" of the query.
-     * </p>
-     */
-    public void testInlineStatsNow() throws IOException {
-        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
-        indexTestData();
-
-        RequestObjectBuilder builder = requestObjectBuilder().query(
-            fromIndex() + " | EVAL now=NOW() | INLINESTATS AVG(value) BY now | SORT value ASC"
-        );
-        Map<String, Object> result = runEsql(builder);
-        ListMatcher values = matchesList();
-        for (int i = 0; i < 1000; i++) {
-            values = values.item(
-                matchesList().item("2020-12-12T00:00:00.000Z")
-                    .item("value" + i)
-                    .item("value" + i)
-                    .item(i)
-                    .item(any(String.class))
-                    .item(499.5)
-            );
-        }
-        assertMap(
-            result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "test").entry("type", "text"))
-                    .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-                    .item(matchesMap().entry("name", "now").entry("type", "date"))
-                    .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
-            ).entry("values", values)
-        );
-    }
-
     public void testProfile() throws IOException {
-        indexTestData();
+        indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
         builder.profile(true);
@@ -371,7 +329,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
     public void testInlineStatsProfile() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
-        indexTestData();
+        indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | INLINESTATS AVG(value) | SORT value ASC");
         builder.profile(true);
@@ -484,37 +442,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
     private MapMatcher basicProfile() {
         return matchesMap().entry("pages_processed", greaterThan(0)).entry("process_nanos", greaterThan(0));
-    }
-
-    private void indexTestData() throws IOException {
-        Request createIndex = new Request("PUT", testIndexName());
-        createIndex.setJsonEntity("""
-            {
-              "settings": {
-                "index": {
-                  "number_of_shards": 1
-                }
-              }
-            }""");
-        Response response = client().performRequest(createIndex);
-        assertThat(
-            entityToMap(response.getEntity(), XContentType.JSON),
-            matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
-        );
-
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
-            b.append(String.format(Locale.ROOT, """
-                {"create":{"_index":"%s"}}
-                {"@timestamp":"2020-12-12","test":"value%s","value":%d}
-                """, testIndexName(), i, i));
-        }
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.addParameter("filter_path", "errors");
-        bulk.setJsonEntity(b.toString());
-        response = client().performRequest(bulk);
-        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
     }
 
     private void assertException(String query, String... errorMessages) throws IOException {

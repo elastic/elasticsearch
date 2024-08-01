@@ -359,7 +359,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         Version version,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        try { 
+        try {
             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
                 throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");

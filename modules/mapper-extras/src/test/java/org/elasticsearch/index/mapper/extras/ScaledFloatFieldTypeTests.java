@@ -15,6 +15,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -46,7 +47,10 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         );
         double value = (randomDouble() * 2 - 1) * 10000;
         long scaledValue = Math.round(value * ft.getScalingFactor());
-        assertEquals(LongPoint.newExactQuery("scaled_float", scaledValue), ft.termQuery(value, MOCK_CONTEXT));
+        Query indexQuery = LongPoint.newExactQuery("scaled_float", scaledValue);
+        Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("scaled_float", scaledValue);
+        Query query = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+        assertEquals(query, ft.termQuery(value, MOCK_CONTEXT));
 
         MappedFieldType ft2 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100, false);
         ElasticsearchException e2 = expectThrows(ElasticsearchException.class, () -> ft2.termQuery("42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));
@@ -65,10 +69,10 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         long scaledValue1 = Math.round(value1 * ft.getScalingFactor());
         double value2 = (randomDouble() * 2 - 1) * 10000;
         long scaledValue2 = Math.round(value2 * ft.getScalingFactor());
-        assertEquals(
-            LongPoint.newSetQuery("scaled_float", scaledValue1, scaledValue2),
-            ft.termsQuery(Arrays.asList(value1, value2), MOCK_CONTEXT)
-        );
+        Query indexQuery = LongPoint.newSetQuery("scaled_float", scaledValue1, scaledValue2);
+        Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery("scaled_float", scaledValue1, scaledValue2);
+        Query query = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+        assertEquals(query, ft.termsQuery(Arrays.asList(value1, value2), MOCK_CONTEXT));
 
         MappedFieldType ft2 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100, false);
         ElasticsearchException e2 = expectThrows(

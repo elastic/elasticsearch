@@ -94,15 +94,21 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntegerTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        Query indexQuery = IntPoint.newSetQuery("field", 1);
+        Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery("field", 1);
+        Query indexOrDocValuesQuery = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+        assertEquals(indexOrDocValuesQuery, ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(indexOrDocValuesQuery, ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        Query indexQuery = LongPoint.newSetQuery("field", 1);
+        Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery("field", 1);
+        Query indexOrDocValuesQuery = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+        assertEquals(indexOrDocValuesQuery, ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(indexOrDocValuesQuery, ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
@@ -145,7 +151,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
+        Query indexQuery = LongPoint.newExactQuery("field", 42);
+        Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("field", 42);
+        assertEquals(new IndexOrDocValuesQuery(indexQuery, dvQuery), ft.termQuery("42", MOCK_CONTEXT));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
         assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
@@ -582,6 +590,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testNegativeZero() {
         final boolean isIndexed = randomBoolean();
+        final boolean hasDocValues = randomBoolean();
         assertEquals(
             NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed),
             NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed)
@@ -595,9 +604,18 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
         );
 
-        assertNotEquals(NumberType.DOUBLE.termQuery("field", -0d, isIndexed), NumberType.DOUBLE.termQuery("field", +0d, isIndexed));
-        assertNotEquals(NumberType.FLOAT.termQuery("field", -0f, isIndexed), NumberType.FLOAT.termQuery("field", +0f, isIndexed));
-        assertNotEquals(NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed), NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed));
+        assertNotEquals(
+            NumberType.DOUBLE.termQuery("field", -0d, isIndexed, hasDocValues),
+            NumberType.DOUBLE.termQuery("field", +0d, isIndexed, hasDocValues)
+        );
+        assertNotEquals(
+            NumberType.FLOAT.termQuery("field", -0f, isIndexed, hasDocValues),
+            NumberType.FLOAT.termQuery("field", +0f, isIndexed, hasDocValues)
+        );
+        assertNotEquals(
+            NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed, hasDocValues),
+            NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed, hasDocValues)
+        );
     }
 
     // Make sure we construct the IndexOrDocValuesQuery objects with queries that match

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -15,6 +16,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -71,7 +73,16 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
     public void testTermsQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
         Query query = fieldType.termsQuery(asList(55.2, 500.3), MOCK_CONTEXT);
-        assertThat(query, equalTo(DoublePoint.newSetQuery("foo.max", 55.2, 500.3)));
+        Query indexQuery = DoublePoint.newSetQuery("foo.max", 55.2, 500.3);
+        Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery(
+            "foo.max",
+            NumericUtils.doubleToSortableLong(55.2),
+            NumericUtils.doubleToSortableLong(500.3)
+        );
+        assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+        IndexOrDocValuesQuery indexOrDocValuesQuery = (IndexOrDocValuesQuery) query;
+        assertThat(indexOrDocValuesQuery.getIndexQuery(), equalTo(indexQuery));
+        assertThat(indexOrDocValuesQuery.getRandomAccessQuery(), equalTo(dvQuery));
     }
 
     public void testRangeQuery() {

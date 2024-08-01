@@ -266,7 +266,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed(), hasDocValues());
         }
 
         @Override
@@ -278,7 +278,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     long scaledValue = Math.round(scale(value));
                     scaledValues.add(scaledValue);
                 }
-                return NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
+                return NumberFieldMapper.NumberType.LONG.termsQuery(
+                    name(),
+                    Collections.unmodifiableList(scaledValues),
+                    isIndexed(),
+                    hasDocValues()
+                );
             } else {
                 return super.termsQuery(values, context);
             }

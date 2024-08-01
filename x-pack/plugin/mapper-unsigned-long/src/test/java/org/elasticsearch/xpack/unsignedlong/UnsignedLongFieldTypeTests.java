@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -27,10 +30,21 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long");
-
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", -9223372036854775808L), ft.termQuery(0, null));
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 0L), ft.termQuery("9223372036854775808", null));
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L), ft.termQuery("18446744073709551615", null));
+        Query dvQuery1 = SortedNumericDocValuesField.newSlowExactQuery("my_unsigned_long", -9223372036854775808L);
+        Query dvQuery2 = SortedNumericDocValuesField.newSlowExactQuery("my_unsigned_long", 0L);
+        Query dvQuery3 = SortedNumericDocValuesField.newSlowExactQuery("my_unsigned_long", 9223372036854775807L);
+        assertEquals(
+            new IndexOrDocValuesQuery(LongPoint.newExactQuery("my_unsigned_long", -9223372036854775808L), dvQuery1),
+            ft.termQuery(0, null)
+        );
+        assertEquals(
+            new IndexOrDocValuesQuery(LongPoint.newExactQuery("my_unsigned_long", 0L), dvQuery2),
+            ft.termQuery("9223372036854775808", null)
+        );
+        assertEquals(
+            new IndexOrDocValuesQuery(LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L), dvQuery3),
+            ft.termQuery("18446744073709551615", null)
+        );
 
         assertEquals(new MatchNoDocsQuery(), ft.termQuery(-1L, null));
         assertEquals(new MatchNoDocsQuery(), ft.termQuery(10.5, null));
@@ -41,9 +55,9 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsQuery() {
         UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long");
-
+        Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery("my_unsigned_long", -9223372036854775808L, 0L, 9223372036854775807L);
         assertEquals(
-            LongPoint.newSetQuery("my_unsigned_long", -9223372036854775808L, 0L, 9223372036854775807L),
+            new IndexOrDocValuesQuery(LongPoint.newSetQuery("my_unsigned_long", -9223372036854775808L, 0L, 9223372036854775807L), dvQuery),
             ft.termsQuery(List.of("0", "9223372036854775808", "18446744073709551615"), null)
         );
 

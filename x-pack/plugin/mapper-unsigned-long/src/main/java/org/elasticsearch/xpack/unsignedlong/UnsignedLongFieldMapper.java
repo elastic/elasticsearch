@@ -269,7 +269,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (longValue == null) {
                 return new MatchNoDocsQuery();
             }
-            return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
+            long lValue = unsignedToSortableSignedLong(longValue);
+            Query query = LongPoint.newExactQuery(name(), lValue);
+            if (super.hasDocValues()) {
+                Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(name(), lValue);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
 
         @Override
@@ -289,7 +295,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (upTo != lvalues.length) {
                 lvalues = Arrays.copyOf(lvalues, upTo);
             }
-            return LongPoint.newSetQuery(name(), lvalues);
+            Query query = LongPoint.newSetQuery(name(), lvalues);
+            if (super.hasDocValues()) {
+                Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery(name(), lvalues);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
 
         @Override

@@ -30,7 +30,10 @@ must be unique and should not match any other deployment ID or model ID, unless
 it is the same as the ID of the model being deployed. If `deployment_id` is not
 set, it defaults to the `model_id`.
 
-Scaling inference performance can be achieved by setting the parameters
+You can enable adaptive allocations for automatically scale model allocations up
+and down based on the actual resource requirement of the processes.
+
+Manually scaling inference performance can be achieved by setting the parameters
 `number_of_allocations` and `threads_per_allocation`.
 
 Increasing `threads_per_allocation` means more threads are used when an
@@ -58,6 +61,30 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 [[start-trained-model-deployment-query-params]]
 == {api-query-parms-title}
 
+`deployment_id`::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
++
+--
+Defaults to `model_id`.
+--
+
+`timeout`::
+(Optional, time)
+Controls the amount of time to wait for the model to deploy. Defaults to 30
+seconds.
+
+`wait_for`::
+(Optional, string)
+Specifies the allocation status to wait for before returning. Defaults to
+`started`. The value `starting` indicates deployment is starting but not yet on
+any node. The value `started` indicates the model has started on at least one
+node. The value `fully_allocated` indicates the deployment has started on all
+valid nodes.
+
+[[start-trained-model-deployment-request-body]]
+== {api-request-body-title}
+
 `adaptive_allocations`::
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
@@ -80,11 +107,6 @@ The inference cache size (in memory outside the JVM heap) per node for the
 model. In serverless, the cache is disabled by default. Otherwise, the default value is the size of the model as reported by the
 `model_size_bytes` field in the <<get-trained-models-stats>>. To disable the
 cache, `0b` can be provided.
-
-`deployment_id`::
-(Optional, string)
-include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
-Defaults to `model_id`.
 
 `number_of_allocations`::
 (Optional, integer)
@@ -127,18 +149,6 @@ compute-bound process; `threads_per_allocations` must not exceed the number of
 available allocated processors per node. Defaults to 1. Must be a power of 2.
 Max allowed value is 32.
 
-`timeout`::
-(Optional, time)
-Controls the amount of time to wait for the model to deploy. Defaults to 30
-seconds.
-
-`wait_for`::
-(Optional, string)
-Specifies the allocation status to wait for before returning. Defaults to
-`started`. The value `starting` indicates deployment is starting but not yet on
-any node. The value `started` indicates the model has started on at least one
-node. The value `fully_allocated` indicates the deployment has started on all
-valid nodes.
 
 [[start-trained-model-deployment-example]]
 == {api-examples-title}

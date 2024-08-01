@@ -1,8 +1,8 @@
 tag::adaptive-allocation[]
 Adaptive allocations configuration object.
 If enabled, the number of allocations of the model is set based on the current load the process gets.
-When the load exceeds 90% of the current capacity, a new model allocation is automatically created (respecting the value of `max_number_of_allocations` if it's set).
-When the load is less than 85% of the current capacity, a model allocation is automatically removed (respecting the value of `min_number_of_allocations` if it's set).
+When the load is high, a new model allocation is automatically created (respecting the value of `max_number_of_allocations` if it's set).
+When the load is low, a model allocation is automatically removed (respecting the value of `min_number_of_allocations` if it's set).
 The number of model allocations cannot be scaled down to less than `1` this way.
 If `adaptive_allocations` is enabled, do not set the number of allocations manually.
 end::adaptive-allocation[]

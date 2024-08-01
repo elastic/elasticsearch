@@ -25,7 +25,11 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 == {api-description-title}
 
 You can update a trained model deployment whose `assignment_state` is `started`.
-You can either increase or decrease the number of allocations of such a deployment.
+You can enable adaptive allocations for automatically scale model allocations up
+and down based on the actual resource requirement of the processes.
+Or you can manually increase or decrease the number of allocations of a model
+deployment.
+
 
 [[update-trained-model-deployments-path-parms]]
 == {api-path-parms-title}

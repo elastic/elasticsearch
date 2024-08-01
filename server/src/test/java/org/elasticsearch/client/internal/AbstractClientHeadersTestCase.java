@@ -104,7 +104,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(TransportDeleteAction.NAME, client.threadPool()));
         client.execute(
             TransportDeleteStoredScriptAction.TYPE,
-            new DeleteStoredScriptRequest("id"),
+            new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "id"),
             new AssertingActionListener<>(TransportDeleteStoredScriptAction.TYPE.name(), client.threadPool())
         );
         client.prepareIndex("idx")

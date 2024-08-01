@@ -80,6 +80,7 @@ The following configuration will not copy data from `field_1` to `field_3`:
   }
 }
 ----
+// TEST[skip:]
 Instead, copy to multiple fields from the source field:
 +
 [source,console]
@@ -91,6 +92,7 @@ Instead, copy to multiple fields from the source field:
   }
 }
 ----
+// TEST[skip:]
 
 NOTE: `copy_to` is not supported for field types where values take the form of objects, e.g. `date_range`.
 

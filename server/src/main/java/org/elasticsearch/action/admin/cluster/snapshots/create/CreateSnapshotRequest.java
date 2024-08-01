@@ -382,8 +382,20 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         return this;
     }
 
+    /**
+     * Get the uuid, generating it if one does not yet exist.
+     * Because the uuid can be set, this method is NOT thread-safe.
+     * <p>
+     * The uuid was previously generated in SnapshotService.createSnapshot
+     * but was moved to the CreateSnapshotRequest constructor so that the caller could
+     * uniquely identify the snapshot. Unfortunately, in a mixed-version cluster,
+     * the CreateSnapshotRequest could be created on a node which does not yet
+     * generate the uuid in the constructor. In this case, the uuid
+     * must be generated when it is first accessed with this getter.
+     *
+     * @return the uuid that will be used for the snapshot
+     */
     public String uuid() {
-        // If request was constructed on node with transport version < REGISTER_SLM_STATS it will not have a uuid yet
         if (this.uuid == null) {
             this.uuid = UUIDs.randomBase64UUID();
         }

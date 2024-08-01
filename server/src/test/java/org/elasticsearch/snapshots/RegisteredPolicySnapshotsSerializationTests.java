@@ -48,7 +48,7 @@ public class RegisteredPolicySnapshotsSerializationTests extends AbstractChunked
 
         switch (between(0, 2)) {
             case 0 -> {
-                policy = randomPolicy();
+                policy = randomValueOtherThan(policy, this::randomPolicy);
             }
             case 1 -> {
                 snapshotName = randomValueOtherThan(snapshotName, ESTestCase::randomIdentifier);

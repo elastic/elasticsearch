@@ -12,6 +12,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.action.admin.cluster.stats.ApproximateMatcher.closeTo;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.KNOWN_CLIENTS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -171,5 +172,41 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             assertThat(remote1ClusterTelemetry.getTook().avg(), closeTo((took1Remote1 + took2Remote1) / 2));
             // assertThat(remote1ClusterTelemetry.getTook().max(), greaterThanOrEqualTo(Math.max(took1Remote1, took2Remote1)));
         }
+    }
+
+    // TODO: add tests for failure scenarios
+
+    public void testClientsLimit() {
+        CCSUsageTelemetry ccsUsageHolder = new CCSUsageTelemetry();
+        // Add known clients
+        for (String knownClient : KNOWN_CLIENTS) {
+            CCSUsage.Builder builder = new CCSUsage.Builder();
+            builder.took(randomLongBetween(5, 10000)).setRemotesCount(1).setClient(knownClient);
+            CCSUsage ccsUsage = builder.build();
+            ccsUsageHolder.updateUsage(ccsUsage);
+        }
+        var counts = ccsUsageHolder.getCCSTelemetrySnapshot().getClientCounts();
+        for (String knownClient : KNOWN_CLIENTS) {
+            assertThat(counts.get(knownClient), equalTo(1L));
+        }
+        // Check that knowns are counted
+        for (String knownClient : KNOWN_CLIENTS) {
+            CCSUsage.Builder builder = new CCSUsage.Builder();
+            builder.took(randomLongBetween(5, 10000)).setRemotesCount(1).setClient(knownClient);
+            CCSUsage ccsUsage = builder.build();
+            ccsUsageHolder.updateUsage(ccsUsage);
+        }
+        counts = ccsUsageHolder.getCCSTelemetrySnapshot().getClientCounts();
+        for (String knownClient : KNOWN_CLIENTS) {
+            assertThat(counts.get(knownClient), equalTo(2L));
+        }
+        // Check that new clients are not counted
+        CCSUsage.Builder builder = new CCSUsage.Builder();
+        String randomClient = randomAlphaOfLength(10);
+        builder.took(randomLongBetween(5, 10000)).setRemotesCount(1).setClient(randomClient);
+        CCSUsage ccsUsage = builder.build();
+        ccsUsageHolder.updateUsage(ccsUsage);
+        counts = ccsUsageHolder.getCCSTelemetrySnapshot().getClientCounts();
+        assertThat(counts.get(randomClient), equalTo(null));
     }
 }

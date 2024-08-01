@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -58,7 +59,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     );
 
     /**
-     * if index.mode "logs" is applied by default in logs@settings for 'logs-*-*'
+     * if index.mode "logsdb" is applied by default in logs@settings for 'logs-*-*'
      */
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
@@ -146,7 +147,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             ),
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                logsDbEnabled ? "/logs@mappings-logsdb.json" : "/logs@mappings.json",
+                "/logs@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
@@ -166,8 +167,8 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 Map.of(
                     "xpack.stack.template.deprecated",
                     "false",
-                    "xpack.stack.template.logs.index.mode",
-                    logsDbEnabled ? "logs" : "standard"
+                    "xpack.stack.template.logsdb.index.mode",
+                    logsDbEnabled ? IndexMode.LOGSDB.getName() : IndexMode.STANDARD.getName()
                 )
             ),
             new IndexTemplateConfig(

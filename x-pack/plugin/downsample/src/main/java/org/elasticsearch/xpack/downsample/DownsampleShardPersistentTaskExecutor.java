@@ -315,7 +315,8 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                 IndicesService indicesService,
                 DownsampleMetrics downsampleMetrics
             ) {
-                super(NAME, actionFilters, transportService.getTaskManager());
+                // TODO: consider moving to Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME and simplify realNodeOperation
+                super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 this.client = client;
                 this.indicesService = indicesService;
                 this.downsampleMetrics = downsampleMetrics;

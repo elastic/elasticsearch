@@ -250,7 +250,7 @@ teardown:
 
   - do:
       allowed_warnings:
-        - "index template [destination_template] has index patterns [destination*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [destination_template] will take precedence during new index creation"
+        - "index template [destination_template] has index patterns [destination-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [destination_template] will take precedence during new index creation"
       indices.put_index_template:
         name: destination_template
         body:

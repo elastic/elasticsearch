@@ -54,6 +54,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -79,6 +80,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -1208,7 +1210,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
 
-        var reconciler = new DesiredBalanceReconciler(clusterSettings, mock(ThreadPool.class), mock(MeterRegistry.class));
+        var reconciler = new DesiredBalanceReconciler(
+            clusterSettings,
+            new DeterministicTaskQueue().getThreadPool(),
+            mock(MeterRegistry.class)
+        );
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
         for (int i = 0; i < numberOfNodes; i++) {
@@ -1275,7 +1281,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
 
         var threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(1L).thenReturn(2L).thenReturn(3L);
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
 
         var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class));
 

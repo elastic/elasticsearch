@@ -12,11 +12,14 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -29,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
@@ -96,14 +100,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testScript) {
             logger.info("-->  creating test script");
-            assertAcked(
-                clusterAdmin().preparePutStoredScript()
-                    .setId("foobar")
-                    .setContent(
-                        new BytesArray("{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }"),
-                        XContentType.JSON
-                    )
-            );
+            putJsonStoredScript("foobar", "{\"script\": { \"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"1\"} }");
         }
 
         logger.info("--> snapshot without global state");
@@ -152,7 +149,12 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testScript) {
             logger.info("-->  delete test script");
-            assertAcked(clusterAdmin().prepareDeleteStoredScript("foobar").get());
+            assertAcked(
+                safeExecute(
+                    TransportDeleteStoredScriptAction.TYPE,
+                    new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "foobar")
+                )
+            );
         }
 
         logger.info("--> try restoring from snapshot without global state");
@@ -188,7 +190,10 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testScript) {
             logger.info("--> check that script is restored");
-            GetStoredScriptResponse getStoredScriptResponse = clusterAdmin().prepareGetStoredScript("foobar").get();
+            GetStoredScriptResponse getStoredScriptResponse = safeExecute(
+                GetStoredScriptAction.INSTANCE,
+                new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")
+            );
             assertNotNull(getStoredScriptResponse.getSource());
         }
 
@@ -217,7 +222,12 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         }
 
         if (testScript) {
-            assertAcked(clusterAdmin().prepareDeleteStoredScript("foobar").get());
+            assertAcked(
+                safeExecute(
+                    TransportDeleteStoredScriptAction.TYPE,
+                    new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "foobar")
+                )
+            );
         }
 
         getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
@@ -236,7 +246,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
         assertFalse(clusterAdmin().prepareGetPipeline("barbaz").get().isFound());
-        assertNull(clusterAdmin().prepareGetStoredScript("foobar").get().getSource());
+        assertNull(safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")).getSource());
         assertDocCount("test-idx", 100L);
     }
 }

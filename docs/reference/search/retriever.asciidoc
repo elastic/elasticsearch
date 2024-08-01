@@ -28,6 +28,9 @@ A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api
 `rrf`::
 A <<rrf-retriever, retriever>> that produces top documents from <<rrf, reciprocal rank fusion (RRF)>>.
 
+`text_similarity_reranker`::
+A <<text-similarity-reranker-retriever, retriever>> that enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
+
 [[standard-retriever]]
 ==== Standard Retriever
 
@@ -195,6 +198,81 @@ GET /index/_search
             ],
             "rank_constant": ...
             "rank_window_size": ...
+        }
+    }
+}
+----
+// NOTCONSOLE
+
+[[text-similarity-reranker-retriever]]
+==== Text Similarity Re-ranker Retriever
+
+The `text_similarity_reranker` is a type of retriever that enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
+
+[TIP]
+====
+Refer to <<semantic-reranking>> for a high level overview of semantic reranking.
+====
+
+===== Prerequisites
+
+To use `text_similarity_reranker` you must first set up a `rerank` task using the <<put-inference-api, Create {infer} API>>.
+The `rerank` task should be set up with a machine learning model that can compute text similarity.
+
+Currently you can:
+
+* Integrate directly with the <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type
+* Integrate directly with the <<infer-service-google-vertex-ai,Google Vertex AI inference endpoint>> using the `rerank` task type
+* Upload a model to {es} with {eland-docs}/machine-learning.html#ml-nlp-pytorch[Eland]
+** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type
+
+===== Parameters
+
+`field`::
+(Required, `string`)
++
+The document field to be used for text similarity comparisons. This field should contain the text that will be evaluated against the `inferenceText`.
+
+`inference_id`::
+(Required, `string`)
++
+Unique identifier of the inference endpoint created using the {infer} API.
+
+`inference_text`::
+(Required, `string`)
++
+The text snippet used as the basis for similarity comparison.
+
+`rank_window_size`::
+(Optional, `int`)
++
+The number of top documents to consider in the re-ranking process. Defaults to `10`.
+
+`min_score`::
+(Optional, `float`)
++
+Sets a minimum threshold score for including documents in the re-ranked results. Documents with similarity scores below this threshold will be excluded. Note that score calculations vary depending on the model used.
+
+===== Restrictions
+
+A text similarity re-ranker retriever is a compound retriever. Child retrievers may not use elements that are restricted by having a compound retriever as part of the retriever tree.
+
+===== Example
+
+[source,js]
+----
+GET /index/_search
+{
+    "retriever": {
+        "text_similarity_reranker": {
+            "retriever": {
+                "standard": { ... }
+            },
+            "field": "text",
+            "inference_id": "my-cohere-rerank-model",
+            "inference_text": "Most famous landmark in Paris",
+            "rank_window_size": 100,
+            "min_score": 0.5
         }
     }
 }

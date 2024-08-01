@@ -91,9 +91,10 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             RetentionLeaseSyncAction.Request::new,
             RetentionLeaseSyncAction.Request::new,
             new ManagementOnlyExecutorFunction(threadPool),
-            false,
+            PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

@@ -8,8 +8,11 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import fixture.azure.AzureHttpFixture;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -25,7 +28,20 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
 
-    private static AzureHttpFixture fixture = new AzureHttpFixture(USE_FIXTURE, AZURE_TEST_ACCOUNT, AZURE_TEST_CONTAINER);
+    private static AzureHttpFixture fixture = new AzureHttpFixture(
+        USE_FIXTURE
+            ? ESTestCase.inFipsJvm() ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.HTTPS
+            : AzureHttpFixture.Protocol.NONE,
+        AZURE_TEST_ACCOUNT,
+        AZURE_TEST_CONTAINER,
+        Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
+            ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
+            : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
+    );
+
+    private static TestTrustStore trustStore = new TestTrustStore(
+        () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")
+    );
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-azure")
@@ -52,10 +68,16 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
                 c.systemProperty("test.repository_test_kit.skip_cas", "true");
             }
         })
+        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
+        .systemProperty(
+            "javax.net.ssl.trustStore",
+            () -> trustStore.getTrustStorePath().toString(),
+            s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
+        )
         .build();
 
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
+    @ClassRule(order = 1)
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

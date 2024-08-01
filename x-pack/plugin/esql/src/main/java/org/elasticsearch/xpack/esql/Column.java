@@ -15,7 +15,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 
@@ -28,7 +27,7 @@ public record Column(DataType type, Block values) implements Releasable, Writeab
     }
 
     public Column(BlockStreamInput in) throws IOException {
-        this(EsqlDataTypes.fromTypeName(in.readString()), in.readNamedWriteable(Block.class));
+        this(DataType.fromTypeName(in.readString()), in.readNamedWriteable(Block.class));
     }
 
     @Override

@@ -342,8 +342,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 7.17.23 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.23#bwcTest
+      - label: 7.17.24 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.24#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -353,7 +353,7 @@ steps:
           preemptible: true
           diskSizeGb: 250
         env:
-          BWC_VERSION: 7.17.23
+          BWC_VERSION: 7.17.24
         retry:
           automatic:
             - exit_status: "-1"
@@ -751,7 +751,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk17
-            BWC_VERSION: ["7.17.23", "8.14.4", "8.15.0"]
+            BWC_VERSION: ["7.17.24", "8.14.4", "8.15.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -801,7 +801,7 @@ steps:
               - openjdk21
               - openjdk22
               - openjdk23
-            BWC_VERSION: ["7.17.23", "8.14.4", "8.15.0"]
+            BWC_VERSION: ["7.17.24", "8.14.4", "8.15.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

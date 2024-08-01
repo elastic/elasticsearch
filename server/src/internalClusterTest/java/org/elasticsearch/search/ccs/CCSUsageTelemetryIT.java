@@ -10,11 +10,16 @@ package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -52,6 +57,11 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         return Map.of(REMOTE1, true, REMOTE2, true);
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
+        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), CrossClusterSearchIT.TestQueryBuilderPlugin.class);
+    }
+
     private SearchRequest makeSearchRequest(String... indices) {
         SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.allowPartialSearchResults(false);
@@ -62,6 +72,26 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         }
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
         return searchRequest;
+    }
+
+    /**
+    * Run search request and get telemetry from it
+    */
+    private CCSTelemetrySnapshot getTelemetryFromSearch(SearchRequest searchRequest) throws ExecutionException, InterruptedException {
+        // We want to send search to a specific node (we don't care which one) so that we could
+        // collect the CCS telemetry from it later
+        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
+        // We don't care here too much about the response, we just want to trigger the telemetry collection.
+        // So we check it's not null and leave the rest to other tests.
+        assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
+        return getTelemetrySnapshot(nodeName);
+    }
+
+    /**
+     * Create search request for indices and get telemetry from it
+     */
+    private CCSTelemetrySnapshot getTelemetryFromSearch(String... indices) throws ExecutionException, InterruptedException {
+        return getTelemetryFromSearch(makeSearchRequest(indices));
     }
 
     /**
@@ -76,11 +106,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         boolean minimizeRoundtrips = searchRequest.isCcsMinimizeRoundtrips();
 
         String randomClient = randomAlphaOfLength(10);
-        // We want to send search to a specific node (we don't care which one) so that we could
-        // collect the CCS telemetry from it later
         String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
-        // We don't care here too much about the response, we just want to trigger the telemetry collection.
-        // So we check it's not null and leave the rest to other tests.
         assertResponse(
             cluster(LOCAL_CLUSTER).client(nodeName)
                 .filterWithHeader(Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, randomClient))
@@ -147,7 +173,6 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
 
         // Make request to cluster a
         SearchRequest searchRequest = makeSearchRequest(localIndex, REMOTE1 + ":" + remoteIndex);
-
         String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
         assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
         CCSTelemetrySnapshot telemetry = getTelemetrySnapshot(nodeName);
@@ -178,10 +203,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         Map<String, Object> testClusterInfo = setupClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
 
-        SearchRequest searchRequest = makeSearchRequest(localIndex);
-        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
-        assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
-        CCSTelemetrySnapshot telemetry = getTelemetrySnapshot(nodeName);
+        CCSTelemetrySnapshot telemetry = getTelemetryFromSearch(localIndex);
         assertThat(telemetry.getTotalCount(), equalTo(0L));
     }
 
@@ -219,10 +241,137 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getFeatureCounts().get(WILDCARD_FEATURE), equalTo(2L));
     }
 
+    /**
+     * Test complete search failure
+     */
+    public void testFailedSearch() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest searchRequest = makeSearchRequest(localIndex, "*:" + remoteIndex);
+        // shardId -1 means to throw the Exception on all shards, so should result in complete search failure
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), -1);
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
+        searchRequest.allowPartialSearchResults(true);
+
+        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
+        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
+
+        // Borrowed from CrossClusterSearchIT#testSearchWithFailure
+        cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest, queryFuture);
+        assertBusy(() -> assertTrue(queryFuture.isDone()));
+
+        // We expect failure, but we don't care too much which failure it is in this test
+        ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
+        assertNotNull(ee.getCause());
+
+        CCSTelemetrySnapshot telemetry = getTelemetrySnapshot(nodeName);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(0L));
+        assertThat(telemetry.getTook().count(), equalTo(0L));
+        assertThat(telemetry.getTookMrtTrue().count(), equalTo(0L));
+        assertThat(telemetry.getTookMrtFalse().count(), equalTo(0L));
+    }
+
+    /**
+     * Search when all the remotes failed and skipped
+     */
+    public void testSkippedAllRemotesSearch() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest searchRequest = makeSearchRequest(localIndex, "*:" + remoteIndex);
+        // throw Exception on all shards of remoteIndex, but not against localIndex
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(
+            randomLong(),
+            new IllegalStateException("index corrupted"),
+            remoteIndex
+        );
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
+        searchRequest.allowPartialSearchResults(true);
+
+        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
+        assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
+
+        CCSTelemetrySnapshot telemetry = getTelemetrySnapshot(nodeName);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(1L));
+        // Note that this counts how many searches had skipped remotes, not how many remotes are skipped
+        assertThat(telemetry.getSkippedRemotes(), equalTo(1L));
+        // Still count the remote that failed
+        assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
+        assertThat(telemetry.getTook().count(), equalTo(1L));
+        // Each remote will have its skipped count bumped
+        var perCluster = telemetry.getByRemoteCluster();
+        assertThat(perCluster.size(), equalTo(3));
+        for (String remote : remoteClusterAlias()) {
+            assertThat(perCluster.get(remote).getCount(), equalTo(0L));
+            assertThat(perCluster.get(remote).getSkippedCount(), equalTo(1L));
+            assertThat(perCluster.get(remote).getTook().count(), equalTo(0L));
+        }
+    }
+
+    public void testSkippedOneRemoteSearch() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        // Remote1 will fail, Remote2 will just do nothing but it counts as success
+        SearchRequest searchRequest = makeSearchRequest(localIndex, REMOTE1 + ":" + remoteIndex, REMOTE2 + ":" + "nosuchindex*");
+        // throw Exception on all shards of remoteIndex, but not against localIndex
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(
+            randomLong(),
+            new IllegalStateException("index corrupted"),
+            remoteIndex
+        );
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
+        searchRequest.allowPartialSearchResults(true);
+
+        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
+        assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
+
+        CCSTelemetrySnapshot telemetry = getTelemetrySnapshot(nodeName);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(1L));
+        // Note that this counts how many searches had skipped remotes, not how many remotes are skipped
+        assertThat(telemetry.getSkippedRemotes(), equalTo(1L));
+        // Still count the remote that failed
+        assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
+        assertThat(telemetry.getTook().count(), equalTo(1L));
+        // Each remote will have its skipped count bumped
+        var perCluster = telemetry.getByRemoteCluster();
+        assertThat(perCluster.size(), equalTo(3));
+        // This one is skipped
+        assertThat(perCluster.get(REMOTE1).getCount(), equalTo(0L));
+        assertThat(perCluster.get(REMOTE1).getSkippedCount(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(0L));
+        // This one is OK
+        assertThat(perCluster.get(REMOTE2).getCount(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE2).getSkippedCount(), equalTo(0L));
+        assertThat(perCluster.get(REMOTE2).getTook().count(), equalTo(1L));
+    }
+
+    /**
+     * Test that we're still counting remote search even if remote cluster has no such index
+     */
+    public void testRemoteHasNoIndex() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+
+        CCSTelemetrySnapshot telemetry = getTelemetryFromSearch(localIndex, REMOTE1 + ":" + "no_such_index*");
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(1L));
+        var perCluster = telemetry.getByRemoteCluster();
+        assertThat(perCluster.size(), equalTo(2));
+        assertThat(perCluster.get(REMOTE1).getCount(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE2), equalTo(null));
+    }
+
     // TODO: implement the following tests:
-    // - failed search
-    // - search with one remote skipped
-    // - search with a remote failing
+    // - search with a remote timeout
     // - async search
     // - various search failure reasons
 

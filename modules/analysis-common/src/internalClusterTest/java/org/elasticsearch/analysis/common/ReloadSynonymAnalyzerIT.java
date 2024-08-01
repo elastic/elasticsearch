@@ -164,7 +164,11 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         assertEquals(expectedTokens, actualTokens);
     }
 
-    private static void assertReloadAnalyzers(ReloadAnalyzersResponse response, int expectedSuccessfulShards, Map<String, Set<String>> expectedIndicesAndAnalyzers) {
+    private static void assertReloadAnalyzers(
+        ReloadAnalyzersResponse response,
+        int expectedSuccessfulShards,
+        Map<String, Set<String>> expectedIndicesAndAnalyzers
+    ) {
         assertNoFailures(response);
         assertEquals(expectedSuccessfulShards, response.getSuccessfulShards());
 

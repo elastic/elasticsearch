@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -68,9 +69,9 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
      * value for an empty state is used.
      */
     @SuppressWarnings("deprecated")
-    public static OperationMode currentILMMode(final ClusterState state) {
-        IndexLifecycleMetadata oldMetadata = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
-        LifecycleOperationMetadata currentMetadata = state.metadata().getProject().custom(LifecycleOperationMetadata.TYPE);
+    public static OperationMode currentILMMode(final ProjectMetadata projectMetadata) {
+        IndexLifecycleMetadata oldMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        LifecycleOperationMetadata currentMetadata = projectMetadata.custom(LifecycleOperationMetadata.TYPE);
         return Optional.ofNullable(currentMetadata)
             .map(LifecycleOperationMetadata::getILMOperationMode)
             .orElse(

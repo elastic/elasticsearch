@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -28,13 +29,16 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
 
 public class TransportGetStatusAction extends TransportMasterNodeAction<AcknowledgedRequest.Plain, Response> {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public TransportGetStatusAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         super(
             GetStatusAction.NAME,
@@ -47,11 +51,12 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<Acknowle
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, AcknowledgedRequest.Plain request, ClusterState state, ActionListener<Response> listener) {
-        listener.onResponse(new Response(currentILMMode(state)));
+        listener.onResponse(new Response(currentILMMode(projectResolver.getProjectMetadata(state))));
     }
 
     @Override

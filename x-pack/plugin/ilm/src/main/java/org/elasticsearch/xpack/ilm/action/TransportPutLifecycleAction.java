@@ -20,8 +20,9 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -67,6 +68,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutLifecycleAction(
@@ -77,7 +79,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry namedXContentRegistry,
         XPackLicenseState licenseState,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(
             ILMActions.PUT.name(),
@@ -93,6 +96,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         this.xContentRegistry = namedXContentRegistry;
         this.licenseState = licenseState;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -111,9 +115,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
 
         {
-            IndexLifecycleMetadata lifecycleMetadata = state.metadata()
-                .getProject()
-                .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+            IndexLifecycleMetadata lifecycleMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
             LifecyclePolicyMetadata existingPolicy = lifecycleMetadata.getPolicyMetadatas().get(request.getPolicy().getName());
             // Make the request a no-op if the policy and filtered headers match exactly
             if (isNoopUpdate(existingPolicy, request.getPolicy(), filteredHeaders)) {
@@ -124,7 +127,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
 
         submitUnbatchedTask(
             "put-lifecycle-" + request.getPolicy().getName(),
-            new UpdateLifecyclePolicyTask(request, listener, licenseState, filteredHeaders, xContentRegistry, client)
+            new UpdateLifecyclePolicyTask(request, listener, licenseState, filteredHeaders, xContentRegistry, client, projectResolver)
         );
     }
 
@@ -135,6 +138,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         private final NamedXContentRegistry xContentRegistry;
         private final Client client;
         private final boolean verboseLogging;
+        private final ProjectResolver projectResolver;
 
         public UpdateLifecyclePolicyTask(
             PutLifecycleRequest request,
@@ -142,7 +146,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             XPackLicenseState licenseState,
             Map<String, String> filteredHeaders,
             NamedXContentRegistry xContentRegistry,
-            Client client
+            Client client,
+            ProjectResolver projectResolver
         ) {
             super(request, listener);
             this.request = request;
@@ -151,6 +156,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             this.xContentRegistry = xContentRegistry;
             this.client = client;
             this.verboseLogging = true;
+            this.projectResolver = projectResolver;
         }
 
         /**
@@ -163,7 +169,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             PutLifecycleRequest request,
             XPackLicenseState licenseState,
             NamedXContentRegistry xContentRegistry,
-            Client client
+            Client client,
+            ProjectResolver projectResolver
         ) {
             super(request, null);
             this.request = request;
@@ -172,13 +179,16 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             this.xContentRegistry = xContentRegistry;
             this.client = client;
             this.verboseLogging = false;
+            this.projectResolver = projectResolver;
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            final IndexLifecycleMetadata currentMetadata = currentState.metadata()
-                .getProject()
-                .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+            ProjectMetadata currentProjectMetadata = projectResolver.getProjectMetadata(currentState);
+            final IndexLifecycleMetadata currentMetadata = currentProjectMetadata.custom(
+                IndexLifecycleMetadata.TYPE,
+                IndexLifecycleMetadata.EMPTY
+            );
             final LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas().get(request.getPolicy().getName());
 
             // Double-check for no-op in the state update task, in case it was changed/reset in the meantime
@@ -186,9 +196,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
                 return currentState;
             }
 
-            validatePrerequisites(request.getPolicy(), currentState, licenseState);
+            validatePrerequisites(request.getPolicy(), currentState, currentProjectMetadata, licenseState);
 
-            ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
             long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
             SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
             LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(
@@ -205,21 +214,24 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
                     logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
                 }
             }
-            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(currentState));
-            stateBuilder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
-            ClusterState nonRefreshedState = stateBuilder.build();
+            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(currentProjectMetadata));
+            ProjectMetadata newProjectMetadata = ProjectMetadata.builder(currentProjectMetadata)
+                .putCustom(IndexLifecycleMetadata.TYPE, newMetadata)
+                .build();
+            ClusterState nonRefreshedState = ClusterState.builder(currentState).putProjectMetadata(newProjectMetadata).build();
             if (oldPolicy == null) {
                 return nonRefreshedState;
             } else {
                 try {
-                    return updateIndicesForPolicy(
-                        nonRefreshedState,
+                    ProjectMetadata refreshedProjectMetadata = updateIndicesForPolicy(
+                        newProjectMetadata,
                         xContentRegistry,
                         client,
                         oldPolicy.getPolicy(),
                         lifecyclePolicyMetadata,
                         licenseState
                     );
+                    return ClusterState.builder(currentState).putProjectMetadata(refreshedProjectMetadata).build();
                 } catch (Exception e) {
                     logger.warn(() -> "unable to refresh indices phase JSON for updated policy [" + oldPolicy.getName() + "]", e);
                     // Revert to the non-refreshed state
@@ -255,8 +267,14 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
      *
      * @param policy The lifecycle policy
      * @param state The cluster state
+     * @param projectMetadata The project metadata
      */
-    private static void validatePrerequisites(LifecyclePolicy policy, ClusterState state, XPackLicenseState licenseState) {
+    private static void validatePrerequisites(
+        LifecyclePolicy policy,
+        ClusterState state,
+        ProjectMetadata projectMetadata,
+        XPackLicenseState licenseState
+    ) {
         List<Phase> phasesWithSearchableSnapshotActions = policy.getPhases()
             .values()
             .stream()
@@ -301,9 +319,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         for (Phase phase : phasesWithWaitForSnapshotActions) {
             WaitForSnapshotAction action = (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME);
             String slmPolicy = action.getPolicy();
-            if (state.metadata()
-                .getProject()
-                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
+            if (projectMetadata.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
                 .getSnapshotConfigurations()
                 .get(slmPolicy) == null) {
                 throw new IllegalArgumentException(

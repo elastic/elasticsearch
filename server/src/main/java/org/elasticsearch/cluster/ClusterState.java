@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -834,6 +835,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.nodeFeatures = new HashMap<>();
             customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
+        }
+
+        public Builder putProjectMetadata(ProjectMetadata.Builder projectMetadata) {
+            metadata = Metadata.builder(metadata).putProjectMetadata(projectMetadata).build();
+            return this;
+        }
+
+        public Builder putProjectMetadata(ProjectMetadata projectMetadata) {
+            return putProjectMetadata(ProjectMetadata.builder(projectMetadata));
         }
 
         public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {

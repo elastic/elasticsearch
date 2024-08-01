@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
@@ -310,7 +311,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 return hasShardCopyOnOtherNode == false;
             })
             // If ILM is shrinking the index this shard is part of, it'll look like it's unmovable, but we can just wait for ILM to finish
-            .filter(pair -> isIlmRestrictingShardMovement(currentState, pair.v1()) == false)
+            .filter(pair -> isIlmRestrictingShardMovement(currentState.metadata().getProject(), pair.v1()) == false)
             .peek(
                 pair -> logger.debug(
                     "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
@@ -388,9 +389,9 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             }
     }
 
-    private static boolean isIlmRestrictingShardMovement(ClusterState currentState, ShardRouting pair) {
-        if (OperationMode.STOPPED.equals(currentILMMode(currentState)) == false) {
-            LifecycleExecutionState ilmState = currentState.metadata().getProject().index(pair.index()).getLifecycleExecutionState();
+    private static boolean isIlmRestrictingShardMovement(ProjectMetadata projectMetadata, ShardRouting pair) {
+        if (OperationMode.STOPPED.equals(currentILMMode(projectMetadata)) == false) {
+            LifecycleExecutionState ilmState = projectMetadata.index(pair.index()).getLifecycleExecutionState();
             // Specifically, if 1) ILM is running, 2) ILM is currently shrinking the index this shard is part of, and 3) it hasn't
             // errored out, we can disregard this shard under the assumption that ILM will get it movable eventually
             boolean ilmWillMoveShardEventually = ilmState != null

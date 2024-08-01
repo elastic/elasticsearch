@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -128,12 +130,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
             .build();
 
-        Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+        List<String> migratedPolicies = migrateIlmPolicies(projectMetadataBuilder, projectMetadata, "data", REGISTRY, client, null);
         assertThat(migratedPolicies.size(), is(1));
         assertThat(migratedPolicies.get(0), is(lifecycleName));
 
-        ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+        ClusterState newState = ClusterState.builder(state).putProjectMetadata(projectMetadataBuilder).build();
         IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
@@ -196,12 +199,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
             .build();
 
-        Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+        List<String> migratedPolicies = migrateIlmPolicies(projectMetadataBuilder, projectMetadata, "data", REGISTRY, client, null);
         assertThat(migratedPolicies.size(), is(1));
         assertThat(migratedPolicies.get(0), is(lifecycleName));
 
-        ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+        ClusterState newState = ClusterState.builder(state).putProjectMetadata(projectMetadataBuilder).build();
         IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
@@ -255,11 +259,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 )
                 .build();
 
-            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            List<String> migratedPolicies = migrateIlmPolicies(projectMetadataBuilder, projectMetadata, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
-            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            ClusterState newState = ClusterState.builder(state).putProjectMetadata(projectMetadataBuilder).build();
             LifecycleExecutionState newLifecycleState = newState.metadata().getProject().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
@@ -314,11 +319,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 )
                 .build();
 
-            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            List<String> migratedPolicies = migrateIlmPolicies(projectMetadataBuilder, projectMetadata, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
-            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            ClusterState newState = ClusterState.builder(state).putProjectMetadata(projectMetadataBuilder).build();
             LifecycleExecutionState newLifecycleState = newState.metadata().getProject().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
@@ -362,11 +368,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 )
                 .build();
 
-            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            List<String> migratedPolicies = migrateIlmPolicies(projectMetadataBuilder, projectMetadata, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
-            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            ClusterState newState = ClusterState.builder(state).putProjectMetadata(projectMetadataBuilder).build();
             LifecycleExecutionState newLifecycleState = newState.metadata().getProject().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
@@ -416,11 +423,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 )
                 .build();
 
-            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            List<String> migratedPolicies = migrateIlmPolicies(projectMetadataBuilder, projectMetadata, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
-            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            ClusterState newState = ClusterState.builder(state).putProjectMetadata(projectMetadataBuilder).build();
             LifecycleExecutionState newLifecycleState = newState.metadata().getProject().index(indexName).getLifecycleExecutionState();
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -466,11 +474,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 )
                 .build();
 
-            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            List<String> migratedPolicies = migrateIlmPolicies(projectMetadataBuilder, projectMetadata, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
-            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            ClusterState newState = ClusterState.builder(state).putProjectMetadata(projectMetadataBuilder).build();
             LifecycleExecutionState newLifecycleState = newState.metadata().getProject().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
@@ -532,13 +541,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithWarmDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithWarmDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithWarmDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_warm,data_hot"));
@@ -552,13 +562,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithWarmDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithWarmDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithWarmDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_warm,data_hot"));
@@ -572,13 +583,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithFrozenDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithFrozenDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithFrozenDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_frozen"));
@@ -599,13 +611,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
@@ -627,13 +640,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
@@ -651,13 +665,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
@@ -674,13 +689,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_cold,data_warm,data_hot"));
@@ -697,13 +713,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_content"));
@@ -721,13 +738,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
@@ -742,13 +760,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
@@ -763,11 +782,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithUnknownDataAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithUnknownDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), is("something_else"));
             assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is("data_content"));
@@ -782,12 +803,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexDataAndBoxAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithDataAndBoxAttribute"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithDataAndBoxAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is("box1"));
@@ -800,11 +823,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .settings(getBaseIndexSettings().put(BOX_ROUTING_REQUIRE_SETTING, "warm"));
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexBoxAttribute)).build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithBoxAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is("warm"));
@@ -818,11 +843,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexNoRoutingAttribute))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexNoRoutingAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), nullValue());
@@ -841,12 +868,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 );
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("foo");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(
@@ -864,13 +892,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                         .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 );
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             // no index to migrate as the IndexMetadata.Builder#build method adds a tier preference for this partial index
             assertThat(migratedIndices.size(), is(0));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("foo");
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is("cold"));
             // partially mounted index must remain in `data_frozen`, however we do not change the setting
@@ -889,12 +918,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 );
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("foo");
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is("cold"));
 
@@ -914,12 +944,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 );
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "box");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "box");
             assertThat(migratedIndices.size(), is(1));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("foo");
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is(nullValue()));
             // partially mounted index must have _tier_preference and remain in `data_frozen` (despite the cold custom filtering
@@ -944,13 +975,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithAllRoutingSettings))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithAllRoutingSettings"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithAllRoutingSettings");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
@@ -970,13 +1002,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(indexWithAllRoutingSettings))
                 .build();
 
-            Metadata.Builder mb = Metadata.builder(state.metadata());
+            ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(state);
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
 
-            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            List<String> migratedIndices = migrateIndices(projectMetadataBuilder, projectMetadata, "data");
             assertThat(migratedIndices.size(), is(1));
             assertThat(migratedIndices.get(0), is("indexWithAllRoutingSettings"));
 
-            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
             IndexMetadata migratedIndex = migratedState.metadata().getProject().index("indexWithAllRoutingSettings");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
@@ -1071,6 +1104,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
                 state,
+                DefaultProjectResolver.INSTANCE,
                 "data",
                 "catch-all",
                 REGISTRY,
@@ -1096,6 +1130,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             // let's test a null template name to make sure nothing is removed
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
                 state,
+                DefaultProjectResolver.INSTANCE,
                 "data",
                 null,
                 REGISTRY,
@@ -1121,6 +1156,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             // let's test a null node attribute parameter defaults to "data"
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
                 state,
+                DefaultProjectResolver.INSTANCE,
                 null,
                 null,
                 REGISTRY,
@@ -1152,7 +1188,16 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
             IllegalStateException illegalStateException = expectThrows(
                 IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null, false)
+                () -> migrateToDataTiersRouting(
+                    ilmRunningState,
+                    DefaultProjectResolver.INSTANCE,
+                    "data",
+                    "catch-all",
+                    REGISTRY,
+                    client,
+                    null,
+                    false
+                )
             );
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [RUNNING]"));
         }
@@ -1165,7 +1210,16 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
             IllegalStateException illegalStateException = expectThrows(
                 IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null, false)
+                () -> migrateToDataTiersRouting(
+                    ilmStoppingState,
+                    DefaultProjectResolver.INSTANCE,
+                    "data",
+                    "catch" + "-all",
+                    REGISTRY,
+                    client,
+                    null,
+                    false
+                )
             );
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [STOPPING]"));
         }
@@ -1178,6 +1232,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
             Tuple<ClusterState, MigratedEntities> migratedState = migrateToDataTiersRouting(
                 ilmStoppedState,
+                DefaultProjectResolver.INSTANCE,
                 "data",
                 "catch-all",
                 REGISTRY,
@@ -1198,7 +1253,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
                 )
                 .build();
-            migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null, true);
+            migrateToDataTiersRouting(ilmRunningState, DefaultProjectResolver.INSTANCE, "data", "catch-all", REGISTRY, client, null, true);
             // no exceptions
         }
 
@@ -1208,7 +1263,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPING))
                 )
                 .build();
-            migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null, true);
+            migrateToDataTiersRouting(ilmStoppingState, DefaultProjectResolver.INSTANCE, "data", "catch-all", REGISTRY, client, null, true);
             // no exceptions
         }
     }
@@ -1225,6 +1280,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .build();
         Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
             clusterState,
+            DefaultProjectResolver.INSTANCE,
             "data",
             composableTemplateName,
             REGISTRY,
@@ -1244,7 +1300,16 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         // if the cluster state doesn't mention the setting, it ends up true
         clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
-        migratedEntitiesTuple = migrateToDataTiersRouting(clusterState, null, null, REGISTRY, client, null, false);
+        migratedEntitiesTuple = migrateToDataTiersRouting(
+            clusterState,
+            DefaultProjectResolver.INSTANCE,
+            null,
+            null,
+            REGISTRY,
+            client,
+            null,
+            false
+        );
         assertTrue(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.get(migratedEntitiesTuple.v1().metadata().persistentSettings()));
         assertFalse(migratedEntitiesTuple.v1().metadata().transientSettings().keySet().contains(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE));
 
@@ -1254,7 +1319,16 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         metadata.persistentSettings(Settings.builder().put(ENFORCE_DEFAULT_TIER_PREFERENCE, randomBoolean()).build());
         metadata.transientSettings(Settings.builder().put(ENFORCE_DEFAULT_TIER_PREFERENCE, randomBoolean()).build());
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        migratedEntitiesTuple = migrateToDataTiersRouting(clusterState, null, null, REGISTRY, client, null, false);
+        migratedEntitiesTuple = migrateToDataTiersRouting(
+            clusterState,
+            DefaultProjectResolver.INSTANCE,
+            null,
+            null,
+            REGISTRY,
+            client,
+            null,
+            false
+        );
         assertTrue(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.get(migratedEntitiesTuple.v1().metadata().persistentSettings()));
         assertFalse(migratedEntitiesTuple.v1().metadata().transientSettings().keySet().contains(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE));
     }
@@ -1363,10 +1437,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
             .build();
 
-        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(clusterState);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+
         List<String> migrateLegacyTemplates = MetadataMigrateToDataTiersRoutingService.migrateLegacyTemplates(
-            mb,
-            clusterState,
+            projectMetadataBuilder,
+            projectMetadata,
             nodeAttrName
         );
         assertThat(migrateLegacyTemplates.size(), is(3));
@@ -1379,7 +1455,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
         );
 
-        Map<String, IndexTemplateMetadata> migratedTemplates = mb.build().getProject().templates();
+        Map<String, IndexTemplateMetadata> migratedTemplates = projectMetadataBuilder.build().templates();
         assertThat(migratedTemplates.get("template-with-require-routing").settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-include-routing").settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-require-and-include-routing").settings().size(), is(1));
@@ -1484,10 +1560,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
             .build();
 
-        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(clusterState);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+
         List<String> migratedComposableTemplates = MetadataMigrateToDataTiersRoutingService.migrateComposableTemplates(
-            mb,
-            clusterState,
+            projectMetadataBuilder,
+            projectMetadata,
             nodeAttrName
         );
         assertThat(migratedComposableTemplates.size(), is(3));
@@ -1500,7 +1578,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
         );
 
-        Map<String, ComposableIndexTemplate> migratedTemplates = mb.build().getProject().templatesV2();
+        Map<String, ComposableIndexTemplate> migratedTemplates = projectMetadataBuilder.build().templatesV2();
         assertThat(migratedTemplates.get("template-with-require-routing").template().settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-include-routing").template().settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-require-and-include-routing").template().settings().size(), is(1));
@@ -1585,10 +1663,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
             .build();
 
-        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(clusterState);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
         List<String> migratedComponentTemplates = MetadataMigrateToDataTiersRoutingService.migrateComponentTemplates(
-            mb,
-            clusterState,
+            projectMetadataBuilder,
+            projectMetadata,
             nodeAttrName
         );
         assertThat(migratedComponentTemplates.size(), is(3));
@@ -1601,7 +1680,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
         );
 
-        Map<String, ComponentTemplate> migratedTemplates = mb.build().getProject().componentTemplates();
+        Map<String, ComponentTemplate> migratedTemplates = projectMetadataBuilder.build().componentTemplates();
         assertThat(migratedTemplates.get("template-with-require-routing").template().settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-include-routing").template().settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-require-and-include-routing").template().settings().size(), is(1));
@@ -1673,9 +1752,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
             .build();
 
-        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(clusterState);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
         MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = MetadataMigrateToDataTiersRoutingService
-            .migrateIndexAndComponentTemplates(mb, clusterState, nodeAttrName);
+            .migrateIndexAndComponentTemplates(projectMetadataBuilder, projectMetadata, nodeAttrName);
         assertThat(migratedTemplates.migratedLegacyTemplates, is(List.of("template-with-require-routing")));
         assertThat(migratedTemplates.migratedComposableTemplates, is(List.of("composable-template-with-require-routing")));
         assertThat(migratedTemplates.migratedComponentTemplates, is(List.of("component-with-require-and-include-routing")));

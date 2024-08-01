@@ -116,21 +116,24 @@ public class ZoneAwareAssignmentPlanner {
             .stream()
             .filter(e -> e.getValue() > 0)
             .collect(Collectors.toMap(Map.Entry::getKey, e -> 1 + remainingAllocationsPerRemainingZone(remainingZones, e.getValue())));
+        // If there was at least one allocation for a deployment, we will apply it to each zone
 
         List<AssignmentPlan.Deployment> modifiedDeployments = deployments.stream()
             .filter(d -> deploymentIdToTargetAllocationsPerZone.getOrDefault(d.deploymentId(), 0) > 0)
+            // filter out deployments with no allocations
             .map(
                 d -> new AssignmentPlan.Deployment(
+                    // replace each deployment with a new deployment
                     d.deploymentId(),
                     d.memoryBytes(),
-                    deploymentIdToTargetAllocationsPerZone.get(d.deploymentId()),
+                    deploymentIdToTargetAllocationsPerZone.get(d.deploymentId()), // TODO this seems wrong?
                     d.threadsPerAllocation(),
-                    d.currentAllocationsByNodeId(),
+                    d.currentAllocationsByNodeId(), // TODO why are we updating the total allocations but not the allocations per node?
+                    // (below) Only force assigning at least once previously assigned models that have not had any allocation yet
                     (tryAssigningPreviouslyAssignedModels && deploymentIdToRemainingAllocations.get(d.deploymentId()) == d.allocations())
                         ? d.maxAssignedAllocations()
                         : 0,
                     d.getAdaptiveAllocationsSettings(),
-                    // Only force assigning at least once previously assigned models that have not had any allocation yet
                     d.perDeploymentMemoryBytes(),
                     d.perAllocationMemoryBytes()
                 )

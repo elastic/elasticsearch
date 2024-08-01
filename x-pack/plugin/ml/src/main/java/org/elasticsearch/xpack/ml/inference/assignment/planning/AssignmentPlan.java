@@ -31,6 +31,20 @@ import java.util.stream.Collectors;
  */
 public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
+    /**
+     *
+     * @param deploymentId
+     * @param memoryBytes
+     * @param allocations
+     * @param threadsPerAllocation
+     * @param currentAllocationsByNodeId
+     * @param maxAssignedAllocations this value is used by the ZoneAwareAssignmentPlan and AssignmentPlanner to keep track of the
+     *                               maximum number of allocations which have been assigned. It is mainly for assigning over AZs.
+     * @param adaptiveAllocationsSettings
+     * @param priority
+     * @param perDeploymentMemoryBytes
+     * @param perAllocationMemoryBytes
+     */
     public record Deployment(
         String deploymentId,
         long memoryBytes,

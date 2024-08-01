@@ -129,6 +129,7 @@ final class AzureStorageSettings {
     private final TimeValue timeout;
     private final int maxRetries;
     private final Proxy proxy;
+    private final boolean hasCredentials;
 
     private AzureStorageSettings(
         String account,
@@ -145,6 +146,7 @@ final class AzureStorageSettings {
     ) {
         this.account = account;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, endpoint, secondaryEndpoint);
+        this.hasCredentials = Strings.hasText(key) || Strings.hasText(sasToken);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -198,9 +200,6 @@ final class AzureStorageSettings {
     ) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
-        if (hasSasToken == false && hasKey == false) {
-            throw new SettingsException("Neither a secret key nor a shared access token was set for account [" + account + "]");
-        }
         if (hasSasToken && hasKey) {
             throw new SettingsException("Both a secret as well as a shared access token were set for account [" + account + "]");
         }
@@ -208,8 +207,10 @@ final class AzureStorageSettings {
         connectionStringBuilder.append("DefaultEndpointsProtocol=https").append(";AccountName=").append(account);
         if (hasKey) {
             connectionStringBuilder.append(";AccountKey=").append(key);
-        } else {
+        } else if (hasSasToken) {
             connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
+        } else {
+            connectionStringBuilder.append(";AccountKey=none"); // required for validation, but ignored
         }
         final boolean hasEndpointSuffix = Strings.hasText(endpointSuffix);
         final boolean hasEndpoint = Strings.hasText(endpoint);
@@ -312,6 +313,10 @@ final class AzureStorageSettings {
 
     private static final String BLOB_ENDPOINT_NAME = "BlobEndpoint";
     private static final String BLOB_SECONDARY_ENDPOINT_NAME = "BlobSecondaryEndpoint";
+
+    public boolean hasCredentials() {
+        return hasCredentials;
+    }
 
     record StorageEndpoint(String primaryURI, @Nullable String secondaryURI) {}
 

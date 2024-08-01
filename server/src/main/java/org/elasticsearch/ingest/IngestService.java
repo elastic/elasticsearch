@@ -129,7 +129,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
         long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
         long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, threadPool::relativeTimeInMillis, scheduler::apply);
+        return MatcherWatchdog.newInstance(
+            intervalMillis,
+            maxExecutionTimeMillis,
+            threadPool.relativeTimeInMillisSupplier(),
+            scheduler::apply
+        );
     }
 
     /**
@@ -197,7 +202,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 scriptService,
                 analysisRegistry,
                 threadPool.getThreadContext(),
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 createScheduler(threadPool),
                 this,
                 client,

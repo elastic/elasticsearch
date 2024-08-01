@@ -284,6 +284,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * </p>
      */
     public void testInlineStatsNow() throws IOException {
+        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTestData();
 
         RequestObjectBuilder builder = requestObjectBuilder().query(
@@ -369,6 +370,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testInlineStatsProfile() throws IOException {
+        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTestData();
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | INLINESTATS AVG(value) | SORT value ASC");

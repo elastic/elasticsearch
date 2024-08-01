@@ -1,5 +1,5 @@
 pr: 110901
-summary: Gracefully handle invalid synonym rules in synonyms sets
+summary: Set lenient to true by default when using updateable synonyms
 area: Analysis
 type: bug
 issues: []

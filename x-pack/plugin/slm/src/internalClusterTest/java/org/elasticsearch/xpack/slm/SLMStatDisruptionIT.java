@@ -13,15 +13,12 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +29,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -56,6 +54,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -89,7 +88,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             IndexLifecycle.class,
             SnapshotLifecycle.class,
             DataStreamsPlugin.class,
-            TestDelayedRepoPlugin.class
+            TestDelayedRepoPlugin.class,
+            TestRestartBeforeListenersRepoPlugin.class
         );
     }
 
@@ -175,6 +175,91 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public static class TestRestartBeforeListenersRepoPlugin extends Plugin implements RepositoryPlugin {
+
+        // Use static vars since instantiated by plugin system
+        private static Runnable onResponse;
+
+        static void setOnResponse(Runnable onResponse) {
+            TestRestartBeforeListenersRepoPlugin.onResponse = onResponse;
+        }
+
+        static void clearOnResponse() {
+            onResponse = () -> {};
+        }
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
+        ) {
+            return Map.of(
+                TestRestartBeforeListenersRepo.TYPE,
+                metadata -> new TestRestartBeforeListenersRepo(
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    // add wrapper lambda so can change underlying runnable with static setOnResponse() method
+                    () -> onResponse.run()
+                )
+            );
+        }
+    }
+
+    /**
+     * Repo which forces a runnable to be run after snapshot finalization, but before callbacks
+     * which receive the SnapshotInfo, specifically the SLM callback which will save failure stats.
+     */
+    static class TestRestartBeforeListenersRepo extends FsRepository {
+        private static final String TYPE = "restart_before_listeners";
+
+        private final Runnable beforeResponseRunnable;
+
+        protected TestRestartBeforeListenersRepo(
+            RepositoryMetadata metadata,
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            Runnable beforeResponseRunnable
+        ) {
+            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            this.beforeResponseRunnable = beforeResponseRunnable;
+        }
+
+        @Override
+        public void finalizeSnapshot(FinalizeSnapshotContext fsc) {
+            var newFinalizeContext = new FinalizeSnapshotContext(
+                fsc.updatedShardGenerations(),
+                fsc.repositoryStateId(),
+                fsc.clusterMetadata(),
+                fsc.snapshotInfo(),
+                fsc.repositoryMetaVersion(),
+                fsc,
+                snapshotInfo -> {
+                    // run the passed lambda before calling the usual callback
+                    // this is where the cluster can be restarted before SLM is called back with the snapshotInfo
+                    beforeResponseRunnable.run();
+                    fsc.onDone(snapshotInfo);
+                }
+            );
+            super.finalizeSnapshot(newFinalizeContext);
+        }
+    }
+
+    @Before
+    public void clearRepoFinalizeRunnable() {
+        TestRestartBeforeListenersRepoPlugin.clearOnResponse();
+    }
+
     /**
      * Test that if there is a currently running snapshot it is not inferred to be a failure
      */
@@ -236,7 +321,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(2);
 
         createRandomIndex(idxName, dataNode);
-        createRepository(repoName, "mock");
+        createRepository(repoName, TestRestartBeforeListenersRepo.TYPE);
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
 
         ensureGreen();
@@ -271,12 +356,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
-        // Listener that stops disrupting network only after snapshot completion
-        CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+        // wire into repo so code can be run on test thread after snapshot finalize, but before SLM is called back
+        var runDuringFinalize = new RunDuringFinalize();
+        TestRestartBeforeListenersRepoPlugin.setOnResponse(runDuringFinalize.finalizeThreadRunnable());
 
         createRandomIndex(idxName, dataNode);
-        createRepository(repoName, "mock");
+        createRepository(repoName, TestRestartBeforeListenersRepo.TYPE);
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
 
         ensureGreen();
@@ -285,12 +370,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         String snapshotName = executePolicy(masterNode, policyName);
         logger.info("Created snapshot: " + snapshotName);
 
-        // wait for snapshot to complete and network disruption to stop
-        assertTrue(latch.await(1, TimeUnit.MINUTES));
-
-        // Restart master so failure stat is lost. This relies on a race condition as node shutdown must happen before stats are stored in
-        // cluster state, but this is not guaranteed. If the following assert fails consider this race condition as a possible culprit.
-        internalCluster().restartNode(masterNode);
+        // restart snapshot after snapshot finalize, but before SLM callback called
+        runDuringFinalize.awaitAndRun(() -> {
+            try {
+                internalCluster().restartNode(masterNode);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
@@ -302,6 +389,9 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
 
         // Now execute again, and succeed. The failure from the previous run will now be recorded.
+
+        TestRestartBeforeListenersRepoPlugin.clearOnResponse();
+
         final String snapshotName2 = executePolicy(masterNode, policyName);
         assertNotEquals(snapshotName, snapshotName2);
         logger.info("Created snapshot: " + snapshotName2);
@@ -334,12 +424,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
-        // Listener that stops disrupting network only after snapshot completion
-        CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+        // wire into repo so code can be run on test thread after snapshot finalize, but before SLM is called back
+        var runDuringFinalize = new RunDuringFinalize();
+        TestRestartBeforeListenersRepoPlugin.setOnResponse(runDuringFinalize.finalizeThreadRunnable());
 
         createRandomIndex(idxName, dataNode);
-        createRepository(repoName, "mock");
+        createRepository(repoName, TestRestartBeforeListenersRepo.TYPE);
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
 
         awaitNoMoreRunningOperations();
@@ -349,12 +439,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         String snapshotName = executePolicy(masterNode, policyName);
         logger.info("Created snapshot: " + snapshotName);
 
-        // wait for snapshot to complete and network disruption to stop
-        assertTrue(latch.await(1, TimeUnit.MINUTES));
-
-        // Restart master so failure stat is lost. This relies on a race condition as node shutdown must happen before stats are stored in
-        // cluster state, but this is not guaranteed. If the following assert fails consider this race condition as a possible culprit.
-        internalCluster().restartNode(masterNode);
+        // restart snapshot after snapshot finalize, but before SLM callback called
+        runDuringFinalize.awaitAndRun(() -> {
+            try {
+                internalCluster().restartNode(masterNode);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
@@ -366,16 +458,15 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
 
         // Now execute again, but don't fail the stat upload. The failure from the previous run will now be recorded.
-        CountDownLatch latch2 = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch2));
+        var runDuringFinalize2 = new RunDuringFinalize();
+        TestRestartBeforeListenersRepoPlugin.setOnResponse(runDuringFinalize2.finalizeThreadRunnable());
 
         networkDisruption.startDisrupting();
         final String snapshotName2 = executePolicy(masterNode, policyName);
         assertNotEquals(snapshotName, snapshotName2);
         logger.info("Created snapshot: " + snapshotName2);
 
-        // wait for snapshot to complete and network disruption to stop
-        assertTrue(latch2.await(1, TimeUnit.MINUTES));
+        runDuringFinalize2.awaitAndRun(networkDisruption::stopDisrupting);
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName2);
@@ -402,11 +493,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+        // wire into repo so code can be run on test thread after snapshot finalize, but before SLM is called back
+        var runDuringFinalize = new RunDuringFinalize();
+        TestRestartBeforeListenersRepoPlugin.setOnResponse(runDuringFinalize.finalizeThreadRunnable());
 
         createRandomIndex(idxName, dataNode);
-        createRepository(repoName, "mock");
+        createRepository(repoName, TestRestartBeforeListenersRepo.TYPE);
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
 
         ensureGreen();
@@ -414,11 +506,14 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.startDisrupting();
         String snapshotName = executePolicy(masterNode, policyName);
 
-        // wait for snapshot to complete and network disruption to stop
-        assertTrue(latch.await(1, TimeUnit.MINUTES));
-
-        // restart master so failure stat is lost
-        internalCluster().restartNode(masterNode);
+        // restart snapshot after snapshot finalize, but before SLM callback called
+        runDuringFinalize.awaitAndRun(() -> {
+            try {
+                internalCluster().restartNode(masterNode);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
@@ -443,11 +538,12 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().clusterService(masterNode).addListener(new WaitForSnapshotListener(repoName, networkDisruption, latch));
+        // wire into repo so code can be run on test thread after snapshot finalize, but before SLM is called back
+        var runDuringFinalize = new RunDuringFinalize();
+        TestRestartBeforeListenersRepoPlugin.setOnResponse(runDuringFinalize.finalizeThreadRunnable());
 
         createRandomIndex(idxName, dataNode);
-        createRepository(repoName, "mock");
+        createRepository(repoName, TestRestartBeforeListenersRepo.TYPE);
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
 
         ensureGreen();
@@ -456,7 +552,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         String snapshotName = executePolicy(masterNode, policyName);
 
         // wait for snapshot to complete and network disruption to stop
-        assertTrue(latch.await(1, TimeUnit.MINUTES));
+        runDuringFinalize.awaitAndRun(networkDisruption::stopDisrupting);
 
         assertBusy(() -> {
             assertSnapshotPartial(repoName, snapshotName);
@@ -494,32 +590,41 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {
-        GetSnapshotsResponse snapshotsStatusResponse = client(internalCluster().getMasterName()).admin()
-            .cluster()
-            .prepareGetSnapshots(repository)
-            .setSnapshots(snapshot)
-            .get();
+        GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot).get();
         return snapshotsStatusResponse.getSnapshots().get(0);
     }
 
+    private SnapshotsStatusResponse getSnapshotStatus(String repo, String snapshotName) {
+        return clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repo).setSnapshots(snapshotName).get();
+    }
+
     private void assertSnapshotSuccess(String repository, String snapshot) {
-        SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshot);
-        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-        assertEquals(1, snapshotInfo.successfulShards());
-        assertEquals(0, snapshotInfo.failedShards());
-        logger.info("Checked snapshot exists and is state SUCCESS");
+        try {
+            SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshot);
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+            assertEquals(1, snapshotInfo.successfulShards());
+            assertEquals(0, snapshotInfo.failedShards());
+            logger.info("Checked snapshot exists and is state SUCCESS");
+        } catch (SnapshotMissingException e) {
+            fail("expected a snapshot with name " + snapshot + " but it does yet not exist");
+        }
     }
 
     private void assertSnapshotPartial(String repository, String snapshot) {
-        SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshot);
-        assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
-        assertEquals(0, snapshotInfo.successfulShards());
-        assertEquals(1, snapshotInfo.failedShards());
-        logger.info("Checked snapshot exists and is state PARTIAL");
+        try {
+            SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshot);
+            assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
+            assertEquals(0, snapshotInfo.successfulShards());
+            assertEquals(1, snapshotInfo.failedShards());
+            logger.info("Checked snapshot exists and is state PARTIAL");
+        } catch (SnapshotMissingException e) {
+            fail("expected a snapshot with name " + snapshot + " but it does yet not exist");
+        }
     }
 
     private void assertStats(SnapshotLifecycleMetadata snapshotLifecycleMetadata, String policyName, long taken, long failed) {
         var stats = snapshotLifecycleMetadata.getStats().getMetrics().get(policyName);
+        logger.info("stats: " + stats);
         if (taken == 0 && failed == 0) {
             assertTrue(stats == null || (stats.getSnapshotTakenCount() == 0 && stats.getSnapshotFailedCount() == 0));
         } else {
@@ -606,36 +711,37 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         });
     }
 
-    // ClusterChangeListener that wait for snapshot to complete then stops network disruption
-    private SnapshotsStatusResponse getSnapshotStatus(String repo, String snapshotName) {
-        return clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repo).setSnapshots(snapshotName).get();
-    }
+    /**
+     * The purpose of this class is to allow a cluster restart to occur after a snapshot has been finalized, but before the SLM callback
+     * which processes snapshotInfo has been called. TestRestartBeforeListenersRepo allows a runnable to be called at this time. But,
+     * internalCluster().restartNode() cannot be called on the thread running finalize. It is likely missing necessary context, or simply
+     * cannot be called by a thread on the master node. This helper class uses latches to run a callback on the test thread while the
+     * master node is waiting between finalizing the snapshot and before calling the SLM callback.
+     */
+    static class RunDuringFinalize {
+        private final CountDownLatch latch1 = new CountDownLatch(1);
+        private final CountDownLatch latch2 = new CountDownLatch(1);
 
-    static class WaitForSnapshotListener implements ClusterStateListener {
-        private final String repoName;
-        private final NetworkDisruption networkDisruption;
-        private final CountDownLatch latch;
-
-        WaitForSnapshotListener(String repoName, NetworkDisruption networkDisruption, CountDownLatch latch) {
-            this.repoName = repoName;
-            this.networkDisruption = networkDisruption;
-            this.latch = latch;
+        Runnable finalizeThreadRunnable() {
+            return () -> {
+                latch1.countDown();
+                try {
+                    // While this is waiting the runnable called in awaitAndRan will be called by another thread.
+                    // The runnable is usually a cluster restart. During a restart, 10s is waited before this waiting thread is preempted.
+                    // To keep the tests fast, this wait is kept to 1s. This is actually a race condition which could cause a test to fail,
+                    // as the SLM callback could be called. But, after 1s, the restart should have started so this is unlikely.
+                    latch2.await(1, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            };
         }
 
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            SnapshotsInProgress snapshots = event.state().custom(SnapshotsInProgress.TYPE);
-            if (snapshots != null && snapshots.isEmpty() == false) {
-                final SnapshotsInProgress.Entry snapshotEntry = snapshots.forRepo(repoName).get(0);
-                if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
-                    final RepositoryMetadata metadata = RepositoriesMetadata.get(event.state()).repository(repoName);
-                    if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
-                        // remove network disruption immediately after snapshot completes
-                        networkDisruption.stopDisrupting();
-                        latch.countDown();
-                    }
-                }
-            }
+        void awaitAndRun(Runnable runnable) throws InterruptedException {
+            assertTrue(latch1.await(1, TimeUnit.MINUTES));
+            // this is where the cluster restart occurs
+            runnable.run();
+            latch2.countDown();
         }
     }
 }

@@ -27,6 +27,7 @@ public class SearchResponseMetrics {
     public static final String QUERY_USAGE_SUFFIX = "_query";
     public static final String SECTION_USAGE_SUFFIX = "_section";
     public static final String RESCORER_USAGE_SUFFIX = "_rescorer";
+    public static final String QUERY_USAGE_TAG_PREFIX = "query_usage_";
 
     public enum ResponseCountTotalStatus {
         SUCCESS("success"),
@@ -97,9 +98,19 @@ public class SearchResponseMetrics {
             attributes.put(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, status.getDisplayName());
         }
         if (searchUsage != null) {
-            searchUsage.getQueryUsage().forEach(q -> attributes.put(q + QUERY_USAGE_SUFFIX, true));
-            searchUsage.getSectionsUsage().forEach(q -> attributes.put(q + SECTION_USAGE_SUFFIX, true));
-            searchUsage.getRescorerUsage().forEach(q -> attributes.put(q + RESCORER_USAGE_SUFFIX, true));
+            // As there is no possibility of using multi valued attributes until OTel is used instead of APM Agent,
+            // create a series of tags that share the same prefix so they can be queried together. This way we prevent
+            // creating a single tag for each query, section, and rescorer and prevent mapping explosion.
+            int tagIndex = 0;
+            for (String s : searchUsage.getQueryUsage()) {
+                attributes.put(QUERY_USAGE_TAG_PREFIX + tagIndex++, s + QUERY_USAGE_SUFFIX);
+            }
+            for (String s : searchUsage.getSectionsUsage()) {
+                attributes.put(QUERY_USAGE_TAG_PREFIX + tagIndex++, s + SECTION_USAGE_SUFFIX);
+            }
+            for (String s : searchUsage.getRescorerUsage()) {
+                attributes.put(QUERY_USAGE_TAG_PREFIX + tagIndex++, s + RESCORER_USAGE_SUFFIX);
+            }
         }
 
         logger.info("Attributes :" + attributes);

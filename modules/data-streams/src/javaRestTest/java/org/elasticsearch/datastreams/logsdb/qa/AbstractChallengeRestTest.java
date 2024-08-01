@@ -186,25 +186,27 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         assert deleteContenderTemplate.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 
-    private Settings.Builder createSettings(final CheckedConsumer<Settings.Builder, IOException> settingsConsumer) throws IOException {
+    private Settings.Builder createSettings(
+        final CheckedConsumer<Settings.Builder, IOException> settingsConsumer,
+        final CheckedConsumer<Settings.Builder, IOException> commonSettingsConsumer
+    ) throws IOException {
         final Settings.Builder settings = Settings.builder();
         settingsConsumer.accept(settings);
+        commonSettingsConsumer.accept(settings);
         return settings;
     }
 
     private Settings.Builder createBaselineSettings() throws IOException {
-        return createSettings(this::baselineSettings);
+        return createSettings(this::baselineSettings, this::commonSettings);
     }
 
     private Settings.Builder createContenderSettings() throws IOException {
-        return createSettings(this::contenderSettings);
+        return createSettings(this::contenderSettings, this::commonSettings);
     }
 
     private XContentBuilder createMappings(final CheckedConsumer<XContentBuilder, IOException> builderConsumer) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
         builderConsumer.accept(builder);
-        builder.endObject();
         return builder;
     }
 
@@ -223,6 +225,8 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     public void baselineSettings(Settings.Builder builder) {}
 
     public void contenderSettings(Settings.Builder builder) {}
+
+    public void commonSettings(Settings.Builder builder) {}
 
     private Response indexDocuments(
         final String dataStreamName,

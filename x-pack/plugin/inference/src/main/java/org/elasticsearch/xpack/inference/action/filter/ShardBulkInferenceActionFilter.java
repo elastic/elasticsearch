@@ -492,12 +492,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * If {@code valueObj} is not a string or a collection of strings, it throws an ElasticsearchStatusException.
      */
     private static List<String> nodeStringValues(String field, Object valueObj) {
-        if (valueObj instanceof String value) {
+        if (valueObj instanceof Number || valueObj instanceof Boolean) {
+            return List.of(valueObj.toString());
+        } else if (valueObj instanceof String value) {
             return List.of(value);
         } else if (valueObj instanceof Collection<?> values) {
             List<String> valuesString = new ArrayList<>();
             for (var v : values) {
-                if (v instanceof String value) {
+                if (v instanceof Number || v instanceof Boolean) {
+                    valuesString.add(v.toString());
+                } else if (v instanceof String value) {
                     valuesString.add(value);
                 } else {
                     throw new ElasticsearchStatusException(

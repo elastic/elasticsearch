@@ -9,7 +9,6 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.logsdb.datageneration.datasource.DefaultWrappersHandler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,8 +20,8 @@ public class DefaultWrappersHandlerTests extends ESTestCase {
         var sut = new DefaultWrappersHandler();
 
         Supplier<Object> values = () -> 100;
-        var nulls = (DataSourceResponse.NullWrapper) sut.handle(new DataSourceRequest.NullWrapper());
-        var arrays = (DataSourceResponse.ArrayWrapper) sut.handle(new DataSourceRequest.ArrayWrapper());
+        var nulls = sut.handle(new DataSourceRequest.NullWrapper());
+        var arrays = sut.handle(new DataSourceRequest.ArrayWrapper());
 
         var valuesWithNullsAndWrappedInArray = arrays.wrapper().compose(nulls.wrapper()).apply(values);
 

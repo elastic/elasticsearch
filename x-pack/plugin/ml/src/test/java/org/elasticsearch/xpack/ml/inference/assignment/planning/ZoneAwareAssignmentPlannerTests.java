@@ -138,6 +138,33 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 1, "n_2", 1)));
     }
 
+    public void testGivenOneModel_OneLargeNodePerZone_TwoZones_FullyFits() {
+        Node node1 = new Node("n_1", ByteSizeValue.ofGb(16).getBytes(), 8);
+        Node node2 = new Node("n_2", ByteSizeValue.ofGb(16).getBytes(), 8);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            4,
+            2,
+            Map.of(),
+            0,
+            null,
+            0,
+            0
+        );
+
+        AssignmentPlan plan = new ZoneAwareAssignmentPlanner(
+            Map.of(List.of("z_1"), List.of(node1), List.of("z_2"), List.of(node2)),
+            List.of(deployment)
+        ).computePlan();
+
+        assertThat(plan.satisfiesAllModels(), is(true));
+
+        Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(plan);
+        assertThat(indexedBasedPlan.keySet(), hasItems("m_1"));
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2, "n_2", 2)));
+    }
+
     public void testGivenOneModel_OneNodePerZone_TwoZones_PartiallyFits() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(440).getBytes(), 4);

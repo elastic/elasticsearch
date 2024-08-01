@@ -285,8 +285,8 @@ class LinearProgrammingPlanSolver {
                     .integer(false) // We relax the program to non-integer as the integer solver is much slower and can often lead to
                                     // infeasible solutions
                     .lower(0.0) // It is important not to set an upper bound here as it impacts memory negatively
-                    .weight(weightForAllocationVar(m, n, weights));
-                allocationVars.put(Tuple.tuple(m, n), allocationVar);
+                    .weight(weightForAllocationVar(d, n, weights));
+                allocationVars.put(Tuple.tuple(d, n), allocationVar);
             }
         }
 

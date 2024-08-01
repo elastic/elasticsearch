@@ -21,6 +21,7 @@ module org.elasticsearch.repository.azure {
     requires com.azure.http.netty;
     requires com.azure.storage.blob;
     requires com.azure.storage.common;
+    requires com.azure.identity;
 
     requires io.netty.buffer;
     requires io.netty.transport;

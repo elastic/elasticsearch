@@ -188,6 +188,13 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Same as {@link #delegateFailureAndWrap(CheckedBiConsumer)} except that the response is ignored and not passed to the delegate.
+     */
+    default <T> ActionListener<T> delegateFailureIgnoreResponseAndWrap(CheckedConsumer<ActionListener<Response>, ? extends Exception> c) {
+        return new ActionListenerImplementations.ResponseDroppingActionListener<>(this, c);
+    }
+
+    /**
      * Creates a listener which releases the given resource on completion (whether success or failure)
      */
     static <Response> ActionListener<Response> releasing(Releasable releasable) {

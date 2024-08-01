@@ -22,7 +22,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
@@ -31,10 +30,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -42,7 +38,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.either;
@@ -424,114 +419,4 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             .forEach(suppliers::add);
         return suppliers;
     }
-
-    private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
-        int max = valid.stream().mapToInt(List::size).max().getAsInt();
-        List<Set<DataType>> result = new ArrayList<>(max);
-        for (int i = 0; i < max; i++) {
-            result.add(new HashSet<>());
-        }
-        for (List<DataType> signature : valid) {
-            for (int i = 0; i < signature.size(); i++) {
-                result.get(i).add(signature.get(i));
-            }
-        }
-        return result;
-    }
-
-    private static Stream<List<DataType>> allPermutations(int argumentCount) {
-        if (argumentCount == 0) {
-            return Stream.of(List.of());
-        }
-        if (argumentCount > 3) {
-            throw new IllegalArgumentException("would generate too many combinations");
-        }
-        Stream<List<DataType>> stream = validFunctionParameters().map(List::of);
-        for (int i = 1; i < argumentCount; i++) {
-            stream = stream.flatMap(types -> validFunctionParameters().map(t -> append(types, t)));
-        }
-        return stream;
-    }
-
-    private static List<DataType> append(List<DataType> orig, DataType extra) {
-        List<DataType> longer = new ArrayList<>(orig.size() + 1);
-        longer.addAll(orig);
-        longer.add(extra);
-        return longer;
-    }
-
-    /**
-     * Build the expected error message for an invalid type signature.
-     */
-    protected static String typeErrorMessage(
-        boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
-        PositionalErrorMessageSupplier expectedTypeSupplier
-    ) {
-        int badArgPosition = -1;
-        for (int i = 0; i < types.size(); i++) {
-            if (validPerPosition.get(i).contains(types.get(i)) == false) {
-                badArgPosition = i;
-                break;
-            }
-        }
-        if (badArgPosition == -1) {
-            throw new IllegalStateException(
-                "Can't generate error message for these types, you probably need a custom error message function"
-            );
-        }
-        String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
-        String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
-        String name = types.get(badArgPosition).typeName();
-        return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
-    }
-
-    /**
-     * The types that are valid in function parameters. This is used by the
-     * function tests to enumerate all possible parameters to test error messages
-     * for invalid combinations.
-     */
-    public static Stream<DataType> validFunctionParameters() {
-        return Arrays.stream(DataType.values()).filter(t -> {
-            if (t == DataType.UNSUPPORTED) {
-                // By definition, functions never support UNSUPPORTED
-                return false;
-            }
-            if (t == DataType.DOC_DATA_TYPE || t == DataType.PARTIAL_AGG) {
-                /*
-                 * Doc and partial_agg are special and functions aren't
-                 * defined to take these. They'll use them implicitly if needed.
-                 */
-                return false;
-            }
-            if (t == DataType.OBJECT || t == DataType.NESTED) {
-                // Object and nested fields aren't supported by any functions yet
-                return false;
-            }
-            if (t == DataType.SOURCE || t == DataType.TSID_DATA_TYPE) {
-                // No functions take source or tsid fields yet. We'll make some eventually and remove this.
-                return false;
-            }
-            if (t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION) {
-                // We don't test that functions don't take date_period or time_duration. We should.
-                return false;
-            }
-            if (t.isCounter()) {
-                /*
-                 * For now, we're assuming no functions take counters
-                 * as parameters. That's not true - some do. But we'll
-                 * need to update the tests to handle that.
-                 */
-                return false;
-            }
-            if (t.widenSmallNumeric() != t) {
-                // Small numeric types are widened long before they arrive at functions.
-                return false;
-            }
-
-            return true;
-        }).sorted();
-    }
-
 }

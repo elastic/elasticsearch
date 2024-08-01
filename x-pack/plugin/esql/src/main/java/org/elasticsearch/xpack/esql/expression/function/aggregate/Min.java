@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MinBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
@@ -40,7 +42,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" },
         description = "The minimum value of a field.",
         isAggregation = true,
         examples = {
@@ -57,7 +59,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" }
+            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" }
         ) Expression field
     ) {
         super(source, field);
@@ -115,6 +117,9 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         }
         if (type == DataType.IP) {
             return new MinIpAggregatorFunctionSupplier(inputChannels);
+        }
+        if (type == DataType.VERSION || type == DataType.KEYWORD || type == DataType.TEXT) {
+            return new MinBytesRefAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

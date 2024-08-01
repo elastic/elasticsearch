@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
@@ -40,7 +41,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" },
         description = "The maximum value of a field.",
         isAggregation = true,
         examples = {
@@ -57,7 +58,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" }
+            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" }
         ) Expression field
     ) {
         super(source, field);
@@ -115,6 +116,9 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         }
         if (type == DataType.IP) {
             return new MaxIpAggregatorFunctionSupplier(inputChannels);
+        }
+        if (type == DataType.VERSION || type == DataType.KEYWORD || type == DataType.TEXT) {
+            return new MaxBytesRefAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

@@ -9,6 +9,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.StopFilter;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -27,6 +33,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -509,6 +516,56 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                         new SpanTermQuery(new Term(TEXT_FIELD_NAME, "dog")) }
                 )
             )
+            .build();
+        assertEquals(expected, actual);
+    }
+
+    public void testMultiWordSynonymsWithStopPhrase() throws Exception {
+        Analyzer analyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                try {
+                    Tokenizer tokenizer = new WhitespaceTokenizer();
+                    SynonymMap.Builder synonymMapBuilder = new SynonymMap.Builder();
+                    synonymMapBuilder.add(
+                            SynonymMap.Builder.join(new String[]{"fbi"}, new CharsRefBuilder()),
+                            SynonymMap.Builder.join(new String[]{"federal", "bureau", "of", "investigation"}, new CharsRefBuilder()),
+                            true);
+                    SynonymMap synonyms = synonymMapBuilder.build();
+                    TokenFilter synonymGraphFilter = new SynonymGraphFilter(tokenizer, synonyms, false);
+                    TokenFilter stopFilter = new StopFilter(synonymGraphFilter, StopFilter.makeStopSet("by", "the", "of"));
+                    return new TokenStreamComponents(tokenizer, stopFilter);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
+        matchQueryParser.setAnalyzer(analyzer);
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "arrested by the fbi");
+        Query expected = SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "arrested")))
+            .addClause(
+                new SpanOrQuery(
+                    new SpanQuery[] {
+                        SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
+                            .addGap(2)
+                            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "federal")))
+                            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "bureau")))
+                            .addGap(1)
+                            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "investigation")))
+                            .setSlop(0)
+                            .build(),
+                        SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
+                            .addGap(2)
+                            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "fbi")))
+                            .setSlop(0)
+                            .build()
+                    }
+                )
+            )
+            .setSlop(0)
             .build();
         assertEquals(expected, actual);
     }

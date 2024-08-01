@@ -64,18 +64,41 @@ Some important points:
 * It is the field _value_ which is copied, not the terms (which result from the analysis process).
 * The original <<mapping-source-field,`_source`>> field will not be modified to show the copied values.
 * The same value can be copied to multiple fields, with `"copy_to": [ "field_1", "field_2" ]`
-* You cannot copy recursively via intermediary fields such as a `copy_to` on 
-`field_1` to `field_2` and `copy_to` on `field_2` to `field_3` expecting 
-indexing into `field_1` will eventuate in `field_3`, instead use copy_to 
-directly to multiple fields from the originating field.
+* You cannot copy recursively using intermediary fields.
+The following configuration will not copy data from `field_1` to `field_3`:
++
+[source,console]
+----
+{
+  "field_1": {
+    "type": "text",
+    "copy_to": "field_2"
+  },
+  "field_2": {
+    "type": "text",
+    "copy_to": "field_3"
+  }
+}
+----
+Instead, copy to multiple fields from the source field:
++
+[source,console]
+----
+{
+  "field_1": {
+    "type": "text",
+    "copy_to": [ "field_2", "field_3" ]
+  }
+}
+----
 
-NOTE: `copy_to` is _not_ supported for field types where values take the form of objects, e.g. `date_range`
+NOTE: `copy_to` is not supported for field types where values take the form of objects, e.g. `date_range`.
 
 [float]
 [[copy-to-dynamic-mapping]]
 ==== Dynamic mapping
 
-Here are some important points to consider when using `copy_to` with dynamic mappings:
+Consider the following points when using `copy_to` with dynamic mappings:
 
 * If the target field does not exist in the index mappings, the usual
 <<dynamic-mapping,dynamic mapping>> behavior applies. By default, with
@@ -87,7 +110,7 @@ copied.
 * If `dynamic` is set to `strict`, copying to a non-existent field will
 result in an error.
 +
-** `copy_to` fields must specify the full path if the target field is _nested_.
+** If the target field is nested, then `copy_to` fields must specify the full path to the nested field.
 Omitting the full path will lead to a `strict_dynamic_mapping_exception`.
 Use `"copy_to": ["parent_field.child_field"]` to correctly target a nested field.
 +

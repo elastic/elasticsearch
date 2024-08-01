@@ -390,3 +390,42 @@ unsupported with sort:
   - match: { values.0.26: xy }
   - match: { values.0.27: "foo bar" }
   - match: { values.0.28: 3 }
+
+---
+nested:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+            "find_me": 1,
+            "nested": {
+              "foo": 1,
+              "bar": "bar",
+              "baz": 1.9
+            }
+          }
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE find_me == 1 | KEEP nested, nested.*'
+
+  - match: { columns.0.name: nested }
+  - match: { columns.0.type: unsupported }
+  - match: { columns.1.name: nested.bar }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: nested.bar.keyword }
+  - match: { columns.2.type: unsupported }
+  - match: { columns.3.name: nested.baz }
+  - match: { columns.3.type: unsupported }
+  - match: { columns.4.name: nested.foo }
+  - match: { columns.4.type: unsupported }
+  - match:
+      values:
+        - [null, null, null, null, null]

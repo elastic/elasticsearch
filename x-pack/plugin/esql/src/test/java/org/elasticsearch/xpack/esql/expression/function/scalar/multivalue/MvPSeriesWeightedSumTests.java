@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -55,9 +56,13 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
                 DataType.DOUBLE,
-                closeTo(expectedResult, expectedResult * .00000001)
+                match(expectedResult)
             );
         }));
+    }
+
+    private static Matcher<Double> match(Double value) {
+        return closeTo(value, Math.abs(value * .00000001));
     }
 
     private static double calcPSeriesWeightedSum(List<Double> field, double p) {

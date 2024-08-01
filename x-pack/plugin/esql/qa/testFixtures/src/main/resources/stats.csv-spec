@@ -76,6 +76,58 @@ fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec
 fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe81::cae2:65ff:fece:feb9 | gamma
 ;
 
+maxOfVersion
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats max(version), a = max(version), b = max(x), c = max(case(name == "iiiii", "100.0.0"::version, version));
+
+max(version):version | a:version | b:version | c:version
+bad                  | bad       | bad       | 100.0.0
+;
+
+maxOfVersionGrouping
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats max(version), a = max(version), b = max(x), c = max(case(name == "ccccc", "100.0.0"::version, version)) by name
+| sort name asc
+| limit 3;
+
+max(version):version | a:version | b:version | c:version | name:keyword
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.2.3.4   | aaaaa
+2.3.4                | 2.3.4     | 2.3.4     | 100.0.0   | ccccc
+2.12.0               | 2.12.0    | 2.12.0    | 2.12.0    | ddddd
+;
+
+minOfVersion
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats min(version), a = min(version), b = min(x), c = min(case(name == "iiiii", "1.0"::version, version));
+
+min(version):version | a:version | b:version | c:version
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.0
+;
+
+minOfVersionGrouping
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats min(version), a = min(version), b = min(x), c = min(case(name == "ccccc", "100.0.0"::version, version)) by name
+| sort name asc
+| limit 3;
+
+min(version):version | a:version | b:version | c:version | name:keyword
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.2.3.4   | aaaaa
+2.3.4                | 2.3.4     | 2.3.4     | 100.0.0   | ccccc
+2.12.0               | 2.12.0    | 2.12.0    | 2.12.0    | ddddd
+;
+
 minOfBooleanExpression
 required_capability: agg_max_min_boolean_support
 from employees

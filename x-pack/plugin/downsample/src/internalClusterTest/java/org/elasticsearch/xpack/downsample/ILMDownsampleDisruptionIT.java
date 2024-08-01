@@ -329,7 +329,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
                 final String candidateNode = safeExecute(
                     cluster.client(clientNode),
                     TransportClusterSearchShardsAction.TYPE,
-                    new ClusterSearchShardsRequest(sourceIndex)
+                    new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, sourceIndex)
                 ).getNodes()[0].getName();
                 logger.info("Candidate node [" + candidateNode + "]");
                 disruption.accept(candidateNode);

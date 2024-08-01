@@ -30,6 +30,10 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public enum DataType {
+    /**
+     * Fields of this type are unsupported by any functions and are always
+     * rendered as {@code null} in the response.
+     */
     UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
     NULL(builder().esType("null").estimatedSize(0)),
     BOOLEAN(builder().esType("boolean").estimatedSize(1)),

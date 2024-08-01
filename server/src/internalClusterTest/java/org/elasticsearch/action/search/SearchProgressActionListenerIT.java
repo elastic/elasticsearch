@@ -202,7 +202,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         ClusterSearchShardsResponse resp = safeExecute(
             client,
             TransportClusterSearchShardsAction.TYPE,
-            new ClusterSearchShardsRequest("index-*")
+            new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "index-*")
         );
         return Arrays.stream(resp.getGroups()).map(e -> new SearchShard(null, e.getShardId())).sorted().toList();
     }

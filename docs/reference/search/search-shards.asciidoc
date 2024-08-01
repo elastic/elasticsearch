@@ -63,6 +63,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[search-shards-api-example]]
 ==== {api-examples-title}

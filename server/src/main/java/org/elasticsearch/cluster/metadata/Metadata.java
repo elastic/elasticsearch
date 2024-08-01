@@ -751,9 +751,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
-            builder.put(projectMetadata.apply(part.projectMetadata, clusterUUID));
             builder.customs(clusterCustoms.apply(part.customs));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
+            builder = builder.putProjectMetadata(projectMetadata.apply(part.projectMetadata, clusterUUID));
             return builder.build(true);
         }
     }
@@ -794,7 +794,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             readBwcCustoms(in, builder);
         } else {
             readClusterCustoms(in, builder);
-            builder.put(ProjectMetadata.readFrom(in));
+            builder = builder.putProjectMetadata(ProjectMetadata.readFrom(in));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
@@ -932,8 +932,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
 
-        Builder put(ProjectMetadata projectMetadata) {
-            // TODO: tighten this up when we remove all the methods delegating to ProjectMetadata.Builder
+        public Builder putProjectMetadata(ProjectMetadata.Builder projectMetadata) {
+            this.projectMetadata = projectMetadata;
+            return this;
+        }
+
+        public Builder putProjectMetadata(ProjectMetadata projectMetadata) {
             this.projectMetadata = ProjectMetadata.builder(projectMetadata);
             return this;
         }

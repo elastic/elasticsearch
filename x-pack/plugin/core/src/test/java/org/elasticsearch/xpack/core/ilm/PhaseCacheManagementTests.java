@@ -12,10 +12,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,8 +33,6 @@ import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUS
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.isIndexPhaseDefinitionUpdatable;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.readStepKeys;
-import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
-import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -583,4 +584,37 @@ public class PhaseCacheManagementTests extends ESTestCase {
             );
     }
 
+    static ClusterState updateIndicesForPolicy(
+        final ClusterState clusterState,
+        final NamedXContentRegistry xContentRegistry,
+        final Client client,
+        final LifecyclePolicy oldPolicy,
+        final LifecyclePolicyMetadata newPolicy,
+        XPackLicenseState licenseState
+    ) {
+        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(clusterState);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+        if (PhaseCacheManagement.updateIndicesForPolicy(
+            projectMetadataBuilder,
+            projectMetadata,
+            xContentRegistry,
+            client,
+            oldPolicy,
+            newPolicy,
+            licenseState
+        )) {
+            return ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+        }
+        return clusterState;
+    }
+
+    public static ClusterState refreshPhaseDefinition(
+        final ClusterState clusterState,
+        final String index,
+        final LifecyclePolicyMetadata updatedPolicy
+    ) {
+        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(clusterState);
+        ProjectMetadata newProjectMetadata = PhaseCacheManagement.refreshPhaseDefinition(projectMetadata, index, updatedPolicy);
+        return ClusterState.builder(clusterState).putProjectMetadata(newProjectMetadata).build();
+    }
 }

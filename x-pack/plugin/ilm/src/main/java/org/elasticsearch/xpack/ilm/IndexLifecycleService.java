@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -174,9 +175,11 @@ public class IndexLifecycleService
     void onMaster(ClusterState clusterState) {
         maybeScheduleJob();
 
-        final IndexLifecycleMetadata currentMetadata = clusterState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
+        // TODO multi-project: this probably needs a per-project iteration
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject();
+        final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
-            OperationMode currentMode = currentILMMode(clusterState);
+            OperationMode currentMode = currentILMMode(projectMetadata);
             if (OperationMode.STOPPED.equals(currentMode)) {
                 return;
             }
@@ -185,8 +188,8 @@ public class IndexLifecycleService
 
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
-            for (IndexMetadata idxMeta : clusterState.metadata().getProject().indices().values()) {
-                if (clusterState.metadata().getProject().isIndexManagedByILM(idxMeta)) {
+            for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
+                if (projectMetadata.isIndexManagedByILM(idxMeta)) {
                     String policyName = idxMeta.getLifecyclePolicyName();
                     final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
@@ -378,9 +381,10 @@ public class IndexLifecycleService
      * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
      */
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
-        IndexLifecycleMetadata currentMetadata = clusterState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject();
+        IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
 
-        OperationMode currentMode = currentILMMode(clusterState);
+        OperationMode currentMode = currentILMMode(projectMetadata);
         if (currentMetadata == null) {
             if (currentMode == OperationMode.STOPPING) {
                 // There are no policies and ILM is in stopping mode, so stop ILM and get out of here
@@ -398,8 +402,8 @@ public class IndexLifecycleService
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
-        for (IndexMetadata idxMeta : clusterState.metadata().getProject().indices().values()) {
-            if (clusterState.metadata().getProject().isIndexManagedByILM(idxMeta)) {
+        for (IndexMetadata idxMeta : projectMetadata.indices().values()) {
+            if (projectMetadata.isIndexManagedByILM(idxMeta)) {
                 String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);

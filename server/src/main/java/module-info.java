@@ -168,6 +168,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.health;
     exports org.elasticsearch.cluster.metadata;
     exports org.elasticsearch.cluster.node;
+    exports org.elasticsearch.cluster.project;
     exports org.elasticsearch.cluster.routing;
     exports org.elasticsearch.cluster.routing.allocation;
     exports org.elasticsearch.cluster.routing.allocation.allocator;

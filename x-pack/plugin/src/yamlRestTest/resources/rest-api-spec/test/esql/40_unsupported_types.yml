@@ -414,7 +414,7 @@ nested:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE find_me == 1 | KEEP nested, nested.*'
+          query: 'FROM test | WHERE find_me == 1 | KEEP n*'
 
   - match: { columns.0.name: nested }
   - match: { columns.0.type: unsupported }

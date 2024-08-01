@@ -78,6 +78,10 @@ public class LoadMapping {
         if (value instanceof Map) {
             Map<String, Object> content = (Map<String, Object>) value;
 
+            if ("nested".equals(content.get("type"))) {
+                // Nested fields are entirely removed by IndexResolver so we mimic it.
+                return;
+            }
             // extract field type
             DataType esDataType = getType(content);
             final Map<String, EsField> properties;

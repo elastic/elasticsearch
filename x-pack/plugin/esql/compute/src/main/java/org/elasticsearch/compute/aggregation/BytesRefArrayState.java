@@ -107,7 +107,7 @@ public final class BytesRefArrayState extends AbstractArrayState implements Grou
             var emptyBytesRef = new BytesRef();
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < values.size()) {
+                if (hasValue(group)) {
                     var value = get(group);
                     valuesBuilder.appendBytesRef(value);
                 } else {

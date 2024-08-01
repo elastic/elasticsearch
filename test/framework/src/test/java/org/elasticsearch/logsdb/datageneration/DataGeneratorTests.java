@@ -82,12 +82,12 @@ public class DataGeneratorTests extends ESTestCase {
             private int generatedFields = 0;
 
             @Override
-            public DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
+            public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
                 return testChildFieldGenerator;
             }
 
             @Override
-            public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+            public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(() -> FieldType.values()[generatedFields++ % FieldType.values().length]);
             }
         };
@@ -140,17 +140,17 @@ public class DataGeneratorTests extends ESTestCase {
 
         var dataSourceOverride = new DataSourceHandler() {
             @Override
-            public DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
+            public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
                 return testChildFieldGenerator;
             }
 
             @Override
-            public DataSourceResponse handle(DataSourceRequest.ObjectArrayGenerator request) {
+            public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
                 return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
             }
 
             @Override
-            public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+            public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(() -> FieldType.LONG);
             }
         };

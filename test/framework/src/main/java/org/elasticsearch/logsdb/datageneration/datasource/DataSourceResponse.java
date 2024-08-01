@@ -15,11 +15,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public interface DataSourceResponse {
-    /**
-     * Internal signal that a handler does not process such requests.
-     */
-    record NotMatched() implements DataSourceResponse {}
-
     record LongGenerator(Supplier<Long> generator) implements DataSourceResponse {}
 
     record UnsignedLongGenerator(Supplier<Object> generator) implements DataSourceResponse {}

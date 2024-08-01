@@ -20,7 +20,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class DefaultObjectGenerationHandler implements DataSourceHandler {
     @Override
-    public DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
+    public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
         return new DataSourceResponse.ChildFieldGenerator() {
             @Override
             public int generateChildFieldCount() {
@@ -47,12 +47,12 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+    public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
         return new DataSourceResponse.FieldTypeGenerator(() -> randomFrom(FieldType.values()));
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.ObjectArrayGenerator request) {
+    public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
         return new DataSourceResponse.ObjectArrayGenerator(() -> {
             if (ESTestCase.randomBoolean()) {
                 return Optional.of(randomIntBetween(0, 5));

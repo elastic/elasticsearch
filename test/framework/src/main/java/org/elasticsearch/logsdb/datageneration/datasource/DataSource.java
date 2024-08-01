@@ -36,12 +36,11 @@ public class DataSource {
         this.handlers.add(new DefaultObjectGenerationHandler());
     }
 
-    @SuppressWarnings("unchecked")
     public <T extends DataSourceResponse> T get(DataSourceRequest<T> request) {
         for (var handler : handlers) {
             var response = request.accept(handler);
-            if (response instanceof DataSourceResponse.NotMatched == false) {
-                return (T) response;
+            if (response != null) {
+                return response;
             }
         }
 

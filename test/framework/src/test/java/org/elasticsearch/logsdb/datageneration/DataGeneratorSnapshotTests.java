@@ -139,25 +139,25 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         private int generateArrayChecks = 0;
         private boolean producedObjectArray = false;
         private FieldType fieldType = FieldType.KEYWORD;
-        private StaticChildFieldGenerator childFieldGenerator = new StaticChildFieldGenerator();
+        private final StaticChildFieldGenerator childFieldGenerator = new StaticChildFieldGenerator();
 
         @Override
-        public DataSourceResponse handle(DataSourceRequest.LongGenerator request) {
+        public DataSourceResponse.LongGenerator handle(DataSourceRequest.LongGenerator request) {
             return new DataSourceResponse.LongGenerator(() -> longValue++);
         }
 
         @Override
-        public DataSourceResponse handle(DataSourceRequest.StringGenerator request) {
+        public DataSourceResponse.StringGenerator handle(DataSourceRequest.StringGenerator request) {
             return new DataSourceResponse.StringGenerator(() -> "string" + (generatedStrings++ + 1));
         }
 
         @Override
-        public DataSourceResponse handle(DataSourceRequest.NullWrapper request) {
+        public DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
             return new DataSourceResponse.NullWrapper((values) -> () -> generateNullChecks++ % 4 == 0 ? null : values.get());
         }
 
         @Override
-        public DataSourceResponse handle(DataSourceRequest.ArrayWrapper request) {
+        public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper request) {
 
             return new DataSourceResponse.ArrayWrapper((values) -> () -> {
                 if (generateArrayChecks++ % 4 == 0) {
@@ -170,13 +170,13 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         }
 
         @Override
-        public DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
+        public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
 
             return childFieldGenerator;
         }
 
         @Override
-        public DataSourceResponse handle(DataSourceRequest.ObjectArrayGenerator request) {
+        public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
             return new DataSourceResponse.ObjectArrayGenerator(() -> {
                 if (producedObjectArray == false) {
                     producedObjectArray = true;
@@ -188,7 +188,7 @@ public class DataGeneratorSnapshotTests extends ESTestCase {
         }
 
         @Override
-        public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+        public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
             return new DataSourceResponse.FieldTypeGenerator(() -> {
                 if (fieldType == FieldType.KEYWORD) {
                     fieldType = FieldType.LONG;

@@ -16,12 +16,12 @@ import java.util.stream.IntStream;
 
 public class DefaultWrappersHandler implements DataSourceHandler {
     @Override
-    public DataSourceResponse handle(DataSourceRequest.NullWrapper ignored) {
+    public DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper ignored) {
         return new DataSourceResponse.NullWrapper(injectNulls());
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.ArrayWrapper ignored) {
+    public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper ignored) {
         return new DataSourceResponse.ArrayWrapper(wrapInArray());
     }
 

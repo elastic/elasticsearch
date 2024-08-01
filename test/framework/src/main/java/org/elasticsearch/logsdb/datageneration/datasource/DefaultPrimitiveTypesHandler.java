@@ -15,49 +15,49 @@ import java.math.BigInteger;
 
 public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     @Override
-    public DataSourceResponse handle(DataSourceRequest.LongGenerator request) {
+    public DataSourceResponse.LongGenerator handle(DataSourceRequest.LongGenerator request) {
         return new DataSourceResponse.LongGenerator(ESTestCase::randomLong);
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.UnsignedLongGenerator request) {
+    public DataSourceResponse.UnsignedLongGenerator handle(DataSourceRequest.UnsignedLongGenerator request) {
         return new DataSourceResponse.UnsignedLongGenerator(() -> new BigInteger(64, ESTestCase.random()));
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.IntegerGenerator request) {
+    public DataSourceResponse.IntegerGenerator handle(DataSourceRequest.IntegerGenerator request) {
         return new DataSourceResponse.IntegerGenerator(ESTestCase::randomInt);
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.ShortGenerator request) {
+    public DataSourceResponse.ShortGenerator handle(DataSourceRequest.ShortGenerator request) {
         return new DataSourceResponse.ShortGenerator(ESTestCase::randomShort);
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.ByteGenerator request) {
+    public DataSourceResponse.ByteGenerator handle(DataSourceRequest.ByteGenerator request) {
         return new DataSourceResponse.ByteGenerator(ESTestCase::randomByte);
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.DoubleGenerator request) {
+    public DataSourceResponse.DoubleGenerator handle(DataSourceRequest.DoubleGenerator request) {
         return new DataSourceResponse.DoubleGenerator(ESTestCase::randomDouble);
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.DoubleInRangeGenerator request) {
+    public DataSourceResponse.DoubleInRangeGenerator handle(DataSourceRequest.DoubleInRangeGenerator request) {
         return new DataSourceResponse.DoubleInRangeGenerator(
             () -> ESTestCase.randomDoubleBetween(request.minExclusive(), request.maxExclusive(), false)
         );
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.FloatGenerator request) {
+    public DataSourceResponse.FloatGenerator handle(DataSourceRequest.FloatGenerator request) {
         return new DataSourceResponse.FloatGenerator(ESTestCase::randomFloat);
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.HalfFloatGenerator request) {
+    public DataSourceResponse.HalfFloatGenerator handle(DataSourceRequest.HalfFloatGenerator request) {
         // This trick taken from NumberFieldMapper reduces precision of float to actual half float precision.
         // We do this to avoid getting tripped on values in synthetic source having reduced precision but
         // values in stored source having full float precision.
@@ -68,7 +68,7 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     }
 
     @Override
-    public DataSourceResponse handle(DataSourceRequest.StringGenerator request) {
+    public DataSourceResponse.StringGenerator handle(DataSourceRequest.StringGenerator request) {
         return new DataSourceResponse.StringGenerator(() -> ESTestCase.randomAlphaOfLengthBetween(0, 50));
     }
 }

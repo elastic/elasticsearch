@@ -50,7 +50,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                     // TODO enable null values
                     // Matcher does not handle nulls currently
                     @Override
-                    public DataSourceResponse handle(DataSourceRequest.NullWrapper request) {
+                    public DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
                         return new DataSourceResponse.NullWrapper(Function.identity());
                     }
 
@@ -58,7 +58,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                     // List matcher currently does not apply matching logic recursively
                     // and equality check fails because arrays are sorted in synthetic source.
                     @Override
-                    public DataSourceResponse handle(DataSourceRequest.ArrayWrapper request) {
+                    public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper request) {
                         return new DataSourceResponse.ArrayWrapper(Function.identity());
                     }
 
@@ -66,7 +66,7 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
                     // There a difference in synthetic source (precision loss)
                     // specific to this fields which matcher can't handle.
                     @Override
-                    public DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
+                    public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                         // Unsigned long is not used with dynamic mapping
                         // since it can initially look like long
                         // but later fail to parse once big values arrive.

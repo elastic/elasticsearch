@@ -9,63 +9,63 @@
 package org.elasticsearch.logsdb.datageneration.datasource;
 
 public interface DataSourceHandler {
-    default DataSourceResponse handle(DataSourceRequest.LongGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.LongGenerator handle(DataSourceRequest.LongGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.UnsignedLongGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.UnsignedLongGenerator handle(DataSourceRequest.UnsignedLongGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.IntegerGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.IntegerGenerator handle(DataSourceRequest.IntegerGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.ShortGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.ShortGenerator handle(DataSourceRequest.ShortGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.ByteGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.ByteGenerator handle(DataSourceRequest.ByteGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.DoubleGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.DoubleGenerator handle(DataSourceRequest.DoubleGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.DoubleInRangeGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.DoubleInRangeGenerator handle(DataSourceRequest.DoubleInRangeGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.FloatGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.FloatGenerator handle(DataSourceRequest.FloatGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.HalfFloatGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.HalfFloatGenerator handle(DataSourceRequest.HalfFloatGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.StringGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.StringGenerator handle(DataSourceRequest.StringGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.NullWrapper request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.ArrayWrapper request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.ChildFieldGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.FieldTypeGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+        return null;
     }
 
-    default DataSourceResponse handle(DataSourceRequest.ObjectArrayGenerator request) {
-        return new DataSourceResponse.NotMatched();
+    default DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+        return null;
     }
 }

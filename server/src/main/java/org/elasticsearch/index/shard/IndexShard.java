@@ -17,6 +17,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -224,6 +225,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
     private FieldInfos fieldInfos;
+    private volatile ShardFieldStats shardFieldStats;
+
     // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
     // field caps always returns empty fields ignoring the value of the query param `field_caps_empty_fields_filter`.
     private final boolean enableFieldHasValue = Booleans.parseBoolean(
@@ -3489,7 +3492,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy,
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener),
+            List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener, new RefreshShardFieldStatsListener()),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
             indexSort,
             circuitBreakerService,
@@ -4055,6 +4058,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
                 } catch (AlreadyClosedException ignore) {
                     // engine is closed - no updated FieldInfos is fine
+                }
+            }
+        }
+    }
+
+    /**
+     * Returns the shard-level field stats, which includes the number of segments in the latest NRT reader of this shard
+     * and the total number of fields across those segments.
+     */
+    public ShardFieldStats getShardFieldStats() {
+        return shardFieldStats;
+    }
+
+    private class RefreshShardFieldStatsListener implements ReferenceManager.RefreshListener {
+        @Override
+        public void beforeRefresh() {
+
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (shardFieldStats == null || didRefresh) {
+                try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL, Function.identity())) {
+                    int numSegments = 0;
+                    int totalFields = 0;
+                    for (LeafReaderContext leaf : searcher.getLeafContexts()) {
+                        numSegments++;
+                        totalFields += leaf.reader().getFieldInfos().size();
+                    }
+                    shardFieldStats = new ShardFieldStats(numSegments, totalFields);
+                } catch (AlreadyClosedException ignored) {
+
                 }
             }
         }

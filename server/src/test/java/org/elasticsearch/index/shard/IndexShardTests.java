@@ -73,6 +73,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -1781,6 +1782,56 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.writeIndexingBuffer();
         assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
         assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
+        closeShards(shard);
+    }
+
+    public void testShardFieldStats() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .build();
+        IndexShard shard = newShard(true, settings);
+        assertNull(shard.getShardFieldStats());
+        recoverShardFromStore(shard);
+        ShardFieldStats stats = shard.getShardFieldStats();
+        assertNotNull(stats);
+        assertThat(stats.numSegments(), equalTo(0));
+        assertThat(stats.totalFields(), equalTo(0));
+        // index some documents
+        int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", "first_" + i, """
+                {
+                    "f1": "foo",
+                    "f2": "bar"
+                }
+                """);
+        }
+        assertThat(shard.getShardFieldStats(), sameInstance(stats));
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(1));
+        // _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword,
+        assertThat(stats.totalFields(), equalTo(9));
+        // don't re-compute on refresh without change
+        shard.refresh("test");
+        assertThat(shard.getShardFieldStats(), sameInstance(stats));
+        // index more docs
+        numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", "first_" + i, """
+                {
+                    "f1": "foo",
+                    "f2": "bar",
+                    "f3": "foobar"
+                }
+                """);
+        }
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(2));
+        // 9 + _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword, f3, f3.keyword
+        assertThat(stats.totalFields(), equalTo(21));
         closeShards(shard);
     }
 

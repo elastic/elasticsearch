@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateCtxMap;
@@ -181,14 +181,14 @@ public class UpdateHelper {
     Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request);
+        final XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
 
         final boolean noop = XContentHelper.update(
             updatedSourceAsMap,
-            currentRequest.sourceAsMap(documentSizeObserver),
+            currentRequest.sourceAsMap(meteringParserDecorator),
             detectNoop
         ) == false;
 
@@ -227,7 +227,7 @@ public class UpdateHelper {
                 .timeout(request.timeout())
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .setOriginatesFromUpdateByDoc(true);
-            documentSizeObserver.setNormalisedBytesParsedOn(finalIndexRequest);
+            finalIndexRequest.setNormalisedBytesParsed(meteringParserDecorator.meteredDocumentSize().ingestedBytes());
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
     }

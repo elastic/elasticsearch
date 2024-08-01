@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -733,7 +733,14 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             """;
         ParsedDocument doc = mapperService.documentMapper()
             .parse(
-                new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point"), DocumentSizeObserver.NOOP)
+                new SourceToParse(
+                    "1",
+                    new BytesArray(json),
+                    XContentType.JSON,
+                    null,
+                    Map.of("foo", "geo_point"),
+                    XContentMeteringParserDecorator.NOOP
+                )
             );
         assertThat(doc.rootDoc().getFields("foo"), hasSize(2));
         assertThat(doc.rootDoc().getFields("bar"), hasSize(1));

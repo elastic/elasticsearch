@@ -34,7 +34,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class DocumentSizeObserverIT extends ESIntegTestCase {
+public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
 
@@ -125,8 +125,8 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
                 @Override
-                public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
-                    return new TestDocumentSizeObserver(0L);
+                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
+                    return new TestXContentMeteringParserDecorator(0L);
                 }
 
                 @Override
@@ -151,20 +151,23 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
         @Override
         public void onIndexingCompleted(ParsedDocument parsedDocument) {
-            COUNTER.addAndGet(parsedDocument.getNormalizedSize().ingestedBytes());
+            long delta = parsedDocument.getNormalizedSize().ingestedBytes();
+            if (delta > 0) {
+                COUNTER.addAndGet(delta);
+            }
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
         }
     }
 
-    public static class TestDocumentSizeObserver implements DocumentSizeObserver {
+    public static class TestXContentMeteringParserDecorator implements XContentMeteringParserDecorator {
         long counter = 0;
 
-        public TestDocumentSizeObserver(long counter) {
+        public TestXContentMeteringParserDecorator(long counter) {
             this.counter = counter;
         }
 
         @Override
-        public XContentParser wrapParser(XContentParser xContentParser) {
+        public XContentParser decorate(XContentParser xContentParser) {
             hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
 
@@ -177,19 +180,8 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public void setNormalisedBytesParsedOn(IndexRequest indexRequest) {
-            indexRequest.setNormalisedBytesParsed(counter);
+        public ParsedDocument.DocumentSize meteredDocumentSize() {
+            return new ParsedDocument.DocumentSize(counter, counter);
         }
-
-        @Override
-        public long ingestedBytes() {
-            return counter;
-        }
-
-        @Override
-        public long storedBytes() {
-            return counter;
-        }
-
     }
 }

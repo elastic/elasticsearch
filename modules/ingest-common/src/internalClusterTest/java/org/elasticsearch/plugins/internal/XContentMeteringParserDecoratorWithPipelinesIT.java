@@ -14,6 +14,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -32,7 +33,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
+public class XContentMeteringParserDecoratorWithPipelinesIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
     // the assertions are done in plugin which is static and will be created by ES server.
@@ -90,13 +91,13 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingProvider() {
                 @Override
-                public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
+                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
                     if (request instanceof IndexRequest indexRequest && indexRequest.getNormalisedBytesParsed() > 0) {
                         long normalisedBytesParsed = indexRequest.getNormalisedBytesParsed();
                         providedFixedSize.set(normalisedBytesParsed);
-                        return new TestDocumentSizeObserver(normalisedBytesParsed);
+                        return new TestXContentMeteringParserDecorator(normalisedBytesParsed);
                     }
-                    return new TestDocumentSizeObserver(0L);
+                    return new TestXContentMeteringParserDecorator(0L);
                 }
 
                 @Override
@@ -111,17 +112,15 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         }
     }
 
-    public static class TestDocumentSizeObserver implements DocumentSizeObserver {
+    public static class TestXContentMeteringParserDecorator implements XContentMeteringParserDecorator {
         long mapCounter = 0;
-        long wrapperCounter = 0;
 
-        public TestDocumentSizeObserver(long mapCounter) {
+        public TestXContentMeteringParserDecorator(long mapCounter) {
             this.mapCounter = mapCounter;
         }
 
         @Override
-        public XContentParser wrapParser(XContentParser xContentParser) {
-            wrapperCounter++;
+        public XContentParser decorate(XContentParser xContentParser) {
             hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
 
@@ -134,18 +133,8 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         }
 
         @Override
-        public long ingestedBytes() {
-            return mapCounter;
-        }
-
-        @Override
-        public long storedBytes() {
-            return 0;
-        }
-
-        @Override
-        public void setNormalisedBytesParsedOn(IndexRequest indexRequest) {
-            indexRequest.setNormalisedBytesParsed(mapCounter);
+        public ParsedDocument.DocumentSize meteredDocumentSize() {
+            return new ParsedDocument.DocumentSize(mapCounter, 0);
         }
     }
 

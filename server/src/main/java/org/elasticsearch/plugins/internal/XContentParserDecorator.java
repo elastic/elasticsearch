@@ -8,18 +8,10 @@
 
 package org.elasticsearch.plugins.internal;
 
-/**
- * Exposes the normalized ingested and stored size of a document.
- */
-public interface NormalizedDocumentSize {
+import org.elasticsearch.xcontent.XContentParser;
 
-    /**
-     * The ingest size of the document.
-     */
-    long ingestedBytes();
+public interface XContentParserDecorator {
+    XContentParserDecorator NOOP = parser -> parser;
 
-    /**
-     * The stored retained size of the document.
-     */
-    long storedBytes();
+    XContentParser decorate(XContentParser xContentParser);
 }

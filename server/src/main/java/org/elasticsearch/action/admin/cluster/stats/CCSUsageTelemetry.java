@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.Maps;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -59,6 +60,22 @@ public class CCSUsageTelemetry {
     public static final String MRT_FEATURE = "mrt_on";
     public static final String ASYNC_FEATURE = "async";
     public static final String WILDCARD_FEATURE = "wildcards";
+
+    // The list of known Elastic clients. May be incomplete.
+    public static final Set<String> KNOWN_CLIENTS = Set.of(
+        "kibana",
+        "cloud",
+        "logstash",
+        "beats",
+        "fleet",
+        "ml",
+        "security",
+        "observability",
+        "enterprise-search",
+        "elasticsearch",
+        "connectors",
+        "connectors-cli"
+    );
 
     // TODO: do we need LongAdder here or long is enough? Since updateUsage is synchronized, worst that can happen is
     // we may miss a count on read.
@@ -129,7 +146,9 @@ public class CCSUsageTelemetry {
             ccsUsage.getSkippedRemotes().forEach(remote -> byRemoteCluster.computeIfAbsent(remote, PerClusterCCSTelemetry::new).skipped());
         }
         ccsUsage.getFeatures().forEach(f -> featureCounts.computeIfAbsent(f, k -> new LongAdder()).increment());
-        if (ccsUsage.getClient() != null) {
+        String client = ccsUsage.getClient();
+        if (client != null && KNOWN_CLIENTS.contains(client)) {
+            // We count only known clients for now
             clientCounts.computeIfAbsent(ccsUsage.getClient(), k -> new LongAdder()).increment();
         }
     }

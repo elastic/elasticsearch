@@ -47,8 +47,8 @@ class TestHttpRequest implements HttpRequest {
     }
 
     @Override
-    public HttpContent content() {
-        return HttpContent.empty();
+    public HttpBody body() {
+        return HttpBody.empty();
     }
 
     @Override

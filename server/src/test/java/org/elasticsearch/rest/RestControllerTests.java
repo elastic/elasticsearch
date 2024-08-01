@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.http.HttpContent;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpRequest;
@@ -831,11 +831,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public HttpContent content() {
+            public HttpBody body() {
                 if (hasContent) {
-                    return HttpContent.fromBytesReference(new BytesArray("test"));
+                    return HttpBody.fromBytesReference(new BytesArray("test"));
                 }
-                return HttpContent.empty();
+                return HttpBody.empty();
             }
 
             @Override

@@ -80,7 +80,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      * HTTP request content stream for current request, it's null if there is no current request or request is fully-aggregated
      */
     @Nullable
-    private Netty4HttpRequestContentStream currentRequestStream;
+    private Netty4HttpRequestBodyStream currentRequestStream;
 
     /*
      * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
@@ -138,7 +138,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         currentRequestStream = null;
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
                     } else {
-                        var contentStream = new Netty4HttpRequestContentStream(ctx.channel());
+                        var contentStream = new Netty4HttpRequestBodyStream(ctx.channel());
                         currentRequestStream = contentStream;
                         netty4HttpRequest = new Netty4HttpRequest(
                             readSequence++,

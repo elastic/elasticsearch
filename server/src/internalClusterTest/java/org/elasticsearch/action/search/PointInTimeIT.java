@@ -565,7 +565,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
         refresh(index);
 
-        // create a PIT when all docs are present
+        // create a PIT when all shards are present
         OpenPointInTimeResponse pointInTimeResponse = openPointInTime(new String[] { index }, TimeValue.timeValueMinutes(1));
         try {
             // ensure that the PIT created has all the shards there

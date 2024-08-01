@@ -87,9 +87,4 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
     protected Expression build(Source source, Expression field) {
         return new MvSum(source, field);
     }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNumerics();
-    }
 }

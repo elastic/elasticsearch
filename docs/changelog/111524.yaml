@@ -1,0 +1,5 @@
+pr: 111524
+summary: Fix `NullPointerException` in shard snapshot code
+area: Snapshot/Restore
+type: bug
+issues: []

@@ -353,12 +353,14 @@ public class DfsQueryPhaseTests extends ESTestCase {
         KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) },
             "vector",
-            VectorData.fromFloats(new float[] { 0.0f })
+            VectorData.fromFloats(new float[] { 0.0f }),
+            null
         );
         KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) },
             "vector2",
-            VectorData.fromFloats(new float[] { 0.0f })
+            VectorData.fromFloats(new float[] { 0.0f }),
+            null
         );
         assertEquals(
             List.of(bm25, ksdqb0, ksdqb1),

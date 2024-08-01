@@ -2676,8 +2676,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    // pkg-private for testing
-    IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+    // protected for testing
+    protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
         if (Assertions.ENABLED) {
             return new AssertingIndexWriter(directory, iwc);
         } else {
@@ -2850,7 +2850,9 @@ public class InternalEngine extends Engine {
                     @Override
                     public void onFailure(Exception e) {
                         if (isClosed.get() == false) {
-                            logger.warn("failed to flush after merge has finished");
+                            logger.warn("failed to flush after merge has finished", e);
+                        } else {
+                            logger.info("failed to flush after merge has finished during shard close");
                         }
                     }
 

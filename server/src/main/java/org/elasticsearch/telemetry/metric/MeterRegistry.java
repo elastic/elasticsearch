@@ -8,6 +8,8 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.function.Supplier;
 
 /**
@@ -15,6 +17,7 @@ import java.util.function.Supplier;
  * only be registered once.
  * TODO(stu): describe name, unit and description
  */
+
 public interface MeterRegistry {
     /**
      * Register a {@link DoubleCounter}.  The returned object may be reused.
@@ -57,7 +60,20 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer);
+    default DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
+        return registerDoublesGauge(name, description, unit, () -> Collections.singleton(observer.get()));
+    }
+
+    /**
+     * Register a {@link DoubleGauge}.  The returned object may be reused.
+     * @param name name of the gauge
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param observer callback to use. This is called once during reporting period.
+     *                 Must not throw an exception and must be safe to call from different threads.
+     * @return the registered meter.
+     */
+    DoubleGauge registerDoublesGauge(String name, String description, String unit, Supplier<Collection<DoubleWithAttributes>> observer);
 
     /**
      * Retrieved a previously registered {@link DoubleGauge}.
@@ -98,7 +114,23 @@ public interface MeterRegistry {
      * @param unit the unit (bytes, sec, hour)
      * @param observer a callback to provide a metric value upon observation (metric interval)
      */
-    LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer);
+    default LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+        return registerLongsAsyncCounter(name, description, unit, () -> Collections.singleton(observer.get()));
+    }
+
+    /**
+     * Register a {@link LongAsyncCounter} with an asynchronous callback.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param observer a callback to provide a metric values upon observation (metric interval)
+     */
+    LongAsyncCounter registerLongsAsyncCounter(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer
+    );
 
     /**
      * Retrieved a previously registered {@link LongAsyncCounter}.
@@ -114,7 +146,28 @@ public interface MeterRegistry {
      * @param unit the unit (bytes, sec, hour)
      * @param observer a callback to provide a metric value upon observation (metric interval)
      */
-    DoubleAsyncCounter registerDoubleAsyncCounter(String name, String description, String unit, Supplier<DoubleWithAttributes> observer);
+    default DoubleAsyncCounter registerDoubleAsyncCounter(
+        String name,
+        String description,
+        String unit,
+        Supplier<DoubleWithAttributes> observer
+    ) {
+        return registerDoublesAsyncCounter(name, description, unit, () -> Collections.singleton(observer.get()));
+    }
+
+    /**
+     * Register a {@link DoubleAsyncCounter} with an asynchronous callback.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param observer a callback to provide a metric values upon observation (metric interval)
+     */
+    DoubleAsyncCounter registerDoublesAsyncCounter(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    );
 
     /**
      * Retrieved a previously registered {@link DoubleAsyncCounter}.
@@ -155,7 +208,20 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer);
+    default LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+        return registerLongsGauge(name, description, unit, () -> Collections.singleton(observer.get()));
+    }
+
+    /**
+     * Register a {@link LongGauge}.  The returned object may be reused.
+     * @param name name of the gauge
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param observer callback to use. This is called once during reporting period.
+     *                 Must not throw an exception and must be safe to call from different threads.
+     * @return the registered meter.
+     */
+    LongGauge registerLongsGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer);
 
     /**
      * Retrieved a previously registered {@link LongGauge}.
@@ -204,7 +270,12 @@ public interface MeterRegistry {
         }
 
         @Override
-        public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
+        public DoubleGauge registerDoublesGauge(
+            String name,
+            String description,
+            String unit,
+            Supplier<Collection<DoubleWithAttributes>> observer
+        ) {
             return DoubleGauge.NOOP;
         }
 
@@ -229,11 +300,11 @@ public interface MeterRegistry {
         }
 
         @Override
-        public LongAsyncCounter registerLongAsyncCounter(
+        public LongAsyncCounter registerLongsAsyncCounter(
             String name,
             String description,
             String unit,
-            Supplier<LongWithAttributes> observer
+            Supplier<Collection<LongWithAttributes>> observer
         ) {
             return LongAsyncCounter.NOOP;
         }
@@ -244,11 +315,11 @@ public interface MeterRegistry {
         }
 
         @Override
-        public DoubleAsyncCounter registerDoubleAsyncCounter(
+        public DoubleAsyncCounter registerDoublesAsyncCounter(
             String name,
             String description,
             String unit,
-            Supplier<DoubleWithAttributes> observer
+            Supplier<Collection<DoubleWithAttributes>> observer
         ) {
             return DoubleAsyncCounter.NOOP;
         }
@@ -274,7 +345,12 @@ public interface MeterRegistry {
         }
 
         @Override
-        public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+        public LongGauge registerLongsGauge(
+            String name,
+            String description,
+            String unit,
+            Supplier<Collection<LongWithAttributes>> observer
+        ) {
             return LongGauge.NOOP;
         }
 

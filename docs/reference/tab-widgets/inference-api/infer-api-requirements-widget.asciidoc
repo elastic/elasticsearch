@@ -9,6 +9,12 @@
     </button>
     <button role="tab"
             aria-selected="false"
+            aria-controls="infer-api-requirements-elser-tab"
+            id="infer-api-requirements-elser">
+      ELSER
+    </button>
+    <button role="tab"
+            aria-selected="false"
             aria-controls="infer-api-requirements-hf-tab"
             id="infer-api-requirements-hf">
       HuggingFace
@@ -51,6 +57,17 @@
 ++++
 
 include::infer-api-requirements.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-elser-tab"
+       aria-labelledby="infer-api-requirements-elser"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=elser]
 
 ++++
   </div>

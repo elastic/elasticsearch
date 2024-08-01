@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
@@ -615,13 +614,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     protected abstract Expression build(Source source, Expression field);
-
-    protected abstract DataType[] supportedTypes();
-
-    protected final DataType[] representableNumerics() {
-        // TODO numeric should only include representable numbers but that is a change for a followup
-        return DataType.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
-    }
 
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);

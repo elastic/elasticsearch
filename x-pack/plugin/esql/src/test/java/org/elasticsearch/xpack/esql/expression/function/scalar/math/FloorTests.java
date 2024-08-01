@@ -50,7 +50,7 @@ public class FloorTests extends AbstractScalarFunctionTestCase {
             Double.POSITIVE_INFINITY,
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "numeric");
     }
 
     @Override

@@ -74,7 +74,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105239")
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
@@ -780,6 +779,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105239")
     public void testStartDatafeed_GivenTimeout_Returns408() throws Exception {
         client().admin().indices().prepareCreate("data-1").setMapping("time", "type=date").get();
         long numDocs = 100;

@@ -40,17 +40,12 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         cartesianPoints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         geoShape(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         cartesianShape(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "");
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvCount(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableTypes();
     }
 
     @Override

@@ -28,6 +28,7 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvid
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import co.elastic.elasticsearch.stateless.api.CompoundCommitInfo;
 import co.elastic.elasticsearch.stateless.api.CompoundCommitService;
+import co.elastic.elasticsearch.stateless.api.DocValuesFormatFactory;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
@@ -106,6 +107,9 @@ import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyUsageTransportAct
 import co.elastic.elasticsearch.stateless.xpack.DummyWatcherInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyWatcherUsageTransportAction;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
@@ -155,6 +159,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -200,6 +205,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -289,6 +295,9 @@ public class Stateless extends Plugin
     private final boolean hasIndexRole;
     private final ProjectType projectType;
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
+
+    // visible for testing
+    protected Function<Codec, Codec> codecWrapper = Function.identity();
 
     private ObjectStoreService getObjectStoreService() {
         return Objects.requireNonNull(this.objectStoreService.get());
@@ -1050,7 +1059,7 @@ public class Stateless extends Plugin
                     getMergePolicy(config),
                     config.getAnalyzer(),
                     config.getSimilarity(),
-                    config.getCodecService(),
+                    getCodecProvider(config),
                     config.getEventListener(),
                     config.getQueryCache(),
                     config.getQueryCachingPolicy(),
@@ -1085,8 +1094,59 @@ public class Stateless extends Plugin
         });
     }
 
+    protected CodecProvider getCodecProvider(EngineConfig engineConfig) {
+        final var innerCodecProvider = engineConfig.getCodecProvider();
+        final var availableCodecs = innerCodecProvider.availableCodecs();
+        // Wrap all availableCodecs, so we create just one CodedProvider and one Codec per codec name.
+        final var codecs = Arrays.stream(availableCodecs)
+            .collect(
+                Collectors.toUnmodifiableMap(Function.identity(), codecName -> codecWrapper.apply(innerCodecProvider.codec(codecName)))
+            );
+        return new CodecProvider() {
+            @Override
+            public Codec codec(String name) {
+                var codec = codecs.get(name);
+                assert codec != null;
+                return codec;
+            }
+
+            @Override
+            public String[] availableCodecs() {
+                return availableCodecs;
+            }
+        };
+    }
+
     protected org.apache.lucene.index.MergePolicy getMergePolicy(EngineConfig engineConfig) {
         return engineConfig.getMergePolicy();
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        var formatFactories = loader.loadExtensions(DocValuesFormatFactory.class);
+
+        if (formatFactories.size() > 1) {
+            throw new IllegalStateException(DocValuesFormatFactory.class + " may not have multiple implementations");
+        } else if (formatFactories.size() == 1) {
+            var formatFactory = formatFactories.get(0);
+            this.codecWrapper = createCodecWrapper(formatFactory);
+        }
+    }
+
+    // visible for testing
+    protected Function<Codec, Codec> createCodecWrapper(DocValuesFormatFactory formatFactory) {
+        return (parentCodec) -> {
+            var parentCodecDocValuesFormat = parentCodec.docValuesFormat();
+            var extensionDocValuesFormat = formatFactory.createDocValueFormat(parentCodecDocValuesFormat);
+            return new FilterCodec(parentCodec.getName(), parentCodec) {
+                private final DocValuesFormat rawStorageDocValuesFormat = extensionDocValuesFormat;
+
+                @Override
+                public DocValuesFormat docValuesFormat() {
+                    return rawStorageDocValuesFormat;
+                }
+            };
+        };
     }
 
     @Override

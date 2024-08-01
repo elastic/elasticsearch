@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
@@ -776,6 +777,7 @@ public final class IndexSettings {
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
+    private volatile boolean requestCacheEnabled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -923,6 +925,7 @@ public final class IndexSettings {
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        requestCacheEnabled = scopedSettings.get(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1005,6 +1008,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING, this::setRequestCacheEnabled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1579,6 +1583,17 @@ public final class IndexSettings {
 
     private void setMappingDimensionFieldsLimit(long value) {
         this.mappingDimensionFieldsLimit = value;
+    }
+
+    /**
+     * Returns <code>true</code> if request cache is enabled.
+     */
+    public boolean isRequestCacheEnabled() {
+        return requestCacheEnabled;
+    }
+
+    private void setRequestCacheEnabled(boolean requestCacheEnabled) {
+        this.requestCacheEnabled = requestCacheEnabled;
     }
 
     /**

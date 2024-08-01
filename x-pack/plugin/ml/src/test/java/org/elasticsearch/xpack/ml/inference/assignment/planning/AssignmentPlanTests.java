@@ -69,7 +69,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan plan = builder.build();
 
-            assertThat(plan.models(), contains(m));
+            assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
             assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
         }
@@ -102,7 +102,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan plan = builder.build();
 
-            assertThat(plan.models(), contains(m));
+            assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
             assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
         }
@@ -134,7 +134,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan plan = builder.build();
 
-            assertThat(plan.models(), contains(m));
+            assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
             assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
         }
@@ -162,7 +162,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan plan = builder.build();
 
-            assertThat(plan.models(), contains(m));
+            assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
             assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
 
@@ -186,7 +186,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan plan = builder.build();
 
-            assertThat(plan.models(), contains(m));
+            assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(false));
             assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
         }
@@ -215,7 +215,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
             AssignmentPlan plan = builder.build();
 
-            assertThat(plan.models(), contains(m));
+            assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(false));
             assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
         }
@@ -251,7 +251,7 @@ public class AssignmentPlanTests extends ESTestCase {
             builder.assignModelToNode(m, n, 2);
             AssignmentPlan plan = builder.build();
 
-            assertThat(plan.models(), contains(m));
+            assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
             assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
         }
@@ -274,7 +274,7 @@ public class AssignmentPlanTests extends ESTestCase {
             builder.assignModelToNode(m, n, 2);
             AssignmentPlan plan = builder.build();
 
-            assertThat(plan.models(), contains(m));
+            assertThat(plan.deployments(), contains(m));
             assertThat(plan.satisfiesCurrentAssignments(), is(true));
             assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
         }
@@ -355,7 +355,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
         AssignmentPlan plan = builder.build();
 
-        assertThat(plan.models(), contains(m));
+        assertThat(plan.deployments(), contains(m));
         assertThat(plan.satisfiesCurrentAssignments(), is(true));
         assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 3)));
     }
@@ -511,7 +511,7 @@ public class AssignmentPlanTests extends ESTestCase {
         assertThat(planUsingMoreMemory.compareTo(planUsingLessMemory), lessThan(0));
     }
 
-    public void testSatisfiesAllModels_GivenAllModelsAreSatisfied() {
+    public void testSatisfiesAllModels_GivenAllDeploymentsAreSatisfied() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
         {
@@ -602,7 +602,7 @@ public class AssignmentPlanTests extends ESTestCase {
         }
     }
 
-    public void testSatisfiesAllModels_GivenOneModelHasOneAllocationLess() {
+    public void testSatisfiesAllDeployments_GivenOneModelHasOneAllocationLess() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, null, 0, 0);
@@ -617,7 +617,7 @@ public class AssignmentPlanTests extends ESTestCase {
         assertThat(plan.satisfiesAllModels(), is(false));
     }
 
-    public void testArePreviouslyAssignedModelsAssigned_GivenTrue() {
+    public void testArePreviouslyAssignedDeploymentsAssigned_GivenTrue() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 3, null, 0, 0);
@@ -630,7 +630,7 @@ public class AssignmentPlanTests extends ESTestCase {
         assertThat(plan.arePreviouslyAssignedModelsAssigned(), is(true));
     }
 
-    public void testArePreviouslyAssignedModelsAssigned_GivenFalse() {
+    public void testArePreviouslyAssignedDeploymentsAssigned_GivenFalse() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 3, null, 0, 0);

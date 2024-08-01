@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -56,6 +57,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private Client client;
     private InferenceAuditor inferenceAuditor;
+    private MeterRegistry meterRegistry;
 
     @Override
     @Before
@@ -67,6 +69,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
         inferenceAuditor = mock(InferenceAuditor.class);
+        meterRegistry = mock(MeterRegistry.class);
     }
 
     @Override
@@ -159,6 +162,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             clusterService,
             client,
             inferenceAuditor,
+            meterRegistry,
             true,
             1
         );

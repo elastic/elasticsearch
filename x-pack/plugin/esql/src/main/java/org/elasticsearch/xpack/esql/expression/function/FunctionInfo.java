@@ -24,6 +24,11 @@ public @interface FunctionInfo {
     String[] returnType();
 
     /**
+     * Whether this function is a preview (Not ready for production environments) or not.
+     */
+    boolean preview() default false;
+
+    /**
      * The description of the function rendered in {@code META FUNCTIONS}
      * and the docs. These should be complete sentences.
      */

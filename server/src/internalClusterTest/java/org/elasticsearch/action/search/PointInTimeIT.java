@@ -544,13 +544,15 @@ public class PointInTimeIT extends ESIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2, nodeAttributes);
 
         final String index = "my_test_index";
-        final int numShards = 2; // randomIntBetween(2, 4);
+        // tried to have randomIntBetween(3, 10) but having more shards than 3 was taking forever and throwing timeouts
+        final int numShards = 3;
+        final int numReplicas = 0;
         // create an index with numShards shards and 0 replicas
         createIndex(
             index,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
                 .put("index.routing.allocation.require.foo", "bar")
                 .build()
         );
@@ -564,7 +566,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         refresh(index);
 
         // create a PIT when all docs are present
-        OpenPointInTimeResponse pointInTimeResponse = openPointInTime(new String[]{index}, TimeValue.timeValueMinutes(1));
+        OpenPointInTimeResponse pointInTimeResponse = openPointInTime(new String[] { index }, TimeValue.timeValueMinutes(1));
         try {
             // ensure that the PIT created has all the shards there
             assertThat(numShards, equalTo(pointInTimeResponse.getTotalShards()));
@@ -611,7 +613,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
             // create a PIT when some shards are missing
             OpenPointInTimeResponse pointInTimeResponseOneNodeDown = openPointInTime(
-                new String[]{index},
+                new String[] { index },
                 TimeValue.timeValueMinutes(10),
                 true
             );

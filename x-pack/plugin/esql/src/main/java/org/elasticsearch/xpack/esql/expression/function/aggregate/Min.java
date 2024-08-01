@@ -32,12 +32,15 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 
 public class Min extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" },
         description = "The minimum value of a field.",
         isAggregation = true,
         examples = {
@@ -50,7 +53,13 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 tag = "docsStatsMinNestedExpression"
             ) }
     )
-    public Min(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date", "ip" }) Expression field) {
+    public Min(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" }
+        ) Expression field
+    ) {
         super(source, field);
     }
 
@@ -77,13 +86,10 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            e -> e == DataType.BOOLEAN || e == DataType.DATETIME || e == DataType.IP || (e.isNumeric() && e != DataType.UNSIGNED_LONG),
+            t -> isRepresentable(t) && t != UNSIGNED_LONG && isSpatial(t) == false,
             sourceText(),
             DEFAULT,
-            "boolean",
-            "datetime",
-            "ip",
-            "numeric except unsigned_long or counter types"
+            "representable except unsigned_long and spatial types"
         );
     }
 

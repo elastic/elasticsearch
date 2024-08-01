@@ -452,9 +452,6 @@ public abstract class WatchRecord implements ToXContentObject {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.value(TRUNCATED_RECORD_VALUE);
-                // builder.startObject();
-                // builder.field(TRUNCATED_RECORD_KEY, TRUNCATED_RECORD_VALUE);
-                // builder.endObject();
                 return builder;
             }
         }) {

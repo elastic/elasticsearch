@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializatio
 import java.io.IOException;
 import java.util.List;
 
-public class LocalRelationSerialiationTests extends AbstractLogicalPlanSerializationTests<LocalRelation> {
+public class LocalRelationSerializationTests extends AbstractLogicalPlanSerializationTests<LocalRelation> {
     public static LocalRelation randomLocalRelation() {
         Source source = randomSource();
         List<Attribute> output = randomFieldAttributes(1, 10, true);
@@ -45,14 +45,25 @@ public class LocalRelationSerialiationTests extends AbstractLogicalPlanSerializa
 
     @Override
     protected LocalRelation mutateInstance(LocalRelation instance) throws IOException {
+        /*
+         * There are two ways we could mutate this. Either we mutate just
+         * the data, or we mutate the attributes and the data. Some attributes
+         * don't *allow* for us to mutate the data. For example, if the attributes
+         * are all NULL typed. In that case we can't mutate the data.
+         *
+         * So we flip a coin. If that lands on true, we *try* to modify that data.
+         * If that spits out the same data - or if the coin lands on false - we'll
+         * modify the attributes and the data.
+         */
         if (randomBoolean()) {
             List<Attribute> output = instance.output();
-            LocalSupplier supplier = randomValueOtherThan(instance.supplier(), () -> randomLocalSupplier(output));
-            return new LocalRelation(instance.source(), output, supplier);
-        } else {
-            List<Attribute> output = randomValueOtherThan(instance.output(), () -> randomFieldAttributes(1, 10, true));
             LocalSupplier supplier = randomLocalSupplier(output);
-            return new LocalRelation(instance.source(), output, supplier);
+            if (supplier.equals(instance.supplier()) == false) {
+                return new LocalRelation(instance.source(), output, supplier);
+            }
         }
+        List<Attribute> output = randomValueOtherThan(instance.output(), () -> randomFieldAttributes(1, 10, true));
+        LocalSupplier supplier = randomLocalSupplier(output);
+        return new LocalRelation(instance.source(), output, supplier);
     }
 }

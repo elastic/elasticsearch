@@ -326,7 +326,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         switch (type) {
             case PINNED -> pinnedDocs.addAll(matchingDocs);
             case EXCLUDE -> excludedDocs.addAll(matchingDocs);
-            default -> throw new IllegalArgumentException("Unsupported query rule type: " + type);
+            default -> throw new IllegalStateException("Unsupported query rule type: " + type);
         }
         return new AppliedQueryRules(pinnedDocs, excludedDocs);
     }

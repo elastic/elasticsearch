@@ -306,7 +306,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        SearchUsage searchUsage = searchRequest.source().searchUsage();
+        SearchUsage searchUsage = searchRequest.source() != null ? searchRequest.source().searchUsage() : null;
         ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {

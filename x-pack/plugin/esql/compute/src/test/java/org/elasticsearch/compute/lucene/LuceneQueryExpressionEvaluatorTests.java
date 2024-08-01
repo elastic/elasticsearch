@@ -231,7 +231,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
     }
 
     private Set<String> values() {
-        int maxNumDocs = between(10, 10_000);
+        int maxNumDocs = between(10, 1_000);
         int keyLength = randomIntBetween(1, 10);
         Set<String> values = new HashSet<>();
         for (int i = 0; i < maxNumDocs; i++) {

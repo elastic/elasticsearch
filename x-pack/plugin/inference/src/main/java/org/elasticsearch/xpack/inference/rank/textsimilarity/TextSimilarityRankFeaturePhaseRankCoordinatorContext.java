@@ -14,8 +14,11 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -53,24 +56,77 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
-        final ActionListener<InferenceAction.Response> actionListener = scoreListener.delegateFailureAndWrap((l, r) -> {
-            float[] scores = extractScoresFromResponse(r);
-            if (scores.length != featureDocs.length) {
+        final ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+            InferenceServiceResults results = r.getResults();
+            assert results instanceof RankedDocsResults;
+
+            // Ensure we get exactly as many scores as the number of docs we passed, otherwise we may return incorrect results
+            List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
+            if (rankedDocs.size() != featureDocs.length) {
                 l.onFailure(
-                    new IllegalStateException("Document and score count mismatch: [" + featureDocs.length + "] vs [" + scores.length + "]")
+                    new IllegalStateException(
+                        "Reranker input document count and returned score count mismatch: ["
+                            + featureDocs.length
+                            + "] vs ["
+                            + rankedDocs.size()
+                            + "]"
+                    )
                 );
             } else {
+                float[] scores = extractScoresFromRankedDocs(rankedDocs);
                 l.onResponse(scores);
             }
         });
 
-        List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
-        InferenceAction.Request request = generateRequest(featureData);
-        try {
-            client.execute(InferenceAction.INSTANCE, request, actionListener);
-        } finally {
-            request.decRef();
-        }
+        // top N listener
+        ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+            // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
+            // assigning scores to the wrong input
+            Integer configuredTopN = null;
+            if (r.getEndpoints().isEmpty() == false
+                && r.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
+                configuredTopN = cohereTaskSettings.getTopNDocumentsOnly();
+            } else if (r.getEndpoints().isEmpty() == false
+                && r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
+                    configuredTopN = googleVertexAiTaskSettings.topN();
+                }
+            if (configuredTopN != null && configuredTopN < rankWindowSize) {
+                l.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] is configured to return the top ["
+                            + configuredTopN
+                            + "] results, but rank_window_size is ["
+                            + rankWindowSize
+                            + "]. Reduce rank_window_size to be less than or equal to the configured top N value."
+                    )
+                );
+                return;
+            }
+            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
+            InferenceAction.Request inferenceRequest = generateRequest(featureData);
+            try {
+                client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
+            } finally {
+                inferenceRequest.decRef();
+            }
+        });
+
+        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
+        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, topNListener);
+    }
+
+    /**
+     * Sorts documents by score descending and discards those with a score less than minScore.
+     * @param originalDocs documents to process
+     */
+    @Override
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
+        return Arrays.stream(originalDocs)
+            .filter(doc -> minScore == null || doc.score >= minScore)
+            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
+            .toArray(RankFeatureDoc[]::new);
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -85,28 +141,12 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         );
     }
 
-    private float[] extractScoresFromResponse(InferenceAction.Response response) {
-        InferenceServiceResults results = response.getResults();
-        assert results instanceof RankedDocsResults;
-
-        List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
+    private float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs) {
         float[] scores = new float[rankedDocs.size()];
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
             scores[rankedDoc.index()] = rankedDoc.relevanceScore();
         }
 
         return scores;
-    }
-
-    /**
-     * Sorts documents by score descending and discards those with a score less than minScore.
-     * @param originalDocs documents to process
-     */
-    @Override
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        return Arrays.stream(originalDocs)
-            .filter(doc -> minScore == null || doc.score >= minScore)
-            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
-            .toArray(RankFeatureDoc[]::new);
     }
 }

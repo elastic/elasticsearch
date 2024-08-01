@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,22 +32,16 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterSearchShardsRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-    }
-
-    public ClusterSearchShardsRequest(String... indices) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public ClusterSearchShardsRequest(TimeValue masterNodeTimeout, String... indices) {
+        super(masterNodeTimeout);
         indices(indices);
     }
 
     public ClusterSearchShardsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
@@ -56,7 +51,6 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-
         indicesOptions.writeIndicesOptions(out);
     }
 

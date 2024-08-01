@@ -13,9 +13,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.io.IOException;
 
 public class OrderSerializationTests extends AbstractExpressionSerializationTests<Order> {
+    public static Order randomOrder() {
+        return new Order(randomSource(), randomChild(), randomDirection(), randomNulls());
+    }
+
     @Override
     protected Order createTestInstance() {
-        return new Order(randomSource(), randomChild(), randomDirection(), randomNulls());
+        return randomOrder();
     }
 
     private static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection randomDirection() {

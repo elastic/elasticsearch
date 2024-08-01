@@ -52,7 +52,7 @@ def hdfs2Jar = tasks.register("hdfs2jar", ShadowJar) {
   configurations << project.configurations.hdfs2
 }
 
-tasks.withType(ShadowJar) {
+tasks.withType(ShadowJar).configureEach {
   dependencies {
 //    exclude(dependency('commons-io:commons-io:2.8.0'))
     exclude(dependency("com.carrotsearch.randomizedtesting:randomizedtesting-runner:.*"))

@@ -87,8 +87,8 @@ public class CodecService implements CodecProvider {
 
     /**
      * Returns all registered available codec names.
-     * Public visibility for tests.
      */
+    @Override
     public String[] availableCodecs() {
         return codecs.keySet().toArray(new String[0]);
     }

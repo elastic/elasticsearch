@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -114,12 +115,14 @@ class BulkByScrollParallelizationHelper {
     ) {
         int configuredSlices = request.getSlices();
         if (configuredSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
-            ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest();
-            shardsRequest.indices(request.getSearchRequest().indices());
-            client.admin().cluster().searchShards(shardsRequest, listener.safeMap(response -> {
-                setWorkerCount(request, task, countSlicesBasedOnShards(response));
-                return null;
-            }));
+            client.execute(
+                TransportClusterSearchShardsAction.TYPE,
+                new ClusterSearchShardsRequest(request.getTimeout(), request.getSearchRequest().indices()),
+                listener.safeMap(response -> {
+                    setWorkerCount(request, task, countSlicesBasedOnShards(response));
+                    return null;
+                })
+            );
         } else {
             setWorkerCount(request, task, configuredSlices);
             listener.onResponse(null);

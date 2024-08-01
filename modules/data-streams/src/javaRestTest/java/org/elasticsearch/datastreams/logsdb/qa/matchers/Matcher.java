@@ -12,6 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * A base class to be used for the matching logic when comparing query results.
  */
@@ -104,4 +108,15 @@ public abstract class Matcher {
             + "] ";
     }
 
+    protected static String prettyPrintArrays(final Object[] actualArray, final Object[] expectedArray) {
+        return "actual: " + prettyPrintList(Arrays.asList(actualArray)) + ", expected: " + prettyPrintList(Arrays.asList(expectedArray));
+    }
+
+    protected static String prettyPrintLists(final List<Object> actualList, final List<Object> expectedList) {
+        return "actual: " + prettyPrintList(actualList) + ", expected: " + prettyPrintList(expectedList);
+    }
+
+    private static String prettyPrintList(final List<Object> list) {
+        return "[" + list.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
+    }
 }

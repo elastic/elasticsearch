@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -248,7 +249,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Timeout to wait for the shards on to be available for each bulk request?
      */
     public Self setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
+        this.timeout = Objects.requireNonNull(timeout);
         return self();
     }
 

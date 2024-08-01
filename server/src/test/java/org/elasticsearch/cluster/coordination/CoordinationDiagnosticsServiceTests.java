@@ -1378,7 +1378,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
      */
     private static MasterHistoryService createMasterHistoryService(ClusterService clusterService) throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(System::currentTimeMillis);
         MasterHistory localMasterHistory = new MasterHistory(threadPool, clusterService);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(localMasterHistory);

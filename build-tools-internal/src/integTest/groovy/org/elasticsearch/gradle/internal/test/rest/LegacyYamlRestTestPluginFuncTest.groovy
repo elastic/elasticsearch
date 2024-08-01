@@ -12,6 +12,7 @@ import spock.lang.IgnoreIf
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
+import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 
 @IgnoreIf({ os.isWindows() })
@@ -204,5 +205,9 @@ echo "Running elasticsearch \$0"
                 it.add("extracted", buildExpanded)
             }
         """
+    }
+
+    GradleRunner gradleRunner(Object... arguments) {
+        return super.gradleRunner(arguments).withEnvironment([RUNTIME_JAVA_HOME: System.getProperty("java.home")])
     }
 }

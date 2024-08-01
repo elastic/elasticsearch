@@ -213,6 +213,14 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
         }
     }
 
+    public void testRewriteUnmappedFieldToMatchNone() throws IOException {
+        MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder(UNMAPPED_FIELD_NAME, "value");
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
+    }
+
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         QueryBuilder query = new MatchPhraseQueryBuilder("_index", "does_not_exist");
         for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {

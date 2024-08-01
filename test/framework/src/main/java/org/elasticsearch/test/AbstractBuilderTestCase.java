@@ -131,6 +131,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
     // we don't include the binary field in the arrays below as it is not searchable
     protected static final String BINARY_FIELD_NAME = "mapped_binary";
+    protected static final String UNMAPPED_FIELD_NAME = "unmapped_field";
     protected static final String[] MAPPED_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,

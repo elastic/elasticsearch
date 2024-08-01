@@ -58,7 +58,7 @@ Configure the following environment variables.
 [source,sh]
 ----
 export ELASTIC_PASSWORD="<ES_PASSWORD>"  # password for "elastic" username
-export KIBANA_PASSWORD="<KIB_PASSWORD>"   # Used _internally_ by Kibana, must be at least 6 characters long
+export KIBANA_PASSWORD="<KIB_PASSWORD>"   # Used internally by Kibana, must be at least 6 characters long
 ----
 
 ==== Create a Docker network
@@ -119,14 +119,14 @@ docker run -p 127.0.0.1:5601:5601 -d --name kibana --network elastic-net \
 The service is started with a trial license. The trial license enables all features of Elasticsearch for a trial period of 30 days. After the trial period expires, the license is downgraded to a basic license, which is free forever. If you prefer to skip the trial and use the basic license, set the value of the `xpack.license.self_generated.type` variable to basic instead. For a detailed feature comparison between the different licenses, refer to our https://www.elastic.co/subscriptions[subscriptions page].
 ====
 
-**Send requests to Elasticsearch**
+==== Send requests to Elasticsearch
 
 You send data and other requests to Elasticsearch through REST APIs. 
 You can interact with Elasticsearch using any client that sends HTTP requests, 
 such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
 language clients] and https://curl.se[curl]. 
 
-*curl example*
+===== Using curl 
 
 Here's an example curl command to create a new Elasticsearch index, using basic auth:
 
@@ -139,7 +139,7 @@ curl -u elastic:$ELASTIC_PASSWORD \
 ----
 // NOTCONSOLE
 
-*Language client example*
+===== Using a language client
 
 To connect to your local dev Elasticsearch cluster with a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
 
@@ -167,10 +167,10 @@ client = Elasticsearch(
 print(client.info())
 ----
 
-*Dev Tools Console example*
+===== Using the Dev Tools Console
 
 Kibana's developer console provides an easy way to experiment and test requests. 
-To access the console, in Kibana go to **Management > Dev Tools**.
+To access the console, open Kibana, then go to **Management** > **Dev Tools**.
 
 **Add data**
 

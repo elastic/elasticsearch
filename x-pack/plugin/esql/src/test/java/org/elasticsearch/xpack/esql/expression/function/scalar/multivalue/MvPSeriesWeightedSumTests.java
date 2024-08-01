@@ -43,10 +43,10 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void doubles(List<TestCaseSupplier> cases) {
-
-        cases.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+        cases.add(new TestCaseSupplier("most common scenario", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             List<Double> field = randomList(1, 10, () -> randomDoubleBetween(1, 10, false));
             double p = randomDoubleBetween(-10, 10, true);
+            double expectedResult = calcPSeriesWeightedSum(field, p);
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -55,7 +55,7 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
                 DataType.DOUBLE,
-                closeTo(calcPSeriesWeightedSum(field, p), .00001)
+                closeTo(expectedResult, expectedResult * .00000001)
             );
         }));
     }

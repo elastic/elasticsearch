@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,8 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -34,7 +37,14 @@ import java.util.function.Function;
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
  * output with methods that write plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamOutput extends StreamOutput {
+public final class PlanStreamOutput extends StreamOutput implements org.elasticsearch.xpack.esql.core.util.PlanStreamOutput {
+
+    /**
+     * max number of attributes that can be cached for serialization
+     * <p>
+     * TODO should this be a cluster setting...?
+     */
+    protected static final int MAX_SERIALIZED_ATTRIBUTES = 1_000_000;
 
     /**
      * Cache of written blocks. We use an {@link IdentityHashMap} for this
@@ -44,6 +54,16 @@ public final class PlanStreamOutput extends StreamOutput {
      */
     private final Map<Block, BytesReference> cachedBlocks = new IdentityHashMap<>();
 
+    /**
+     * Cache for field attributes.
+     * Field attributes can be a significant part of the query execution plan, especially
+     * for queries like `from *`, that can have thousands of output columns.
+     * Attributes can be shared by many plan nodes (eg. ExcahngeSink output, Project output, EsRelation fields);
+     * in addition, multiple Attributes can share the same parent field.
+     * This cache allows to send each attribute only once; from the second occurrence, only an id will be sent
+     */
+    protected final Map<Attribute, Integer> cachedAttributes = new IdentityHashMap<>();
+
     private final StreamOutput delegate;
     private final PlanNameRegistry registry;
 
@@ -51,16 +71,19 @@ public final class PlanStreamOutput extends StreamOutput {
 
     private int nextCachedBlock = 0;
 
+    private int maxSerializedAttributes;
+
     public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable EsqlConfiguration configuration)
         throws IOException {
-        this(delegate, registry, configuration, PlanNamedTypes::name);
+        this(delegate, registry, configuration, PlanNamedTypes::name, MAX_SERIALIZED_ATTRIBUTES);
     }
 
     public PlanStreamOutput(
         StreamOutput delegate,
         PlanNameRegistry registry,
         @Nullable EsqlConfiguration configuration,
-        Function<Class<?>, String> nameSupplier
+        Function<Class<?>, String> nameSupplier,
+        int maxSerializedAttributes
     ) throws IOException {
         this.delegate = delegate;
         this.registry = registry;
@@ -72,6 +95,7 @@ public final class PlanStreamOutput extends StreamOutput {
                 }
             }
         }
+        this.maxSerializedAttributes = maxSerializedAttributes;
     }
 
     public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
@@ -156,6 +180,37 @@ public final class PlanStreamOutput extends StreamOutput {
         cachedBlocks.put(block, fromPreviousKey(nextCachedBlock));
         writeNamedWriteable(block);
         nextCachedBlock++;
+    }
+
+    @Override
+    public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)) {
+            Integer cacheId = attributeIdFromCache(attribute);
+            if (cacheId != null) {
+                writeZLong(cacheId);
+                return false;
+            }
+
+            cacheId = cacheAttribute(attribute);
+            writeZLong(-1 - cacheId);
+        }
+        return true;
+    }
+
+    private Integer attributeIdFromCache(Attribute attr) {
+        return cachedAttributes.get(attr);
+    }
+
+    private int cacheAttribute(Attribute attr) {
+        if (cachedAttributes.containsKey(attr)) {
+            throw new IllegalArgumentException("Attribute already present in the serialization cache [" + attr + "]");
+        }
+        int id = cachedAttributes.size();
+        if (id >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized attributes exceeded [{}]", maxSerializedAttributes);
+        }
+        cachedAttributes.put(attr, id);
+        return id;
     }
 
     /**

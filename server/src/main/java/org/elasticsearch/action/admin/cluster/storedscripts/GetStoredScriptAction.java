@@ -10,12 +10,12 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionType;
 
-public class GetStoredScriptAction extends ActionType<GetStoredScriptResponse> {
+public class GetStoredScriptAction {
 
-    public static final GetStoredScriptAction INSTANCE = new GetStoredScriptAction();
-    public static final String NAME = "cluster:admin/script/get";
+    public static final ActionType<GetStoredScriptResponse> INSTANCE = new ActionType<>("cluster:admin/script/get");
+    public static final String NAME = INSTANCE.name();
 
     private GetStoredScriptAction() {
-        super(NAME);
+        /* no instances */
     }
 }

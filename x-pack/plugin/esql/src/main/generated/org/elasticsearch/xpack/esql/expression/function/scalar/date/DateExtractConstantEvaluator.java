@@ -68,7 +68,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoField, zone));
+        result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.chronoField, this.zone));
       }
       return result.build();
     }
@@ -77,7 +77,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   public LongVector eval(int positionCount, LongVector valueVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateExtract.process(valueVector.getLong(p), chronoField, zone));
+        result.appendLong(p, DateExtract.process(valueVector.getLong(p), this.chronoField, this.zone));
       }
       return result.build();
     }

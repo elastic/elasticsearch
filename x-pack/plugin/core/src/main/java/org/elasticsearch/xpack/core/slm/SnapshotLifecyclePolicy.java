@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.scheduler.Cron;
+import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -49,6 +51,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private final String repository;
     private final Map<String, Object> configuration;
     private final SnapshotRetentionConfiguration retentionPolicy;
+
+    private final boolean isCronSchedule;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
@@ -93,6 +97,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");
         this.configuration = configuration;
         this.retentionPolicy = retentionPolicy;
+        this.isCronSchedule = isCronSchedule(schedule);
     }
 
     public SnapshotLifecyclePolicy(StreamInput in) throws IOException {
@@ -102,6 +107,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
+        this.isCronSchedule = isCronSchedule(schedule);
     }
 
     public String getId() {
@@ -130,10 +136,14 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return this.retentionPolicy;
     }
 
+    boolean isCronSchedule() {
+        return this.isCronSchedule;
+    }
+
     /**
      * @return whether `schedule` is a cron expression, as opposed to a time unit
      */
-    public boolean isCronSchedule() {
+    static boolean isCronSchedule(String schedule) {
         try {
             new Cron(schedule);
             return true;
@@ -174,6 +184,15 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             return TimeValue.timeValueMillis(next2 - next1);
         } else {
             return TimeValue.MINUS_ONE;
+        }
+    }
+
+    public SchedulerEngine.Job buildSchedulerJob(String jobId, long modifiedDate) {
+        if (isCronSchedule()) {
+            return new SchedulerEngine.Job(jobId, new CronSchedule(getSchedule()));
+        } else {
+            TimeValue timeValue = TimeValue.parseTimeValue(getSchedule(), "schedule");
+            return new SchedulerEngine.Job(jobId, new TimeValueSchedule(timeValue), modifiedDate);
         }
     }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
-import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
@@ -24,7 +23,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
-import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
@@ -200,14 +198,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                 logger.info("scheduling snapshot lifecycle job [{}]", jobId);
             }
 
-            final SchedulerEngine.Job job;
-            if (snapshotLifecyclePolicy.getPolicy().isCronSchedule()) {
-                job = new SchedulerEngine.Job(jobId, new CronSchedule(snapshotLifecyclePolicy.getPolicy().getSchedule()));
-            } else {
-                TimeValue timeValue = TimeValue.parseTimeValue(snapshotLifecyclePolicy.getPolicy().getSchedule(), "schedule");
-                job = new SchedulerEngine.Job(jobId, new TimeValueSchedule(timeValue), snapshotLifecyclePolicy.getModifiedDate());
-            }
-
+            final SchedulerEngine.Job job = snapshotLifecyclePolicy.buildSchedulerJob(jobId);
             scheduler.add(job);
             return job;
         });

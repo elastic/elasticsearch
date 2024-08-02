@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Nullable;
 
 import java.time.Clock;
 import java.util.Collection;
@@ -39,7 +40,21 @@ import java.util.concurrent.TimeUnit;
  */
 public class SchedulerEngine {
 
-    public record Job(String id, Schedule schedule, Long startTime) {
+    /**
+     * In most cases a Job only requires a `schedule` and an `id`, but an optional `fixedStartTime`
+     * can also be used. This is used as a fixed `startTime` argument for all calls to
+     * `schedule.nextScheduledTimeAfter(startTime, now)`. Interval-based schedules use `startTime`
+     * as a basis time from which all run times are calculated. If a Job does not contain a
+     * `fixedStartTime`, this basis time will be the time at which the Job is added to the SchedulerEngine.
+     * This could change if a master change or restart causes a new SchedulerEngine to be constructed.
+     * But using a `fixedStartTime` populated  from a time stored in cluster state allows the basis time
+     * to remain unchanged across master changes and restarts.
+     *
+     * @param id the id of the job
+     * @param schedule the schedule which is used to calculate when the job runs
+     * @param fixedStartTime a fixed time in the past which the schedule uses to calculate run times,
+     */
+    public record Job(String id, Schedule schedule, @Nullable Long fixedStartTime) {
         public Job(String id, Schedule schedule) {
             this(id, schedule, null);
         }
@@ -125,7 +140,7 @@ public class SchedulerEngine {
     }
 
     public void add(Job job) {
-        final long startTime = job.startTime() == null ? clock.millis() : job.startTime();
+        final long startTime = job.fixedStartTime() == null ? clock.millis() : job.fixedStartTime();
         ActiveSchedule schedule = new ActiveSchedule(job.id(), job.schedule(), startTime);
         schedules.compute(schedule.name, (name, previousSchedule) -> {
             if (previousSchedule != null) {

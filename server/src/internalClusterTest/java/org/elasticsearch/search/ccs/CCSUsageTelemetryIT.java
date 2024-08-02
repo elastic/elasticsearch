@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.SlowRunningQueryBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
@@ -105,11 +107,10 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         SearchRequest searchRequest = makeSearchRequest(localIndex, "*:" + remoteIndex);
         boolean minimizeRoundtrips = searchRequest.isCcsMinimizeRoundtrips();
 
-        String randomClient = randomAlphaOfLength(10);
         String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
         assertResponse(
             cluster(LOCAL_CLUSTER).client(nodeName)
-                .filterWithHeader(Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, randomClient))
+                .filterWithHeader(Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana"))
                 .search(searchRequest),
             Assert::assertNotNull
         );
@@ -125,7 +126,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
         assertThat(telemetry.getSkippedRemotes(), equalTo(0L));
         assertThat(telemetry.getClientCounts().size(), equalTo(1));
-        assertThat(telemetry.getClientCounts().get(randomClient), equalTo(1L));
+        assertThat(telemetry.getClientCounts().get("kibana"), equalTo(1L));
         if (minimizeRoundtrips) {
             assertThat(telemetry.getFeatureCounts().get(MRT_FEATURE), equalTo(1L));
         } else {
@@ -354,6 +355,35 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     }
 
     /**
+     * Test what happens if remote times out - it should be skipped
+     */
+    public void testRemoteTimesOut() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest searchRequest = makeSearchRequest(localIndex, REMOTE1 + ":" + remoteIndex);
+
+        TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
+        // query builder that will sleep for the specified amount of time in the query phase
+        SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5, remoteIndex);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);
+        searchRequest.source(sourceBuilder);
+
+        CCSTelemetrySnapshot telemetry = getTelemetryFromSearch(searchRequest);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(1L));
+        assertThat(telemetry.getSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getRemotesPerSearchMax(), equalTo(1L));
+        var perCluster = telemetry.getByRemoteCluster();
+        assertThat(perCluster.size(), equalTo(2));
+        assertThat(perCluster.get(REMOTE1).getCount(), equalTo(0L));
+        assertThat(perCluster.get(REMOTE1).getSkippedCount(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(0L));
+        assertThat(perCluster.get(REMOTE2), equalTo(null));
+    }
+
+    /**
      * Test that we're still counting remote search even if remote cluster has no such index
      */
     public void testRemoteHasNoIndex() throws Exception {
@@ -369,11 +399,6 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(1L));
         assertThat(perCluster.get(REMOTE2), equalTo(null));
     }
-
-    // TODO: implement the following tests:
-    // - search with a remote timeout
-    // - async search
-    // - various search failure reasons
 
     private CCSTelemetrySnapshot getTelemetrySnapshot(String nodeName) {
         var usage = cluster(LOCAL_CLUSTER).getInstance(UsageService.class, nodeName);
@@ -434,4 +459,8 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;
     }
+
+    // TODO: implement the following tests:
+    // - scenarios with remotes not allowed to be skipped
+    // - various search failure reasons
 }

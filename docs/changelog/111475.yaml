@@ -2,4 +2,5 @@ pr: 111475
 summary: "ESQL: Fix for overzealous validation in case of invalid mapped fields"
 area: ES|QL
 type: bug
-issues: []
+issues:
+ - 111452

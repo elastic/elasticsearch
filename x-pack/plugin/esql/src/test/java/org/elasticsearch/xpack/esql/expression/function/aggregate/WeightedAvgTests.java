@@ -52,11 +52,11 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
             List.of(
                 // Folding
                 new TestCaseSupplier(
-                    List.of(DataType.INTEGER),
+                    List.of(DataType.INTEGER, DataType.INTEGER),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5), DataType.INTEGER, "field"),
-                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
+                            TestCaseSupplier.TypedData.multiRow(List.of(5), DataType.INTEGER, "number"),
+                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "weight")
                         ),
                         "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
                         DataType.DOUBLE,
@@ -64,11 +64,11 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.LONG),
+                    List.of(DataType.LONG, DataType.INTEGER),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L), DataType.LONG, "field"),
-                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
+                            TestCaseSupplier.TypedData.multiRow(List.of(5L), DataType.LONG, "number"),
+                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "weight")
                         ),
                         "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
                         DataType.DOUBLE,
@@ -76,11 +76,11 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.DOUBLE),
+                    List.of(DataType.DOUBLE, DataType.INTEGER),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5.), DataType.DOUBLE, "field"),
-                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "field")
+                            TestCaseSupplier.TypedData.multiRow(List.of(5.), DataType.DOUBLE, "number"),
+                            TestCaseSupplier.TypedData.multiRow(List.of(100), DataType.INTEGER, "weight")
                         ),
                         "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
                         DataType.DOUBLE,

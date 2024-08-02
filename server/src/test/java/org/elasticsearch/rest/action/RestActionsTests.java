@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentEOFException;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
@@ -88,7 +89,7 @@ public class RestActionsTests extends ESTestCase {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
                 ParsingException exception = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
                 assertEquals("Failed to parse", exception.getMessage());
-                assertEquals(XContentEOFException.class, exception.getCause().getClass());
+                assertEquals(XContentParseException.class, exception.getCause().getClass());
             }
         }
     }

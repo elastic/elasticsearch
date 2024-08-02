@@ -218,6 +218,7 @@ public class EsqlCapabilities {
         Cap(FeatureFlag featureFlag) {
             this(false, featureFlag);
         }
+
         Cap(boolean snapshotOnly, FeatureFlag featureFlag) {
             assert featureFlag == null || snapshotOnly == false;
             this.snapshotOnly = snapshotOnly;

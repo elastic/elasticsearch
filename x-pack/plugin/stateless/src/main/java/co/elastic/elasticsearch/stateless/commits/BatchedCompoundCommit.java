@@ -101,7 +101,11 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         while (offset < blobLength) {
             assert offset == BlobCacheUtils.toPageAlignedSize(offset) : "should only read page-aligned compound commits but got: " + offset;
             try (StreamInput streamInput = blobReader.readBlobAtOffset(blobName, offset, blobLength - offset)) {
-                var compoundCommit = StatelessCompoundCommit.readFromStoreAtOffset(streamInput, offset, ignored -> blobName);
+                var compoundCommit = StatelessCompoundCommit.readFromStoreAtOffset(
+                    streamInput,
+                    offset,
+                    ignored -> StatelessCompoundCommit.parseGenerationFromBlobName(blobName)
+                );
                 // BatchedCompoundCommit uses the first StatelessCompoundCommit primary term and generation
                 if (primaryTermAndGeneration == null) {
                     primaryTermAndGeneration = compoundCommit.primaryTermAndGeneration();
@@ -151,8 +155,7 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     public static Set<PrimaryTermAndGeneration> computeReferencedBCCGenerations(StatelessCompoundCommit commit) {
         Set<PrimaryTermAndGeneration> primaryTermAndGenerations = new HashSet<>();
         for (BlobLocation blobLocation : commit.commitFiles().values()) {
-            var generation = StatelessCompoundCommit.parseGenerationFromBlobName(blobLocation.blobName());
-            primaryTermAndGenerations.add(new PrimaryTermAndGeneration(blobLocation.primaryTerm(), generation));
+            primaryTermAndGenerations.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
         }
         return Collections.unmodifiableSet(primaryTermAndGenerations);
     }

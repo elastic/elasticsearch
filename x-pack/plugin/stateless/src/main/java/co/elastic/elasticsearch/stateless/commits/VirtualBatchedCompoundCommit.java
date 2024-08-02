@@ -101,8 +101,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // Maps internal data (pending compound commits' headers, files, padding) to their offset in the virtual batched compound commit
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
-    private final String blobName;
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
+    private final BlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
     private final long creationTimeInMillis;
     // VBCC can no longer be appended to once it is frozen
@@ -121,7 +121,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+        this.blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
     }
 
@@ -240,7 +240,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         for (var internalFile : internalFiles) {
             var fileLength = internalFile.length();
-            var blobLocation = new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, internalFileOffset, fileLength);
+            var blobLocation = new BlobLocation(blobFile, internalFileOffset, fileLength);
 
             var previousFile = commitFiles.put(internalFile.name(), blobLocation);
             assert previousFile == null : internalFile.name();
@@ -367,7 +367,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     public String getBlobName() {
-        return blobName;
+        return blobFile.blobName();
     }
 
     public ShardId getShardId() {

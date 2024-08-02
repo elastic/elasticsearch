@@ -54,7 +54,14 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
     }
 
     public BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
-        this(new BlobFile(primaryTerm, blobName), offset, fileLength);
+        this(
+            new BlobFile(
+                blobName,
+                new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(blobName))
+            ),
+            offset,
+            fileLength
+        );
     }
 
     public long primaryTerm() {
@@ -69,11 +76,11 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
      * @return parse the generation from the blob name
      */
     public long compoundFileGeneration() {
-        return StatelessCompoundCommit.parseGenerationFromBlobName(blobName());
+        return blobFile.generation();
     }
 
     public PrimaryTermAndGeneration getBatchedCompoundCommitTermAndGeneration() {
-        return new PrimaryTermAndGeneration(primaryTerm(), compoundFileGeneration());
+        return blobFile.termAndGeneration();
     }
 
     /**

@@ -992,10 +992,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // create an BlobReference for a commit file that is stored in a different BCC
                 if (bccStoredFiles.contains(referencedBlob.getKey()) == false) {
                     referencedBlobs.computeIfAbsent(
-                        new PrimaryTermAndGeneration(
-                            referencedBlob.getValue().primaryTerm(),
-                            referencedBlob.getValue().compoundFileGeneration()
-                        ),
+                        referencedBlob.getValue().getBatchedCompoundCommitTermAndGeneration(),
                         primaryTermAndGeneration -> new HashMap<>()
                     ).put(referencedBlob.getKey(), referencedBlob.getValue());
                 } else {
@@ -1007,10 +1004,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // create a compound commit blob instance for the recovery commit
             for (BlobFile nonRecoveredBlobFile : nonRecoveredBlobs) {
                 if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
-                    PrimaryTermAndGeneration nonRecoveredTermGen = new PrimaryTermAndGeneration(
-                        nonRecoveredBlobFile.primaryTerm(),
-                        StatelessCompoundCommit.parseGenerationFromBlobName(nonRecoveredBlobFile.blobName())
-                    );
+                    PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlobFile.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
                     // We don't know which CCs are included in the non-recovered BCCs,

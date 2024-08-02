@@ -703,6 +703,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved = childOutput;
                         priority = 2;
                     } else if (proj instanceof UnresolvedNamePattern up) {
+                        // TODO: we should not invalidate direct usage of multi-typed fields here; if they occur as part of a name pattern,
+                        // that should be okay.
                         resolved = resolveAgainstList(up, null, childOutput);
                         priority = 1;
                     } else if (proj instanceof UnresolvedAttribute ua) {

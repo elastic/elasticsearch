@@ -1016,7 +1016,7 @@ client_ip:ip | event_duration:long |    message:keyword    |    @timestamp:keywo
 
 # Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats
 
-multiIndexNoDirectUseOfUnionTypesInRename
+multiIndexIndirectUseOfUnionTypesInRename
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.
 required_capability: union_types
@@ -1031,7 +1031,7 @@ FROM sample_data, sample_data_ts_long
            null | 172.21.0.5   |             1232382 | Disconnected
 ;
 
-multiIndexNoDirectUseOfUnionTypesInKeep
+multiIndexIndirectUseOfUnionTypesInKeep
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.
 required_capability: union_types
@@ -1046,7 +1046,7 @@ client_ip:ip | event_duration:long | message:keyword
 172.21.0.5   |             1232382 | Disconnected
 ;
 
-multiIndexNoDirectUseOfUnionTypesInWildcardKeep
+multiIndexIndirectUseOfUnionTypesInWildcardKeep
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.
 required_capability: union_types
@@ -1061,12 +1061,14 @@ FROM sample_data, sample_data_ts_long
            null | 172.21.0.5   |             1232382 | Disconnected
 ;
 
-multiIndexNoDirectUseOfUnionTypesInWildcardKeep2
+multiIndexIndirectUseOfUnionTypesInWildcardKeep2-Ignore
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.
 required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
+// This is not allowed because it implicitly uses @timestamp, which is a multi-typed field.
+// It probably should be! Otherwise we're inconsistent with `KEEP *`.
 | KEEP *e*
 | SORT client_ip ASC
 | LIMIT 1
@@ -1074,4 +1076,36 @@ FROM sample_data, sample_data_ts_long
 
 @timestamp:null | client_ip:ip | event_duration:long | message:keyword
            null | 172.21.0.5   |             1232382 | Disconnected
+;
+
+
+multiIndexUseOfUnionTypesInDrop
+// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
+// make the csv tests work with multiple indices.
+required_capability: union_types
+required_capability: union_types_fix_rename_resolution
+FROM sample_data, sample_data_ts_long
+| DROP @timestamp
+| SORT client_ip ASC
+| LIMIT 1
+;
+
+client_ip:ip | event_duration:long | message:keyword
+172.21.0.5   |             1232382 | Disconnected
+;
+
+
+multiIndexIndirectUseOfUnionTypesInWildcardDrop
+// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
+// make the csv tests work with multiple indices.
+required_capability: union_types
+required_capability: union_types_fix_rename_resolution
+FROM sample_data, sample_data_ts_long
+| DROP *time*
+| SORT client_ip ASC
+| LIMIT 1
+;
+
+client_ip:ip | event_duration:long | message:keyword
+172.21.0.5   |             1232382 | Disconnected
 ;

@@ -70,7 +70,8 @@ FROM alerts
     TOP(kibana.alert.risk_score, 10000, "desc"), 1.5
 ) BY host.name
 | EVAL normalized_score = ROUND(100 * score / 261.2, 2)
-| KEEP host.name, normalized_score, score;
+| KEEP host.name, normalized_score, score
+| SORT normalized_score DESC;
 
 host.name:keyword|normalized_score:double|score:double
 test-host-1      |36.16                  |94.45465156212452

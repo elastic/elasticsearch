@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerialiationTests;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerializationTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +27,7 @@ public abstract class AbstractLogicalPlanSerializationTests<T extends LogicalPla
             return LookupSerializationTests.randomLookup(depth + 1);
         }
         // TODO more random options
-        return LocalRelationSerialiationTests.randomLocalRelation();
+        return LocalRelationSerializationTests.randomLocalRelation();
     }
 
     public static List<Attribute> randomFieldAttributes(int min, int max, boolean onlyRepresentable) {

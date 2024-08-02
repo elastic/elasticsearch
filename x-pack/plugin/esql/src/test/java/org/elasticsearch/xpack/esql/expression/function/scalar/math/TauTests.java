@@ -29,7 +29,7 @@ public class TauTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Tau Test", () -> {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Tau Test", List.of(DataType.INTEGER), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "foo")),
                 "LiteralsEvaluator[lit=6.283185307179586]",

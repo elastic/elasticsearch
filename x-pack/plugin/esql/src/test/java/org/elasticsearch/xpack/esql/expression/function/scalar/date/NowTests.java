@@ -36,9 +36,10 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
             List.of(
                 new TestCaseSupplier(
                     "Now Test",
+                    List.of(),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(),
-                        matchesPattern("LiteralsEvaluator\\[lit=.*\\]"),
+                        matchesPattern("LiteralsEvaluator\\[lit=.*]"),
                         DataType.DATETIME,
                         equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli())
                     )

@@ -221,7 +221,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
 
         // Cases that should generate warnings
-        suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
+        suppliers.add(new TestCaseSupplier("MV", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             // Ensure we don't have an overflow
             int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
             int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
@@ -236,7 +236,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
-        })));
+        }));
         // exact math arithmetic exceptions
         suppliers.add(
             arithmeticExceptionOverflowCase(

@@ -102,6 +102,60 @@ max(version):version | a:version | b:version | c:version | name:keyword
 2.12.0               | 2.12.0    | 2.12.0    | 2.12.0    | ddddd
 ;
 
+maxOfKeyword
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats max(abbrev), a = max(abbrev), b = max(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev));
+
+max(abbrev):keyword | a:keyword | b:keyword | c:keyword
+ZAH                 | ZAH       | ZAH       | ___
+;
+
+maxOfKeywordGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats max(abbrev), a = max(abbrev), b = max(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev)) by type
+| sort type asc
+| limit 4;
+
+max(abbrev):keyword | a:keyword | b:keyword | c:keyword | type:keyword
+IXC                 | IXC       | IXC       | IXC       | major
+ZAH                 | ZAH       | ZAH       | ZAH       | mid
+VIBY                | VIBY      | VIBY      | VIBY      | military
+OPQS                | OPQS      | OPQS      | ___       | small
+;
+
+maxOfText
+required_capability: agg_max_min_string_support
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats max(name), a = max(name), b = max(x);
+
+max(name):text   | a:text           | b:text
+Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l
+;
+
+maxOfTextGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats max(name), a = max(name), b = max(x) by type
+| sort type asc
+| limit 4;
+
+max(name):text   | a:text           | b:text           | type:keyword
+Cheongju Int'l   | Cheongju Int'l   | Cheongju Int'l   | major
+Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l | mid
+Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l | military
+Sahnewal         | Sahnewal         | Sahnewal         | small
+;
+
 minOfVersion
 required_capability: agg_max_min_string_support
 from apps
@@ -126,6 +180,60 @@ min(version):version | a:version | b:version | c:version | name:keyword
 1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.2.3.4   | aaaaa
 2.3.4                | 2.3.4     | 2.3.4     | 100.0.0   | ccccc
 2.12.0               | 2.12.0    | 2.12.0    | 2.12.0    | ddddd
+;
+
+minOfKeyword
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats min(abbrev), a = min(abbrev), b = min(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev));
+
+min(abbrev):keyword | a:keyword | b:keyword | c:keyword
+AWZ                 | AWZ       | AWZ       | ___
+;
+
+minOfKeywordGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats min(abbrev), a = min(abbrev), b = min(x), c = min(case(mv_first(type) == "small", "___"::keyword, abbrev)) by type
+| sort type asc
+| limit 4;
+
+min(abbrev):keyword | a:keyword | b:keyword | c:keyword | type:keyword
+CJJ                 | CJJ       | CJJ       | CJJ       | major
+AWZ                 | AWZ       | AWZ       | AWZ       | mid
+GWL                 | GWL       | GWL       | GWL       | military
+LUH                 | LUH       | LUH       | ___       | small
+;
+
+minOfText
+required_capability: agg_max_min_string_support
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats min(name), a = min(name), b = min(x);
+
+min(name):text      | a:text              | b:text
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh
+;
+
+minOfTextGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats min(name), a = min(name), b = min(x) by type
+| sort type asc
+| limit 4;
+
+min(name):text      | a:text              | b:text              | type:keyword
+Chandigarh Int'l    | Chandigarh Int'l    | Chandigarh Int'l    | major
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh | mid
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh | military
+Dhamial             | Dhamial             | Dhamial             | small
 ;
 
 minOfBooleanExpression

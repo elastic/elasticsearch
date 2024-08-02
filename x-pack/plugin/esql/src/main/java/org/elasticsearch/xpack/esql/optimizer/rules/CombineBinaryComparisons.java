@@ -42,7 +42,7 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
 
     // combine conjunction
     private static Expression combine(And and) {
-        List<BinaryComparison> bcs = new ArrayList<>();
+        List<BinaryComparison> binaryComparisons = new ArrayList<>();
         List<Expression> exps = new ArrayList<>();
         boolean changed = false;
         List<Expression> andExps = Predicates.splitAnd(and);
@@ -56,15 +56,20 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
                 return 0; // keep non-Ranges' and non-NotEquals' order
             }
         });
+        changed = processAndExps(binaryComparisons, exps, changed, andExps);
+        return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, binaryComparisons)) : and;
+    }
+
+    private static boolean processAndExps(List<BinaryComparison> binaryComparisons, List<Expression> exps, boolean changed, List<Expression> andExps) {
         for (Expression ex : andExps) {
             if (ex instanceof BinaryComparison bc && (ex instanceof Equals || ex instanceof NotEquals) == false) {
-                if (bc.right().foldable() && (findExistingComparison(bc, bcs, true))) {
+                if (bc.right().foldable() && (findExistingComparison(bc, binaryComparisons, true))) {
                     changed = true;
                 } else {
-                    bcs.add(bc);
+                    binaryComparisons.add(bc);
                 }
             } else if (ex instanceof NotEquals neq) {
-                if (neq.right().foldable() && notEqualsIsRemovableFromConjunction(neq, bcs)) {
+                if (neq.right().foldable() && notEqualsIsRemovableFromConjunction(neq, binaryComparisons)) {
                     // the non-equality can simply be dropped: either superfluous or has been merged with an updated range/inequality
                     changed = true;
                 } else { // not foldable OR not overlapping
@@ -74,37 +79,38 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
                 exps.add(ex);
             }
         }
-        return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, bcs)) : and;
+        return changed;
     }
 
     // combine disjunction
     private static Expression combine(Or or) {
-        List<BinaryComparison> bcs = new ArrayList<>();
+        List<BinaryComparison> binaryComparisons = new ArrayList<>();
         List<Expression> exps = new ArrayList<>();
         boolean changed = false;
         for (Expression ex : Predicates.splitOr(or)) {
             if (ex instanceof BinaryComparison bc) {
-                if (bc.right().foldable() && findExistingComparison(bc, bcs, false)) {
+                if (bc.right().foldable() && findExistingComparison(bc, binaryComparisons, false)) {
                     changed = true;
                 } else {
-                    bcs.add(bc);
+                    binaryComparisons.add(bc);
                 }
             } else {
                 exps.add(ex);
             }
         }
-        return changed ? Predicates.combineOr(CollectionUtils.combine(exps, bcs)) : or;
+        return changed ? Predicates.combineOr(CollectionUtils.combine(exps, binaryComparisons)) : or;
     }
 
     /**
      * Find commonalities between the given comparison in the given list.
      * The method can be applied both for conjunctive (AND) or disjunctive purposes (OR).
      */
-    private static boolean findExistingComparison(BinaryComparison main, List<BinaryComparison> bcs, boolean conjunctive) {
+    private static boolean findExistingComparison(BinaryComparison main, List<BinaryComparison> comparisons, boolean conjunctive) {
+
         Object value = main.right().fold();
         // NB: the loop modifies the list (hence why the int is used)
-        for (int i = 0; i < bcs.size(); i++) {
-            BinaryComparison other = bcs.get(i);
+        for (int i = 0; i < comparisons.size(); i++) {
+            BinaryComparison other = comparisons.get(i);
             // skip if cannot evaluate
             if (other.right().foldable() == false) {
                 continue;
@@ -127,8 +133,8 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
                                 (compare < 0 ||
                                 // a >= 2 OR a > 2 -> a >= 2
                                     (compare == 0 && main instanceof GreaterThanOrEqual && other instanceof GreaterThan)))) {
-                            bcs.remove(i);
-                            bcs.add(i, main);
+                            comparisons.remove(i);
+                            comparisons.add(i, main);
                         }
                         // found a match
                         return true;
@@ -154,8 +160,8 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
                                     (compare > 0 ||
                             // a <= 2 OR a < 2 -> a <= 2
                                         (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
-                                bcs.remove(i);
-                                bcs.add(i, main);
+                                comparisons.remove(i);
+                                comparisons.add(i, main);
                             }
                             // found a match
                             return true;
@@ -167,7 +173,7 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
         return false;
     }
 
-    private static boolean notEqualsIsRemovableFromConjunction(NotEquals notEquals, List<BinaryComparison> bcs) {
+    private static boolean notEqualsIsRemovableFromConjunction(NotEquals notEquals, List<BinaryComparison> binaryComparisons) {
         Object neqVal = notEquals.right().fold();
         Integer comp;
 
@@ -179,15 +185,15 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
         // a != 2 AND a < 3 -> nop
         // a != 2 AND a <= 2 -> a < 2
         // a != 2 AND a < 1 -> a < 1
-        for (int i = 0; i < bcs.size(); i++) {
-            BinaryComparison bc = bcs.get(i);
+        for (int i = 0; i < binaryComparisons.size(); i++) {
+            BinaryComparison bc = binaryComparisons.get(i);
             if (notEquals.left().semanticEquals(bc.left())) {
                 if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
                     comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
                     if (comp != null) {
                         if (comp >= 0) {
                             if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
-                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                binaryComparisons.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
                             } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
                             return true;
                         } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
@@ -197,7 +203,7 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
                     if (comp != null) {
                         if (comp <= 0) {
                             if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
-                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                binaryComparisons.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
                             } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
                             return true;
                         } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop

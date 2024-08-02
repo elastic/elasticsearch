@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.TypesTests;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -57,7 +56,6 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.junit.Assert;
 
 import java.io.BufferedReader;
@@ -101,12 +99,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
+
     public static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
     public static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
     public static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
     public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
     public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
+    public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);
@@ -279,7 +278,7 @@ public final class EsqlTestUtils {
     }
 
     public static Map<String, EsField> loadMapping(String name) {
-        return TypesTests.loadMapping(EsqlDataTypeRegistry.INSTANCE, name, true);
+        return LoadMapping.loadMapping(name);
     }
 
     public static String loadUtf8TextFile(String name) {

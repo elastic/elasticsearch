@@ -32,7 +32,12 @@ public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobL
 
     @Override
     protected BlobLocation createTestInstance() {
-        return blobLocation(randomLongBetween(1, 10), randomAlphaOfLength(10), randomLongBetween(0, 100), randomLongBetween(100, 1000));
+        return blobLocation(
+            randomLongBetween(1, 10),
+            StatelessCompoundCommit.PREFIX + randomLongBetween(1, 1000),
+            randomLongBetween(0, 100),
+            randomLongBetween(100, 1000)
+        );
     }
 
     private static BlobLocation blobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
@@ -50,7 +55,7 @@ public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobL
             );
             case 1 -> new BlobLocation(
                 instance.primaryTerm(),
-                randomValueOtherThan(instance.blobName(), () -> randomAlphaOfLength(10)),
+                randomValueOtherThan(instance.blobName(), () -> StatelessCompoundCommit.PREFIX + randomLongBetween(1, 1000)),
                 instance.offset(),
                 instance.fileLength()
             );

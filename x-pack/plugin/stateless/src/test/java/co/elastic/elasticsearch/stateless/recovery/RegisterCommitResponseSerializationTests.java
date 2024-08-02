@@ -102,7 +102,12 @@ public class RegisterCommitResponseSerializationTests extends AbstractWireSerial
             .collect(Collectors.toMap(Function.identity(), s -> {
                 long fileLength = randomLongBetween(100, 1000);
                 long offset = randomLongBetween(0, 200);
-                return new BlobLocation(randomLongBetween(1, 10), randomAlphaOfLength(10), offset, fileLength);
+                return new BlobLocation(
+                    randomLongBetween(1, 10),
+                    StatelessCompoundCommit.PREFIX + randomLongBetween(1, 1000),
+                    offset,
+                    fileLength
+                );
             }));
     }
 }

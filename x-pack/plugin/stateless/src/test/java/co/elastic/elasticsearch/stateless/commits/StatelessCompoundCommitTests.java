@@ -175,8 +175,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             var headerOffset = positionTracking.position();
             var totalSize = headerOffset + internalFiles.stream().mapToLong(StatelessCompoundCommit.InternalFile::length).sum();
             var expectedCommitFiles = StatelessCompoundCommit.combineCommitFiles(
-                StatelessCompoundCommit.blobNameFromGeneration(testInstance.generation()),
-                testInstance.primaryTerm(),
+                new BlobFile(
+                    StatelessCompoundCommit.blobNameFromGeneration(testInstance.generation()),
+                    new PrimaryTermAndGeneration(testInstance.primaryTerm(), testInstance.generation())
+                ),
                 internalFiles,
                 referencedCommitBlobsWithoutBlobLength,
                 0,
@@ -297,7 +299,12 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             .collect(Collectors.toMap(Function.identity(), s -> {
                 long fileLength = randomLongBetween(100, 1000);
                 long offset = randomLongBetween(0, 200);
-                return new BlobLocation(randomLongBetween(1, 10), randomAlphaOfLength(10), offset, fileLength);
+                return new BlobLocation(
+                    randomLongBetween(1, 10),
+                    StatelessCompoundCommit.PREFIX + randomLongBetween(1, 1000),
+                    offset,
+                    fileLength
+                );
             }));
     }
 }

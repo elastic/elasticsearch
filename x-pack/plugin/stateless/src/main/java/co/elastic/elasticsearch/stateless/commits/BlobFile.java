@@ -17,13 +17,35 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.startsWithBlobPrefix;
+
 /**
- * Represents a file (typically a compound commit) stored in the blobstore.
+ * Represents a file (typically a {@link BatchedCompoundCommit}) stored in the blobstore.
  */
-public record BlobFile(long primaryTerm, String blobName) {
+public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) {
+
+    public BlobFile {
+        assert (startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == 0)
+            || termAndGeneration.generation() == StatelessCompoundCommit.parseGenerationFromBlobName(blobName)
+            : "generation mismatch: " + termAndGeneration + " vs " + blobName;
+    }
+
+    public long primaryTerm() {
+        return termAndGeneration.primaryTerm();
+    }
+
+    /**
+     * The generation of the blob file in case it is a stateless compound commit file, otherwise it is -1.
+     */
+    public long generation() {
+        return termAndGeneration.generation();
+    }
 
     @Override
     public String toString() {
-        return "BlobFile{" + "primaryTerm=" + primaryTerm + ", blobName='" + blobName + '\'' + '}';
+        return "BlobFile{" + "primaryTerm=" + primaryTerm() + ", blobName='" + blobName + '\'' + '}';
     }
+
 }

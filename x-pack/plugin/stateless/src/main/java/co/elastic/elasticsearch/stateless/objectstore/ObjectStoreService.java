@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 
 import org.apache.lucene.store.Directory;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -78,7 +78,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.parseGenerationFromBlobName;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.startsWithBlobPrefix;
 import static org.elasticsearch.core.Strings.format;
@@ -550,18 +549,25 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 latestBcc = ObjectStoreService.readNewestBcc(blobContainer, allBlobs);
                 if (latestBcc != null) {
                     logLatestBcc(latestBcc, blobContainer);
-                    final var latestBccTermAndGen = latestBcc.primaryTermAndGeneration();
-                    allBlobs.forEach((key, value) -> {
-                        var blobFile = new BlobFile(blobContainerPrimaryTerm, key);
-                        if (startsWithBlobPrefix(blobFile.blobName()) == false
-                            || blobFile.primaryTerm() != latestBccTermAndGen.primaryTerm()
-                            || parseGenerationFromBlobName(blobFile.blobName()) != latestBccTermAndGen.generation()) {
-                            unreferencedBlobs.add(blobFile);
-                        }
-                    });
                 }
-            } else {
-                allBlobs.forEach((key, value) -> unreferencedBlobs.add(new BlobFile(blobContainerPrimaryTerm, key)));
+            }
+
+            if (latestBcc != null) {
+                final var latestBccTermAndGen = latestBcc.primaryTermAndGeneration();
+                allBlobs.forEach((key, value) -> {
+                    if (startsWithBlobPrefix(key)) {
+                        var blobFileTermAndGen = new PrimaryTermAndGeneration(
+                            blobContainerPrimaryTerm,
+                            StatelessCompoundCommit.parseGenerationFromBlobName(key)
+                        );
+                        if (blobFileTermAndGen.equals(latestBccTermAndGen) == false) {
+                            unreferencedBlobs.add(new BlobFile(key, blobFileTermAndGen));
+                        }
+                    } else {
+                        var blobFile = new BlobFile(key, new PrimaryTermAndGeneration(blobContainerPrimaryTerm, -1));
+                        unreferencedBlobs.add(blobFile);
+                    }
+                });
             }
         }
         final var finalUnreferencedBlobs = Set.copyOf(unreferencedBlobs);
@@ -572,13 +578,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
         if (logger.isTraceEnabled()) {
             logger.trace("found latest CC in [{}]: {}", blobContainer.path().buildAsString(), latestBcc.last().toLongDescription());
-        }
-    }
-
-    public static StatelessCompoundCommit readStatelessCompoundCommit(BlobContainer blobContainer, long generation) throws IOException {
-        String commitFileName = blobNameFromGeneration(generation);
-        try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, commitFileName))) {
-            return StatelessCompoundCommit.readFromStore(streamInput);
         }
     }
 

@@ -166,7 +166,12 @@ public class IndexDirectoryTests extends ESTestCase {
                     {
                         var fileName = randomFrom(filesSizes.keySet());
                         var totalSize = directory.estimateSizeInBytes();
-                        directory.updateCommit(2L, length, Set.of(fileName), Map.of(fileName, new BlobLocation(1L, "_blob", 0L, length)));
+                        directory.updateCommit(
+                            2L,
+                            length,
+                            Set.of(fileName),
+                            Map.of(fileName, new BlobLocation(1L, StatelessCompoundCommit.PREFIX + fileName.hashCode(), 0L, length))
+                        );
                         var fileLength = filesSizes.remove(fileName);
                         assertThat(directory.estimateSizeInBytes(), equalTo(totalSize - fileLength));
                     }
@@ -202,7 +207,10 @@ public class IndexDirectoryTests extends ESTestCase {
                             files.stream().map(Map.Entry::getKey).collect(Collectors.toSet()),
                             files.stream()
                                 .collect(
-                                    Collectors.toMap(Map.Entry::getKey, o -> new BlobLocation(1L, "blob_" + o.getKey(), 0L, o.getValue()))
+                                    Collectors.toMap(
+                                        Map.Entry::getKey,
+                                        o -> new BlobLocation(1L, StatelessCompoundCommit.PREFIX + o.getKey().hashCode(), 0L, o.getValue())
+                                    )
                                 )
                         );
                         files.forEach(file -> filesSizes.remove(file.getKey()));
@@ -429,7 +437,12 @@ public class IndexDirectoryTests extends ESTestCase {
 
     private static StatelessCompoundCommit createCommit(IndexDirectory directory, Set<String> files, long generation) {
         Map<String, BlobLocation> commitFiles = files.stream()
-            .collect(Collectors.toMap(Function.identity(), o -> new BlobLocation(1L, "blob_" + o, 0L, between(1, 100))));
+            .collect(
+                Collectors.toMap(
+                    Function.identity(),
+                    o -> new BlobLocation(1L, StatelessCompoundCommit.PREFIX + o.hashCode(), 0L, between(1, 100))
+                )
+            );
         return new StatelessCompoundCommit(
             directory.getBlobStoreCacheDirectory().getShardId(),
             generation,

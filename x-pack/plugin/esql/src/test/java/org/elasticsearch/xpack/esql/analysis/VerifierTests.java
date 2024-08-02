@@ -628,10 +628,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchInsideEval() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
         assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
     }
 
     public void testMatchFilter() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
         assertEquals(
             "1:63: MATCH requires a mapped index field, found [name]",
             error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")

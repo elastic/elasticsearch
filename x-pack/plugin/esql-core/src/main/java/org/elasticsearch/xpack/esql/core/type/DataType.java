@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -234,6 +235,9 @@ public enum DataType {
 
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
+        if (type == DATE_NANOS && EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
+            type = UNSUPPORTED;
+        }
         return type != null ? type : UNSUPPORTED;
     }
 

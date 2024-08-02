@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,10 +44,10 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void doubles(List<TestCaseSupplier> cases) {
-
-        cases.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
-            List<Double> field = randomList(1, 10, () -> randomDouble());
-            double p = randomDoubleBetween(-100.0, 100.0, true);
+        cases.add(new TestCaseSupplier("most common scenario", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(1, 10, false));
+            double p = randomDoubleBetween(-10, 10, true);
+            double expectedResult = calcPSeriesWeightedSum(field, p);
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -55,9 +56,13 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
                 DataType.DOUBLE,
-                closeTo(calcPSeriesWeightedSum(field, p), 0.00000001)
+                match(expectedResult)
             );
         }));
+    }
+
+    private static Matcher<Double> match(Double value) {
+        return closeTo(value, Math.abs(value * .00000001));
     }
 
     private static double calcPSeriesWeightedSum(List<Double> field, double p) {

@@ -2203,7 +2203,8 @@ public class Security extends Plugin
         }
 
         // Run this action in system context -- it was authorized upstream and should not be tied to end-user permissions
-        final ThreadContext ctx = threadContext.get();
+        final ThreadContext ctx = getClient().threadPool().getThreadContext();
+        assert ctx != null : "Thread context must be set for reload call";
         try (ThreadContext.StoredContext ignore = ctx.stashContext()) {
             ctx.markAsSystemContext();
             final PlainActionFuture<ActionResponse.Empty> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);

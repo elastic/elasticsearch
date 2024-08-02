@@ -96,8 +96,16 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), nullValue());
         }
-        expectThrows403(() -> performRequestWithUser("manage-security-user", request));
-        expectThrows403(() -> performRequestWithUser("monitor-user", request));
+        expectThrows403(() -> {
+            final Request innerRequest = new Request("POST", "/_nodes/reload_secure_settings");
+            innerRequest.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+            performRequestWithUser("manage-security-user", innerRequest);
+        });
+        expectThrows403(() -> {
+            final Request innerRequest = new Request("POST", "/_nodes/reload_secure_settings");
+            innerRequest.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+            performRequestWithUser("monitor-user", request);
+        });
     }
 
     @SuppressWarnings("unchecked")

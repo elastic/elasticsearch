@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.is;
 
 public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     public MvPSeriesWeightedSumTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -59,10 +60,77 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
                 match(expectedResult)
             );
         }));
+
+        cases.add(new TestCaseSupplier("values between 0 and 1", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(0, 1, true));
+            double p = randomDoubleBetween(-10, 10, true);
+            double expectedResult = calcPSeriesWeightedSum(field, p);
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
+                    new TestCaseSupplier.TypedData(p, DataType.DOUBLE, "p").forceLiteral()
+                ),
+                "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
+                DataType.DOUBLE,
+                match(expectedResult)
+            );
+        }));
+
+        cases.add(new TestCaseSupplier("values between -1 and 0", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(-1, 0, true));
+            double p = randomDoubleBetween(-10, 10, true);
+            double expectedResult = calcPSeriesWeightedSum(field, p);
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
+                    new TestCaseSupplier.TypedData(p, DataType.DOUBLE, "p").forceLiteral()
+                ),
+                "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
+                DataType.DOUBLE,
+                match(expectedResult)
+            );
+        }));
+
+        cases.add(new TestCaseSupplier("values between 1 and Double.MAX_VALUE", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(1, Double.MAX_VALUE, true));
+            double p = randomDoubleBetween(-10, 10, true);
+            double expectedResult = calcPSeriesWeightedSum(field, p);
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
+                    new TestCaseSupplier.TypedData(p, DataType.DOUBLE, "p").forceLiteral()
+                ),
+                "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
+                DataType.DOUBLE,
+                match(expectedResult)
+            );
+        }));
+
+        cases.add(new TestCaseSupplier("values between -Double.MAX_VALUE and 1", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDoubleBetween(-Double.MAX_VALUE, 1, true));
+            double p = randomDoubleBetween(-10, 10, true);
+            double expectedResult = calcPSeriesWeightedSum(field, p);
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field"),
+                    new TestCaseSupplier.TypedData(p, DataType.DOUBLE, "p").forceLiteral()
+                ),
+                "MvPSeriesWeightedSumDoubleEvaluator[block=Attribute[channel=0], p=" + p + "]",
+                DataType.DOUBLE,
+                match(expectedResult)
+            );
+        }));
     }
 
     private static Matcher<Double> match(Double value) {
-        return closeTo(value, Math.abs(value * .00000001));
+        if (Double.isFinite(value)) {
+            return closeTo(value, Math.abs(value * .00000001));
+        }
+        return is(value);
     }
 
     private static double calcPSeriesWeightedSum(List<Double> field, double p) {

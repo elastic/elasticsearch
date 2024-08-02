@@ -99,6 +99,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -2356,6 +2357,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    @Override
+    protected boolean enableBigArraysReleasedCheck() {
+        // checking that all big arrays have been released makes little sense for a still-running cluster, see comments in
+        // #ensureAllArraysAreReleased for details
+        return isSuiteScopedTest(getTestClass()) == false;
+    }
+
     @AfterClass
     public static void afterClass() throws Exception {
         try {
@@ -2364,6 +2372,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
+                MockBigArrays.ensureAllArraysAreReleased();
                 checkStaticState();
             }
         } finally {

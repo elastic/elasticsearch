@@ -363,6 +363,9 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
         SearchRequest searchRequest = makeSearchRequest(localIndex, REMOTE1 + ":" + remoteIndex);
+        // This works only with minimize_roundtrips enabled, since otherwise timed out shards will be counted as
+        // partial failure, and we disable partial results..
+        searchRequest.setCcsMinimizeRoundtrips(true);
 
         TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
         // query builder that will sleep for the specified amount of time in the query phase

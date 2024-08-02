@@ -56,6 +56,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-test {
+tasks.named("test").configure {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }

@@ -537,11 +537,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         indexDocs(indexName, totalDocs);
         refresh(indexName);
 
-        var searchNodeSettings = Settings.builder()
-            .put(cacheSettings)
-            .put(SharedBlobCacheWarmingService.STATELESS_BLOB_CACHE_WARMING_ALLOW_FETCH_FROM_INDEXING.getKey(), true)
-            .build();
-        var searchNode = startSearchNode(searchNodeSettings);
+        var searchNode = startSearchNode(cacheSettings);
         ensureStableCluster(3);
 
         // When upload is delayed, instantiate latch for seeing at least one request to the indexing node for getting VBCC chunks

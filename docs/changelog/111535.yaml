@@ -1,5 +1,5 @@
 pr: 111535
-summary: Fix reload secure settings privileges
+summary: Fix remote cluster credential secure settings reload
 area: Authorization
 type: bug
-issues: []
+issues: ["https://github.com/elastic/elasticsearch/issues/111543"]

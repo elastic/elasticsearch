@@ -78,6 +78,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_logs", false)
+            .user(MANAGE_USER, PASS.toString(), "manage_role", false)
             .build();
     }
 

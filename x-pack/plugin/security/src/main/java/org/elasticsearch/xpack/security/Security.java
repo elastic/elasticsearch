@@ -2202,13 +2202,18 @@ public class Security extends Plugin
             return;
         }
 
-        final PlainActionFuture<ActionResponse.Empty> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
-        getClient().execute(
-            ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
-            new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
-            future
-        );
-        future.actionGet();
+        // Run this action in system context -- it was authorized upstream and should not be tied to end-user permissions
+        final ThreadContext ctx = threadContext.get();
+        try (ThreadContext.StoredContext ignore = ctx.stashContext()) {
+            ctx.markAsSystemContext();
+            final PlainActionFuture<ActionResponse.Empty> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
+            getClient().execute(
+                ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
+                new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
+                future
+            );
+            future.actionGet();
+        }
     }
 
     public Map<String, String> getAuthContextForSlowLog() {

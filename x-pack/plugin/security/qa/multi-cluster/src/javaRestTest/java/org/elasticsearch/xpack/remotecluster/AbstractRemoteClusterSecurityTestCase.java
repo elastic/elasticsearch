@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.remotecluster;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -48,6 +49,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static final String USER = "test_user";
     protected static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());
     protected static final String REMOTE_SEARCH_USER = "remote_search_user";
+    protected static final String MANAGE_USER = "manage_user";
     protected static final String REMOTE_METRIC_USER = "remote_metric_user";
     protected static final String REMOTE_TRANSFORM_USER = "remote_transform_user";
     protected static final String REMOTE_SEARCH_ROLE = "remote_search";
@@ -220,7 +222,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     private void reloadSecureSettings() throws IOException {
         final Request request = new Request("POST", "/_nodes/reload_secure_settings");
         request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
-        final Response reloadResponse = adminClient().performRequest(request);
+        final Response reloadResponse = performRequestWithManageUser(request);
         assertOK(reloadResponse);
         final Map<String, Object> map = entityAsMap(reloadResponse);
         assertThat(map.get("nodes"), instanceOf(Map.class));
@@ -231,6 +233,11 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), nullValue());
         }
+    }
+
+    private Response performRequestWithManageUser(final Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_USER, PASS)));
+        return client().performRequest(request);
     }
 
     protected void putRemoteClusterSettings(

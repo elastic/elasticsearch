@@ -8,6 +8,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import fixture.azure.AzureHttpFixture;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +34,9 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
-        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
+        Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
+            ? AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT)
+            : AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE
     );
 
     private static TestTrustStore trustStore = new TestTrustStore(
@@ -65,6 +68,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
                 c.systemProperty("test.repository_test_kit.skip_cas", "true");
             }
         })
+        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
         .systemProperty(
             "javax.net.ssl.trustStore",
             () -> trustStore.getTrustStorePath().toString(),

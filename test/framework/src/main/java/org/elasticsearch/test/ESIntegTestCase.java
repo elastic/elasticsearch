@@ -23,6 +23,9 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -665,6 +668,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
             client = new RandomizingClient(client, random());
         }
         return client;
+    }
+
+    /**
+     * Execute the given {@link ActionRequest} using the given {@link ActionType} and a default node client, wait for it to complete with
+     * a timeout of {@link #SAFE_AWAIT_TIMEOUT}, and then return the result. An exceptional response, timeout or interrupt triggers a test
+     * failure.
+     */
+    public static <T extends ActionResponse> T safeExecute(ActionType<T> action, ActionRequest request) {
+        return safeExecute(client(), action, request);
     }
 
     public static Iterable<Client> clients() {

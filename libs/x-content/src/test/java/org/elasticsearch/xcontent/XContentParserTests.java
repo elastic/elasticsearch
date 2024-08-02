@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
@@ -70,6 +71,48 @@ public class XContentParserTests extends ESTestCase {
                 case VND_CBOR, VND_SMILE, CBOR, SMILE -> assertThat(number, instanceOf(Float.class));
                 case VND_JSON, VND_YAML, JSON, YAML -> assertThat(number, instanceOf(Double.class));
                 default -> throw new AssertionError("unexpected x-content type [" + xContentType + "]");
+            }
+        }
+    }
+
+    public void testLongCoercion() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+
+        String longValue1 = "5.5";
+        String longValue2 = "5e18";
+        String longValue3 = "2e100";
+        String longValue4 = "2e-100";
+
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            builder.field("decimal", longValue1);
+            builder.field("expInRange", longValue2);
+            builder.field("expTooBig", longValue3);
+            builder.field("expTooSmall", longValue4);
+            builder.endObject();
+
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+                assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
+
+                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+                assertThat(parser.currentName(), is("decimal"));
+                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+                assertThat(parser.longValue(), equalTo(5L));
+
+                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+                assertThat(parser.currentName(), is("expInRange"));
+                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+                assertThat(parser.longValue(), equalTo((long) 5e18));
+
+                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+                assertThat(parser.currentName(), is("expTooBig"));
+                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+                expectThrows(IllegalArgumentException.class, parser::longValue);
+
+                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+                assertThat(parser.currentName(), is("expTooSmall"));
+                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+                expectThrows(IllegalArgumentException.class, parser::longValue);
             }
         }
     }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.response.huggingface;
 
-
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
@@ -310,7 +309,10 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             )
         );
 
-        assertThat(thrownException.getCause().getMessage(), containsString("expected close marker for Array (start marker at [Source: (byte[])"));
+        assertThat(
+            thrownException.getCause().getMessage(),
+            containsString("expected close marker for Array (start marker at [Source: (byte[])")
+        );
     }
 
     public void testFails_ResponseIsInvalidJson_MissingField() {

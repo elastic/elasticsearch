@@ -1357,13 +1357,20 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 1,
                 2,
                 "xx",
-                Map.of("segments_2", new BlobLocation(new BlobFile(2, StatelessCompoundCommit.blobNameFromGeneration(1)), 12, 12)),
+                Map.of(
+                    "segments_2",
+                    new BlobLocation(
+                        new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(2, 1)),
+                        12,
+                        12
+                    )
+                ),
                 10,
                 Set.of("segments_2")
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)
-                .mapToObj(i -> new BlobFile(1, StatelessCompoundCommit.blobNameFromGeneration(i)))
+                .mapToObj(i -> new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(i), new PrimaryTermAndGeneration(1, i)))
                 .collect(Collectors.toSet());
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,

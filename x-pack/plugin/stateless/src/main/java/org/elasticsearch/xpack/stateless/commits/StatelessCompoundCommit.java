@@ -263,7 +263,7 @@ public record StatelessCompoundCommit(
     static final int CURRENT_VERSION = VERSION_WITH_XCONTENT_ENCODING;
 
     public static StatelessCompoundCommit readFromStore(StreamInput in) throws IOException {
-        return readFromStoreAtOffset(in, 0, StatelessCompoundCommit::blobNameFromGeneration);
+        return readFromStoreAtOffset(in, 0, Function.identity());
     }
 
     private static final Logger logger = LogManager.getLogger(StatelessCompoundCommit.class);
@@ -275,9 +275,9 @@ public record StatelessCompoundCommit(
      * referring to the compound commit at the given offset within the {@link BatchedCompoundCommit}.
      * @param in the input stream to read from
      * @param offset the offset within the blob where this compound commit header starts
-     * @param blobNameSupplier a function that provides the blob name where this compound commit is stored
+     * @param bccGenSupplier a function that gives the generation of the batched compound commit blob where this compound commit is stored
      */
-    public static StatelessCompoundCommit readFromStoreAtOffset(StreamInput in, long offset, Function<Long, String> blobNameSupplier)
+    public static StatelessCompoundCommit readFromStoreAtOffset(StreamInput in, long offset, Function<Long, Long> bccGenSupplier)
         throws IOException {
         try (BufferedChecksumStreamInput input = new BufferedChecksumStreamInput(in, SHARD_COMMIT_CODEC)) {
             int version = CodecUtil.checkHeader(
@@ -321,7 +321,7 @@ public record StatelessCompoundCommit(
                     offset,
                     headerSize,
                     totalSizeInBytes,
-                    blobNameSupplier
+                    bccGenSupplier
                 );
             } else {
                 assert version == VERSION_WITH_XCONTENT_ENCODING;
@@ -335,7 +335,7 @@ public record StatelessCompoundCommit(
 
                 // codec header + serialized header size + checksum + header content + checksum
                 var headerSize = CodecUtil.headerLength(SHARD_COMMIT_CODEC) + 4 + 4 + xContentLength + 4;
-                return readXContentHeader(new BytesArray(bytes).streamInput(), headerSize, offset, blobNameSupplier);
+                return readXContentHeader(new BytesArray(bytes).streamInput(), headerSize, offset, bccGenSupplier);
             }
         } catch (Exception e) {
             throw new IOException("Failed to read shard commit", e);
@@ -360,7 +360,7 @@ public record StatelessCompoundCommit(
         StreamInput is,
         long headerSize,
         long offset,
-        Function<Long, String> blobNameSupplier
+        Function<Long, Long> bccGenSupplier
     ) throws IOException {
         record XContentStatelessCompoundCommit(
             ShardId shardId,
@@ -415,7 +415,7 @@ public record StatelessCompoundCommit(
                 offset,
                 headerSize,
                 totalSizeInBytes,
-                blobNameSupplier
+                bccGenSupplier
             );
         }
     }
@@ -431,12 +431,12 @@ public record StatelessCompoundCommit(
         long internalFilesOffset,
         long headerSizeInBytes,
         long totalSizeInBytes,
-        Function<Long, String> blobNameSupplier
+        Function<Long, Long> bccGenSupplier
     ) {
-        String commitFileName = blobNameSupplier.apply(generation);
+        PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
+        var blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
         Map<String, BlobLocation> commitFiles = combineCommitFiles(
-            commitFileName,
-            primaryTerm,
+            blobFile,
             internalFiles,
             referencedBlobLocations,
             internalFilesOffset,
@@ -457,8 +457,7 @@ public record StatelessCompoundCommit(
     // to one map of commit file locations.
     // visible for testing
     static Map<String, BlobLocation> combineCommitFiles(
-        String blobName,
-        long primaryTerm,
+        BlobFile blobFile,
         List<InternalFile> internalFiles,
         Map<String, BlobLocation> referencedBlobFiles,
         long internalFilesOffset,
@@ -469,7 +468,7 @@ public record StatelessCompoundCommit(
 
         long currentOffset = internalFilesOffset + headerSizeInBytes;
         for (InternalFile internalFile : internalFiles) {
-            commitFiles.put(internalFile.name(), new BlobLocation(primaryTerm, blobName, currentOffset, internalFile.length()));
+            commitFiles.put(internalFile.name(), new BlobLocation(blobFile, currentOffset, internalFile.length()));
             currentOffset += internalFile.length();
         }
 

@@ -182,7 +182,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testAliasFilter() throws Exception {
-        for (var index : List.of("first-alias", "first-alias,index-user1", "first-*,index-")) {
+        for (var index : List.of("first-alias", "first-alias,index-user1", "first-alias,index-*", "first-*,index-*")) {
             Response resp = runESQLCommand("alias_user1", "from " + index + " METADATA _index" + "| KEEP _index, org, value | LIMIT 10");
             assertOK(resp);
             Map<String, Object> respMap = entityAsMap(resp);

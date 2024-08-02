@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.response.huggingface;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;

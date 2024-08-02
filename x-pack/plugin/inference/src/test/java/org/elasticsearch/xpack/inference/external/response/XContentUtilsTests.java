@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.response;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;

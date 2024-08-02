@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -672,6 +674,36 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             }
             assertHistoryIsPresent(policyName, true, repo, DELETE_OPERATION);
         }, 60, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetIntervalSchedule() throws Exception {
+        final String indexName = "index-1";
+        final String policyName = "policy-1";
+        final String repoId = "repo-1";
+
+        initializeRepo(repoId);
+
+        var schedule = "30m";
+        var now = Instant.now();
+        createSnapshotPolicy(policyName, "snap", schedule, repoId, indexName, true);
+
+        assertBusy(() -> {
+            Request getReq = new Request("GET", "/_slm/policy/" + policyName);
+            Response policyMetadata = client().performRequest(getReq);
+            Map<String, Object> policyResponseMap;
+            try (InputStream is = policyMetadata.getEntity().getContent()) {
+                policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            }
+
+            Map<String, Object> policyMetadataMap = (Map<String, Object>) policyResponseMap.get(policyName);
+            Long nextExecutionMillis = (Long) policyMetadataMap.get("next_execution_millis");
+            assertNotNull(nextExecutionMillis);
+
+            Instant nextExecution = Instant.ofEpochMilli(nextExecutionMillis);
+            assertTrue(nextExecution.isAfter(now.plus(Duration.ofMinutes(29))));
+            assertTrue(nextExecution.isBefore(now.plus(Duration.ofMinutes(31))));
+        });
     }
 
     public Map<String, Object> getLocation(String path) {

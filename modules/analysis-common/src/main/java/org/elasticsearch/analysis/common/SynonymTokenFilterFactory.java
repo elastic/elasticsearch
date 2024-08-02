@@ -31,32 +31,79 @@ import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
+
     protected enum SynonymsSource {
-        INLINE("synonyms", SynonymTokenFilterFactory::getRulesReaderInline),
-        INDEX("synonyms_set", SynonymTokenFilterFactory::getRulesReaderIndex),
-        LOCAL_FILE("synonyms_path", SynonymTokenFilterFactory::getRulesReaderLocalFile);
+        INLINE("synonyms") {
+            @Override
+            public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+                List<String> rulesList = Analysis.getWordList(
+                    factory.environment,
+                    factory.settings,
+                    SynonymsSource.INLINE.getSettingName()
+                );
+                StringBuilder sb = new StringBuilder();
+                for (String line : rulesList) {
+                    sb.append(line).append(System.lineSeparator());
+                }
+                return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + factory.name() + "' analyzer settings");
+            }
+        },
+        INDEX("synonyms_set") {
+            @Override
+            public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+                if (factory.analysisMode != AnalysisMode.SEARCH_TIME) {
+                    throw new IllegalArgumentException(
+                        "Can't apply ["
+                            + SynonymsSource.INDEX.getSettingName()
+                            + "]! Loading synonyms from index is supported only for search time synonyms!"
+                    );
+                }
+                String synonymsSet = factory.settings.get(SynonymsSource.INDEX.getSettingName(), null);
+                // provide empty synonyms on index creation and index metadata checks to ensure that we
+                // don't block a master thread
+                ReaderWithOrigin reader;
+                if (context != IndexCreationContext.RELOAD_ANALYZERS) {
+                    reader = new ReaderWithOrigin(
+                        new StringReader(""),
+                        "fake empty [" + synonymsSet + "] synonyms_set in .synonyms index",
+                        synonymsSet
+                    );
+                } else {
+                    reader = new ReaderWithOrigin(
+                        Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService),
+                        "[" + synonymsSet + "] synonyms_set in .synonyms index",
+                        synonymsSet
+                    );
+                }
+
+                return reader;
+            }
+        },
+        LOCAL_FILE("synonyms_path") {
+            @Override
+            public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+                String synonymsPath = factory.settings.get(SynonymsSource.LOCAL_FILE.getSettingName(), null);
+                return new ReaderWithOrigin(
+                    // Pass the inline setting name because "_path" is appended by getReaderFromFile
+                    Analysis.getReaderFromFile(factory.environment, synonymsPath, SynonymsSource.INLINE.getSettingName()),
+                    synonymsPath
+                );
+            }
+        };
 
         private final String settingName;
-        private final BiFunction<SynonymTokenFilterFactory, IndexCreationContext, ReaderWithOrigin> rulesReaderProvider;
 
-        SynonymsSource(
-            String settingName,
-            BiFunction<SynonymTokenFilterFactory, IndexCreationContext, ReaderWithOrigin> rulesReaderProvider
-        ) {
+        SynonymsSource(String settingName) {
             this.settingName = settingName;
-            this.rulesReaderProvider = rulesReaderProvider;
         }
+
+        public abstract ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context);
 
         public String getSettingName() {
             return settingName;
-        }
-
-        public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
-            return rulesReaderProvider.apply(factory, context);
         }
 
         public static SynonymsSource fromSettings(Settings settings) {
@@ -211,52 +258,5 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         ReaderWithOrigin(Reader reader, String origin) {
             this(reader, origin, null);
         }
-    }
-
-    private static ReaderWithOrigin getRulesReaderInline(SynonymTokenFilterFactory factory, IndexCreationContext context) {
-        List<String> rulesList = Analysis.getWordList(factory.environment, factory.settings, SynonymsSource.INLINE.getSettingName());
-        StringBuilder sb = new StringBuilder();
-        for (String line : rulesList) {
-            sb.append(line).append(System.lineSeparator());
-        }
-        return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + factory.name() + "' analyzer settings");
-    }
-
-    private static ReaderWithOrigin getRulesReaderIndex(SynonymTokenFilterFactory factory, IndexCreationContext context) {
-        if (factory.analysisMode != AnalysisMode.SEARCH_TIME) {
-            throw new IllegalArgumentException(
-                "Can't apply ["
-                    + SynonymsSource.INDEX.getSettingName()
-                    + "]! Loading synonyms from index is supported only for search time synonyms!"
-            );
-        }
-        String synonymsSet = factory.settings.get(SynonymsSource.INDEX.getSettingName(), null);
-        // provide empty synonyms on index creation and index metadata checks to ensure that we
-        // don't block a master thread
-        ReaderWithOrigin reader;
-        if (context != IndexCreationContext.RELOAD_ANALYZERS) {
-            reader = new ReaderWithOrigin(
-                new StringReader(""),
-                "fake empty [" + synonymsSet + "] synonyms_set in .synonyms index",
-                synonymsSet
-            );
-        } else {
-            reader = new ReaderWithOrigin(
-                Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService),
-                "[" + synonymsSet + "] synonyms_set in .synonyms index",
-                synonymsSet
-            );
-        }
-
-        return reader;
-    }
-
-    private static ReaderWithOrigin getRulesReaderLocalFile(SynonymTokenFilterFactory factory, IndexCreationContext context) {
-        String synonymsPath = factory.settings.get(SynonymsSource.LOCAL_FILE.getSettingName(), null);
-        return new ReaderWithOrigin(
-            // Pass the inline setting name because "_path" is appended by getReaderFromFile
-            Analysis.getReaderFromFile(factory.environment, synonymsPath, SynonymsSource.INLINE.getSettingName()),
-            synonymsPath
-        );
     }
 }

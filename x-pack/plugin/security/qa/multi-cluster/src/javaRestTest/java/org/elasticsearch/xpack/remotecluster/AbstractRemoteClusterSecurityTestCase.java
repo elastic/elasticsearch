@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.remotecluster;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -54,7 +53,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static final String REMOTE_TRANSFORM_USER = "remote_transform_user";
     protected static final String REMOTE_SEARCH_ROLE = "remote_search";
     protected static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
-    private static final String KEYSTORE_PASSWORD = "keystore-password";
+    static final String KEYSTORE_PASSWORD = "keystore-password";
 
     protected static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("analysis-common")
         .keystorePassword(KEYSTORE_PASSWORD)
@@ -219,10 +218,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     @SuppressWarnings("unchecked")
-    private void reloadSecureSettings() throws IOException {
+    protected void reloadSecureSettings() throws IOException {
         final Request request = new Request("POST", "/_nodes/reload_secure_settings");
         request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
-        final Response reloadResponse = performRequestWithManageUser(request);
+        final Response reloadResponse = adminClient().performRequest(request);
         assertOK(reloadResponse);
         final Map<String, Object> map = entityAsMap(reloadResponse);
         assertThat(map.get("nodes"), instanceOf(Map.class));
@@ -233,11 +232,6 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), nullValue());
         }
-    }
-
-    private Response performRequestWithManageUser(final Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_USER, PASS)));
-        return client().performRequest(request);
     }
 
     protected void putRemoteClusterSettings(

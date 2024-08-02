@@ -346,14 +346,8 @@ public class ComputeService {
                     refs.acquire().delegateFailureAndWrap((l, unused) -> {
                         var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, cluster.connection);
                         exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                        var clusterRequest = new ClusterComputeRequest(
-                            cluster.clusterAlias,
-                            sessionId,
-                            configuration,
-                            plan,
-                            cluster.concreteIndices,
-                            cluster.originalIndices
-                        );
+                        var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
+                        var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, sessionId, configuration, remotePlan);
                         var clusterListener = ActionListener.runBefore(computeListener.acquireCompute(), () -> l.onResponse(null));
                         transportService.sendChildRequest(
                             cluster.connection,
@@ -757,8 +751,10 @@ public class ComputeService {
         @Override
         public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
             ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
-            if (request.plan() instanceof ExchangeSinkExec == false) {
-                listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
+            RemoteClusterPlan remoteClusterPlan = request.remoteClusterPlan();
+            var plan = remoteClusterPlan.plan();
+            if (plan instanceof ExchangeSinkExec == false) {
+                listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
                 return;
             }
             try (var computeListener = new ComputeListener(transportService, (CancellableTask) task, listener)) {
@@ -767,9 +763,9 @@ public class ComputeService {
                     request.sessionId(),
                     (CancellableTask) task,
                     request.configuration(),
-                    (ExchangeSinkExec) request.plan(),
-                    Set.of(request.targetIndices()),
-                    request.originalIndices(),
+                    (ExchangeSinkExec) plan,
+                    Set.of(remoteClusterPlan.targetIndices()),
+                    remoteClusterPlan.originalIndices(),
                     computeListener
                 );
             }

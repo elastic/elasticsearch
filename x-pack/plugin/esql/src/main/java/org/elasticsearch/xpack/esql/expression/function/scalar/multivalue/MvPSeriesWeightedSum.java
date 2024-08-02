@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -37,8 +38,9 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the P series function.
@@ -89,14 +91,16 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             return resolution;
         }
 
-        resolution = TypeResolutions.isType(p, dt -> dt == DOUBLE, sourceText(), SECOND, "double")
-            .and(isNotNullAndFoldable(p, sourceText(), SECOND));
-
+        resolution = TypeResolutions.isType(p, dt -> dt == DOUBLE, sourceText(), SECOND, "double");
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return resolution;
+        if (p.dataType() == NULL) {
+            return resolution;
+        }
+
+        return isFoldable(p, sourceText(), SECOND);
     }
 
     @Override
@@ -130,6 +134,9 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
 
     @Override
     public DataType dataType() {
+        if (p.dataType() == NULL) {
+            return NULL;
+        }
         return field.dataType();
     }
 
@@ -139,7 +146,8 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         int position,
         DoubleBlock block,
         @Fixed(includeInToString = false, build = true) CompensatedSum sum,
-        @Fixed double p
+        @Fixed double p,
+        Warnings warnings
     ) {
         sum.reset(0, 0);
         int start = block.getFirstValueIndex(position);
@@ -149,7 +157,12 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             double current_score = block.getDouble(i) / Math.pow(i - start + 1, p);
             sum.add(current_score);
         }
-        builder.appendDouble(sum.value());
+        if (Double.isFinite(sum.value())) {
+            builder.appendDouble(sum.value());
+        } else {
+            builder.appendNull();
+            warnings.registerException(new ArithmeticException("double overflow"));
+        }
     }
 
     @Override

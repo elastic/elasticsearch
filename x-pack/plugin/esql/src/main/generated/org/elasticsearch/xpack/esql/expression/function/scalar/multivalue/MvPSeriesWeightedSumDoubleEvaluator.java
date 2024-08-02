@@ -59,7 +59,7 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
           result.appendNull();
           continue position;
         }
-        MvPSeriesWeightedSum.process(result, p, blockBlock, this.sum, this.p);
+        MvPSeriesWeightedSum.process(result, p, blockBlock, this.sum, this.p, this.warnings);
       }
       return result.build();
     }

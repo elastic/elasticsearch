@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,11 +42,6 @@ public class ETests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new E(Source.EMPTY);
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assertThat(((DoubleBlock) value).asVector().getDouble(0), equalTo(Math.E));
     }
 
     @Override

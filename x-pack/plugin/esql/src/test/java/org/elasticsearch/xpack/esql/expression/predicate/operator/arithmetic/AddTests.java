@@ -30,7 +30,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

@@ -4080,7 +4080,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (shardFieldStats == null || didRefresh) {
-                try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL, Function.identity())) {
+                try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
                     int numSegments = 0;
                     int totalFields = 0;
                     for (LeafReaderContext leaf : searcher.getLeafContexts()) {

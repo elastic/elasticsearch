@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.response;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentEOFException;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -100,11 +101,11 @@ public class XContentUtilsTests extends ESTestCase {
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
             var exception = expectThrows(
-                XContentEOFException.class,
+                XContentParseException.class,
                 () -> XContentUtils.positionParserAtTokenAfterField(parser, missingField, errorFormat)
             );
 
-            assertThat(exception.getMessage(), containsString("Unexpected end-of-input"));
+            assertThat(exception.getCause().getMessage(), containsString("Unexpected end-of-input"));
         }
     }
 

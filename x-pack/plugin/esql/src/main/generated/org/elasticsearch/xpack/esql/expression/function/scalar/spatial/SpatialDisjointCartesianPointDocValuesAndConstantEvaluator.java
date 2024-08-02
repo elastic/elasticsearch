@@ -67,7 +67,7 @@ public final class SpatialDisjointCartesianPointDocValuesAndConstantEvaluator im
           continue position;
         }
         try {
-          result.appendBoolean(SpatialDisjoint.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValue));
+          result.appendBoolean(SpatialDisjoint.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -81,7 +81,7 @@ public final class SpatialDisjointCartesianPointDocValuesAndConstantEvaluator im
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialDisjoint.processCartesianPointDocValuesAndConstant(leftValueVector.getLong(p), rightValue));
+          result.appendBoolean(SpatialDisjoint.processCartesianPointDocValuesAndConstant(leftValueVector.getLong(p), this.rightValue));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();

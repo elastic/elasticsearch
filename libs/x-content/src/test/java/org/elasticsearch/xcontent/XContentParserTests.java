@@ -109,10 +109,11 @@ public class XContentParserTests extends ESTestCase {
                 assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
                 expectThrows(IllegalArgumentException.class, parser::longValue);
 
+                // too small goes to zero
                 assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.currentName(), is("expTooSmall"));
                 assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-                expectThrows(IllegalArgumentException.class, parser::longValue);
+                assertThat(parser.longValue(), equalTo(0L));
             }
         }
     }

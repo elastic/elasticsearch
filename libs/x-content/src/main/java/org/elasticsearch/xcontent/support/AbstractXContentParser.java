@@ -168,10 +168,20 @@ public abstract class AbstractXContentParser implements XContentParser {
         try {
             final BigDecimal bigDecimalValue = new BigDecimal(stringValue);
             // long can have a maximum of 19 digits - any more than that cannot be a long
-            if (Math.abs(bigDecimalValue.scale()) > 19) {
+            // the scale is stored as the negation, so negative scale -> big number
+            if (bigDecimalValue.scale() < -19) {
                 throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
             }
-            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+            // large scale -> very small number
+            if (bigDecimalValue.scale() > 19) {
+                if (coerce) {
+                    bigIntegerValue = BigInteger.ZERO;
+                } else {
+                    throw new ArithmeticException("Number has a decimal part");
+                }
+            } else {
+                bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+            }
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
         } catch (NumberFormatException e) {

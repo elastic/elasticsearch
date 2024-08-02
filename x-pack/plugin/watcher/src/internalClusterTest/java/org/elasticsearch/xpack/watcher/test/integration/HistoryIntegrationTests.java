@@ -271,7 +271,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
         {
             /*
-             * The input for this watch is 500 MB, much bigger than the configured 100 KB of HistoryStore's MAX_HISTORY_SIZE_SETTING. So we
+             * The input for this watch is 500 KB, much bigger than the configured 100 KB of HistoryStore's MAX_HISTORY_SIZE_SETTING. So we
              * expect to see its history record truncated before being stored.
              */
             new PutWatchRequestBuilder(client()).setId("test_watch_large")

@@ -1136,12 +1136,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = SearchResponseUtils.getTotalHitsValue(
-                        prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery())
-                    );
-                    if (count == lastKnownCount) {
-                        // no progress - try to refresh for the next time
+                    long count = getTotalHitsAllIndices();
+                    if (count < lastKnownCount) {
+                        // not caught up - try to refresh
                         indicesAdmin().prepareRefresh().get();
+                        count = getTotalHitsAllIndices();
                     }
                     lastKnownCount = count;
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
@@ -1160,6 +1159,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    private static long getTotalHitsAllIndices() {
+        return SearchResponseUtils.getTotalHitsValue(prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery()));
     }
 
     public static SearchRequestBuilder prepareSearch(String... indices) {

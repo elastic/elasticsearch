@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.MaxBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;

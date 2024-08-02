@@ -590,7 +590,9 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {
-        GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot).get();
+        GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repository)
+            .setSnapshots(snapshot)
+            .get();
         return snapshotsStatusResponse.getSnapshots().get(0);
     }
 

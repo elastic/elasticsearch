@@ -56,8 +56,6 @@ public class JsonXContentParser extends AbstractXContentParser {
     public Token nextToken() throws IOException {
         try {
             return convertToken(parser.nextToken());
-        } catch (JsonEOFException e) {
-            throw new XContentEOFException(e);
         } catch (JsonParseException e) {
             throw newXContentParseException(e);
         }

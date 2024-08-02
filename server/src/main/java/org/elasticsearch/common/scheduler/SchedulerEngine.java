@@ -39,57 +39,13 @@ import java.util.concurrent.TimeUnit;
  */
 public class SchedulerEngine {
 
-    public static class Job {
-        private final String id;
-        private final Schedule schedule;
-        private final Long startTime;
-
+    public record Job(String id, Schedule schedule, Long startTime) {
         public Job(String id, Schedule schedule) {
             this(id, schedule, null);
         }
-
-        public Job(String id, Schedule schedule, Long startTime) {
-            this.id = id;
-            this.schedule = schedule;
-            this.startTime = startTime;
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        public Schedule getSchedule() {
-            return schedule;
-        }
-
-        public Long getStartTime() {
-            return startTime;
-        }
     }
 
-    public static class Event {
-        private final String jobName;
-        private final long triggeredTime;
-        private final long scheduledTime;
-
-        public Event(String jobName, long triggeredTime, long scheduledTime) {
-            this.jobName = jobName;
-            this.triggeredTime = triggeredTime;
-            this.scheduledTime = scheduledTime;
-        }
-
-        public String getJobName() {
-            return jobName;
-        }
-
-        public long getTriggeredTime() {
-            return triggeredTime;
-        }
-
-        public long getScheduledTime() {
-            return scheduledTime;
-        }
-
+    public record Event(String jobName, long triggeredTime, long scheduledTime) {
         @Override
         public String toString() {
             return "Event[jobName=" + jobName + "," + "triggeredTime=" + triggeredTime + "," + "scheduledTime=" + scheduledTime + "]";
@@ -169,13 +125,13 @@ public class SchedulerEngine {
     }
 
     public void add(Job job) {
-        final long startTime = job.getStartTime() == null ? clock.millis() : job.getStartTime();
-        ActiveSchedule schedule = new ActiveSchedule(job.getId(), job.getSchedule(), startTime);
+        final long startTime = job.startTime() == null ? clock.millis() : job.startTime();
+        ActiveSchedule schedule = new ActiveSchedule(job.id(), job.schedule(), startTime);
         schedules.compute(schedule.name, (name, previousSchedule) -> {
             if (previousSchedule != null) {
                 previousSchedule.cancel();
             }
-            logger.debug(() -> "added job [" + job.getId() + "]");
+            logger.debug(() -> "added job [" + job.id() + "]");
             return schedule;
         });
     }

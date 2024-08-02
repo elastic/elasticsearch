@@ -15,9 +15,39 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class RegisteredPolicySnapshotsSerializationTests extends AbstractChunkedSerializingTestCase<RegisteredPolicySnapshots> {
+    public void testMaybeAdd() {
+        {
+            RegisteredPolicySnapshots.Builder builder = new RegisteredPolicySnapshots.Builder(RegisteredPolicySnapshots.EMPTY);
+            var snap = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+
+            builder.maybeAdd(null, snap);
+            builder.maybeAdd(Map.of(), snap);
+            builder.maybeAdd(Map.of("not_policy", "policy-10"), snap);
+            builder.maybeAdd(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, 5), snap);
+
+            // immutable map in Map.of doesn't allows nulls
+            var meta = new HashMap<String, Object>();
+            meta.put(SnapshotsService.POLICY_ID_METADATA_FIELD, null);
+            builder.maybeAdd(meta, snap);
+
+            RegisteredPolicySnapshots registered = builder.build();
+            assertTrue(registered.getSnapshots().isEmpty());
+        }
+
+        {
+            RegisteredPolicySnapshots.Builder builder = new RegisteredPolicySnapshots.Builder(RegisteredPolicySnapshots.EMPTY);
+            var snap = new SnapshotId(randomAlphaOfLength(10), randomUUID());
+            builder.maybeAdd(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, "cheddar"), snap);
+            RegisteredPolicySnapshots registered = builder.build();
+            assertEquals(List.of(new RegisteredPolicySnapshots.PolicySnapshot("cheddar", snap)), registered.getSnapshots());
+        }
+    }
+
     @Override
     protected RegisteredPolicySnapshots doParseInstance(XContentParser parser) throws IOException {
         return RegisteredPolicySnapshots.parse(parser);

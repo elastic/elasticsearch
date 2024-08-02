@@ -126,6 +126,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
         } else {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
             builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
         }
         builder.field(TaskType.NAME, taskType.toString());
@@ -142,6 +143,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
         } else {
+            builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
             builder.field(INFERENCE_ID_FIELD_NAME, inferenceEntityId);
         }
         builder.field(TaskType.NAME, taskType.toString());

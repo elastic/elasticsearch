@@ -224,11 +224,11 @@ class S3BlobStore implements BlobStore {
                 return;
             }
 
-            final long totalTimeInMicros = getTotalTimeInMicros(requestTimesIncludingRetries);
-            if (totalTimeInMicros == 0) {
+            final long totalTimeInMillis = getTotalTimeInMillis(requestTimesIncludingRetries);
+            if (totalTimeInMillis == 0) {
                 logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
             } else {
-                s3RepositoriesMetrics.common().httpRequestTimeInMicroHistogram().record(totalTimeInMicros, attributes);
+                s3RepositoriesMetrics.common().httpRequestTimeInMillisHistogram().record(totalTimeInMillis, attributes);
             }
         }
 
@@ -271,18 +271,19 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static long getTotalTimeInMicros(List<TimingInfo> requestTimesIncludingRetries) {
-        // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
-        // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
-        // using the default double exposed by getTimeTakenMillisIfKnown().
-        long totalTimeInMicros = 0;
+    private static long getTotalTimeInMillis(List<TimingInfo> requestTimesIncludingRetries) {
+        // Here we calculate the timing in Milliseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
+        // (time to first byte). We calculate the time in millis for later use with an APM style counter (exposed as a long), rather than
+        // using the default double exposed by getTimeTakenMillisIfKnown(). We don't need sub-millisecond precision. So no need perform
+        // the data type castings.
+        long totalTimeInMillis = 0;
         for (TimingInfo timingInfo : requestTimesIncludingRetries) {
             var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
             if (endTimeInNanos != null) {
-                totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
+                totalTimeInMillis += TimeUnit.NANOSECONDS.toMillis(endTimeInNanos - timingInfo.getStartTimeNano());
             }
         }
-        return totalTimeInMicros;
+        return totalTimeInMillis;
     }
 
     @Override

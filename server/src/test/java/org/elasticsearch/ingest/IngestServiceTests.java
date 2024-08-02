@@ -50,9 +50,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -1175,20 +1176,19 @@ public class IngestServiceTests extends ESTestCase {
         AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingProvider documentParsingProvider = new DocumentParsingProvider() {
             @Override
-            public <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
-                return new DocumentSizeObserver() {
+            public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
+                return new XContentMeteringParserDecorator() {
                     @Override
-                    public XContentParser wrapParser(XContentParser xContentParser) {
+                    public ParsedDocument.DocumentSize meteredDocumentSize() {
+                        parsedValueWasUsed.incrementAndGet();
+                        return new ParsedDocument.DocumentSize(0, 0);
+                    }
+
+                    @Override
+                    public XContentParser decorate(XContentParser xContentParser) {
                         wrappedObserverWasUsed.incrementAndGet();
                         return xContentParser;
                     }
-
-                    @Override
-                    public long normalisedBytesParsed() {
-                        parsedValueWasUsed.incrementAndGet();
-                        return 0;
-                    }
-
                 };
             }
         };

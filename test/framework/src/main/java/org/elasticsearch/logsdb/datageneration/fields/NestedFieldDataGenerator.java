@@ -13,21 +13,39 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 public class NestedFieldDataGenerator implements FieldDataGenerator {
-    private final GenericSubObjectFieldDataGenerator delegate;
+    private final Context context;
+    private final List<GenericSubObjectFieldDataGenerator.ChildField> childFields;
 
-    public NestedFieldDataGenerator(Context context) {
-        this.delegate = new GenericSubObjectFieldDataGenerator(context);
+    NestedFieldDataGenerator(Context context) {
+        this.context = context;
+        var genericGenerator = new GenericSubObjectFieldDataGenerator(context);
+        this.childFields = genericGenerator.generateChildFields();
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> mappingWriter() {
-        return delegate.mappingWriter(b -> b.field("type", "nested"));
+        return b -> {
+            b.startObject();
+
+            b.field("type", "nested");
+
+            b.startObject("properties");
+            GenericSubObjectFieldDataGenerator.writeChildFieldsMapping(b, childFields);
+            b.endObject();
+
+            b.endObject();
+        };
     }
 
     @Override
     public CheckedConsumer<XContentBuilder, IOException> fieldValueGenerator() {
-        return delegate.fieldValueGenerator();
+        CheckedConsumer<XContentBuilder, IOException> objectWriter = object -> GenericSubObjectFieldDataGenerator.writeSingleObject(
+            object,
+            childFields
+        );
+        return b -> GenericSubObjectFieldDataGenerator.writeObjectsData(b, context, objectWriter);
     }
 }

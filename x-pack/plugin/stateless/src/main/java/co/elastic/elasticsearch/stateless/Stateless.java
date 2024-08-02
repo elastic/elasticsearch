@@ -878,7 +878,6 @@ public class Stateless extends Plugin
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
             BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING,
-            SharedBlobCacheWarmingService.STATELESS_BLOB_CACHE_WARMING_ALLOW_FETCH_FROM_INDEXING,
             StatelessClusterStateCleanupService.CLUSTER_STATE_CLEANUP_DELAY_SETTING,
             StatelessClusterStateCleanupService.RETRY_TIMEOUT_SETTING,
             StatelessClusterStateCleanupService.RETRY_INITIAL_DELAY_SETTING,

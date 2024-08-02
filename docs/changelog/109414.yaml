@@ -1,5 +1,5 @@
 pr: 109414
-summary: Don't trip circuit breakers for retention lease sync actions
+summary: Don't fail retention lease sync actions due to capacity constraints
 area: CRUD
 type: bug
 issues:

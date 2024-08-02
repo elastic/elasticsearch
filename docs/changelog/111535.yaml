@@ -1,0 +1,5 @@
+pr: 111535
+summary: Fix reload secure settings privileges
+area: Authorization
+type: bug
+issues: []

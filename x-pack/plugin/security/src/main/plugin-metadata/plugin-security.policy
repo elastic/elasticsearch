@@ -17,8 +17,8 @@ grant {
   permission java.security.SecurityPermission "org.apache.xml.security.register";
 
   // gson, as included & shaded by nimbus. I think these can be moved out
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  //permission java.lang.RuntimePermission "accessDeclaredMembers";
+  //permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
 
   // needed for multiple server implementations used in tests

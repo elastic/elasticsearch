@@ -262,6 +262,7 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
             }, ex -> {
                 AtomicReference<String> msg = new AtomicReference<>();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJWTClaimsSet();
                     msg.set(
                         "Realm ["
                             + name()
@@ -270,7 +271,11 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
                             + "] with header ["
                             + jwtAuthenticationToken.getSignedJWT().getHeader()
                             + "] and claimSet ["
-                            + jwtAuthenticationToken.getJWTClaimsSet()
+                            + AccessController.doPrivileged(
+                                (PrivilegedAction<String>) () -> jwtClaimsSet.toString(),
+                                AccessController.getContext(),
+                                new RuntimePermission("accessDeclaredMembers")
+                            )
                             + "]"
                     );
                     return null;

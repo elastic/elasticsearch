@@ -73,7 +73,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -1786,10 +1785,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardFieldStats() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build();
         IndexShard shard = newShard(true, settings);
         assertNull(shard.getShardFieldStats());
         recoverShardFromStore(shard);
@@ -1832,6 +1828,10 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.numSegments(), equalTo(2));
         // 9 + _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword, f3, f3.keyword
         assertThat(stats.totalFields(), equalTo(21));
+        shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(1));
+        assertThat(stats.totalFields(), equalTo(12));
         closeShards(shard);
     }
 

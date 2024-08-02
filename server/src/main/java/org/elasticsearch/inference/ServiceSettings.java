@@ -9,6 +9,7 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -48,5 +49,6 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
      * be chosen when initializing a deployment within their service. In this situation, return null.
      * @return the model used to perform inference or null if the model is not defined
      */
+    @Nullable
     String modelId();
 }

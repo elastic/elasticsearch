@@ -124,15 +124,12 @@ final class AzureStorageSettings {
     );
 
     private final String account;
-
-    @Nullable
-    private final String sasToken;
-
     private final String connectString;
     private final String endpointSuffix;
     private final TimeValue timeout;
     private final int maxRetries;
     private final Proxy proxy;
+    private final boolean hasCredentials;
 
     private AzureStorageSettings(
         String account,
@@ -148,8 +145,8 @@ final class AzureStorageSettings {
         String secondaryEndpoint
     ) {
         this.account = account;
-        this.sasToken = sasToken;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, endpoint, secondaryEndpoint);
+        this.hasCredentials = Strings.hasText(key) || Strings.hasText(sasToken);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -203,33 +200,32 @@ final class AzureStorageSettings {
     ) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
-        if (hasSasToken == false && hasKey == false) {
-            throw new SettingsException("Neither a secret key nor a shared access token was set.");
-        }
         if (hasSasToken && hasKey) {
-            throw new SettingsException("Both a secret as well as a shared access token were set.");
+            throw new SettingsException("Both a secret as well as a shared access token were set for account [" + account + "]");
         }
         final StringBuilder connectionStringBuilder = new StringBuilder();
         connectionStringBuilder.append("DefaultEndpointsProtocol=https").append(";AccountName=").append(account);
         if (hasKey) {
             connectionStringBuilder.append(";AccountKey=").append(key);
-        } else {
+        } else if (hasSasToken) {
             connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
+        } else {
+            connectionStringBuilder.append(";AccountKey=none"); // required for validation, but ignored
         }
         final boolean hasEndpointSuffix = Strings.hasText(endpointSuffix);
         final boolean hasEndpoint = Strings.hasText(endpoint);
         final boolean hasSecondaryEndpoint = Strings.hasText(secondaryEndpoint);
 
         if (hasEndpointSuffix && hasEndpoint) {
-            throw new SettingsException("Both an endpoint suffix as well as a primary endpoint were set");
+            throw new SettingsException("Both an endpoint suffix as well as a primary endpoint were set for account [" + account + "]");
         }
 
         if (hasEndpointSuffix && hasSecondaryEndpoint) {
-            throw new SettingsException("Both an endpoint suffix as well as a secondary endpoint were set");
+            throw new SettingsException("Both an endpoint suffix as well as a secondary endpoint were set for account [" + account + "]");
         }
 
         if (hasEndpoint == false && hasSecondaryEndpoint) {
-            throw new SettingsException("A primary endpoint is required when setting a secondary endpoint");
+            throw new SettingsException("A primary endpoint is required when setting a secondary endpoint for account [" + account + "]");
         }
 
         if (hasEndpointSuffix) {
@@ -317,6 +313,10 @@ final class AzureStorageSettings {
 
     private static final String BLOB_ENDPOINT_NAME = "BlobEndpoint";
     private static final String BLOB_SECONDARY_ENDPOINT_NAME = "BlobSecondaryEndpoint";
+
+    public boolean hasCredentials() {
+        return hasCredentials;
+    }
 
     record StorageEndpoint(String primaryURI, @Nullable String secondaryURI) {}
 

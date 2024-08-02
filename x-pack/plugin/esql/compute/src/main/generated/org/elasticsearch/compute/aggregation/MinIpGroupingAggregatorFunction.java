@@ -30,14 +30,14 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
       new IntermediateStateDesc("max", ElementType.BYTES_REF),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
-  private final IpArrayState state;
+  private final MinIpAggregator.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public MinIpGroupingAggregatorFunction(List<Integer> channels, IpArrayState state,
-      DriverContext driverContext) {
+  public MinIpGroupingAggregatorFunction(List<Integer> channels,
+      MinIpAggregator.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -178,7 +178,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    IpArrayState inState = ((MinIpGroupingAggregatorFunction) input).state;
+    MinIpAggregator.GroupingState inState = ((MinIpGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     MinIpAggregator.combineStates(state, groupId, inState, position);
   }

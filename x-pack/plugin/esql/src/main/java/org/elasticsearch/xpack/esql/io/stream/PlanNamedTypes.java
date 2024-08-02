@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -147,14 +148,15 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, EsqlProject.class, PlanNamedTypes::writeEsqlProject, PlanNamedTypes::readEsqlProject),
             of(LogicalPlan.class, Filter.class, PlanNamedTypes::writeFilter, PlanNamedTypes::readFilter),
             of(LogicalPlan.class, Grok.class, PlanNamedTypes::writeGrok, PlanNamedTypes::readGrok),
-            of(LogicalPlan.class, Join.class, (out, p) -> p.writeTo(out), Join::new),
+            of(LogicalPlan.class, InlineStats.class, (PlanStreamOutput out, InlineStats v) -> v.writeTo(out), InlineStats::new),
+            of(LogicalPlan.class, Join.ENTRY),
             of(LogicalPlan.class, Limit.class, PlanNamedTypes::writeLimit, PlanNamedTypes::readLimit),
-            of(LogicalPlan.class, LocalRelation.class, (out, p) -> p.writeTo(out), LocalRelation::new),
-            of(LogicalPlan.class, Lookup.class, (out, p) -> p.writeTo(out), Lookup::new),
+            of(LogicalPlan.class, LocalRelation.ENTRY),
+            of(LogicalPlan.class, Lookup.ENTRY),
             of(LogicalPlan.class, MvExpand.class, PlanNamedTypes::writeMvExpand, PlanNamedTypes::readMvExpand),
             of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
-            of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN)
+            of(LogicalPlan.class, TopN.ENTRY)
         );
         return declared;
     }
@@ -272,9 +274,7 @@ public final class PlanNamedTypes {
         final PhysicalPlan child = in.readPhysicalPlanNode();
         final NamedExpression matchField = in.readNamedWriteable(NamedExpression.class);
         final String policyName = in.readString();
-        final String matchType = (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_TYPES))
-            ? in.readString()
-            : "match";
+        final String matchType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "match";
         final String policyMatchField = in.readString();
         final Map<String, String> concreteIndices;
         final Enrich.Mode mode;
@@ -307,7 +307,7 @@ public final class PlanNamedTypes {
         out.writePhysicalPlanNode(enrich.child());
         out.writeNamedWriteable(enrich.matchField());
         out.writeString(enrich.policyName());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_TYPES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeString(enrich.matchType());
         }
         out.writeString(enrich.policyMatchField());
@@ -392,7 +392,7 @@ public final class PlanNamedTypes {
             in.readLogicalPlanNode(),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalVInt(),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REDUCER_NODE_FRAGMENT) ? in.readOptionalPhysicalPlanNode() : null
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readOptionalPhysicalPlanNode() : null
         );
     }
 
@@ -401,7 +401,7 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(fragmentExec.fragment());
         out.writeOptionalNamedWriteable(fragmentExec.esFilter());
         out.writeOptionalVInt(fragmentExec.estimatedRowSize());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REDUCER_NODE_FRAGMENT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalPhysicalPlanNode(fragmentExec.reducer());
         }
     }
@@ -565,8 +565,7 @@ public final class PlanNamedTypes {
     }
 
     private static boolean supportingEsSourceOptions(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)
-            && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS);
+        return version.onOrAfter(TransportVersions.V_8_14_0) && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS);
     }
 
     private static void readEsSourceOptions(PlanStreamInput in) throws IOException {
@@ -749,27 +748,11 @@ public final class PlanNamedTypes {
         out.writeNamedWriteableCollection(project.projections());
     }
 
-    static TopN readTopN(PlanStreamInput in) throws IOException {
-        return new TopN(
-            Source.readFrom(in),
-            in.readLogicalPlanNode(),
-            in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new),
-            in.readNamedWriteable(Expression.class)
-        );
-    }
-
-    static void writeTopN(PlanStreamOutput out, TopN topN) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(topN.child());
-        out.writeCollection(topN.order());
-        out.writeNamedWriteable(topN.limit());
-    }
-
     // -- ancillary supporting classes of plan nodes, etc
 
     static EsQueryExec.FieldSort readFieldSort(PlanStreamInput in) throws IOException {
         return new EsQueryExec.FieldSort(
-            new FieldAttribute(in),
+            FieldAttribute.readFrom(in),
             in.readEnum(Order.OrderDirection.class),
             in.readEnum(Order.NullsPosition.class)
         );

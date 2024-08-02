@@ -50,9 +50,9 @@ dependencies {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-s", "src/main/generated"])
+  options.compilerArgs.addAll(["-s", "$projectDir/src/main/generated"])
   // IntelliJ sticks generated files here and we can't stop it....
-  exclude { it.file.toString().contains("src/main/generated-src/generated") }
+  exclude { it.file.toString().contains("$projectDir/src/main/generated-src/generated") }
 }
 
 interface Injected {

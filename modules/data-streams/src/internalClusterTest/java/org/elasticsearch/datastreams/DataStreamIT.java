@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -583,7 +585,9 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareOpen(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareClose(dataStreamName), true);
         verifyResolvability(aliasToDataStream, indicesAdmin().prepareClose(aliasToDataStream), true);
-        verifyResolvability(dataStreamName, clusterAdmin().prepareSearchShards(dataStreamName), false);
+        verifyResolvability(
+            client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, dataStreamName))
+        );
         verifyResolvability(client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(dataStreamName)));
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
@@ -627,7 +631,12 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetIndex().addIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareOpen(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClose(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, clusterAdmin().prepareSearchShards(wildcardExpression), false);
+        verifyResolvability(
+            client().execute(
+                TransportClusterSearchShardsAction.TYPE,
+                new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, wildcardExpression)
+            )
+        );
         verifyResolvability(client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(wildcardExpression)));
     }
 

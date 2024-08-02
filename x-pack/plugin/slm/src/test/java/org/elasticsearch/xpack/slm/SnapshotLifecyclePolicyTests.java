@@ -56,7 +56,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
 
         p = new SnapshotLifecyclePolicy("id", "name", schedule, "repo", null, null);
         request = p.toRequest(TEST_REQUEST_TIMEOUT);
-        expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo");
+        expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo").uuid(request.uuid());
         assertEquals(expected, request);
     }
 

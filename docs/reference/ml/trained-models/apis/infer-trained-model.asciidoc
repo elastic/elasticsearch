@@ -15,7 +15,7 @@ directly from the {infer} cache.
 [[infer-trained-model-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/_infer`
+`POST _ml/trained_models/<model_id>/_infer` +
 `POST _ml/trained_models/<deployment_id>/_infer`
 
 ////

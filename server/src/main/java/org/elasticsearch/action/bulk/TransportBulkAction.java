@@ -53,8 +53,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -338,6 +340,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         AtomicArray<BulkItemResponse> responses,
         RefCountingRunnable refs
     ) {
+        Map<String,Exception> indexVsException = new HashMap<>();
         for (Map.Entry<String, CreateIndexRequest> indexEntry : indicesToAutoCreate.entrySet()) {
             final String index = indexEntry.getKey();
             createIndex(indexEntry.getValue(), ActionListener.releaseAfter(new ActionListener<>() {
@@ -353,11 +356,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                         }
                     } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                         // fail all requests involving this index, if create didn't work
-                        failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
+                        indexVsException.put(index,e);
                     }
                 }
             }, refs.acquire()));
         }
+        failRequestsWhenPrerequisiteActionFailed(indexVsException, bulkRequest, responses);
     }
 
     private void rollOverDataStreams(
@@ -367,6 +371,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         AtomicArray<BulkItemResponse> responses,
         RefCountingRunnable refs
     ) {
+        Map<String,Exception> dataStreamVsException = new HashMap<>();
         for (String dataStream : dataStreamsToBeRolledOver) {
             RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
             rolloverRequest.masterNodeTimeout(bulkRequest.timeout);
@@ -377,8 +382,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                         .build()
                 );
             }
-            // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
-            // unconditional and performant rollover.
+            /* We are executing a lazy rollover because it is an action specialised for this situation, when we want an
+             * unconditional and performant rollover. */
             rolloverClient.execute(LazyRolloverAction.INSTANCE, rolloverRequest, ActionListener.releaseAfter(new ActionListener<>() {
 
                 @Override
@@ -394,24 +399,25 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
                 @Override
                 public void onFailure(Exception e) {
-                    failRequestsWhenPrerequisiteActionFailed(dataStream, bulkRequest, responses, e);
+                    dataStreamVsException.put(dataStream,e);
                 }
             }, refs.acquire()));
         }
+        failRequestsWhenPrerequisiteActionFailed(dataStreamVsException,bulkRequest,responses);
     }
 
     /**
      * Fails all requests involving this index or data stream because the prerequisite action failed too.
      */
     private static void failRequestsWhenPrerequisiteActionFailed(
-        String target,
+        Map<String,Exception> targetVsException,
         BulkRequest bulkRequest,
-        AtomicArray<BulkItemResponse> responses,
-        Exception error
+        AtomicArray<BulkItemResponse> responses
     ) {
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> request = bulkRequest.requests.get(i);
-            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, target, error)) {
+            if (request != null && targetVsException.containsKey(String.valueOf(i))) {
+                setResponseFailureIfIndexMatches(responses,i,request,targetVsException.get(String.valueOf(i)));
                 bulkRequest.requests.set(i, null);
             }
         }
@@ -499,19 +505,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
-    private static boolean setResponseFailureIfIndexMatches(
+    private static void setResponseFailureIfIndexMatches(
         AtomicArray<BulkItemResponse> responses,
         int idx,
         DocWriteRequest<?> request,
-        String index,
         Exception e
     ) {
-        if (index.equals(request.index())) {
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.id(), e);
-            responses.set(idx, BulkItemResponse.failure(idx, request.opType(), failure));
-            return true;
-        }
-        return false;
+        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.id(), e);
+        responses.set(idx, BulkItemResponse.failure(idx, request.opType(), failure));
     }
 
     void executeBulk(

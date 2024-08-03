@@ -71,11 +71,7 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
             () -> trustStore.getTrustStorePath().toString(),
             s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
         )
-        .systemProperty(
-                "javax.net.ssl.trustStoreType",
-                () -> "jks",
-                s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
-        )
+        .systemProperty("javax.net.ssl.trustStoreType", () -> "jks", s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false)
         .build();
 
     @ClassRule(order = 1)

@@ -352,7 +352,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             }
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
-            ch.pipeline().addLast(new FlowControlHandler());
             if (httpValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
@@ -386,6 +385,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
             }
+            ch.pipeline().addLast(new FlowControlHandler());
             ch.pipeline()
                 .addLast(
                     "pipelining",

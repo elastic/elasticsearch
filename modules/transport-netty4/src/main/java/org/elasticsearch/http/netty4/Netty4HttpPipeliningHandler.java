@@ -119,10 +119,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        activityTracker.startActivity();
-        try {
-            final Netty4HttpRequest netty4HttpRequest;
-            if (msg instanceof HttpRequest request) {
+        if (msg instanceof HttpRequest request) {
+            try {
+                activityTracker.startActivity();
+                final Netty4HttpRequest netty4HttpRequest;
                 if (request.decoderResult().isFailure()) {
                     final Throwable cause = request.decoderResult().cause();
                     final Exception nonError;
@@ -138,7 +138,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         currentRequestStream = null;
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
                     } else {
-                        var contentStream = new Netty4HttpRequestBodyStream(ctx.channel());
+                        var contentStream = new Netty4HttpRequestBodyStream(ctx);
                         currentRequestStream = contentStream;
                         netty4HttpRequest = new Netty4HttpRequest(
                             readSequence++,
@@ -155,16 +155,16 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     }
                 }
                 handlePipelinedRequest(ctx, netty4HttpRequest);
-            } else {
-                assert msg instanceof HttpContent;
-                assert currentRequestStream != null;
-                currentRequestStream.handleNettyContent((HttpContent) msg);
-                if (msg instanceof LastHttpContent) {
-                    currentRequestStream = null;
-                }
+            } finally {
+                activityTracker.stopActivity();
             }
-        } finally {
-            activityTracker.stopActivity();
+        } else {
+            assert msg instanceof HttpContent : "expect HttpContent got " + msg;
+            assert currentRequestStream != null : "current stream must exists before handling http content";
+            currentRequestStream.handleNettyContent((HttpContent) msg);
+            if (msg instanceof LastHttpContent) {
+                currentRequestStream = null;
+            }
         }
     }
 

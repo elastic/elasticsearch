@@ -10,7 +10,7 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
-import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
 
@@ -26,14 +26,14 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
  */
 public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
-    private final Channel channel;
+    private final ChannelHandlerContext ctx;
     private HttpBody.ChunkHandler handler;
     private CompositeByteBuf aggregate;
     private int requestedBytes = 0;
 
-    public Netty4HttpRequestBodyStream(Channel channel) {
-        this.channel = channel;
-        channel.config().setAutoRead(false);
+    public Netty4HttpRequestBodyStream(ChannelHandlerContext ctx) {
+        this.ctx = ctx;
+        ctx.channel().config().setAutoRead(false);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     public void requestBytes(int bytes) {
         assert handler != null : "handler must be set before requesting next chunk";
         requestedBytes += bytes;
-        channel.read();
+        ctx.read();
     }
 
     public void handleNettyContent(HttpContent httpContent) {
@@ -70,15 +70,15 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             requestedBytes = 0;
             handler.onNext(Netty4Utils.toReleasableBytesReference(sendBuf), isLast);
             if (isLast) {
-                channel.config().setAutoRead(true);
+                ctx.channel().config().setAutoRead(true);
             }
         } else {
             if (aggregate == null) {
-                aggregate = channel.alloc().compositeBuffer();
+                aggregate = ctx.alloc().compositeBuffer();
             }
             aggregate.addComponent(true, content);
             requestedBytes -= content.readableBytes();
-            channel.read();
+            ctx.read();
         }
     }
 

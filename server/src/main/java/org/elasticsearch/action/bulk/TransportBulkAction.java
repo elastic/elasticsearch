@@ -53,10 +53,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -340,7 +338,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         AtomicArray<BulkItemResponse> responses,
         RefCountingRunnable refs
     ) {
-        Map<String,Exception> indexVsException = new HashMap<>();
+        Map<String, Exception> indexVsException = new HashMap<>();
         for (Map.Entry<String, CreateIndexRequest> indexEntry : indicesToAutoCreate.entrySet()) {
             final String index = indexEntry.getKey();
             createIndex(indexEntry.getValue(), ActionListener.releaseAfter(new ActionListener<>() {
@@ -356,7 +354,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                         }
                     } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                         // fail all requests involving this index, if create didn't work
-                        indexVsException.put(index,e);
+                        indexVsException.put(index, e);
                     }
                 }
             }, refs.acquire()));
@@ -371,7 +369,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         AtomicArray<BulkItemResponse> responses,
         RefCountingRunnable refs
     ) {
-        Map<String,Exception> dataStreamVsException = new HashMap<>();
+        Map<String, Exception> dataStreamVsException = new HashMap<>();
         for (String dataStream : dataStreamsToBeRolledOver) {
             RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
             rolloverRequest.masterNodeTimeout(bulkRequest.timeout);
@@ -399,25 +397,25 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
                 @Override
                 public void onFailure(Exception e) {
-                    dataStreamVsException.put(dataStream,e);
+                    dataStreamVsException.put(dataStream, e);
                 }
             }, refs.acquire()));
         }
-        failRequestsWhenPrerequisiteActionFailed(dataStreamVsException,bulkRequest,responses);
+        failRequestsWhenPrerequisiteActionFailed(dataStreamVsException, bulkRequest, responses);
     }
 
     /**
      * Fails all requests involving this index or data stream because the prerequisite action failed too.
      */
     private static void failRequestsWhenPrerequisiteActionFailed(
-        Map<String,Exception> targetVsException,
+        Map<String, Exception> targetVsException,
         BulkRequest bulkRequest,
         AtomicArray<BulkItemResponse> responses
     ) {
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> request = bulkRequest.requests.get(i);
             if (request != null && targetVsException.containsKey(String.valueOf(i))) {
-                setResponseFailureIfIndexMatches(responses,i,request,targetVsException.get(String.valueOf(i)));
+                setResponseFailureIfIndexMatches(responses, i, request, targetVsException.get(String.valueOf(i)));
                 bulkRequest.requests.set(i, null);
             }
         }

@@ -67,8 +67,23 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
         void setHandler(ChunkHandler chunkHandler);
 
         /**
-         * Request next chunk of bytes. Implementation is free to round up chunk size to optimal network chunk size.
-         * For example, transport default chunk size is 8kb, request for 10kb might return 16kb chunk.
+         * Request next chunk of bytes. For every request there will be at least one chunk.
+         * Size of the next chunk might vary, depending on following factors:
+         * <ul>
+         * <li>
+         *     Size might round up to optimal network chunk size.
+         *     For example, default HttpDecoder content size is 8kb.
+         *     Request for 1 byte will produce 8kb chunk, 5 requests for 1 byte will produce 5 chunks of 8kb.
+         *     Request for 10kb will produce 16kb chunk.
+         * </li>
+         * <li>
+         *     Size will be lass or equal request size if its a last chunk.
+         *     Request for Integer.MAX_VALUE(or other number larger than actual payload) will always produce single full content chunk.
+         * </li>
+         * <li>
+         *     After last chunk there will be no more chunks. This method will not do anything.
+         * </li>
+         * </ul>
          */
         void requestBytes(int bytes);
     }

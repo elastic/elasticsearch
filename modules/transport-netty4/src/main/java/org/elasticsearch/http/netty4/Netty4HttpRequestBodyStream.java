@@ -54,16 +54,13 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     @Override
     public void requestBytes(int bytes) {
         assert handler != null : "handler must be set before requesting next chunk";
-        if (isDone.get()) {
-            return;
-        }
+        assert bytes != 0;
         requestQueue.add(bytes);
-        channel.eventLoop().execute(() -> {
-            flushQueued(); // flush on channel's thread only
-            if (requestQueue.isEmpty() == false) {
-                channel.read();
-            }
-        });
+        if (channel.eventLoop().inEventLoop()) {
+            flushAndRead();
+        } else {
+            channel.eventLoop().submit(this::flushAndRead);
+        }
     }
 
     public void handleNettyContent(HttpContent httpContent) {
@@ -93,7 +90,6 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         }
 
         if (isLast) {
-            isDone.set(true);
             channel.config().setAutoRead(true);
         } else if (requestQueue.peek() != null) {
             channel.read();
@@ -106,11 +102,9 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     private boolean canFulfillCurrentRequest() {
-        return requestQueue.isEmpty() == false && chunkQueue.isEmpty() == false
-        // enough queued bytes
-            && (chunkQueue.availableBytes() >= requestQueue.peek()
-                // not enough queued bytes, but got last content
-                || (chunkQueue.availableBytes < requestQueue.peek() && chunkQueue.hasLast()));
+        return requestQueue.isEmpty() == false
+            && chunkQueue.isEmpty() == false
+            && (chunkQueue.availableBytes() >= requestQueue.peek() || chunkQueue.hasLast());
     }
 
     private void flushQueued() {
@@ -119,8 +113,8 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             assert currentRequest != null;
             ByteBuf buf;
             boolean isLast = false;
-            // next chunk is large enough, no need to aggregate
-            if (chunkQueue.nextChunkSize() >= currentRequest) {
+            // skip aggregation if next chunk is enough
+            if (chunkQueue.nextChunkSize() >= currentRequest || chunkQueue.nextIsLast()) {
                 var chunk = chunkQueue.poll();
                 isLast = chunk.isLast;
                 buf = chunk.buf;
@@ -135,6 +129,13 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
                 buf = compBuf;
             }
             handler.onNext(Netty4Utils.toReleasableBytesReference(buf), isLast);
+        }
+    }
+
+    private void flushAndRead() {
+        flushQueued(); // flush on channel's thread only
+        if (requestQueue.isEmpty() == false) {
+            channel.read();
         }
     }
 
@@ -180,6 +181,15 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
                 return 0;
             } else {
                 return chunk.buf.readableBytes();
+            }
+        }
+
+        boolean nextIsLast() {
+            var chunk = queue.peek();
+            if (chunk == null) {
+                return false;
+            } else {
+                return chunk.isLast;
             }
         }
 

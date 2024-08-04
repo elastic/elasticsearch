@@ -1617,7 +1617,7 @@ public class IndexNameExpressionResolver {
                                     int formatPatternTimeZoneSeparatorIndex = patternAndTZid.indexOf(TIME_ZONE_BOUND);
                                     if (formatPatternTimeZoneSeparatorIndex != -1) {
                                         dateFormatterPattern = patternAndTZid.substring(0, formatPatternTimeZoneSeparatorIndex);
-                                        timeZone = DateUtils.of(patternAndTZid.substring(formatPatternTimeZoneSeparatorIndex + 1));
+                                        timeZone = DateUtils.ZoneIdOf(patternAndTZid.substring(formatPatternTimeZoneSeparatorIndex + 1));
                                     } else {
                                         dateFormatterPattern = patternAndTZid;
                                         timeZone = ZoneOffset.UTC;

@@ -58,10 +58,12 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             return;
         }
         requestQueue.add(bytes);
-        channel.eventLoop().execute(this::flushQueued); // flush on channel's thread only
-        if (requestQueue.isEmpty() == false) {
-            channel.read();
-        }
+        channel.eventLoop().execute(() -> {
+            flushQueued(); // flush on channel's thread only
+            if (requestQueue.isEmpty() == false) {
+                channel.read();
+            }
+        });
     }
 
     public void handleNettyContent(HttpContent httpContent) {
@@ -105,10 +107,10 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     private boolean canFulfillCurrentRequest() {
         return requestQueue.isEmpty() == false && chunkQueue.isEmpty() == false
-               // enough queued bytes
-               && (chunkQueue.availableBytes() >= requestQueue.peek()
-                   // not enough queued bytes, but got last content
-                   || (chunkQueue.availableBytes < requestQueue.peek() && chunkQueue.hasLast()));
+        // enough queued bytes
+            && (chunkQueue.availableBytes() >= requestQueue.peek()
+                // not enough queued bytes, but got last content
+                || (chunkQueue.availableBytes < requestQueue.peek() && chunkQueue.hasLast()));
     }
 
     private void flushQueued() {
@@ -118,7 +120,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             ByteBuf buf;
             boolean isLast = false;
             // next chunk is large enough, no need to aggregate
-            if (chunkQueue.peekSize() >= currentRequest) {
+            if (chunkQueue.nextChunkSize() >= currentRequest) {
                 var chunk = chunkQueue.poll();
                 isLast = chunk.isLast;
                 buf = chunk.buf;
@@ -172,8 +174,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             hasLast = content.isLast;
         }
 
-        // returns size of next chunk in queue
-        int peekSize() {
+        int nextChunkSize() {
             var chunk = queue.peek();
             if (chunk == null) {
                 return 0;

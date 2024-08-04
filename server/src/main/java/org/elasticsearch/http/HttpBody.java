@@ -34,25 +34,32 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
         return this instanceof Stream;
     }
 
+    /**
+     * Assumes that HTTP body is a full content. If not sure, use {@link HttpBody#isFull()}.
+     */
     default Full asFull() {
         assert this instanceof Full;
         return (Full) this;
     }
 
+    /**
+     * Assumes that HTTP body is a lazy-stream. If not sure, use {@link HttpBody#isStream()}.
+     */
     default Stream asStream() {
         assert this instanceof Stream;
         return (Stream) this;
     }
 
     /**
-     * Full content represents a complete http body content that can be accessed immediately
+     * Full content represents a complete http body content that can be accessed immediately.
      */
     non-sealed interface Full extends HttpBody {
         BytesReference bytes();
     }
 
     /**
-     * Stream is a lazy-loaded content. Stream supports only single handler, this handler must be set before requesting next chunk.
+     * Stream is a lazy-loaded content. Stream supports only single handler, this handler must be
+     * set before requesting next chunk.
      */
     non-sealed interface Stream extends HttpBody {
         /**
@@ -67,18 +74,17 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
         void setHandler(ChunkHandler chunkHandler);
 
         /**
-         * Request next chunk of bytes. For every request there will be at least one chunk.
-         * Size of the next chunk might vary, depending on following factors:
+         * Request next chunk of bytes. For every request there will be at least one chunk. Size of
+         * the next chunk might vary, and it depends on following factors:
          * <ul>
          * <li>
-         *     Size might round up to optimal network chunk size.
-         *     For example, default HttpDecoder content size is 8kb.
-         *     Request for 1 byte will produce 8kb chunk, 5 requests for 1 byte will produce 5 chunks of 8kb.
-         *     Request for 10kb will produce 16kb chunk.
+         *     Size might round up to optimal network chunk size. For example, default HttpDecoder
+         *     content size is 8kb. Request for 1 byte will produce 8kb chunk, 5 requests for 1 byte
+         *     will produce 5 chunks of 8kb each. Request for 10kb will produce 16kb chunk.
          * </li>
          * <li>
-         *     Size will be lass or equal request size if its a last chunk.
-         *     Request for Integer.MAX_VALUE(or other number larger than actual payload) will always produce single full content chunk.
+         *     Last chunk always less or equal requested size. Request for Integer.MAX_VALUE or
+         *     other number larger than actual payload, will always produce single full content chunk.
          * </li>
          * <li>
          *     After last chunk there will be no more chunks. This method will not do anything.

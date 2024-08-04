@@ -35,7 +35,6 @@ import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -60,34 +59,44 @@ public final class ChunkedZipResponse implements Releasable {
 
     public static final String ZIP_CONTENT_TYPE = "application/zip";
 
-    private record ChunkedZipEntry(ZipEntry zipEntry, ChunkedRestResponseBodyPart firstBodyPart, Releasable releasable) {}
+    /**
+     * The underlying stream that collects the raw bytes to be transmitted. Mutable, because we collect the contents of each chunk in a
+     * distinct stream that is held in this field while that chunk is under construction.
+     */
+    @Nullable // if there's no chunk under construction
+    private BytesStream targetStream;
 
-    private BytesStream target;
-
-    private final OutputStream out = new OutputStream() {
+    private final ZipOutputStream zipOutputStream = new ZipOutputStream(new OutputStream() {
         @Override
         public void write(int b) throws IOException {
-            assert target != null;
-            target.write(b);
+            assert targetStream != null;
+            targetStream.write(b);
         }
 
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
-            assert target != null;
-            target.write(b, off, len);
+            assert targetStream != null;
+            targetStream.write(b, off, len);
         }
-    };
-
-    private final ZipOutputStream zipOutputStream = new ZipOutputStream(out, StandardCharsets.UTF_8);
+    }, StandardCharsets.UTF_8);
 
     private final String filename;
     private final RestChannel restChannel;
 
+    /**
+     * A listener for the first part (i.e. sequence of chunks of zipped data) of the next entry to become available for transmission after a
+     * pause. Completed with the newly-created unique active {@link AvailableChunksZipResponseBodyPart} within {@link #enqueueEntry}, and
+     * subscribed to via {@link AvailableChunksZipResponseBodyPart#getNextPart} when the current {@link AvailableChunksZipResponseBodyPart}
+     * becomes inactive because of a transmission pause.
+     */
     @Nullable // if the first part hasn't been sent yet
-    private SubscribableListener<ChunkedRestResponseBodyPart> continuationListener;
+    private SubscribableListener<ChunkedRestResponseBodyPart> nextAvailableChunksListener;
 
+    /**
+     * A resource to be released when the transmission of the current entry is complete.
+     */
     @Nullable // if not currently sending an entry
-    private Releasable releasable;
+    private Releasable currentEntryReleasable;
 
     /**
      * @param filename     The name of the zip file, which appears in the {@code Content-Disposition} HTTP header of the response, and also
@@ -143,13 +152,24 @@ public final class ChunkedZipResponse implements Releasable {
     }
 
     /**
+     * A zip file entry which is ready for transmission, to be stored in {@link #entryQueue}.
+     *
+     * @param zipEntry      The entry metadata, to be written in its header.
+     * @param firstBodyPart The first part of the entry body. Subsequent parts, if present, come from
+     *                      {@link ChunkedRestResponseBodyPart#getNextPart}.
+     * @param releasable    A resource to release when this entry has been fully transmitted, or is no longer required because the
+     *                      transmission was cancelled.
+     */
+    private record ChunkedZipEntry(ZipEntry zipEntry, ChunkedRestResponseBodyPart firstBodyPart, Releasable releasable) {}
+
+    /**
      * Queue of entries that are ready for transmission.
      */
     private final Queue<ChunkedZipEntry> entryQueue = new LinkedBlockingQueue<>();
 
     /**
-     * Upper bound on the number of entries in the queue, atomically modified to ensure there's only one thread processing queue entries
-     * at once.
+     * Upper bound on the number of entries in the queue, atomically modified to ensure there's only one thread processing queue entries at
+     * once.
      */
     private final AtomicInteger queueLength = new AtomicInteger();
 
@@ -168,24 +188,39 @@ public final class ChunkedZipResponse implements Releasable {
         return isRestResponseFinished.get() == false && queueRefs.tryIncRef();
     }
 
+    /**
+     * Called when an entry is ready for its transmission to start. Adds the entry to {@link #entryQueue} and spawns a new
+     * {@link AvailableChunksZipResponseBodyPart} if none is currently active.
+     *
+     * @param zipEntry      The entry metadata.
+     * @param firstBodyPart The first part of the entry. Entries may comprise multiple parts, with transmission pauses in between.
+     * @param listener      Completed when the entry has been fully transmitted.
+     */
     private void enqueueEntry(ZipEntry zipEntry, ChunkedRestResponseBodyPart firstBodyPart, ActionListener<Void> listener) {
         if (tryAcquireQueueRef()) {
             try {
                 entryQueue.add(new ChunkedZipEntry(zipEntry, firstBodyPart, () -> listener.onResponse(null)));
                 if (queueLength.getAndIncrement() == 0) {
+                    // There is no active AvailableChunksZipResponseBodyPart, but there is now an entry in the queue, so we must create a
+                    // AvailableChunksZipResponseBodyPart to process it (along with any other entries that are concurrently added to the
+                    // queue). It's safe to mutate releasable and continuationListener here because they are only otherwise accessed by an
+                    // active AvailableChunksZipResponseBodyPart (which does not exist) or when all queueRefs have been released (which they
+                    // have not here).
                     final var nextEntry = entryQueue.poll();
                     assert nextEntry != null;
-                    final var continuation = new QueueConsumer(nextEntry.zipEntry(), nextEntry.firstBodyPart());
-                    assert releasable == null;
-                    releasable = nextEntry.releasable();
-                    final var currentContinuationListener = continuationListener;
-                    continuationListener = new SubscribableListener<>();
-                    if (currentContinuationListener == null) {
-                        final var restResponse = RestResponse.chunked(RestStatus.OK, continuation, this::restResponseFinished);
+                    final var availableChunks = new AvailableChunksZipResponseBodyPart(nextEntry.zipEntry(), nextEntry.firstBodyPart());
+                    assert currentEntryReleasable == null;
+                    currentEntryReleasable = nextEntry.releasable();
+                    final var currentAvailableChunksListener = nextAvailableChunksListener;
+                    nextAvailableChunksListener = new SubscribableListener<>();
+                    if (currentAvailableChunksListener == null) {
+                        // We are not resuming after a pause, this is the first entry to be sent, so we start the response transmission.
+                        final var restResponse = RestResponse.chunked(RestStatus.OK, availableChunks, this::restResponseFinished);
                         restResponse.addHeader("content-disposition", Strings.format("attachment; filename=\"%s.zip\"", filename));
                         restChannel.sendResponse(restResponse);
                     } else {
-                        currentContinuationListener.onResponse(continuation);
+                        // We are resuming transmission after a pause, so just carry on sending the response body.
+                        currentAvailableChunksListener.onResponse(availableChunks);
                     }
                 }
             } finally {
@@ -209,9 +244,9 @@ public final class ChunkedZipResponse implements Releasable {
         final var taskCount = queueLength.get() + 1;
         final var releasables = new ArrayList<Releasable>(taskCount);
         try {
-            if (releasable != null) {
-                releasables.add(releasable);
-                releasable = null;
+            if (currentEntryReleasable != null) {
+                releasables.add(currentEntryReleasable);
+                currentEntryReleasable = null;
             }
             ChunkedZipEntry entry;
             while ((entry = entryQueue.poll()) != null) {
@@ -225,18 +260,41 @@ public final class ChunkedZipResponse implements Releasable {
     }
 
     /**
-     * A {@link ChunkedRestResponseBodyPart} which will yield all currently-available chunks by consuming entries from the queue.
+     * A {@link ChunkedRestResponseBodyPart} which will yield all currently-available chunks by consuming entries from {@link #entryQueue}.
+     * There is only ever at most one active instance of this class at any time, in the sense that one such instance becoming inactive
+     * <i>happens-before</i> the creation of the next instance.
      */
-    private final class QueueConsumer implements ChunkedRestResponseBodyPart {
+    private final class AvailableChunksZipResponseBodyPart implements ChunkedRestResponseBodyPart {
 
+        /**
+         * The next {@link ZipEntry} header whose transmission to start.
+         */
+        @Nullable // if no entry is available, or we've already sent the header for the current entry and are now sending its body.
         private ZipEntry zipEntry;
+
+        /**
+         * The body part which is currently being transmitted.
+         */
+        @Nullable // when finishing the transmission of the whole response
         private ChunkedRestResponseBodyPart bodyPart;
+
         private boolean isPartComplete;
         private boolean isLastPart;
-        private Consumer<ActionListener<ChunkedRestResponseBodyPart>> getNextPart;
+
+        /**
+         * A listener which is created when there are no more available chunks, so transmission is paused, subscribed to in {@link
+         * #getNextPart}, and then completed with the next body part (sequence of zipped chunks, i.e. a new (unique) active
+         * {@link AvailableChunksZipResponseBodyPart}).
+         */
+        private SubscribableListener<ChunkedRestResponseBodyPart> getNextPartListener;
+
+        /**
+         * A collection of {@code Releasable} instances to be released when the next chunk has been fully transmitted. It's a collection
+         * because a chunk may complete several entries, each of which has its own resources to release.
+         */
         private ArrayList<Releasable> nextReleasables = new ArrayList<>(); // preserved between chunks because will often be unused
 
-        QueueConsumer(ZipEntry zipEntry, ChunkedRestResponseBodyPart bodyPart) {
+        AvailableChunksZipResponseBodyPart(ZipEntry zipEntry, ChunkedRestResponseBodyPart bodyPart) {
             this.zipEntry = zipEntry;
             this.bodyPart = bodyPart;
         }
@@ -253,14 +311,20 @@ public final class ChunkedZipResponse implements Releasable {
 
         @Override
         public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
-            assert getNextPart != null;
-            getNextPart.accept(listener);
+            assert getNextPartListener != null;
+            getNextPartListener.addListener(listener);
         }
 
-        private void transferReleasable(ArrayList<Releasable> releasables) {
+        /**
+         * Transfer {@link #currentEntryReleasable} into the supplied collection (i.e. add it to {@code releasables} and then clear
+         * {@link #currentEntryReleasable}). Called when the last chunk of the last part of the current entry is serialized, so that we can
+         * start serializing chunks of the next entry straight away whilst delaying the resource of the current entry's resources until the
+         * transmission of the chunk that is currently under construction.
+         */
+        private void transferCurrentEntryReleasable(ArrayList<Releasable> releasables) {
             assert queueRefs.hasReferences();
 
-            if (releasable == null) {
+            if (currentEntryReleasable == null) {
                 return;
             }
 
@@ -268,76 +332,30 @@ public final class ChunkedZipResponse implements Releasable {
                 nextReleasables = new ArrayList<>();
             }
 
-            releasables.add(releasable);
-            releasable = null;
+            releasables.add(currentEntryReleasable);
+            currentEntryReleasable = null;
         }
 
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+            assert Transports.isTransportThread(Thread.currentThread());
+
             final ArrayList<Releasable> releasables = nextReleasables;
             assert releasables.isEmpty();
             try {
                 if (tryAcquireQueueRef()) {
                     try {
+                        assert queueLength.get() > 0;
+                        // This is the current unique active AvailableChunksZipResponseBodyPart (i.e. queueLength is strictly positive and
+                        // we hold a queueRef), so any concurrent calls to enqueueEntry() at this point will just add to the queue and won't
+                        // spawn a new AvailableChunksZipResponseBodyPart or mutate any fields.
+
                         final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-                        assert target == null;
-                        target = chunkStream;
+                        assert targetStream == null;
+                        targetStream = chunkStream;
 
                         do {
-                            try {
-                                if (bodyPart == null) {
-                                    // no more entries
-                                    assert zipEntry == null;
-                                    assert entryQueue.isEmpty() : entryQueue.size();
-                                    zipOutputStream.finish();
-                                    isPartComplete = true;
-                                    isLastPart = true;
-                                    transferReleasable(releasables);
-                                    assert getNextPart == null;
-                                } else if (zipEntry != null) {
-                                    // new entry, so write the entry header
-                                    zipOutputStream.putNextEntry(zipEntry);
-                                    zipEntry = null;
-                                } else {
-                                    // writing entry body
-                                    if (bodyPart.isPartComplete() == false) {
-                                        try (var innerChunk = bodyPart.encodeChunk(sizeHint, recycler)) {
-                                            final var iterator = innerChunk.iterator();
-                                            BytesRef bytesRef;
-                                            while ((bytesRef = iterator.next()) != null) {
-                                                zipOutputStream.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                                            }
-                                        }
-                                    }
-                                    if (bodyPart.isPartComplete()) {
-                                        if (bodyPart.isLastPart()) {
-                                            zipOutputStream.closeEntry();
-                                            transferReleasable(releasables);
-                                            final var newQueueLength = queueLength.decrementAndGet();
-                                            if (newQueueLength == 0) {
-                                                // next entry isn't available yet, so we stop iterating
-                                                isPartComplete = true;
-                                                assert getNextPart == null;
-                                                getNextPart = continuationListener::addListener;
-                                            } else {
-                                                // next entry is immediately available so start sending its chunks too
-                                                final var nextEntry = entryQueue.poll();
-                                                assert nextEntry != null;
-                                                zipEntry = nextEntry.zipEntry();
-                                                bodyPart = nextEntry.firstBodyPart();
-                                                releasable = nextEntry.releasable();
-                                            }
-                                        } else {
-                                            // this body part has a continuation, for which we must wait
-                                            isPartComplete = true;
-                                            assert getNextPart == null;
-                                            getNextPart = l -> bodyPart.getNextPart(l.map(p -> new QueueConsumer(null, p)));
-                                        }
-                                    }
-                                }
-                            } finally {
-                                zipOutputStream.flush();
-                            }
+                            writeNextBytes(sizeHint, recycler, releasables);
                         } while (isPartComplete == false && chunkStream.size() < sizeHint);
 
                         assert (releasables == nextReleasables) == releasables.isEmpty();
@@ -351,7 +369,7 @@ public final class ChunkedZipResponse implements Releasable {
                                 : Releasables.wrap(Iterators.concat(Iterators.single(chunkStreamReleasable), releasables.iterator()))
                         );
 
-                        target = null;
+                        targetStream = null;
                         return result;
                     } finally {
                         queueRefs.decRef();
@@ -366,12 +384,99 @@ public final class ChunkedZipResponse implements Releasable {
                 logger.error("failure encoding chunk", e);
                 throw e;
             } finally {
-                if (target != null) {
+                if (targetStream != null) {
                     assert false : "failure encoding chunk";
-                    IOUtils.closeWhileHandlingException(target, Releasables.wrap(releasables));
-                    target = null;
+                    IOUtils.closeWhileHandlingException(targetStream, Releasables.wrap(releasables));
+                    targetStream = null;
                 }
             }
+        }
+
+        private void writeNextBytes(int sizeHint, Recycler<BytesRef> recycler, ArrayList<Releasable> releasables) throws IOException {
+            try {
+                if (bodyPart == null) {
+                    // When the last ref from listenersRefs is completed we enqueue a final null entry to trigger the transmission of the
+                    // zip file footer, which happens here:
+                    finishResponse(releasables);
+                    return;
+                }
+
+                if (zipEntry != null) {
+                    // This is the start of a new entry, so write the entry header:
+                    zipOutputStream.putNextEntry(zipEntry);
+                    zipEntry = null;
+                }
+
+                // Write the next chunk of the current entry to the zip stream
+                if (bodyPart.isPartComplete() == false) {
+                    try (var innerChunk = bodyPart.encodeChunk(sizeHint, recycler)) {
+                        final var iterator = innerChunk.iterator();
+                        BytesRef bytesRef;
+                        while ((bytesRef = iterator.next()) != null) {
+                            zipOutputStream.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                        }
+                    }
+                }
+                if (bodyPart.isPartComplete()) {
+                    // Complete the current part: if the current entry is incomplete then set up a listener for its next part, otherwise
+                    // move on to the next available entry and start sending its content.
+                    finishCurrentPart(releasables);
+                }
+            } finally {
+                // Flush any buffered data (but not the compressor) to chunkStream so that its size is accurate.
+                zipOutputStream.flush();
+            }
+        }
+
+        private void finishCurrentPart(ArrayList<Releasable> releasables) throws IOException {
+            if (bodyPart.isLastPart()) {
+                zipOutputStream.closeEntry();
+                transferCurrentEntryReleasable(releasables);
+                final var newQueueLength = queueLength.decrementAndGet();
+                if (newQueueLength == 0) {
+                    // The current entry is complete, but the next entry isn't available yet, so we pause transmission. This means we are no
+                    // longer an active AvailableChunksZipResponseBodyPart, so any concurrent calls to enqueueEntry() at this point will now
+                    // spawn a new AvailableChunksZipResponseBodyPart to take our place.
+                    isPartComplete = true;
+                    assert getNextPartListener == null;
+                    assert nextAvailableChunksListener != null;
+                    getNextPartListener = nextAvailableChunksListener;
+                } else {
+                    // The current entry is complete, and the first part of the next entry is already available, so we start sending its
+                    // chunks too. This means we're still the unique active AvailableChunksZipResponseBodyPart. We re-use this
+                    // AvailableChunksZipResponseBodyPart instance rather than creating a new one to avoid unnecessary allocations.
+                    final var nextEntry = entryQueue.poll();
+                    assert nextEntry != null;
+                    zipEntry = nextEntry.zipEntry();
+                    bodyPart = nextEntry.firstBodyPart();
+                    currentEntryReleasable = nextEntry.releasable();
+                }
+            } else {
+                // The current entry has more parts to come, but we have reached the end of the current part, so we assume that the next
+                // part is not yet available and therefore must pause transmission. This means we are no longer an active
+                // AvailableChunksZipResponseBodyPart, but also another call to enqueueEntry() won't create a new
+                // AvailableChunksZipResponseBodyPart because the current entry is still counted in queueLength:
+                assert queueLength.get() > 0;
+                // Instead, we create a new active AvailableChunksZipResponseBodyPart when the next part of the current entry becomes
+                // available. It doesn't affect correctness if the next part is already available, it's just a little less efficient to make
+                // a new AvailableChunksZipResponseBodyPart in that case. That's ok, entries can coalesce all the available parts together
+                // themselves if efficiency really matters.
+                isPartComplete = true;
+                assert getNextPartListener == null;
+                getNextPartListener = SubscribableListener.newForked(
+                    l -> bodyPart.getNextPart(l.map(p -> new AvailableChunksZipResponseBodyPart(null, p)))
+                );
+            }
+        }
+
+        private void finishResponse(ArrayList<Releasable> releasables) throws IOException {
+            assert zipEntry == null;
+            assert entryQueue.isEmpty() : entryQueue.size();
+            zipOutputStream.finish();
+            isPartComplete = true;
+            isLastPart = true;
+            transferCurrentEntryReleasable(releasables);
+            assert getNextPartListener == null;
         }
 
         @Override

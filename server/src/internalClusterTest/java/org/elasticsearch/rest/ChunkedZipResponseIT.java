@@ -193,7 +193,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
             final var maxPartSize = maxSize / partCount;
             return new EntryBody(randomList(partCount, partCount, () -> {
                 final var chunkCount = between(1, 10);
-                return randomEntryPart(chunkCount, between(0, maxPartSize) / chunkCount);
+                return randomEntryPart(chunkCount, maxPartSize / chunkCount);
             }));
         }
 
@@ -209,7 +209,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
             CountDownLatch completionLatch,
             Iterator<Map.Entry<String, EntryBody>> entryIterator
         ) {
-            try (var refs = new RefCountingRunnable(completionLatch::countDown);) {
+            try (var refs = new RefCountingRunnable(completionLatch::countDown)) {
                 final var chunkedZipResponse = new ChunkedZipResponse(RESPONSE_FILENAME, channel, refs.acquire());
                 ThrottledIterator.run(
                     entryIterator,

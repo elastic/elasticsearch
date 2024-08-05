@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -24,7 +23,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,12 +33,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -514,14 +512,11 @@ public class BucketScriptIT extends ESIntegTestCase {
     }
 
     public void testStoredScript() {
-        assertAcked(
-            clusterAdmin().preparePutStoredScript()
-                .setId("my_script")
-                // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
-                .setContent(
-                    new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\", \"source\": \"my_script\" } }"),
-                    XContentType.JSON
-                )
+
+        putJsonStoredScript(
+            "my_script",
+            // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
+            "{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\", \"source\": \"my_script\" } }"
         );
 
         assertNoFailuresAndResponse(

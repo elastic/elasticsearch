@@ -186,25 +186,18 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings1.setString("azure.client.azure1.account", "myaccount1");
         secureSettings1.setString("azure.client.azure1.key", encodeKey("mykey11"));
         final Settings settings1 = Settings.builder().setSecureSettings(secureSettings1).build();
+
         final MockSecureSettings secureSettings2 = new MockSecureSettings();
-        secureSettings2.setString("azure.client.azure1.account", "myaccount1");
-        // missing key
+        secureSettings2.setString("azure.client.azure1.account", "myaccount3");
+        secureSettings2.setString("azure.client.azure1.key", encodeKey("mykey33"));
+        secureSettings2.setString("azure.client.azure1.sas_token", encodeKey("mysasToken33"));
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
-        final MockSecureSettings secureSettings3 = new MockSecureSettings();
-        secureSettings3.setString("azure.client.azure1.account", "myaccount3");
-        secureSettings3.setString("azure.client.azure1.key", encodeKey("mykey33"));
-        secureSettings3.setString("azure.client.azure1.sas_token", encodeKey("mysasToken33"));
-        final Settings settings3 = Settings.builder().setSecureSettings(secureSettings3).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
             AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             assertThat(
                 expectThrows(SettingsException.class, () -> plugin.reload(settings2)).getMessage(),
-                is("Neither a secret key nor a shared access token was set for account [myaccount1]")
-            );
-            assertThat(
-                expectThrows(SettingsException.class, () -> plugin.reload(settings3)).getMessage(),
                 is("Both a secret as well as a shared access token were set for account [myaccount3]")
             );
             // existing client untouched

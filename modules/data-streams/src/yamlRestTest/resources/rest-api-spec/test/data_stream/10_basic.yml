@@ -1150,3 +1150,96 @@ setup:
         name: simple-data-stream2
   - is_true: acknowledged
 
+---
+"Create data stream with match all template":
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "data streams supoprt for match all templates only supported in 8.16"
+
+  - do:
+      allowed_warnings:
+        - "index template [match-all-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,global,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],global => [*],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-template] will take precedence during new index creation"
+        - "index template [match-all-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: match-all-template
+        body:
+          index_patterns: [ "*" ]
+          priority: 1
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: match-all-data-stream
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: match-all-data-stream }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-match-all-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.status: 'GREEN' }
+  - match: { data_streams.0.template: 'match-all-template' }
+  - match: { data_streams.0.hidden: false }
+
+  - do:
+      indices.delete_data_stream:
+        name: match-all-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_index_template:
+        name: match-all-template
+  - is_true: acknowledged
+
+---
+"Create hidden data stream with match all template":
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "data streams supoprt for match all templates only supported in 8.16"
+  - do:
+      allowed_warnings:
+        - "index template [match-all-hidden-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,global,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],global => [*],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-hidden-template] will take precedence during new index creation"
+        - "index template [match-all-hidden-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-hidden-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: match-all-hidden-template
+        body:
+          index_patterns: [ "*" ]
+          priority: 1
+          data_stream:
+            hidden: true
+  - do:
+      indices.create_data_stream:
+        name: match-all-hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - length: { data_streams: 0 }
+
+  - do:
+      indices.get_data_stream:
+        name: ['*']
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: match-all-hidden-data-stream }
+  - match: { data_streams.0.hidden: true }
+
+  - do:
+      indices.delete_data_stream:
+        name: match-all-hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_index_template:
+        name: match-all-hidden-template

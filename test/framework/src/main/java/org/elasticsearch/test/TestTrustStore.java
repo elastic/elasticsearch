@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TestTrustStore extends ExternalResource {
@@ -35,6 +36,7 @@ public class TestTrustStore extends ExternalResource {
     private Path trustStorePath;
 
     public Path getTrustStorePath() {
+        assertFalse("Tests in FIPS mode cannot supply a custom trust store", ESTestCase.inFipsJvm());
         return Objects.requireNonNullElseGet(trustStorePath, () -> ESTestCase.fail(null, "trust store not created"));
     }
 

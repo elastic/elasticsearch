@@ -35,7 +35,13 @@ class ArrayEqualMatcher extends EqualMatcher<Object[]> {
     private MatchResult matchArraysEqual(final Object[] actualArray, final Object[] expectedArray, boolean ignoreSorting) {
         if (actualArray.length != expectedArray.length) {
             return MatchResult.noMatch(
-                formatErrorMessage(actualMappings, actualSettings, expectedMappings, expectedSettings, "Array lengths do no match")
+                formatErrorMessage(
+                    actualMappings,
+                    actualSettings,
+                    expectedMappings,
+                    expectedSettings,
+                    "Array lengths do no match, " + prettyPrintArrays(actualArray, expectedArray)
+                )
             );
         }
         if (ignoreSorting) {
@@ -47,14 +53,20 @@ class ArrayEqualMatcher extends EqualMatcher<Object[]> {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Arrays do not match when ignoreing sort order"
+                        "Arrays do not match when ignoring sort order, " + prettyPrintArrays(actualArray, expectedArray)
                     )
                 );
         } else {
             return matchArraysEqualExact(actualArray, expectedArray)
                 ? MatchResult.match()
                 : MatchResult.noMatch(
-                    formatErrorMessage(actualMappings, actualSettings, expectedMappings, expectedSettings, "Arrays do not match exactly")
+                    formatErrorMessage(
+                        actualMappings,
+                        actualSettings,
+                        expectedMappings,
+                        expectedSettings,
+                        "Arrays do not match exactly, " + prettyPrintArrays(actualArray, expectedArray)
+                    )
                 );
         }
     }

@@ -986,3 +986,36 @@ s:double | emp_no:integer | salary:integer
 1.0     | 10002          | 56371
 1.0     | 10041          | 56415
 ;
+
+CombineBinaryComparisonsMv
+required_capability: combine_binary_comparisons
+
+row x = [1,2,3]
+| where 12 * (-x - 5) >= -120 OR x < 5
+;
+warning:Line 2:15: evaluation of [-x] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:15: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:34: evaluation of [x < 5] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:34: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+x:integer
+;
+
+CombineBinaryComparisonsEmp
+required_capability: combine_binary_comparisons
+
+from employees
+| where salary_change.int == 2 OR salary_change.int > 1
+| keep emp_no, salary_change.int
+| sort emp_no
+;
+warning:Line 2:35: evaluation of [salary_change.int > 1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:35: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer |salary_change.int:integer
+10044 | 8
+10046 | 2
+10066 | 5
+10079 | 7
+10086 | 13
+;

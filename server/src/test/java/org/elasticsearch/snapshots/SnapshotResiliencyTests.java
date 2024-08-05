@@ -1817,10 +1817,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private static Settings defaultIndexSettings(int shards) {
         // TODO: randomize replica count settings once recovery operations aren't blocking anymore
-        return Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        return indexSettings(shards, 0).build();
     }
 
     private static <T> void continueOrDie(SubscribableListener<T> listener, CheckedConsumer<T, Exception> onResponse) {

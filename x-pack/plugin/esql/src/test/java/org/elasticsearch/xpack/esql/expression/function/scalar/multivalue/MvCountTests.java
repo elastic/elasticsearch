@@ -49,11 +49,6 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
-    protected DataType[] supportedTypes() {
-        return representableTypes();
-    }
-
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataType.INTEGER;
     }

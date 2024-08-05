@@ -17,7 +17,9 @@ import java.util.List;
 
 public class TopLevelObjectFieldDataGenerator {
     private final Context context;
+    // Child fields of top level object that were explicitly requested, they have predefined name and type.
     private final List<GenericSubObjectFieldDataGenerator.ChildField> predefinedFields;
+    // Child fields of top level object that are generated and merged with predefined fields.
     private final List<GenericSubObjectFieldDataGenerator.ChildField> generatedChildFields;
 
     public TopLevelObjectFieldDataGenerator(DataGeneratorSpecification specification) {

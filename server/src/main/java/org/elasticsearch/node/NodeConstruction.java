@@ -731,7 +731,7 @@ class NodeConstruction {
                 clusterService::state,
                 clusterService.getClusterSettings(),
                 client,
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 rerouteService
             )::onNewInfo
         );
@@ -1451,7 +1451,12 @@ class NodeConstruction {
             ClusterCoordinationPlugin.PersistedClusterStateServiceFactory.class
         ).map(f -> f.newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool, compatibilityVersions))
             .orElseGet(
-                () -> new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool::relativeTimeInMillis)
+                () -> new PersistedClusterStateService(
+                    nodeEnvironment,
+                    xContentRegistry,
+                    clusterSettings,
+                    threadPool.relativeTimeInMillisSupplier()
+                )
             );
 
         return b -> b.bind(PersistedClusterStateService.class).toInstance(service);

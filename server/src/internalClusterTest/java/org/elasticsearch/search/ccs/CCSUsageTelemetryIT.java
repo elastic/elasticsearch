@@ -413,7 +413,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         // partial failure, and we disable partial results..
         searchRequest.setCcsMinimizeRoundtrips(true);
 
-        TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
+        TimeValue searchTimeout = new TimeValue(200, TimeUnit.MILLISECONDS);
         // query builder that will sleep for the specified amount of time in the query phase
         SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5, remoteIndex);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);

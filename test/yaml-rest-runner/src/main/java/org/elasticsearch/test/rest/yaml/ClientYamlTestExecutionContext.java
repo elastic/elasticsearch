@@ -15,6 +15,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -280,7 +281,13 @@ public class ClientYamlTestExecutionContext {
         return testFeatureService.clusterHasFeature(featureId);
     }
 
-    public Optional<Boolean> clusterHasCapabilities(String method, String path, String parametersString, String capabilitiesString) {
+    public Optional<Boolean> clusterHasCapabilities(
+        String method,
+        String path,
+        String parametersString,
+        String capabilitiesString,
+        boolean any
+    ) {
         Map<String, String> params = Maps.newMapWithExpectedSize(5);
         params.put("method", method);
         params.put("path", path);
@@ -290,9 +297,30 @@ public class ClientYamlTestExecutionContext {
         if (Strings.hasLength(capabilitiesString)) {
             params.put("capabilities", capabilitiesString);
         }
+        params.put("local_node", "true");   // we're calling each node individually
         params.put("error_trace", "false"); // disable error trace
+
+        // individually call each node, so we can control whether we do an 'any' or 'all' check
+        List<Node> nodes = clientYamlTestClient.getRestClient(NodeSelector.ANY).getNodes();
+
+        for (Node n : nodes) {
+            Optional<Boolean> nodeResult = nodeHasCapability(n, params);
+            if (nodeResult.isEmpty()) {
+                return Optional.empty();
+            } else if (any == nodeResult.get()) {
+                // either any == true and node has cap,
+                // or any == false (all) and this node does not have cap
+                return nodeResult;
+            }
+        }
+
+        // if we got here, either any is true and no node has it, or any == false and all nodes have it
+        return Optional.of(any == false);
+    }
+
+    private Optional<Boolean> nodeHasCapability(Node node, Map<String, String> params) {
         try {
-            ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap());
+            ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap(), new SpecificNodeSelector(node));
             // anything other than 200 should result in an exception, handled below
             assert resp.getStatusCode() == 200 : "Unknown response code " + resp.getStatusCode();
             return Optional.ofNullable(resp.evaluate("supported"));
@@ -303,6 +331,17 @@ public class ClientYamlTestExecutionContext {
             throw new UncheckedIOException(responseException);
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
+        }
+    }
+
+    private record SpecificNodeSelector(Node node) implements NodeSelector {
+        @Override
+        public void select(Iterable<Node> nodes) {
+            for (var it = nodes.iterator(); it.hasNext();) {
+                if (it.next().equals(node) == false) {
+                    it.remove();
+                }
+            }
         }
     }
 }

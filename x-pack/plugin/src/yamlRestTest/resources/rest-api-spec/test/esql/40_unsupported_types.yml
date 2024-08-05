@@ -392,7 +392,7 @@ unsupported with sort:
   - match: { values.0.28: 3 }
 
 ---
-nested:
+nested declared inline:
   - do:
       bulk:
         index: test
@@ -417,6 +417,72 @@ nested:
           query: 'FROM test | WHERE find_me == 1 | KEEP n*'
 
   # The `nested` field is not visible, nor are any of it's subfields.
-  - match: { columns.0.name: name }
-  - match: { columns.0.type: keyword }
+  - match: { columns: [{name: name, type: keyword}] }
   - match: { values: [[null]] }
+
+---
+nested declared in mapping:
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  foo:
+                    type: keyword
+                  bar:
+                    type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_nested'
+
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns: [{name: name, type: keyword}] }
+
+---
+double nested declared in mapping:
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  bort:
+                    type: keyword
+                  nested:
+                    type: nested
+                    properties:
+                      foo:
+                        type: keyword
+                      bar:
+                        type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_nested'
+
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns: [{name: name, type: keyword}] }

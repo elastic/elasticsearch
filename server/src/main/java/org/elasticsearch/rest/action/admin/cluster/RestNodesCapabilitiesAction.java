@@ -38,7 +38,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of("timeout", "method", "path", "parameters", "capabilities");
+        return Set.of("timeout", "method", "path", "parameters", "capabilities", "local_only");
     }
 
     @Override
@@ -48,7 +48,11 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        NodesCapabilitiesRequest r = new NodesCapabilitiesRequest().timeout(getTimeout(request))
+        NodesCapabilitiesRequest requestNodes = request.paramAsBoolean("local_only", false)
+            ? new NodesCapabilitiesRequest(client.getLocalNodeId())
+            : new NodesCapabilitiesRequest();
+
+        NodesCapabilitiesRequest r = requestNodes.timeout(getTimeout(request))
             .method(RestRequest.Method.valueOf(request.param("method", "GET")))
             .path(URLDecoder.decode(request.param("path"), StandardCharsets.UTF_8))
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))

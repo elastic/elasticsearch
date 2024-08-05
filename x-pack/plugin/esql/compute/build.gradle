@@ -433,6 +433,32 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
   }
+  File fallibleStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-FallibleState.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  fallibleStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/BooleanFallibleState.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  fallibleStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IntFallibleState.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  fallibleStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LongFallibleState.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  fallibleStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/FloatFallibleState.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  fallibleStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DoubleFallibleState.java"
+  }
   // block lookups
   File lookupInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Lookup.java.st")
   template {

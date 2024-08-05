@@ -67,11 +67,11 @@ public class ShardSnapshotTaskRunner {
         private static final Comparator<SnapshotTask> COMPARATOR = Comparator
             // Prefer work from the oldest running snapshot ...
             .comparingLong(SnapshotTask::getSnapshotStartTime)
-            // ... tiebreaking on UUID ...
+            // ... tiebreaking on UUID just in case two of them start at the same millisecond ...
             .thenComparing(SnapshotTask::snapshotUUID)
             // ... then prefer starting new shard snapshots over uploading files for ongoing ones (for fast noop shard snapshots) ...
             .thenComparingInt(SnapshotTask::priority)
-            // .. finally breaking ties by shard ID to limit WIP
+            // ... then break ties by shard ID to limit WIP and avoid PAUSED_FOR_NODE_REMOVAL discarding more work than it needs to
             .thenComparing(SnapshotTask::shardId);
 
         @Override

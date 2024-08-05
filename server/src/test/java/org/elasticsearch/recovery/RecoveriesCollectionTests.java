@@ -8,7 +8,9 @@
 package org.elasticsearch.recovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
@@ -129,7 +131,9 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             IndexShard indexShard = recoveryTarget.indexShard();
             Store store = recoveryTarget.store();
             String tempFileName = recoveryTarget.getTempNameForFile("foobar");
-            RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
+            var future = new PlainActionFuture<RecoveryTarget>();
+            collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60), future);
+            RecoveryTarget resetRecovery = FutureUtils.get(future);
             final long resetRecoveryId = resetRecovery.recoveryId();
             assertNotSame(recoveryTarget, resetRecovery);
             assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());

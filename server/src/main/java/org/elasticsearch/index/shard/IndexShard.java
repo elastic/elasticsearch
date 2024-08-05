@@ -3804,7 +3804,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             maxSeqNo
                         );
                         if (currentGlobalCheckpoint < maxSeqNo) {
-                            resetEngineToGlobalCheckpoint();
+                            // TODO FIX ME
+                            var future = new PlainActionFuture<Void>();
+                            resetEngineToGlobalCheckpoint(future);
+                            FutureUtils.get(future);
                         } else {
                             getEngine().rollTranslogGeneration();
                         }
@@ -4251,7 +4254,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
-    void resetEngineToGlobalCheckpoint() throws IOException {
+    void resetEngineToGlobalCheckpoint(ActionListener<Void> listener) throws IOException {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED
             : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';
@@ -4316,36 +4319,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             };
-            // TODO Make it async
-            var future = new PlainActionFuture<Void>();
-            Engine.close(currentEngineReference.getAndSet(readOnlyEngine), future);
-            FutureUtils.get(future);
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
-            onNewEngine(newEngineReference.get());
+
+            var oldEngine = currentEngineReference.getAndSet(readOnlyEngine);
+            SubscribableListener.<Void>newForked(l -> Engine.close(oldEngine, l)).<Void>andThen(l -> {
+                newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
+                onNewEngine(newEngineReference.get());
+
+                final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
+                    engine,
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_RESET,
+                    () -> {
+                        // TODO: add a dedicate recovery stats for the reset translog
+                    }
+                );
+                newEngineReference.get().recoverFromTranslog(translogRunner, globalCheckpoint);
+                newEngineReference.get().refresh("reset_engine");
+                synchronized (engineMutex) {
+                    verifyNotClosed();
+                    var oldReadOnlyEngine = currentEngineReference.getAndSet(newEngineReference.get());
+                    Engine.close(oldReadOnlyEngine, ActionListener.runBefore(l, () -> {
+                        // We set active because we are now writing operations to the engine; this way,
+                        // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
+                        active.set(true);
+                        // time elapses after the engine is created above (pulling the config settings) until we set the engine
+                        // reference, during which settings changes could possibly have happened, so here we forcefully push any config
+                        // changes to the new engine.
+                        onSettingsChanged();
+                    }));
+                }
+
+            }).addListener(listener);
         }
-        final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
-            engine,
-            snapshot,
-            Engine.Operation.Origin.LOCAL_RESET,
-            () -> {
-                // TODO: add a dedicate recovery stats for the reset translog
-            }
-        );
-        newEngineReference.get().recoverFromTranslog(translogRunner, globalCheckpoint);
-        newEngineReference.get().refresh("reset_engine");
-        synchronized (engineMutex) {
-            verifyNotClosed();
-            // TODO Make it async
-            var future = new PlainActionFuture<Void>();
-            Engine.close(currentEngineReference.getAndSet(newEngineReference.get()), future);
-            FutureUtils.get(future);
-            // We set active because we are now writing operations to the engine; this way,
-            // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
-            active.set(true);
-        }
-        // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
-        // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
-        onSettingsChanged();
     }
 
     /**

@@ -61,6 +61,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
@@ -4427,7 +4428,10 @@ public class IndexShardTests extends IndexShardTestCase {
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), globalCheckpoint, 0L, ActionListener.wrap(r -> {
             try {
-                shard.resetEngineToGlobalCheckpoint();
+                // TODO FIX ME
+                var future = new PlainActionFuture<Void>();
+                shard.resetEngineToGlobalCheckpoint(future);
+                FutureUtils.get(future);
             } finally {
                 r.close();
                 engineResetLatch.countDown();
@@ -4490,7 +4494,10 @@ public class IndexShardTests extends IndexShardTestCase {
             0L,
             ActionListener.wrap(r -> {
                 try (r) {
-                    shard.resetEngineToGlobalCheckpoint();
+                    // TODO FIX ME
+                    var future = new PlainActionFuture<Void>();
+                    shard.resetEngineToGlobalCheckpoint(future);
+                    FutureUtils.get(future);
                 } finally {
                     engineResetLatch.countDown();
                 }
@@ -4557,7 +4564,10 @@ public class IndexShardTests extends IndexShardTestCase {
             0L,
             ActionListener.wrap(r -> {
                 try (r) {
-                    shard.resetEngineToGlobalCheckpoint();
+                    // TODO FIX ME
+                    var future = new PlainActionFuture<Void>();
+                    shard.resetEngineToGlobalCheckpoint(future);
+                    FutureUtils.get(future);
                 } finally {
                     engineResetLatch.countDown();
                 }

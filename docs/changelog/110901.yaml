@@ -1,12 +1,15 @@
 pr: 110901
-summary: Gracefully handle invalid synonym rules in updateable synonyms
-area: "Analysis, Relevance"
-type: "breaking, bug"
+summary: Set lenient to true by default when using updateable synonyms
+area: Analysis
+type: breaking
 issues: []
 breaking:
-  title: Gracefully handle invalid synonym rules in updateable synonyms
-  area: "Analysis, Relevance"
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  notable: false
+  title: Set lenient to true by default when using updateable synonyms
+  area: Analysis
+  details: |
+    When a `synonym` or `synonym_graph` token filter is configured with `updateable: true`, the default `lenient`
+    value will now be `true`.
+  impact: |
+    `synonym` or `synonym_graph` token filters configured with `updateable: true` will ignore invalid synonyms by
+    default. This prevents shard initialization errors on invalid synonyms.
+  notable: true

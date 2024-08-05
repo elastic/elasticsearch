@@ -28,6 +28,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
     private final SearchUsageStats searchUsageStats;
+    private final CCSTelemetrySnapshot ccsMetrics;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -43,6 +44,11 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         } else {
             searchUsageStats = new SearchUsageStats();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
+            ccsMetrics = new CCSTelemetrySnapshot(in);
+        } else {
+            ccsMetrics = new CCSTelemetrySnapshot();
+        }
     }
 
     public ClusterStatsNodeResponse(
@@ -51,7 +57,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         NodeInfo nodeInfo,
         NodeStats nodeStats,
         ShardStats[] shardsStats,
-        SearchUsageStats searchUsageStats
+        SearchUsageStats searchUsageStats,
+        CCSTelemetrySnapshot ccsTelemetrySnapshot
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
@@ -59,6 +66,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
         this.searchUsageStats = searchUsageStats;
+        this.ccsMetrics = ccsTelemetrySnapshot;
     }
 
     public NodeInfo nodeInfo() {
@@ -85,6 +93,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return searchUsageStats;
     }
 
+    public CCSTelemetrySnapshot getCcsMetrics() {
+        return ccsMetrics;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -100,5 +112,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             searchUsageStats.writeTo(out);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
+            ccsMetrics.writeTo(out);
+        }
     }
+
 }

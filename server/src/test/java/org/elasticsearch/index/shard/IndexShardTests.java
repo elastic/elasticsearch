@@ -1784,6 +1784,57 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testShardFieldStats() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build();
+        IndexShard shard = newShard(true, settings);
+        assertNull(shard.getShardFieldStats());
+        recoverShardFromStore(shard);
+        ShardFieldStats stats = shard.getShardFieldStats();
+        assertNotNull(stats);
+        assertThat(stats.numSegments(), equalTo(0));
+        assertThat(stats.totalFields(), equalTo(0));
+        // index some documents
+        int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", "first_" + i, """
+                {
+                    "f1": "foo",
+                    "f2": "bar"
+                }
+                """);
+        }
+        assertThat(shard.getShardFieldStats(), sameInstance(stats));
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(1));
+        // _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword,
+        assertThat(stats.totalFields(), equalTo(9));
+        // don't re-compute on refresh without change
+        shard.refresh("test");
+        assertThat(shard.getShardFieldStats(), sameInstance(stats));
+        // index more docs
+        numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", "first_" + i, """
+                {
+                    "f1": "foo",
+                    "f2": "bar",
+                    "f3": "foobar"
+                }
+                """);
+        }
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(2));
+        // 9 + _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword, f3, f3.keyword
+        assertThat(stats.totalFields(), equalTo(21));
+        shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+        stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(1));
+        assertThat(stats.totalFields(), equalTo(12));
+        closeShards(shard);
+    }
+
     public void testIndexingOperationsListeners() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");

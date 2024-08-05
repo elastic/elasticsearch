@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -42,6 +43,12 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         AZURE_TEST_CLIENT_ID,
         decideAuthHeaderPredicate()
     );
+
+    @BeforeClass
+    public static void muteInFips() {
+        // https://github.com/elastic/elasticsearch/issues/111532 should fix this
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
+    }
 
     private static Predicate<String> decideAuthHeaderPredicate() {
         if (Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)) {

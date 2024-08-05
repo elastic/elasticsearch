@@ -105,9 +105,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111282
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
   issue: https://github.com/elastic/elasticsearch/issues/111319
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testMatchFilter
-  issue: https://github.com/elastic/elasticsearch/issues/111380
 - class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
   method: testIngestWithInputFields
   issue: https://github.com/elastic/elasticsearch/issues/111383
@@ -117,12 +114,12 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithCodeFlowAndClientPost
   issue: https://github.com/elastic/elasticsearch/issues/111396
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
-  method: testGroupingAggregate {TestCase=<long unicode TEXTs>}
-  issue: https://github.com/elastic/elasticsearch/issues/111429
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
-  method: testGroupingAggregate {TestCase=<long unicode KEYWORDs>}
-  issue: https://github.com/elastic/elasticsearch/issues/111428
+- class: org.elasticsearch.xpack.searchablesnapshots.AzureSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/111279
+- class: org.elasticsearch.repositories.azure.RepositoryAzureClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/111345
+- class: org.elasticsearch.xpack.repositories.metering.azure.AzureRepositoriesMeteringIT
+  issue: https://github.com/elastic/elasticsearch/issues/111307
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111434
@@ -132,6 +129,8 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111448
+- class: org.elasticsearch.search.SearchServiceTests
+  issue: https://github.com/elastic/elasticsearch/issues/111529
 
 # Examples:
 #

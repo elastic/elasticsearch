@@ -1894,35 +1894,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
 
-        SubscribableListener
-            // First, start a temporary engine, recover the local translog up to the given checkpoint, and then close the engine again.
-            .<Void>newForked(l -> ActionListener.runWithResource(ActionListener.assertOnce(l), () -> () -> {
-                assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
-                synchronized (engineMutex) {
-                    // TODO Make it async
-                    var future = new PlainActionFuture<Void>();
-                    Engine.close(currentEngineReference.getAndSet(null), future);
-                    FutureUtils.get(future);
-                }
-            }, (recoveryCompleteListener, ignoredRef) -> {
-                assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
-                final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
-                    recoveryState.getTranslog().totalLocal(snapshot.totalOperations());
-                    final int recoveredOps = runTranslogRecovery(
-                        engine,
-                        snapshot,
-                        Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
-                        recoveryState.getTranslog()::incrementRecoveredOperations
-                    );
-                    recoveryState.getTranslog().totalLocal(recoveredOps); // adjust the total local to reflect the actual count
-                    return recoveredOps;
-                };
-                innerOpenEngineAndTranslog(() -> globalCheckpoint);
-                getEngine().recoverFromTranslog(translogRecoveryRunner, globalCheckpoint, recoveryCompleteListener.map(v -> {
+        // First, start a temporary engine, recover the local translog up to the given checkpoint, and then close the engine again.
+        SubscribableListener.<Void>newForked(recoveryCompleteListener -> {
+            assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
+            final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
+                recoveryState.getTranslog().totalLocal(snapshot.totalOperations());
+                final int recoveredOps = runTranslogRecovery(
+                    engine,
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                    recoveryState.getTranslog()::incrementRecoveredOperations
+                );
+                recoveryState.getTranslog().totalLocal(recoveredOps); // adjust the total local to reflect the actual count
+                return recoveredOps;
+            };
+            innerOpenEngineAndTranslog(() -> globalCheckpoint);
+            getEngine().recoverFromTranslog(
+                translogRecoveryRunner,
+                globalCheckpoint,
+                recoveryCompleteListener.delegateFailureAndWrap((l, unused) -> {
+                    assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
+                    Engine oldEngine;
+                    synchronized (engineMutex) {
+                        oldEngine = currentEngineReference.getAndSet(null);
+                    }
+                    Engine.close(oldEngine, l);
+                }).<Void>map(v -> {
                     logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
                     return v;
-                }));
-            }))
+                })
+            );
+        })
             // If the recovery replayed any operations then it will have created a new safe commit for the specified global checkpoint,
             // which we can use for the rest of the recovery, so now we load the safe commit and use its local checkpoint as the recovery
             // starting point.

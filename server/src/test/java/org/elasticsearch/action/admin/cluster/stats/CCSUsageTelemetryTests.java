@@ -12,7 +12,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.action.admin.cluster.stats.ApproximateMatcher.closeTo;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.KNOWN_CLIENTS;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result.CANCELED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -45,10 +48,10 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             CCSUsage.Builder builder = new CCSUsage.Builder();
             builder.took(took1).setRemotesCount(1);
             if (async) {
-                builder.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
+                builder.setFeature(ASYNC_FEATURE);
             }
             if (minimizeRoundTrips) {
-                builder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
+                builder.setFeature(MRT_FEATURE);
             }
             if (skippedRemote) {
                 builder.skippedRemote("remote1");
@@ -63,9 +66,9 @@ public class CCSUsageTelemetryTests extends ESTestCase {
 
             assertThat(snapshot.getTotalCount(), equalTo(1L));
             assertThat(snapshot.getSuccessCount(), equalTo(1L));
-            assertThat(snapshot.getFeatureCounts().getOrDefault(CCSUsageTelemetry.ASYNC_FEATURE, 0L), equalTo(expectedAsyncCount));
-            assertThat(snapshot.getFeatureCounts().getOrDefault(CCSUsageTelemetry.MRT_FEATURE, 0L), equalTo(expectedMinRTCount));
-            assertThat(snapshot.getSkippedRemotes(), equalTo(expectedSearchesWithSkippedRemotes));
+            assertThat(snapshot.getFeatureCounts().getOrDefault(ASYNC_FEATURE, 0L), equalTo(expectedAsyncCount));
+            assertThat(snapshot.getFeatureCounts().getOrDefault(MRT_FEATURE, 0L), equalTo(expectedMinRTCount));
+            assertThat(snapshot.getSearchCountWithSkippedRemotes(), equalTo(expectedSearchesWithSkippedRemotes));
             assertThat(snapshot.getTook().avg(), greaterThan(0L));
             // Expect it to be within 1% of the actual value
             assertThat(snapshot.getTook().avg(), closeTo(took1));
@@ -124,10 +127,10 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             CCSUsage.Builder builder = new CCSUsage.Builder();
             builder.took(took2).setRemotesCount(1).setClient("kibana");
             if (async) {
-                builder.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
+                builder.setFeature(ASYNC_FEATURE);
             }
             if (minimizeRoundTrips) {
-                builder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
+                builder.setFeature(MRT_FEATURE);
             }
             if (skippedRemote) {
                 builder.skippedRemote("remote1");
@@ -141,9 +144,9 @@ public class CCSUsageTelemetryTests extends ESTestCase {
 
             assertThat(snapshot.getTotalCount(), equalTo(2L));
             assertThat(snapshot.getSuccessCount(), equalTo(2L));
-            assertThat(snapshot.getFeatureCounts().getOrDefault(CCSUsageTelemetry.ASYNC_FEATURE, 0L), equalTo(expectedAsyncCount));
-            assertThat(snapshot.getFeatureCounts().getOrDefault(CCSUsageTelemetry.MRT_FEATURE, 0L), equalTo(expectedMinRTCount));
-            assertThat(snapshot.getSkippedRemotes(), equalTo(expectedSearchesWithSkippedRemotes));
+            assertThat(snapshot.getFeatureCounts().getOrDefault(ASYNC_FEATURE, 0L), equalTo(expectedAsyncCount));
+            assertThat(snapshot.getFeatureCounts().getOrDefault(MRT_FEATURE, 0L), equalTo(expectedMinRTCount));
+            assertThat(snapshot.getSearchCountWithSkippedRemotes(), equalTo(expectedSearchesWithSkippedRemotes));
             assertThat(snapshot.getTook().avg(), greaterThan(0L));
             assertThat(snapshot.getTook().avg(), closeTo((took1 + took2) / 2));
             // assertThat(snapshot.getTook().max(), greaterThanOrEqualTo(Math.max(took1, took2)));
@@ -173,8 +176,6 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             // assertThat(remote1ClusterTelemetry.getTook().max(), greaterThanOrEqualTo(Math.max(took1Remote1, took2Remote1)));
         }
     }
-
-    // TODO: add tests for failure scenarios
 
     public void testClientsLimit() {
         CCSUsageTelemetry ccsUsageHolder = new CCSUsageTelemetry();
@@ -208,5 +209,69 @@ public class CCSUsageTelemetryTests extends ESTestCase {
         ccsUsageHolder.updateUsage(ccsUsage);
         counts = ccsUsageHolder.getCCSTelemetrySnapshot().getClientCounts();
         assertThat(counts.get(randomClient), equalTo(null));
+    }
+
+    public void testFailures() {
+        CCSUsageTelemetry ccsUsageHolder = new CCSUsageTelemetry();
+
+        // first search
+        {
+            boolean skippedRemote = randomBoolean();
+            boolean minimizeRoundTrips = randomBoolean();
+            boolean async = randomBoolean();
+
+            CCSUsage.Builder builder = new CCSUsage.Builder();
+            builder.setRemotesCount(1).took(10L);
+            if (skippedRemote) {
+                builder.skippedRemote("remote1");
+            }
+            builder.perClusterUsage("(local)", new TimeValue(1));
+            builder.perClusterUsage("remote1", new TimeValue(2));
+            builder.setFailure(CANCELED);
+            if (async) {
+                builder.setFeature(ASYNC_FEATURE);
+            }
+            if (minimizeRoundTrips) {
+                builder.setFeature(MRT_FEATURE);
+            }
+
+            CCSUsage ccsUsage = builder.build();
+            ccsUsageHolder.updateUsage(ccsUsage);
+
+            CCSTelemetrySnapshot snapshot = ccsUsageHolder.getCCSTelemetrySnapshot();
+
+            assertThat(snapshot.getTotalCount(), equalTo(1L));
+            assertThat(snapshot.getSuccessCount(), equalTo(0L));
+            assertThat(snapshot.getSearchCountWithSkippedRemotes(), equalTo(skippedRemote ? 1L : 0L));
+            assertThat(snapshot.getTook().count(), equalTo(0L));
+            assertThat(snapshot.getFailureReasons().size(), equalTo(1));
+            assertThat(snapshot.getFailureReasons().get(CANCELED.getName()), equalTo(1L));
+            // still counting features on failure
+            assertThat(snapshot.getFeatureCounts().getOrDefault(ASYNC_FEATURE, 0L), equalTo(async ? 1L : 0L));
+            assertThat(snapshot.getFeatureCounts().getOrDefault(MRT_FEATURE, 0L), equalTo(minimizeRoundTrips ? 1L : 0L));
+        }
+
+        // second search
+        {
+            CCSUsage.Builder builder = new CCSUsage.Builder();
+            boolean skippedRemote = randomBoolean();
+            builder.setRemotesCount(1).took(10L).setClient("kibana");
+            if (skippedRemote) {
+                builder.skippedRemote("remote1");
+            }
+            builder.setFailure(CANCELED);
+            CCSUsage ccsUsage = builder.build();
+
+            ccsUsageHolder.updateUsage(ccsUsage);
+
+            CCSTelemetrySnapshot snapshot = ccsUsageHolder.getCCSTelemetrySnapshot();
+
+            assertThat(snapshot.getTotalCount(), equalTo(2L));
+            assertThat(snapshot.getSuccessCount(), equalTo(0L));
+            assertThat(snapshot.getTook().count(), equalTo(0L));
+            assertThat(snapshot.getFailureReasons().size(), equalTo(1));
+            assertThat(snapshot.getFailureReasons().get(CANCELED.getName()), equalTo(2L));
+            assertThat(snapshot.getClientCounts().get("kibana"), equalTo(1L));
+        }
     }
 }

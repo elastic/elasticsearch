@@ -407,13 +407,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
     }
 
-    /**
-     * Lower-level search API.
-     *
-     * {@link LeafCollector#collect(int)} is called for every matching document in
-     * the provided <code>ctx</code>.
-     */
-    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    @Override
+    protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
         final LeafCollector leafCollector;
         try {

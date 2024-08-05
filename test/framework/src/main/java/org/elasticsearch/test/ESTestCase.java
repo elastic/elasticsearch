@@ -583,8 +583,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return true;
     }
 
+    protected boolean enableBigArraysReleasedCheck() {
+        return true;
+    }
+
     @After
     public final void after() throws Exception {
+        if (enableBigArraysReleasedCheck()) {
+            MockBigArrays.ensureAllArraysAreReleased();
+        }
         checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
@@ -771,8 +778,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
-        MockBigArrays.ensureAllArraysAreReleased();
-
         // ensure no one changed the status logger level on us
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {

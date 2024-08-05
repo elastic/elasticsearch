@@ -662,11 +662,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return result;
     }
 
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        // TODO remove me in favor of cases containing null
-        assertTrue("argument " + nullBlock + " is null", value.isNull(0));
-    }
-
     /**
      * Modifies suppliers to generate BytesRefs with random offsets.
      */

@@ -51,6 +51,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
         AZURE_ACCOUNT,
         System.getProperty("test.azure.container"),
+        System.getProperty("test.azure.tenant_id"),
+        System.getProperty("test.azure.client_id"),
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT)
     );
 

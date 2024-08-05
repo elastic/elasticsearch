@@ -267,6 +267,8 @@ String azureKey = System.getenv("azure_storage_key")
 String azureContainer = System.getenv("azure_storage_container")
 String azureBasePath = System.getenv("azure_storage_base_path")
 String azureSasToken = System.getenv("azure_storage_sas_token")
+String azureTenantId = System.getenv("azure_storage_tenant_id")
+String azureClientId = System.getenv("azure_storage_client_id")
 
 if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
   azureAccount = 'azure_integration_test_account'
@@ -274,6 +276,8 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   azureContainer = 'container'
   azureBasePath = ''
   azureSasToken = ''
+  azureTenantId = ''
+  azureClientId = ''
   useFixture = true
 }
 
@@ -310,6 +314,18 @@ tasks.register("managedIdentityYamlRestTest", RestIntegTestTask) {
   // omitting key and sas_token so that we use a bearer token from the metadata service
 }
 
+tasks.register("workloadIdentityYamlRestTest", RestIntegTestTask) {
+  testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+  classpath = sourceSets.yamlRestTest.runtimeClasspath
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  // random uuids to satisfy format requirements -- the actual values are not important
+  systemProperty 'test.azure.tenant_id', azureTenantId ?: "583d4f71-148a-4163-bad5-2311e13c60dc"
+  systemProperty 'test.azure.client_id', azureClientId ?: "86dd1b33-96c1-4a2e-92ac-b844404fc691"
+  // omitting key and sas_token so that we use a bearer token from workload identity
+}
+
 tasks.register("azureThirdPartyUnitTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
@@ -331,4 +347,5 @@ tasks.register('azureThirdPartyTest') {
 tasks.named("check") {
   dependsOn("azureThirdPartyUnitTest")
   dependsOn("managedIdentityYamlRestTest")
+  dependsOn("workloadIdentityYamlRestTest")
 }

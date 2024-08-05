@@ -224,11 +224,13 @@ class S3BlobStore implements BlobStore {
                 return;
             }
 
-            final long totalTimeInMillis = getTotalTimeInMillis(requestTimesIncludingRetries);
-            if (totalTimeInMillis == 0) {
+            final long totalTimeInNanos = getTotalTimeInNanos(requestTimesIncludingRetries);
+            if (totalTimeInNanos == 0) {
                 logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
             } else {
-                s3RepositoriesMetrics.common().httpRequestTimeInMillisHistogram().record(totalTimeInMillis, attributes);
+                s3RepositoriesMetrics.common()
+                    .httpRequestTimeInMillisHistogram()
+                    .record(TimeUnit.NANOSECONDS.toMillis(totalTimeInNanos), attributes);
             }
         }
 
@@ -271,19 +273,20 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static long getTotalTimeInMillis(List<TimingInfo> requestTimesIncludingRetries) {
-        // Here we calculate the timing in Milliseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
-        // (time to first byte). We calculate the time in millis for later use with an APM style counter (exposed as a long), rather than
-        // using the default double exposed by getTimeTakenMillisIfKnown(). We don't need sub-millisecond precision. So no need perform
-        // the data type castings.
-        long totalTimeInMillis = 0;
+    private static long getTotalTimeInNanos(List<TimingInfo> requestTimesIncludingRetries) {
+        // Here we calculate the timing in Nanoseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
+        // (time to first byte). We use high precision time here to tell from the case when request time metric is missing (0).
+        // The time is converted to milliseconds for later use with an APM style counter (exposed as a long), rather than using the
+        // default double exposed by getTimeTakenMillisIfKnown().
+        // We don't need sub-millisecond precision. So no need perform the data type castings.
+        long totalTimeInNanos = 0;
         for (TimingInfo timingInfo : requestTimesIncludingRetries) {
             var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
             if (endTimeInNanos != null) {
-                totalTimeInMillis += TimeUnit.NANOSECONDS.toMillis(endTimeInNanos - timingInfo.getStartTimeNano());
+                totalTimeInNanos += endTimeInNanos - timingInfo.getStartTimeNano();
             }
         }
-        return totalTimeInMillis;
+        return totalTimeInNanos;
     }
 
     @Override

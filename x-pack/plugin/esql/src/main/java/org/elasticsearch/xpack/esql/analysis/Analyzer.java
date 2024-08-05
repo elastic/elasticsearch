@@ -1110,10 +1110,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     target,
                     e.getMessage()
                 );
-                return new UnsupportedAttribute(
+                return new UnresolvedAttribute(
                     from.source(),
                     String.valueOf(from.fold()),
-                    new UnsupportedEsField(String.valueOf(from.fold()), from.dataType().typeName()),
+                    null,
                     message
                 );
             }

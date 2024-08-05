@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.jose.JoseWrapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -41,8 +42,6 @@ import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -50,7 +49,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
@@ -260,34 +258,24 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
                 }
                 processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
             }, ex -> {
-                AtomicReference<String> msg = new AtomicReference<>();
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJWTClaimsSet();
-                    msg.set(
-                        "Realm ["
-                            + name()
-                            + "] JWT validation failed for token=["
-                            + tokenPrincipal
-                            + "] with header ["
-                            + jwtAuthenticationToken.getSignedJWT().getHeader()
-                            + "] and claimSet ["
-                            + AccessController.doPrivileged(
-                                (PrivilegedAction<String>) () -> jwtClaimsSet.toString(),
-                                AccessController.getContext(),
-                                new RuntimePermission("accessDeclaredMembers")
-                            )
-                            + "]"
-                    );
-                    return null;
-                });
+
+                final String msg = "Realm ["
+                    + name()
+                    + "] JWT validation failed for token=["
+                    + tokenPrincipal
+                    + "] with header ["
+                    + JoseWrapper.getHeaderAsString(jwtAuthenticationToken.getSignedJWT())
+                    + "] and claimSet ["
+                    + JoseWrapper.getClaimsSetAsString(jwtAuthenticationToken.getJWTClaimsSet())
+                    + "]";
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace(msg.get(), ex);
+                    logger.trace(msg, ex);
                 } else {
-                    logger.debug(msg.get() + " Cause: " + ex.getMessage()); // only log the stack trace at trace level
+                    logger.debug(msg + " Cause: " + ex.getMessage()); // only log the stack trace at trace level
                 }
                 // TODO: No point to continue to another realm if failure is ParseException
-                listener.onResponse(AuthenticationResult.unsuccessful(msg.get(), ex));
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
             }));
 
         } else {

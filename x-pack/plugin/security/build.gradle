@@ -81,15 +81,8 @@ dependencies {
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.10.1"
   api "com.nimbusds:nimbus-jose-jwt:9.37.3"
-//  api project(path: 'nimbus-jose-jwt', configuration: 'shadow')
-//  if (isEclipse) {
-//    /*
-//     * Eclipse can't pick up the shadow dependency so we point it at *something*
-//     * so it can compile things.
-//     */
-//    api project(path: 'nimbus-jose-jwt')
-//  }
-  api "com.nimbusds:lang-tag:1.7"
+  api project(xpackModule('security:lib:jose-wrapper'))
+  api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.5.1"
@@ -111,14 +104,7 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-//  testImplementation project(path: 'nimbus-jose-jwt', configuration: 'shadow')
-//  if (isEclipse) {
-//    /*
-//     * Eclipse can't pick up the shadow dependency so we point it at *something*
-//     * so it can compile things.
-//     */
-//    testImplementation project(path: 'nimbus-jose-jwt')
-//  }
+  testImplementation('com.nimbusds:nimbus-jose-jwt:9.37.3') //fixme??
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')

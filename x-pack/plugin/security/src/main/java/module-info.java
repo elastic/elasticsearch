@@ -38,6 +38,7 @@ module org.elasticsearch.security {
     requires org.opensaml.xmlsec.impl;
     requires org.opensaml.xmlsec;
 
+    requires com.nimbusds.jose.jwt;
     requires io.netty.common;
     requires io.netty.codec.http;
     requires io.netty.handler;
@@ -48,7 +49,7 @@ module org.elasticsearch.security {
     requires oauth2.oidc.sdk;
     requires org.slf4j;
     requires unboundid.ldapsdk;
-    requires com.nimbusds.jose.jwt;
+    requires org.elasticsearch.jose;
 
     exports org.elasticsearch.xpack.security.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.apikey to org.elasticsearch.server;

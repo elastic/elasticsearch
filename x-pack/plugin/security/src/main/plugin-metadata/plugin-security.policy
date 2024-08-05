@@ -16,11 +16,6 @@ grant {
   // which uses it in the opensaml-xmlsec-impl
   permission java.security.SecurityPermission "org.apache.xml.security.register";
 
-  // gson, as included & shaded by nimbus. I think these can be moved out
-  //permission java.lang.RuntimePermission "accessDeclaredMembers";
-  //permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-
   // needed for multiple server implementations used in tests
   permission java.net.SocketPermission "*", "accept,connect";
 
@@ -65,6 +60,11 @@ grant codeBase "${codebase.oauth2-oidc-sdk}" {
 
 grant codeBase "${codebase.nimbus-jose-jwt}" {
     // for JSON serialization based on a shaded GSON dependency
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${codebase.elasticsearch-jose-wrapper}" {
     permission java.lang.RuntimePermission "accessDeclaredMembers";
     permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

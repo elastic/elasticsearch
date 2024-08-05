@@ -83,7 +83,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
@@ -118,6 +117,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
@@ -731,7 +731,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             if (resolvedIndices.getLocalIndices() != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
-                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    LOCAL_CLUSTER_GROUP_KEY,
                     false,
                     countDown,
                     exceptions,
@@ -744,7 +744,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     parentTaskId,
                     searchRequest,
                     resolvedIndices.getLocalIndices().indices(),
-                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    LOCAL_CLUSTER_GROUP_KEY,
                     timeProvider.absoluteStartMillis(),
                     false
                 );
@@ -1679,7 +1679,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
+                if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
                     exception = wrapRemoteClusterFailure(clusterAlias, e);
                 }
                 if (exceptions.compareAndSet(null, exception) == false) {
@@ -1919,20 +1919,43 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         public void onFailure(Exception e) {
             searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
             if (collectTelemetry()) {
-                // TODO: better failure recognition
-                Result status;
-                if (e instanceof RemoteTransportException) {
-                    status = Result.REMOTES_UNAVAILABLE;
-                } else if (task.isCancelled() || (e instanceof TaskCancelledException)) {
-                    status = Result.CANCELED;
-                } else {
-                    status = Result.UNKNOWN;
-                }
-                usageBuilder.setFailure(status);
-                // TODO: can we still get some time measurements here? Do we want to?
+                usageBuilder.setFailure(getFailureType(e));
                 recordTelemetry();
             }
             listener.onFailure(e);
+        }
+
+        /**
+         * Determine the failure type for telemetry from the exception.
+         */
+        private Result getFailureType(Exception e) {
+            // TODO: better failure recognition
+            var unwrapped = ExceptionsHelper.unwrapCause(e);
+            if (unwrapped instanceof Exception) {
+                e = (Exception) unwrapped;
+            }
+            if (e instanceof RemoteTransportException) {
+                return Result.REMOTES_UNAVAILABLE;
+            }
+            if (e instanceof TaskCancelledException || (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null)) {
+                return Result.CANCELED;
+            }
+            if (e instanceof SearchPhaseExecutionException spe) {
+                var groupedFails = ExceptionsHelper.groupBy(spe.shardFailures());
+                if (Arrays.stream(groupedFails).allMatch(SearchResponseActionListener::isRemoteFailure)) {
+                    return Result.REMOTES_UNAVAILABLE;
+                }
+            }
+            return Result.UNKNOWN;
+        }
+
+        private static boolean isRemoteFailure(ShardOperationFailedException failure) {
+            if (failure instanceof ShardSearchFailure shardFailure) {
+                return shardFailure.shard() != null
+                    && shardFailure.shard().getClusterAlias() != null
+                    && LOCAL_CLUSTER_GROUP_KEY.equals(shardFailure.shard().getClusterAlias()) == false;
+            }
+            return false;
         }
 
         private void recordTelemetry() {

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,22 +29,36 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result.REMOTES_UNAVAILABLE;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result.UNKNOWN;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
+    private static final Logger LOGGER = LogManager.getLogger(CCSUsageTelemetryIT.class);
     private static final String REMOTE1 = "cluster-a";
     private static final String REMOTE2 = "cluster-b";
 
@@ -56,9 +72,14 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         return List.of(REMOTE1, REMOTE2);
     }
 
+    @Rule
+    public SkipUnavailableRule skipOverride = new SkipUnavailableRule(REMOTE1, REMOTE2);
+
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE1, true, REMOTE2, true);
+        var map = skipOverride.getMap();
+        LOGGER.info("Using skip_unavailable map: [{}]", map);
+        return map;
     }
 
     @Override
@@ -88,6 +109,21 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         // We don't care here too much about the response, we just want to trigger the telemetry collection.
         // So we check it's not null and leave the rest to other tests.
         assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
+        return getTelemetrySnapshot(nodeName);
+    }
+
+    private CCSTelemetrySnapshot getTelemetryFromFailedSearch(SearchRequest searchRequest) throws Exception {
+        // We want to send search to a specific node (we don't care which one) so that we could
+        // collect the CCS telemetry from it later
+        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
+        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
+        cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest, queryFuture);
+        assertBusy(() -> assertTrue(queryFuture.isDone()));
+
+        // We expect failure, but we don't care too much which failure it is in this test
+        ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
+        assertNotNull(ee.getCause());
+
         return getTelemetrySnapshot(nodeName);
     }
 
@@ -219,7 +255,6 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     */
     public void testRemoteOnlySearch() throws ExecutionException, InterruptedException {
         Map<String, Object> testClusterInfo = setupClusters();
-        String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
         CCSTelemetrySnapshot telemetry = getTelemetryFromSearch("*:" + remoteIndex);
@@ -301,24 +336,14 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
         searchRequest.allowPartialSearchResults(true);
 
-        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
-        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
-
-        // Borrowed from CrossClusterSearchIT#testSearchWithFailure
-        cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest, queryFuture);
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
-
-        // We expect failure, but we don't care too much which failure it is in this test
-        ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
-        assertNotNull(ee.getCause());
-
-        CCSTelemetrySnapshot telemetry = getTelemetrySnapshot(nodeName);
+        CCSTelemetrySnapshot telemetry = getTelemetryFromFailedSearch(searchRequest);
         assertThat(telemetry.getTotalCount(), equalTo(1L));
         assertThat(telemetry.getSuccessCount(), equalTo(0L));
         assertThat(telemetry.getTook().count(), equalTo(0L));
         assertThat(telemetry.getTookMrtTrue().count(), equalTo(0L));
         assertThat(telemetry.getTookMrtFalse().count(), equalTo(0L));
-        // TODO: check search failure reasons once that function is properly implemented
+        assertThat(telemetry.getFailureReasons().size(), equalTo(1));
+        assertThat(telemetry.getFailureReasons().get(UNKNOWN.getName()), equalTo(1L));
     }
 
     /**
@@ -433,6 +458,96 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     }
 
     /**
+    * Test what happens if remote times out and there's no local - it should be skipped
+    */
+    public void testRemoteOnlyTimesOut() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest searchRequest = makeSearchRequest(REMOTE1 + ":" + remoteIndex);
+        // This works only with minimize_roundtrips enabled, since otherwise timed out shards will be counted as
+        // partial failure, and we disable partial results...
+        searchRequest.setCcsMinimizeRoundtrips(true);
+
+        TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
+        // query builder that will sleep for the specified amount of time in the query phase
+        SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5, remoteIndex);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);
+        searchRequest.source(sourceBuilder);
+
+        CCSTelemetrySnapshot telemetry = getTelemetryFromSearch(searchRequest);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(1L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getRemotesPerSearchMax(), equalTo(1L));
+        var perCluster = telemetry.getByRemoteCluster();
+        assertThat(perCluster.size(), equalTo(1));
+        assertThat(perCluster.get(REMOTE1).getCount(), equalTo(0L));
+        assertThat(perCluster.get(REMOTE1).getSkippedCount(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(0L));
+        assertThat(perCluster.get(REMOTE2), equalTo(null));
+    }
+
+    @SkipOverride(aliases = { REMOTE1 })
+    public void testRemoteTimesOutFailure() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest searchRequest = makeSearchRequest(REMOTE1 + ":" + remoteIndex);
+
+        TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
+        // query builder that will sleep for the specified amount of time in the query phase
+        SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5, remoteIndex);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);
+        searchRequest.source(sourceBuilder);
+
+        CCSTelemetrySnapshot telemetry = getTelemetryFromFailedSearch(searchRequest);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(0L));
+        // Failure is not skipping
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
+        // Still count the remote that failed
+        assertThat(telemetry.getRemotesPerSearchMax(), equalTo(1L));
+        assertThat(telemetry.getTook().count(), equalTo(0L));
+        assertThat(telemetry.getFailureReasons().size(), equalTo(1));
+        assertThat(telemetry.getFailureReasons().get(REMOTES_UNAVAILABLE.getName()), equalTo(1L));
+        // No per-cluster data on total failure
+        assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
+    }
+
+    /**
+    * Search when all the remotes failed and not skipped
+    */
+    @SkipOverride(aliases = { REMOTE1, REMOTE2 })
+    public void testFailedAllRemotesSearch() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest searchRequest = makeSearchRequest(localIndex, "*:" + remoteIndex);
+        // throw Exception on all shards of remoteIndex, but not against localIndex
+        ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(
+            randomLong(),
+            new IllegalStateException("index corrupted"),
+            remoteIndex
+        );
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
+
+        CCSTelemetrySnapshot telemetry = getTelemetryFromFailedSearch(searchRequest);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(0L));
+        // Failure is not skipping
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
+        // Still count the remote that failed
+        assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
+        assertThat(telemetry.getTook().count(), equalTo(0L));
+        assertThat(telemetry.getFailureReasons().size(), equalTo(1));
+        assertThat(telemetry.getFailureReasons().get(REMOTES_UNAVAILABLE.getName()), equalTo(1L));
+        // No per-cluster data on total failure
+        assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
+    }
+
+    /**
      * Test that we're still counting remote search even if remote cluster has no such index
      */
     public void testRemoteHasNoIndex() throws Exception {
@@ -492,11 +607,8 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         }
 
         Map<String, Object> clusterInfo = new HashMap<>();
-        clusterInfo.put("local.num_shards", numShardsLocal);
         clusterInfo.put("local.index", localIndex);
-        clusterInfo.put("remote.num_shards", numShardsRemote);
         clusterInfo.put("remote.index", remoteIndex);
-        clusterInfo.put("remote.skip_unavailable", true);
         return clusterInfo;
     }
 
@@ -507,6 +619,43 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;
+    }
+
+    /**
+     * Annotation to mark specific cluster in a test as not to be skipped when unavailable
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.METHOD)
+    @interface SkipOverride {
+        String[] aliases();
+    }
+
+    /**
+     * Test rule to process skip annotations
+     */
+    static class SkipUnavailableRule implements TestRule {
+        private final Map<String, Boolean> skipMap;
+
+        SkipUnavailableRule(String... clusterAliases) {
+            this.skipMap = Arrays.stream(clusterAliases).collect(Collectors.toMap(Function.identity(), alias -> true));
+        }
+
+        public Map<String, Boolean> getMap() {
+            return skipMap;
+        }
+
+        @Override
+        public Statement apply(Statement base, Description description) {
+            // Check for annotation named "SkipOverride" and set the overrides accordingly
+            var aliases = description.getAnnotation(SkipOverride.class);
+            if (aliases != null) {
+                for (String alias : aliases.aliases()) {
+                    skipMap.put(alias, false);
+                }
+            }
+            return base;
+        }
+
     }
 
     // TODO: implement the following tests:

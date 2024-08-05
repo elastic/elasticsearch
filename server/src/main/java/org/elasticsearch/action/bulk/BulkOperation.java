@@ -525,18 +525,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         }
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
         IndexAbstraction ia = metadata.getIndicesLookup().get(docWriteRequest.index());
-        if (ia == null) {
-            return null;
-        }
-        if (ia.isDataStreamRelated()) {
-            // The index abstraction could be an alias. Alias abstractions (even for data streams) only keep track of which _index_ they
-            // will write to, not which _data stream_.
-            // We work backward to find the data stream from the concrete write index to cover this case.
-            Index concreteIndex = ia.getWriteIndex();
-            IndexAbstraction writeIndexAbstraction = metadata.getIndicesLookup().get(concreteIndex.getName());
-            return writeIndexAbstraction.getParentDataStream();
-        }
-        return null;
+        return DataStream.resolveDataStream(ia, metadata);
     }
 
     /**

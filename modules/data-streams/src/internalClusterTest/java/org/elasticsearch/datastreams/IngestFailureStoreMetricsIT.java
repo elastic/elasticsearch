@@ -8,6 +8,8 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -255,6 +257,24 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
 
         int nrOfDocs = randomIntBetween(5, 10);
         indexDocs(dataStream, nrOfDocs, pipeline);
+
+        var measurements = collectTelemetry();
+        assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), nrOfDocs, dataStream);
+        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
+        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
+    }
+
+    public void testDataStreamAlias() throws IOException {
+        putComposableIndexTemplate(false);
+        createDataStream();
+        var indicesAliasesRequest = new IndicesAliasesRequest();
+        indicesAliasesRequest.addAliasAction(
+            IndicesAliasesRequest.AliasActions.add().alias("some-alias").index(dataStream).writeIndex(true)
+        );
+        client().execute(TransportIndicesAliasesAction.TYPE, indicesAliasesRequest).actionGet();
+
+        int nrOfDocs = randomIntBetween(5, 10);
+        indexDocs("some-alias", nrOfDocs, null);
 
         var measurements = collectTelemetry();
         assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), nrOfDocs, dataStream);

@@ -768,7 +768,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     // because we only want to track these metrics for data streams.
                                     Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
                                     if (failureStoreResolution != null) {
-                                        failureStoreMetrics.incrementTotal(originalIndex);
+                                        // Get index abstraction, resolving date math if it exists
+                                        IndexAbstraction indexAbstraction = state.metadata()
+                                            .getIndicesLookup()
+                                            .get(
+                                                IndexNameExpressionResolver.resolveDateMathExpression(
+                                                    originalIndex,
+                                                    threadPool.absoluteTimeInMillis()
+                                                )
+                                            );
+                                        DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, state.metadata());
+                                        String dataStreamName = dataStream != null ? dataStream.getName() : originalIndex;
+                                        failureStoreMetrics.incrementTotal(dataStreamName);
                                     }
                                     onDropped.accept(slot);
                                 } else {

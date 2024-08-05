@@ -43,7 +43,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -230,12 +229,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * different places.
      */
     private void trackIndexRequests(BulkRequest bulkRequest) {
+        final Metadata metadata = clusterService.state().metadata();
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             if (request instanceof IndexRequest == false) {
                 continue;
             }
             String resolvedIndexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
-            DataStream dataStream = clusterService.state().metadata().dataStreams().get(resolvedIndexName);
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(resolvedIndexName);
+            DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, metadata);
             // We only track index requests into data streams.
             if (dataStream != null) {
                 failureStoreMetrics.incrementTotal(dataStream.getName());
@@ -605,16 +606,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
         // We only store failures if the failure is being written to a data stream,
         // not when directly writing to backing indices/failure stores
-        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
-            return null;
-        }
-
-        // Locate the write index for the abstraction, and check if it has a data stream associated with it.
-        // This handles alias resolution as well as data stream resolution.
-        Index writeIndex = indexAbstraction.getWriteIndex();
-        assert writeIndex != null : "Could not resolve write index for resource [" + indexName + "]";
-        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
-        DataStream targetDataStream = writeAbstraction.getParentDataStream();
+        DataStream targetDataStream = DataStream.resolveDataStream(indexAbstraction, metadata);
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
         return targetDataStream != null && targetDataStream.isFailureStoreEnabled();

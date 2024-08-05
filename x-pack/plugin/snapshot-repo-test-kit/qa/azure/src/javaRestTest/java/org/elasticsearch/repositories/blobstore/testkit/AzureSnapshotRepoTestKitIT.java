@@ -19,6 +19,7 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -35,9 +36,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
     private static final String AZURE_TEST_TENANT_ID = System.getProperty("test.azure.tenant_id");
     private static final String AZURE_TEST_CLIENT_ID = System.getProperty("test.azure.client_id");
     private static final AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE
-            ? ESTestCase.inFipsJvm() ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.HTTPS
-            : AzureHttpFixture.Protocol.NONE,
+        USE_HTTPS_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
@@ -80,17 +79,17 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         .systemProperty(
             "tests.azure.credentials.disable_instance_discovery",
             () -> "true",
-            s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+            s -> USE_HTTPS_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
         )
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", fixture::getMetadataAddress, s -> USE_FIXTURE)
         .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_FIXTURE)
         .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))
         .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> Strings.hasText(AZURE_TEST_TENANT_ID))
         .configFile("storage-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
-        .systemProperty(
-            "AZURE_FEDERATED_TOKEN_FILE",
-            () -> "${ES_PATH_CONF}/storage-azure/azure-federated-token",
-            s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+        .environment(
+            nodeSpec -> USE_HTTPS_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+                ? Map.of("AZURE_FEDERATED_TOKEN_FILE", "${ES_PATH_CONF}/storage-azure/azure-federated-token")
+                : Map.of()
         )
         .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_HTTPS_FIXTURE)
         .systemProperty("javax.net.ssl.trustStoreType", () -> "jks", s -> USE_HTTPS_FIXTURE)

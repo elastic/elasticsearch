@@ -28,7 +28,8 @@ import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
-import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.identity.WorkloadIdentityCredential;
+import com.azure.identity.WorkloadIdentityCredentialBuilder;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
@@ -181,11 +182,16 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .retryOptions(retryOptions);
 
         if (settings.hasCredentials() == false) {
-            final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
-            if (DISABLE_INSTANCE_DISCOVERY) {
-                credentialBuilder.disableInstanceDiscovery();
-            }
-            builder.credential(credentialBuilder.build());
+            final WorkloadIdentityCredential workloadIdentityCredential = new WorkloadIdentityCredentialBuilder().executorService(
+                eventLoopGroup
+            ).disableInstanceDiscovery().build();
+            builder.credential(workloadIdentityCredential);
+
+            // final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
+            // if (DISABLE_INSTANCE_DISCOVERY) {
+            // credentialBuilder.disableInstanceDiscovery();
+            // }
+            // builder.credential(credentialBuilder.build());
         }
 
         if (successfulRequestConsumer != null) {

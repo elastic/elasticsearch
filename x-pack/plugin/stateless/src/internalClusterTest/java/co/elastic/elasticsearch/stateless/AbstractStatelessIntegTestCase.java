@@ -267,18 +267,22 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return getTestName().replaceAll("[^0-9a-zA-Z-_]", "_") + "_bucket";
     }
 
+    /**
+     * Set a very high {@link StoreHeartbeatService#MAX_MISSED_HEARTBEATS} value by default so that the cluster does not recover from an
+     * <i>unexpected</i> master failover before the whole suite times out. Tests that expect to see a master failover should generally use
+     * {@link #shutdownMasterNodeGracefully} to trigger the usual graceful abdication process. If a test really needs to simulate an abrupt
+     * master failure then it should adjust the heartbeat configuration by setting both {@link StoreHeartbeatService#MAX_MISSED_HEARTBEATS}
+     * and {@link StoreHeartbeatService#HEARTBEAT_FREQUENCY} to ensure that the test cluster recovers without undue delay.
+     */
+    private static final int DEFAULT_TEST_MAX_MISSED_HEARTBEATS = 1000;
+
     protected Settings.Builder nodeSettings() {
         final Settings.Builder builder = Settings.builder()
             .put(Stateless.STATELESS_ENABLED.getKey(), true)
             .put(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), false)
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.FS)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), getFsRepoSanitizedBucketName())
-            /**
-             * Set a very high MAX_MISSED_HEARTBEATS value to ensure no child-class test has unexpected failovers.
-             * Such tests should either override the MAX_MISSED_HEARTBEATS and HEARTBEAT_FREQUENCY settings, or use graceful failover
-             * (like {@link #shutdownMasterNodeGracefully(String, boolean)}).
-             */
-            .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 50);
+            .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), DEFAULT_TEST_MAX_MISSED_HEARTBEATS);
         if (useBasePath) {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }

@@ -149,7 +149,12 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testScript) {
             logger.info("-->  delete test script");
-            assertAcked(safeExecute(TransportDeleteStoredScriptAction.TYPE, new DeleteStoredScriptRequest("foobar")));
+            assertAcked(
+                safeExecute(
+                    TransportDeleteStoredScriptAction.TYPE,
+                    new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "foobar")
+                )
+            );
         }
 
         logger.info("--> try restoring from snapshot without global state");
@@ -187,7 +192,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
             logger.info("--> check that script is restored");
             GetStoredScriptResponse getStoredScriptResponse = safeExecute(
                 GetStoredScriptAction.INSTANCE,
-                new GetStoredScriptRequest("foobar")
+                new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")
             );
             assertNotNull(getStoredScriptResponse.getSource());
         }
@@ -217,7 +222,12 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         }
 
         if (testScript) {
-            assertAcked(safeExecute(TransportDeleteStoredScriptAction.TYPE, new DeleteStoredScriptRequest("foobar")));
+            assertAcked(
+                safeExecute(
+                    TransportDeleteStoredScriptAction.TYPE,
+                    new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "foobar")
+                )
+            );
         }
 
         getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
@@ -236,7 +246,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
         assertFalse(clusterAdmin().prepareGetPipeline("barbaz").get().isFound());
-        assertNull(safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("foobar")).getSource());
+        assertNull(safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")).getSource());
         assertDocCount("test-idx", 100L);
     }
 }

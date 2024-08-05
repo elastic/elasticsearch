@@ -137,7 +137,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.repositoriesStatsArchive = new RepositoriesStatsArchive(
             REPOSITORIES_STATS_ARCHIVE_RETENTION_PERIOD.get(settings),
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
-            threadPool::relativeTimeInMillis
+            threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
     }

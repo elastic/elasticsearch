@@ -71,11 +71,8 @@ This section summarizes the changes in each release.
 
 --
 
-<<<<<<< HEAD
 include::release-notes/8.16.0.asciidoc[]
 include::release-notes/8.15.0.asciidoc[]
-=======
->>>>>>> b6110d1abad (Update docs for v8.14.3 release (#110629))
 include::release-notes/8.14.3.asciidoc[]
 include::release-notes/8.14.2.asciidoc[]
 include::release-notes/8.14.1.asciidoc[]

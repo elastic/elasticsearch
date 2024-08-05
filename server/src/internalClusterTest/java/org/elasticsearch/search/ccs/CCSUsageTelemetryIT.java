@@ -158,6 +158,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
         assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
         assertThat(telemetry.getClientCounts().size(), equalTo(1));
+        assertThat(telemetry.getClientCounts().get("kibana"), equalTo(1L));
         perCluster = telemetry.getByRemoteCluster();
         assertThat(perCluster.size(), equalTo(3));
         for (String clusterAlias : remoteClusterAlias()) {
@@ -186,6 +187,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(perCluster.get(REMOTE1).getCount(), equalTo(1L));
         assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(1L));
         assertThat(perCluster.get(REMOTE2), equalTo(null));
+        assertThat(telemetry.getClientCounts().size(), equalTo(0));
 
         // Make request to cluster b
         searchRequest = makeSearchRequest(localIndex, REMOTE2 + ":" + remoteIndex);
@@ -227,6 +229,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getFailureReasons().size(), equalTo(0));
         assertThat(telemetry.getTook().count(), equalTo(1L));
         assertThat(perCluster.size(), equalTo(2));
+        assertThat(telemetry.getClientCounts().size(), equalTo(0));
         assertThat(perCluster.get(REMOTE1).getCount(), equalTo(1L));
         assertThat(perCluster.get(REMOTE1).getSkippedCount(), equalTo(0L));
         assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(1L));

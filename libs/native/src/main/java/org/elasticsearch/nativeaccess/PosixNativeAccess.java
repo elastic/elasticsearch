@@ -159,7 +159,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         // From the open man page (https://www.man7.org/linux/man-pages/man2/open.2.html):
         // - The mode parameter is needed when specifying O_CREAT
         // - The effective mode is modified by the process's umask: in the absence of a default ACL, the mode of the created file is
-        //   (mode & ~umask).
+        // (mode & ~umask).
         // We choose to pass down 0666 (r/w permission for user/group/others) to mimic what the JDK does for its open operations;
         // see for example the fileOpen implementation in libjava:
         // https://github.com/openjdk/jdk/blob/98562166e4a4c8921709014423c6cbc993aa0d97/src/java.base/unix/native/libjava/io_util_md.c#L105

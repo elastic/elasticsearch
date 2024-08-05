@@ -39,6 +39,7 @@ abstract class GenerateProviderManifest extends DefaultTask {
         File manifestFile = getManifestFile().get().getAsFile();
         manifestFile.getParentFile().mkdirs();
         FileUtils.write(manifestFile, generateManifestContent(), "UTF-8");
+        System.out.println("manifestFile = " + manifestFile + " exists = " + manifestFile.exists());
     }
 
     private String generateManifestContent() {

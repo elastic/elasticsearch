@@ -14,7 +14,6 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -174,24 +173,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     //
 
     @SuppressWarnings("unchecked")
-    public <E extends T> T transformDownUsingParent(Class<E> typeToken, BiFunction<? super T, ? super T, ? extends T> rule) {
-        return transformDownUsingParent((t, parent) -> (typeToken.isInstance(t) ? rule.apply((E) t, parent) : t), null);
-    }
-
-    @SuppressWarnings("unchecked")
-    public T transformDownUsingParent(BiFunction<? super T, ? super T, ? extends T> rule) {
-        return transformDownUsingParent(rule, null);
-    }
-
-    @SuppressWarnings("unchecked")
-    public T transformDownUsingParent(BiFunction<? super T, ? super T, ? extends T> rule, T parent) {
-        T root = rule.apply((T) this, parent);
-        Node<T> node = this.equals(root) ? this : root;
-
-        return node.transformChildren(child -> child.transformDownUsingParent(rule, (T) node));
-    }
-
-    @SuppressWarnings("unchecked")
     public T transformDown(Function<? super T, ? extends T> rule) {
         T root = rule.apply((T) this);
         Node<T> node = this.equals(root) ? this : root;
@@ -203,23 +184,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     public <E extends T> T transformDown(Class<E> typeToken, Function<E, ? extends T> rule) {
         // type filtering function
         return transformDown((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
-    }
-
-    @SuppressWarnings("unchecked")
-    public <E extends T> T transformUpUsingParent(Class<E> typeToken, BiFunction<? super T, ? super T, ? extends T> rule) {
-        return transformUpUsingParent((t, parent) -> (typeToken.isInstance(t) ? rule.apply((E) t, parent) : t), null);
-    }
-
-    @SuppressWarnings("unchecked")
-    public T transformUpUsingParent(BiFunction<? super T, ? super T, ? extends T> rule) {
-        return transformUpUsingParent(rule, null);
-    }
-
-    @SuppressWarnings("unchecked")
-    public T transformUpUsingParent(BiFunction<? super T, ? super T, ? extends T> rule, T parent) {
-        T transformed = transformChildren(child -> child.transformUpUsingParent(rule, (T) this));
-        T node = this.equals(transformed) ? (T) this : transformed;
-        return rule.apply(node, parent);
     }
 
     @SuppressWarnings("unchecked")

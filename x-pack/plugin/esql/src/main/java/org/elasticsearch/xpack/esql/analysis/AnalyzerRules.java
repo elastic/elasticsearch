@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
@@ -18,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -73,9 +71,8 @@ public final class AnalyzerRules {
 
     public static List<Attribute> maybeResolveAgainstList(
         UnresolvedAttribute u,
-        Expression parent,
         Collection<Attribute> attrList,
-        BiFunction<Attribute, Expression, Attribute> fieldInspector
+        java.util.function.Function<Attribute, Attribute> fieldInspector
     ) {
         // first take into account the qualified version
         final String qualifier = u.qualifier();
@@ -91,16 +88,15 @@ public final class AnalyzerRules {
                     || Objects.equals(name, a.qualifiedName());
 
         };
-        return maybeResolveAgainstList(predicate, () -> u, parent, attrList, false, fieldInspector);
+        return maybeResolveAgainstList(predicate, () -> u, attrList, false, fieldInspector);
     }
 
     public static List<Attribute> maybeResolveAgainstList(
         Predicate<Attribute> matcher,
         Supplier<UnresolvedAttribute> unresolved,
-        Expression parent,
         Collection<Attribute> attrList,
         boolean isPattern,
-        BiFunction<Attribute, Expression, Attribute> fieldInspector
+        java.util.function.Function<Attribute, Attribute> fieldInspector
     ) {
         List<Attribute> matches = new ArrayList<>();
 
@@ -121,7 +117,7 @@ public final class AnalyzerRules {
         // found exact match or multiple if pattern
         if (matches.size() == 1 || isPattern) {
             // NB: only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            matches.replaceAll(e -> fieldInspector.apply(e, parent));
+            matches.replaceAll(e -> fieldInspector.apply(e));
             return matches;
         }
 

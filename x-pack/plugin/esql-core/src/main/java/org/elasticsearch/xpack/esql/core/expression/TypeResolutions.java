@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.Locale;
 import java.util.StringJoiner;
@@ -177,35 +176,19 @@ public final class TypeResolutions {
         ParamOrdinal paramOrd,
         String... acceptedTypes
     ) {
-        if (predicate.test(e.dataType()) || e.dataType() == NULL) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-
-        if (e instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-            return new TypeResolution(errorStringIncompatibleTypes(operationName, paramOrd, name(e), imf.errorMessage(), acceptedTypes));
-        }
-
-        return new TypeResolution(
-            errorStringIncompatibleTypes(operationName, paramOrd, name(e), "type [" + e.dataType().typeName() + "]", acceptedTypes)
-        );
-    }
-
-    private static String errorStringIncompatibleTypes(
-        String operationName,
-        ParamOrdinal paramOrd,
-        String argumentName,
-        String foundType,
-        String... acceptedTypes
-    ) {
-        return format(
-            null,
-            "{}argument of [{}] must be [{}], found value [{}] {}",
-            paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-            operationName,
-            acceptedTypesForErrorMsg(acceptedTypes),
-            argumentName,
-            foundType
-        );
+        return predicate.test(e.dataType()) || e.dataType() == NULL
+            ? TypeResolution.TYPE_RESOLVED
+            : new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] must be [{}], found value [{}] type [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    acceptedTypesForErrorMsg(acceptedTypes),
+                    name(e),
+                    e.dataType().typeName()
+                )
+            );
     }
 
     private static String acceptedTypesForErrorMsg(String... acceptedTypes) {

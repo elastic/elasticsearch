@@ -282,8 +282,8 @@ public final class ChunkedZipResponse implements Releasable {
         private boolean isLastPart;
 
         /**
-         * A listener which is created when there are no more available chunks, so transmission is paused, subscribed to in {@link
-         * #getNextPart}, and then completed with the next body part (sequence of zipped chunks, i.e. a new (unique) active
+         * A listener which is created when there are no more available chunks, so transmission is paused, subscribed to in
+         * {@link #getNextPart}, and then completed with the next body part (sequence of zipped chunks, i.e. a new (unique) active
          * {@link AvailableChunksZipResponseBodyPart}).
          */
         private SubscribableListener<ChunkedRestResponseBodyPart> getNextPartListener;
@@ -318,7 +318,7 @@ public final class ChunkedZipResponse implements Releasable {
         /**
          * Transfer {@link #currentEntryReleasable} into the supplied collection (i.e. add it to {@code releasables} and then clear
          * {@link #currentEntryReleasable}). Called when the last chunk of the last part of the current entry is serialized, so that we can
-         * start serializing chunks of the next entry straight away whilst delaying the resource of the current entry's resources until the
+         * start serializing chunks of the next entry straight away whilst delaying the release of the current entry's resources until the
          * transmission of the chunk that is currently under construction.
          */
         private void transferCurrentEntryReleasable(ArrayList<Releasable> releasables) {

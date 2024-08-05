@@ -59,7 +59,7 @@ azure.client.secondary.timeout: 30s
 ----
 
 In this example, the client side timeout is `10s` per try for repositories which
-use the `default` client, with `7` retries before failing and and endpoint
+use the `default` client, with `7` retries before failing and an endpoint
 suffix of `core.chinacloudapi.cn`. Repositories which use the `secondary` client
 will have a timeout of `30s` per try, but will use the default endpoint and will
 fail after the default number of retries.
@@ -103,8 +103,8 @@ The following list describes the available client settings. Those that must be
 stored in the keystore are marked as ({ref}/secure-settings.html[Secure],
 {ref}/secure-settings.html#reloadable-secure-settings[reloadable]); the other
 settings must be stored in the `elasticsearch.yml` file. The default
-`CLIENT_NAME` is `default` but you may specify a different client name when
-registering a repository.
+`CLIENT_NAME` is `default` but you may configure a client with a different name
+and specify that client by name when registering a repository.
 
 `azure.client.CLIENT_NAME.account` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
   The Azure account name, which is used by the repository's internal Azure
@@ -164,7 +164,7 @@ registering a repository.
 
 [[repository-azure-default-credentials]]
 [NOTE]
-. Obtaining credentials from the environment
+.Obtaining credentials from the environment
 ======================================================
 If you specify neither the `key` nor the `sas_token` settings for a client then
 {es} will use the Azure SDK's

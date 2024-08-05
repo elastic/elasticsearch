@@ -517,6 +517,32 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayStateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/FloatArrayState.java"
   }
+  File fallibleArrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-FallibleArrayState.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  fallibleArrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/BooleanFallibleArrayState.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  fallibleArrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IntFallibleArrayState.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  fallibleArrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LongFallibleArrayState.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  fallibleArrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DoubleFallibleArrayState.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile =  fallibleArrayStateInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/FloatFallibleArrayState.java"
+  }
   File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
   template {
     it.properties = intProperties

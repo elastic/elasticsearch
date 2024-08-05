@@ -78,17 +78,12 @@ public class XContentParserTests extends ESTestCase {
     public void testLongCoercion() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
 
-        String longValue1 = "5.5";
-        String longValue2 = "5e18";
-        String longValue3 = "2e100";
-        String longValue4 = "2e-100";
-
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.startObject();
-            builder.field("decimal", longValue1);
-            builder.field("expInRange", longValue2);
-            builder.field("expTooBig", longValue3);
-            builder.field("expTooSmall", longValue4);
+            builder.field("decimal", "5.5");
+            builder.field("expInRange", "5e18");
+            builder.field("expTooBig", "2e100");
+            builder.field("expTooSmall", "2e-100");
             builder.endObject();
 
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {

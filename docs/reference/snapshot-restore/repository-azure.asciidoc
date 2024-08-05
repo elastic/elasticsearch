@@ -182,7 +182,7 @@ is running.
 
 When running {es} in
 https://azure.microsoft.com/en-gb/products/kubernetes-service[Azure Kubernetes
-Service], for instance using {eck-ref}[{eck}], you should use
+Service], for instance using {eck-ref}/k8s-snapshots.html#k8s-azure-workload-identity[{eck}], you should use
 https://azure.github.io/azure-workload-identity/docs/introduction.html[Azure
 Workload Identity] to provide credentials to {es}. To use Azure Workload
 Identity, mount the `azure-identity-token` volume as a subdirectory of the

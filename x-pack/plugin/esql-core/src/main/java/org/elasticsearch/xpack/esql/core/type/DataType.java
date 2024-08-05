@@ -101,8 +101,10 @@ public enum DataType {
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
     TEXT(builder().esType("text").unknownSize()),
     DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues()),
-    // IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
     DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues()),
+    /**
+     * IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
+     */
     IP(builder().esType("ip").estimatedSize(16).docValues()),
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
     VERSION(builder().esType("version").estimatedSize(15).docValues()),

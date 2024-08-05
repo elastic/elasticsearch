@@ -180,7 +180,8 @@ public final class ChunkedZipResponse implements Releasable {
 
     /**
      * Flag to indicate if the request has been aborted, at which point we should stop enqueueing more entries and promptly clean up the
-     * ones being sent.
+     * ones being sent. It's safe to ignore this, but without it in theory a constant stream of calls to {@link #enqueueEntry} could prevent
+     * {@link #drainQueue} from running for arbitrarily long.
      */
     private final AtomicBoolean isRestResponseFinished = new AtomicBoolean();
 
@@ -288,9 +289,9 @@ public final class ChunkedZipResponse implements Releasable {
 
         /**
          * A cache for an empty list to be used to collect the {@code Releasable} instances to be released when the next chunk has been
-         * fully transmitted. It's a list because a chunk may complete several entries, each of which has its own resources to release. We
-         * cache this value across chunks because most chunks won't release anything, so we can keep the empty list around for later to save
-         * on allocations.
+         * fully transmitted. It's a list because a call to {@link #encodeChunk} may yield a chunk that completes several entries, each of
+         * which has its own resources to release. We cache this value across chunks because most chunks won't release anything, so we can
+         * keep the empty list around for later to save on allocations.
          */
         private ArrayList<Releasable> nextReleasablesCache = new ArrayList<>();
 
@@ -441,6 +442,7 @@ public final class ChunkedZipResponse implements Releasable {
                     isPartComplete = true;
                     assert getNextPartListener == null;
                     assert nextAvailableChunksListener != null;
+                    // Calling our getNextPart() will eventually yield the next body part supplied to enqueueEntry():
                     getNextPartListener = nextAvailableChunksListener;
                 } else {
                     // The current entry is complete, and the first part of the next entry is already available, so we start sending its
@@ -464,6 +466,7 @@ public final class ChunkedZipResponse implements Releasable {
                 // themselves if efficiency really matters.
                 isPartComplete = true;
                 assert getNextPartListener == null;
+                // Calling our getNextPart() will eventually yield the next body part from the current entry:
                 getNextPartListener = SubscribableListener.newForked(
                     l -> bodyPart.getNextPart(l.map(p -> new AvailableChunksZipResponseBodyPart(null, p)))
                 );

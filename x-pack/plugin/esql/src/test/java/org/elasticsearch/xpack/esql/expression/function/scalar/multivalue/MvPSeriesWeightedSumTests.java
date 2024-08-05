@@ -114,9 +114,4 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
         }
         return sum;
     }
-
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("this is being removed from the superclass and doesn't work here because of warnings.", true);
-    }
 }

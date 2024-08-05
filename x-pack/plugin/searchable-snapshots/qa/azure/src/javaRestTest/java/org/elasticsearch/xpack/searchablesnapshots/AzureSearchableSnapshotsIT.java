@@ -24,15 +24,15 @@ import static org.hamcrest.Matchers.not;
 
 public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
+    private static final boolean USE_HTTPS_FIXTURE = USE_FIXTURE && ESTestCase.inFipsJvm() == false;
+
     private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");
     private static final String AZURE_TEST_CONTAINER = System.getProperty("test.azure.container");
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE
-            ? ESTestCase.inFipsJvm() ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.HTTPS
-            : AzureHttpFixture.Protocol.NONE,
+        USE_HTTPS_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         System.getProperty("test.azure.tenant_id"),
@@ -68,7 +68,8 @@ public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestT
         .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .setting("xpack.searchable_snapshots.cache_fetch_async_thread_pool.keep_alive", "0ms")
-        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_FIXTURE)
+        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_HTTPS_FIXTURE)
+        .systemProperty("javax.net.ssl.trustStoreType", () -> "jks", s -> USE_HTTPS_FIXTURE)
         .build();
 
     @ClassRule(order = 1)

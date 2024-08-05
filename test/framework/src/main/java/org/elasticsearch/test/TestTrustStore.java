@@ -50,8 +50,8 @@ public class TestTrustStore extends ExternalResource {
                 .stream()
                 .map(i -> (Certificate) i)
                 .toList();
-            final var trustStore = KeyStoreUtil.buildTrustStore(certificates);
-            trustStore.store(jksStream, null);
+            final var trustStore = KeyStoreUtil.buildTrustStore(certificates, "jks");
+            trustStore.store(jksStream, new char[0]);
             trustStorePath = tmpTrustStorePath;
         } catch (Exception e) {
             throw new AssertionError("unexpected", e);

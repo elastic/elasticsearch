@@ -29,6 +29,8 @@ import java.util.function.Predicate;
 
 public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
+    private static final boolean USE_HTTPS_FIXTURE = USE_FIXTURE && ESTestCase.inFipsJvm() == false;
+
     private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");
     private static final String AZURE_TEST_CONTAINER = System.getProperty("test.azure.container");
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
@@ -37,9 +39,7 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
     private static final String AZURE_TEST_CLIENT_ID = System.getProperty("test.azure.client_id");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE
-            ? ESTestCase.inFipsJvm() ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.HTTPS
-            : AzureHttpFixture.Protocol.NONE,
+        USE_HTTPS_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
@@ -96,11 +96,8 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
             s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
         )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
-        .systemProperty(
-            "javax.net.ssl.trustStore",
-            () -> trustStore.getTrustStorePath().toString(),
-            s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
-        )
+        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_HTTPS_FIXTURE)
+        .systemProperty("javax.net.ssl.trustStoreType", () -> "jks", s -> USE_HTTPS_FIXTURE)
         .build();
 
     @ClassRule(order = 1)

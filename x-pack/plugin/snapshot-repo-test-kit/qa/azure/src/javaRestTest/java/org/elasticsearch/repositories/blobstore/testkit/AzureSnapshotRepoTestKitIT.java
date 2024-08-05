@@ -26,6 +26,8 @@ import static org.hamcrest.Matchers.not;
 
 public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
+    private static final boolean USE_HTTPS_FIXTURE = USE_FIXTURE && ESTestCase.inFipsJvm() == false;
+
     private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");
     private static final String AZURE_TEST_CONTAINER = System.getProperty("test.azure.container");
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
@@ -58,48 +60,41 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
         () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")
     );
 
-    private static final ElasticsearchCluster cluster;
-
-    static {
-        cluster = ElasticsearchCluster.local()
-            .module("repository-azure")
-            .module("snapshot-repo-test-kit")
-            .keystore("azure.client.repository_test_kit.account", AZURE_TEST_ACCOUNT)
-            .keystore("azure.client.repository_test_kit.key", () -> AZURE_TEST_KEY, s -> Strings.hasText(AZURE_TEST_KEY))
-            .keystore("azure.client.repository_test_kit.sas_token", () -> AZURE_TEST_SASTOKEN, s -> Strings.hasText(AZURE_TEST_SASTOKEN))
-            .setting(
-                "azure.client.repository_test_kit.endpoint_suffix",
-                () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
-                s -> USE_FIXTURE
-            )
-            .apply(c -> {
-                if (USE_FIXTURE) {
-                    // test fixture does not support CAS yet; TODO fix this
-                    c.systemProperty("test.repository_test_kit.skip_cas", "true");
-                }
-            })
-            .systemProperty(
-                "tests.azure.credentials.disable_instance_discovery",
-                () -> "true",
-                s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
-            )
-            .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", fixture::getMetadataAddress, s -> USE_FIXTURE)
-            .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_FIXTURE)
-            .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))
-            .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> Strings.hasText(AZURE_TEST_TENANT_ID))
-            .configFile("storage-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
-            .systemProperty(
-                "AZURE_FEDERATED_TOKEN_FILE",
-                () -> "${ES_PATH_CONF}/storage-azure/azure-federated-token",
-                s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
-            )
-            .systemProperty(
-                "javax.net.ssl.trustStore",
-                () -> trustStore.getTrustStorePath().toString(),
-                s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
-            )
-            .build();
-    }
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("repository-azure")
+        .module("snapshot-repo-test-kit")
+        .keystore("azure.client.repository_test_kit.account", AZURE_TEST_ACCOUNT)
+        .keystore("azure.client.repository_test_kit.key", () -> AZURE_TEST_KEY, s -> Strings.hasText(AZURE_TEST_KEY))
+        .keystore("azure.client.repository_test_kit.sas_token", () -> AZURE_TEST_SASTOKEN, s -> Strings.hasText(AZURE_TEST_SASTOKEN))
+        .setting(
+            "azure.client.repository_test_kit.endpoint_suffix",
+            () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
+            s -> USE_FIXTURE
+        )
+        .apply(c -> {
+            if (USE_FIXTURE) {
+                // test fixture does not support CAS yet; TODO fix this
+                c.systemProperty("test.repository_test_kit.skip_cas", "true");
+            }
+        })
+        .systemProperty(
+            "tests.azure.credentials.disable_instance_discovery",
+            () -> "true",
+            s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+        )
+        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", fixture::getMetadataAddress, s -> USE_FIXTURE)
+        .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_FIXTURE)
+        .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))
+        .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> Strings.hasText(AZURE_TEST_TENANT_ID))
+        .configFile("storage-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
+        .systemProperty(
+            "AZURE_FEDERATED_TOKEN_FILE",
+            () -> "${ES_PATH_CONF}/storage-azure/azure-federated-token",
+            s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+        )
+        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_HTTPS_FIXTURE)
+        .systemProperty("javax.net.ssl.trustStoreType", () -> "jks", s -> USE_HTTPS_FIXTURE)
+        .build();
 
     @ClassRule(order = 1)
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);

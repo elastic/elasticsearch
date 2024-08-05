@@ -1104,6 +1104,21 @@ FROM sample_data, sample_data_ts_long
            null | 172.21.0.5   |             1232382 | Disconnected
 ;
 
+
+multiIndexUseOfUnionTypesInKeep
+// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
+// make the csv tests work with multiple indices.
+required_capability: union_types
+required_capability: union_types_fix_rename_resolution
+FROM sample_data, sample_data_ts_long
+| KEEP @timestamp
+| LIMIT 1
+;
+
+@timestamp:null
+null
+;
+
 multiIndexUseOfUnionTypesInDrop
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.

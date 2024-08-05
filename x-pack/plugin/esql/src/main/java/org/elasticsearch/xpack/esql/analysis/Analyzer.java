@@ -1079,12 +1079,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
-     * During ResolveRefs we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
+     * During {@link ResolveRefs} we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
      * instead be handled by conversion functions within the query. This rule looks for matching conversion functions and converts
      * those fields into MultiTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
      * This knowledge will be used later in generating the FieldExtractExec with built-in type conversion.
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
-     * (See UnresolveUnionTypes below).
+     * (See {@link UnionTypesCleanup} below).
      */
     private static class ResolveUnionTypes extends Rule<LogicalPlan, LogicalPlan> {
 

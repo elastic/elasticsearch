@@ -2030,6 +2030,18 @@ M
 null
 ;
 
+shadowingTheGroupInTheGroup
+FROM employees
+| STATS c = COUNT(*) BY gender = to_lower(gender)
+| SORT gender ASC
+;
+
+c:long | gender:keyword
+    33 | f
+    57 | m
+     0 | null
+;
+
 docsStatsMvGroup
 // tag::mv-group[]
 ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC

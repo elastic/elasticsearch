@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.SearchHit;
@@ -52,6 +53,15 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("xpack.watcher.max.history.record.size", "100kb") // used for testThatHistoryIsTruncated()
+            .build();
+    }
 
     // issue: https://github.com/elastic/x-plugins/issues/2338
     public void testThatHistoryIsWrittenWithChainedInput() throws Exception {
@@ -232,13 +242,13 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
     public void testThatHistoryIsTruncated() throws Exception {
         {
             /*
-             * The input for this watch is 1 MB, smaller than the 10 MB default of HistoryStore's MAX_HISTORY_SIZE_SETTING. So we do not
-             * expect its history record to be truncated.
+             * The input for this watch is 20 KB, smaller than the configured 100 KB of HistoryStore's MAX_HISTORY_SIZE_SETTING. So we do
+             * not expect its history record to be truncated.
              */
             new PutWatchRequestBuilder(client()).setId("test_watch_small")
                 .setSource(
                     watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
-                        .input(simpleInput("foo", randomAlphaOfLength((int) ByteSizeValue.ofMb(1).getBytes())))
+                        .input(simpleInput("foo", randomAlphaOfLength((int) ByteSizeValue.ofKb(20).getBytes())))
                         .addAction("_logger", loggingAction("#### randomLogging"))
                 )
                 .get();
@@ -261,13 +271,13 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
         {
             /*
-             * The input for this watch is 20 MB, much bigger than the 10 MB default of HistoryStore's MAX_HISTORY_SIZE_SETTING. So we
+             * The input for this watch is 500 KB, much bigger than the configured 100 KB of HistoryStore's MAX_HISTORY_SIZE_SETTING. So we
              * expect to see its history record truncated before being stored.
              */
             new PutWatchRequestBuilder(client()).setId("test_watch_large")
                 .setSource(
                     watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
-                        .input(simpleInput("foo", randomAlphaOfLength((int) ByteSizeValue.ofMb(20).getBytes())))
+                        .input(simpleInput("foo", randomAlphaOfLength((int) ByteSizeValue.ofKb(500).getBytes())))
                         .addAction("_logger", loggingAction("#### randomLogging"))
                 )
                 .get();

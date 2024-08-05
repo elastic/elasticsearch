@@ -22,7 +22,7 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
- * Elasticsearch codec as of 8.16. This extends the Lucene 9.9 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
+ * Elasticsearch codec as of 8.16. This extends the Lucene 9.12 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
  * {@link Zstd814StoredFieldsFormat}.
  */
 public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCodec {
@@ -93,7 +93,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
     /**
      * Returns the postings format that should be used for writing new segments of <code>field</code>.
      *
-     * <p>The default implementation always returns "Lucene99".
+     * <p>The default implementation always returns "Lucene912".
      *
      * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
      * future version of Lucene are only guaranteed to be able to read the default implementation,
@@ -106,7 +106,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
      * Returns the docvalues format that should be used for writing new segments of <code>field</code>
      * .
      *
-     * <p>The default implementation always returns "Lucene99".
+     * <p>The default implementation always returns "Lucene912".
      *
      * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
      * future version of Lucene are only guaranteed to be able to read the default implementation.
@@ -118,7 +118,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
     /**
      * Returns the vectors format that should be used for writing new segments of <code>field</code>
      *
-     * <p>The default implementation always returns "Lucene95".
+     * <p>The default implementation always returns "Lucene912".
      *
      * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
      * future version of Lucene are only guaranteed to be able to read the default implementation.

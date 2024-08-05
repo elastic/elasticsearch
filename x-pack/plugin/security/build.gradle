@@ -440,3 +440,31 @@ tasks.named("internalClusterTest").configure {
 }
 
 addQaCheckDependencies(project)
+
+// These unit tests are run without the security manager because they use, directly or
+// indirectly, nimbus-jose-jwt code, which uses gson internally, which is not friendly
+// to the security manager. Note that we do not disable the security manager for
+// any integration tests, any failures of which should be taken very seriously.
+String[] noSecurityManagerClasses = [
+  "**/JwtRealmAuthenticateTests.class",
+  "**/JwtRealmAuthenticateAccessTokenTypeTests.class",
+  "**/JwtRealmGenerateTests.class",
+  "**/JwtAuthenticatorAccessTokenTypeTests.class",
+  "**/JwtAuthenticatorIdTokenTypeTests.class",
+  "**/JwtSignatureValidatorTests.class",
+  "**/OpenIdConnectAuthenticatorTests.class",
+  "**/TransportOpenIdConnectLogoutActionTests.class",
+  "**/OpenIdConnectRealmTests.class",
+]
+
+tasks.register('testNoSecurityManager', Test) {
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  include noSecurityManagerClasses
+  systemProperty 'tests.security.manager', 'false'
+}
+tasks.named("check").configure { dependsOn 'testNoSecurityManager' }
+
+tasks.named('test').configure {
+  exclude noSecurityManagerClasses
+}

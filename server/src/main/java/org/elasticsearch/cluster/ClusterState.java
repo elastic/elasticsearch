@@ -838,7 +838,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Builder putProjectMetadata(ProjectMetadata.Builder projectMetadata) {
-            metadata = Metadata.builder(metadata).putProjectMetadata(projectMetadata).build();
+            metadata = Metadata.builder(metadata).put(projectMetadata).build();
             return this;
         }
 

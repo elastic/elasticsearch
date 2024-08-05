@@ -11,6 +11,7 @@ package org.elasticsearch.search.ccs;
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -105,7 +106,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
         SearchRequest searchRequest = makeSearchRequest(localIndex, "*:" + remoteIndex);
-        boolean minimizeRoundtrips = searchRequest.isCcsMinimizeRoundtrips();
+        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(searchRequest);
 
         String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
         assertResponse(
@@ -124,7 +125,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getTookMrtFalse().count(), equalTo(minimizeRoundtrips ? 0L : 1L));
         assertThat(telemetry.getRemotesPerSearchAvg(), equalTo(2.0));
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
-        assertThat(telemetry.getSkippedRemotes(), equalTo(0L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
         assertThat(telemetry.getClientCounts().size(), equalTo(1));
         assertThat(telemetry.getClientCounts().get("kibana"), equalTo(1L));
         if (minimizeRoundtrips) {
@@ -152,7 +153,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getTookMrtFalse().count(), equalTo(minimizeRoundtrips ? 0L : 2L));
         assertThat(telemetry.getRemotesPerSearchAvg(), equalTo(2.0));
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
-        assertThat(telemetry.getSkippedRemotes(), equalTo(0L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
         assertThat(telemetry.getClientCounts().size(), equalTo(1));
         perCluster = telemetry.getByRemoteCluster();
         assertThat(perCluster.size(), equalTo(3));
@@ -200,12 +201,35 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     /**
      * Local search should not produce any telemetry at all
      */
-    public void testLocalSearch() throws ExecutionException, InterruptedException {
+    public void testLocalOnlySearch() throws ExecutionException, InterruptedException {
         Map<String, Object> testClusterInfo = setupClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
 
         CCSTelemetrySnapshot telemetry = getTelemetryFromSearch(localIndex);
         assertThat(telemetry.getTotalCount(), equalTo(0L));
+    }
+
+    /**
+    * Search on remotes only, without local index
+    */
+    public void testRemoteOnlySearch() throws ExecutionException, InterruptedException {
+        Map<String, Object> testClusterInfo = setupClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        CCSTelemetrySnapshot telemetry = getTelemetryFromSearch("*:" + remoteIndex);
+        var perCluster = telemetry.getByRemoteCluster();
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(1L));
+        assertThat(telemetry.getFailureReasons().size(), equalTo(0));
+        assertThat(telemetry.getTook().count(), equalTo(1L));
+        assertThat(perCluster.size(), equalTo(2));
+        assertThat(perCluster.get(REMOTE1).getCount(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE1).getSkippedCount(), equalTo(0L));
+        assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE2).getCount(), equalTo(1L));
+        assertThat(perCluster.get(REMOTE2).getSkippedCount(), equalTo(0L));
+        assertThat(perCluster.get(REMOTE2).getTook().count(), equalTo(1L));
     }
 
     /**
@@ -235,11 +259,26 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getTotalCount(), equalTo(3L));
         assertThat(telemetry.getFeatureCounts().get(WILDCARD_FEATURE), equalTo(2L));
 
+        // Wildcards in cluster name do not count
         searchRequest = makeSearchRequest(localIndex, "*:" + remoteIndex);
         assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
         telemetry = getTelemetrySnapshot(nodeName);
         assertThat(telemetry.getTotalCount(), equalTo(4L));
         assertThat(telemetry.getFeatureCounts().get(WILDCARD_FEATURE), equalTo(2L));
+
+        // Wildcard in the middle of the index name counts
+        searchRequest = makeSearchRequest(localIndex, REMOTE2 + ":rem*");
+        assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
+        telemetry = getTelemetrySnapshot(nodeName);
+        assertThat(telemetry.getTotalCount(), equalTo(5L));
+        assertThat(telemetry.getFeatureCounts().get(WILDCARD_FEATURE), equalTo(3L));
+
+        // Wildcard only counted once per search
+        searchRequest = makeSearchRequest("*", REMOTE1 + ":rem*", REMOTE2 + ":remote*");
+        assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).search(searchRequest), Assert::assertNotNull);
+        telemetry = getTelemetrySnapshot(nodeName);
+        assertThat(telemetry.getTotalCount(), equalTo(6L));
+        assertThat(telemetry.getFeatureCounts().get(WILDCARD_FEATURE), equalTo(4L));
     }
 
     /**
@@ -273,6 +312,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getTook().count(), equalTo(0L));
         assertThat(telemetry.getTookMrtTrue().count(), equalTo(0L));
         assertThat(telemetry.getTookMrtFalse().count(), equalTo(0L));
+        // TODO: check search failure reasons once that function is properly implemented
     }
 
     /**
@@ -300,7 +340,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getTotalCount(), equalTo(1L));
         assertThat(telemetry.getSuccessCount(), equalTo(1L));
         // Note that this counts how many searches had skipped remotes, not how many remotes are skipped
-        assertThat(telemetry.getSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
         // Still count the remote that failed
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
         assertThat(telemetry.getTook().count(), equalTo(1L));
@@ -337,7 +377,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getTotalCount(), equalTo(1L));
         assertThat(telemetry.getSuccessCount(), equalTo(1L));
         // Note that this counts how many searches had skipped remotes, not how many remotes are skipped
-        assertThat(telemetry.getSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
         // Still count the remote that failed
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
         assertThat(telemetry.getTook().count(), equalTo(1L));
@@ -376,7 +416,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         CCSTelemetrySnapshot telemetry = getTelemetryFromSearch(searchRequest);
         assertThat(telemetry.getTotalCount(), equalTo(1L));
         assertThat(telemetry.getSuccessCount(), equalTo(1L));
-        assertThat(telemetry.getSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(1L));
         var perCluster = telemetry.getByRemoteCluster();
         assertThat(perCluster.size(), equalTo(2));

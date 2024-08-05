@@ -68,7 +68,7 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             assertThat(snapshot.getSuccessCount(), equalTo(1L));
             assertThat(snapshot.getFeatureCounts().getOrDefault(ASYNC_FEATURE, 0L), equalTo(expectedAsyncCount));
             assertThat(snapshot.getFeatureCounts().getOrDefault(MRT_FEATURE, 0L), equalTo(expectedMinRTCount));
-            assertThat(snapshot.getSkippedRemotes(), equalTo(expectedSearchesWithSkippedRemotes));
+            assertThat(snapshot.getSearchCountWithSkippedRemotes(), equalTo(expectedSearchesWithSkippedRemotes));
             assertThat(snapshot.getTook().avg(), greaterThan(0L));
             // Expect it to be within 1% of the actual value
             assertThat(snapshot.getTook().avg(), closeTo(took1));
@@ -146,7 +146,7 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             assertThat(snapshot.getSuccessCount(), equalTo(2L));
             assertThat(snapshot.getFeatureCounts().getOrDefault(ASYNC_FEATURE, 0L), equalTo(expectedAsyncCount));
             assertThat(snapshot.getFeatureCounts().getOrDefault(MRT_FEATURE, 0L), equalTo(expectedMinRTCount));
-            assertThat(snapshot.getSkippedRemotes(), equalTo(expectedSearchesWithSkippedRemotes));
+            assertThat(snapshot.getSearchCountWithSkippedRemotes(), equalTo(expectedSearchesWithSkippedRemotes));
             assertThat(snapshot.getTook().avg(), greaterThan(0L));
             assertThat(snapshot.getTook().avg(), closeTo((took1 + took2) / 2));
             // assertThat(snapshot.getTook().max(), greaterThanOrEqualTo(Math.max(took1, took2)));
@@ -242,7 +242,7 @@ public class CCSUsageTelemetryTests extends ESTestCase {
 
             assertThat(snapshot.getTotalCount(), equalTo(1L));
             assertThat(snapshot.getSuccessCount(), equalTo(0L));
-            assertThat(snapshot.getSkippedRemotes(), equalTo(skippedRemote ? 1L : 0L));
+            assertThat(snapshot.getSearchCountWithSkippedRemotes(), equalTo(skippedRemote ? 1L : 0L));
             assertThat(snapshot.getTook().count(), equalTo(0L));
             assertThat(snapshot.getFailureReasons().size(), equalTo(1));
             assertThat(snapshot.getFailureReasons().get(CANCELED.getName()), equalTo(1L));

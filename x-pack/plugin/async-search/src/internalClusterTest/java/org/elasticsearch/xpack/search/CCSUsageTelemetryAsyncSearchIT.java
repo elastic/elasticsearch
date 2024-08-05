@@ -50,7 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
+public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE1 = "cluster-a";
     private static final String REMOTE2 = "cluster-b";
 
@@ -181,7 +181,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
         SubmitAsyncSearchRequest searchRequest = makeSearchRequest(localIndex, "*:" + remoteIndex);
-        boolean minimizeRoundtrips = searchRequest.isCcsMinimizeRoundtrips();
+        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(searchRequest.getSearchRequest());
         CrossClusterAsyncSearchIT.SearchListenerPlugin.negate();
 
         CCSTelemetrySnapshot telemetry = getTelemetryFromSearch(searchRequest);
@@ -194,7 +194,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getTookMrtFalse().count(), equalTo(minimizeRoundtrips ? 0L : 1L));
         assertThat(telemetry.getRemotesPerSearchAvg(), equalTo(2.0));
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
-        assertThat(telemetry.getSkippedRemotes(), equalTo(0L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
         assertThat(telemetry.getFeatureCounts().get(ASYNC_FEATURE), equalTo(1L));
         if (minimizeRoundtrips) {
             assertThat(telemetry.getFeatureCounts().get(MRT_FEATURE), equalTo(1L));

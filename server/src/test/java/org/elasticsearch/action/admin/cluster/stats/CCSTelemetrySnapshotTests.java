@@ -78,7 +78,7 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         LongMetricValue took = instance.getTook();
         LongMetricValue tookMrtTrue = instance.getTookMrtTrue();
         LongMetricValue tookMrtFalse = instance.getTookMrtFalse();
-        long skippedRemotes = instance.getSkippedRemotes();
+        long skippedRemotes = instance.getSearchCountWithSkippedRemotes();
         long remotesPerSearchMax = instance.getRemotesPerSearchMax();
         double remotesPerSearchAvg = instance.getRemotesPerSearchAvg();
         var featureCounts = instance.getFeatureCounts();
@@ -184,7 +184,7 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         assertThat(empty.getTook().count(), equalTo(full.getTook().count() * 2));
         assertThat(empty.getTookMrtTrue().count(), equalTo(full.getTookMrtTrue().count() * 2));
         assertThat(empty.getTookMrtFalse().count(), equalTo(full.getTookMrtFalse().count() * 2));
-        assertThat(empty.getSkippedRemotes(), equalTo(full.getSkippedRemotes() * 2));
+        assertThat(empty.getSearchCountWithSkippedRemotes(), equalTo(full.getSearchCountWithSkippedRemotes() * 2));
         assertThat(empty.getRemotesPerSearchMax(), equalTo(full.getRemotesPerSearchMax()));
         assertThat(empty.getRemotesPerSearchAvg(), closeTo(full.getRemotesPerSearchAvg(), 0.01));
         empty.getFeatureCounts().forEach((k, v) -> assertThat(v, equalTo(full.getFeatureCounts().get(k) * 2)));
@@ -215,7 +215,10 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         assertThat(empty.getTook().count(), equalTo(full.getTook().count() + full2.getTook().count()));
         assertThat(empty.getTookMrtTrue().count(), equalTo(full.getTookMrtTrue().count() + full2.getTookMrtTrue().count()));
         assertThat(empty.getTookMrtFalse().count(), equalTo(full.getTookMrtFalse().count() + full2.getTookMrtFalse().count()));
-        assertThat(empty.getSkippedRemotes(), equalTo(full.getSkippedRemotes() + full2.getSkippedRemotes()));
+        assertThat(
+            empty.getSearchCountWithSkippedRemotes(),
+            equalTo(full.getSearchCountWithSkippedRemotes() + full2.getSearchCountWithSkippedRemotes())
+        );
         assertThat(empty.getRemotesPerSearchMax(), equalTo(Math.max(full.getRemotesPerSearchMax(), full2.getRemotesPerSearchMax())));
         double expectedAvg = (full.getRemotesPerSearchAvg() * full.getTotalCount() + full2.getRemotesPerSearchAvg() * full2.getTotalCount())
             / empty.getTotalCount();

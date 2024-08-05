@@ -171,7 +171,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         return remotesPerSearchAvg;
     }
 
-    public long getSkippedRemotes() {
+    public long getSearchCountWithSkippedRemotes() {
         return skippedRemotes;
     }
 

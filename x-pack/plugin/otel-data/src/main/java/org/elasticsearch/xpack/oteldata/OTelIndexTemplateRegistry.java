@@ -16,11 +16,11 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.YamlTemplateRegistry;
 
-public class OtelIndexTemplateRegistry extends YamlTemplateRegistry {
+public class OTelIndexTemplateRegistry extends YamlTemplateRegistry {
 
     public static final String OTEL_TEMPLATE_VERSION_VARIABLE = "xpack.oteldata.template.version";
 
-    public OtelIndexTemplateRegistry(
+    public OTelIndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
         ThreadPool threadPool,

@@ -5,7 +5,7 @@ priority: 120
 data_stream: {}
 allow_auto_create: true
 _meta:
-  description: default logs template installed by x-pack
+  description: default OpenTelemetry metrics template installed by x-pack
   managed: true
 composed_of:
   - metrics@tsdb-settings

@@ -24,7 +24,7 @@ import java.util.List;
 public class OTelPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(OTelPlugin.class);
 
-    final SetOnce<OtelIndexTemplateRegistry> registry = new SetOnce<>();
+    final SetOnce<OTelIndexTemplateRegistry> registry = new SetOnce<>();
 
     private final boolean enabled;
 
@@ -48,7 +48,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
         registry.set(
-            new OtelIndexTemplateRegistry(
+            new OTelIndexTemplateRegistry(
                 settings,
                 clusterService,
                 services.threadPool(),
@@ -58,7 +58,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
             )
         );
         if (enabled) {
-            OtelIndexTemplateRegistry registryInstance = registry.get();
+            OTelIndexTemplateRegistry registryInstance = registry.get();
             registryInstance.setEnabled(OTEL_DATA_REGISTRY_ENABLED.get(settings));
             clusterService.getClusterSettings().addSettingsUpdateConsumer(OTEL_DATA_REGISTRY_ENABLED, registryInstance::setEnabled);
             registryInstance.initialize();

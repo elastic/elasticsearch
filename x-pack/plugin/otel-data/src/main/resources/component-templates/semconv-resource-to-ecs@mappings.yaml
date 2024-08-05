@@ -1,7 +1,7 @@
 ---
 version: ${xpack.oteldata.template.version}
 _meta:
-  description: Default mappings for all APM data streams
+  description: Aliases from OpenTelemetry SemConv fields to ECS (and some non-ECS) fields
   managed: true
 template:
   mappings:

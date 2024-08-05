@@ -1,7 +1,7 @@
 ---
 version: ${xpack.oteldata.template.version}
 _meta:
-  description: Default mappings for all APM data streams
+  description: Default mappings for OpenTelemetry traces
   managed: true
 template:
   mappings:

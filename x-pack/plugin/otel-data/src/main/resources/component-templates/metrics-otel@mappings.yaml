@@ -1,6 +1,6 @@
 version: ${xpack.oteldata.template.version}
 _meta:
-  description: Default mappings for the logs index template installed by x-pack
+  description: Default mappings for the OpenTelemetry metrics index template installed by x-pack
   managed: true
 template:
   mappings:

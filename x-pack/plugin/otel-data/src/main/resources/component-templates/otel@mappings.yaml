@@ -1,7 +1,7 @@
 ---
 version: ${xpack.oteldata.template.version}
 _meta:
-  description: Default mappings for all OTel data streams
+  description: Default mappings for all OpenTelemetry data streams
   managed: true
 template:
   mappings:

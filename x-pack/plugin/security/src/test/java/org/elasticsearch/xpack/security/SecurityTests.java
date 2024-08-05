@@ -151,7 +151,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SecurityTests extends ESTestCase {
-
     private Security security = null;
     private ThreadContext threadContext = null;
     private SecurityContext securityContext = null;

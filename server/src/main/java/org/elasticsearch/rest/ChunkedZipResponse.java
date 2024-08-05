@@ -287,10 +287,12 @@ public final class ChunkedZipResponse implements Releasable {
         private SubscribableListener<ChunkedRestResponseBodyPart> getNextPartListener;
 
         /**
-         * A collection of {@code Releasable} instances to be released when the next chunk has been fully transmitted. It's a collection
-         * because a chunk may complete several entries, each of which has its own resources to release.
+         * A cache for an empty list to be used to collect the {@code Releasable} instances to be released when the next chunk has been
+         * fully transmitted. It's a list because a chunk may complete several entries, each of which has its own resources to release. We
+         * cache this value across chunks because most chunks won't release anything, so we can keep the empty list around for later to save
+         * on allocations.
          */
-        private ArrayList<Releasable> nextReleasables = new ArrayList<>(); // preserved between chunks because will often be unused
+        private ArrayList<Releasable> nextReleasablesCache = new ArrayList<>();
 
         AvailableChunksZipResponseBodyPart(ZipEntry zipEntry, ChunkedRestResponseBodyPart bodyPart) {
             this.zipEntry = zipEntry;
@@ -326,8 +328,9 @@ public final class ChunkedZipResponse implements Releasable {
                 return;
             }
 
-            if (releasables == nextReleasables) {
-                nextReleasables = new ArrayList<>();
+            if (releasables == nextReleasablesCache) {
+                // adding the first value, so we must line up a new cached value for the next caller
+                nextReleasablesCache = new ArrayList<>();
             }
 
             releasables.add(currentEntryReleasable);
@@ -338,7 +341,7 @@ public final class ChunkedZipResponse implements Releasable {
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             assert Transports.isTransportThread(Thread.currentThread());
 
-            final ArrayList<Releasable> releasables = nextReleasables;
+            final ArrayList<Releasable> releasables = nextReleasablesCache;
             assert releasables.isEmpty();
             try {
                 if (tryAcquireQueueRef()) {
@@ -356,8 +359,8 @@ public final class ChunkedZipResponse implements Releasable {
                             writeNextBytes(sizeHint, recycler, releasables);
                         } while (isPartComplete == false && chunkStream.size() < sizeHint);
 
-                        assert (releasables == nextReleasables) == releasables.isEmpty();
-                        assert nextReleasables.isEmpty();
+                        assert (releasables == nextReleasablesCache) == releasables.isEmpty();
+                        assert nextReleasablesCache.isEmpty();
 
                         final Releasable chunkStreamReleasable = () -> Releasables.closeExpectNoException(chunkStream);
                         final var result = new ReleasableBytesReference(

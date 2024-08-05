@@ -128,7 +128,8 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             null,
             new ShardStats[] { shardStats },
             new SearchUsageStats(),
-            RepositoryUsageStats.EMPTY
+            RepositoryUsageStats.EMPTY,
+            null
         );
 
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));

@@ -30,6 +30,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final ClusterHealthStatus clusterStatus;
     private final SearchUsageStats searchUsageStats;
     private final RepositoryUsageStats repositoryUsageStats;
+    private final CCSTelemetrySnapshot ccsMetrics;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -47,6 +48,11 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         } else {
             repositoryUsageStats = RepositoryUsageStats.EMPTY;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
+            ccsMetrics = new CCSTelemetrySnapshot(in);
+        } else {
+            ccsMetrics = new CCSTelemetrySnapshot();
+        }
     }
 
     public ClusterStatsNodeResponse(
@@ -56,7 +62,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         NodeStats nodeStats,
         ShardStats[] shardsStats,
         SearchUsageStats searchUsageStats,
-        RepositoryUsageStats repositoryUsageStats
+        RepositoryUsageStats repositoryUsageStats,
+        CCSTelemetrySnapshot ccsTelemetrySnapshot
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
@@ -65,6 +72,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.clusterStatus = clusterStatus;
         this.searchUsageStats = Objects.requireNonNull(searchUsageStats);
         this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
+        this.ccsMetrics = ccsTelemetrySnapshot;
     }
 
     public NodeInfo nodeInfo() {
@@ -95,6 +103,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return repositoryUsageStats;
     }
 
+    public CCSTelemetrySnapshot getCcsMetrics() {
+        return ccsMetrics;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -108,5 +120,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
             repositoryUsageStats.writeTo(out);
         } // else just drop these stats, ok for bwc
+        if (out.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
+            ccsMetrics.writeTo(out);
+        }
     }
+
 }

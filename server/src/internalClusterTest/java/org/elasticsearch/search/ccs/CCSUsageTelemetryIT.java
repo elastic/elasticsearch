@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -133,6 +134,8 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         } else {
             assertThat(telemetry.getFeatureCounts().get(MRT_FEATURE), equalTo(null));
         }
+        assertThat(telemetry.getFeatureCounts().get(ASYNC_FEATURE), equalTo(null));
+
         var perCluster = telemetry.getByRemoteCluster();
         assertThat(perCluster.size(), equalTo(3));
         for (String clusterAlias : remoteClusterAlias()) {

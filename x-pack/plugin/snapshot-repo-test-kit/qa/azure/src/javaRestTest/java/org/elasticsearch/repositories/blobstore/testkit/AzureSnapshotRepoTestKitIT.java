@@ -23,15 +23,15 @@ import static org.hamcrest.Matchers.not;
 
 public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
+    private static final boolean USE_HTTPS_FIXTURE = USE_FIXTURE && ESTestCase.inFipsJvm() == false;
+
     private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");
     private static final String AZURE_TEST_CONTAINER = System.getProperty("test.azure.container");
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
 
     private static AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_FIXTURE
-            ? ESTestCase.inFipsJvm() ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.HTTPS
-            : AzureHttpFixture.Protocol.NONE,
+        USE_HTTPS_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         Strings.hasText(AZURE_TEST_KEY) || Strings.hasText(AZURE_TEST_SASTOKEN)
@@ -69,11 +69,8 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
             }
         })
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", () -> fixture.getMetadataAddress(), s -> USE_FIXTURE)
-        .systemProperty(
-            "javax.net.ssl.trustStore",
-            () -> trustStore.getTrustStorePath().toString(),
-            s -> USE_FIXTURE && ESTestCase.inFipsJvm() == false
-        )
+        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_HTTPS_FIXTURE)
+        .systemProperty("javax.net.ssl.trustStoreType", () -> "jks", s -> USE_HTTPS_FIXTURE)
         .build();
 
     @ClassRule(order = 1)

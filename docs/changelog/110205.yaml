@@ -1,0 +1,6 @@
+pr: 110205
+summary: "[ESQL] Date nanos type"
+area: ES|QL
+type: enhancement
+issues:
+ - 109987

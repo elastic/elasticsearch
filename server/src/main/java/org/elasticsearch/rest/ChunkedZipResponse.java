@@ -244,16 +244,14 @@ public final class ChunkedZipResponse implements Releasable {
         final var taskCount = queueLength.get() + 1;
         final var releasables = new ArrayList<Releasable>(taskCount);
         try {
-            if (currentEntryReleasable != null) {
-                releasables.add(currentEntryReleasable);
-                currentEntryReleasable = null;
-            }
+            releasables.add(currentEntryReleasable);
+            currentEntryReleasable = null;
             ChunkedZipEntry entry;
             while ((entry = entryQueue.poll()) != null) {
                 releasables.add(entry.releasable());
             }
             assert entryQueue.isEmpty() : entryQueue.size(); // no concurrent adds
-            assert releasables.size() <= taskCount : taskCount + " vs " + releasables.size();
+            assert releasables.size() == taskCount || releasables.size() == taskCount - 1 : taskCount + " vs " + releasables.size();
         } finally {
             Releasables.closeExpectNoException(Releasables.wrap(releasables));
         }

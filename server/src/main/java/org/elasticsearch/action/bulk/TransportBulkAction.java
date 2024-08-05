@@ -603,6 +603,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // Get index abstraction, resolving date math if it exists
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
             .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
+        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
+            return null;
+        }
 
         // We only store failures if the failure is being written to a data stream,
         // not when directly writing to backing indices/failure stores

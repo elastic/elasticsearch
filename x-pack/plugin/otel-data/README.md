@@ -26,7 +26,7 @@ The index templates and ingest pipeline functionality is tested using YAML REST 
 These can be run with:
 
 ```
-./gradlew x-pack:plugin:otel-data:yamlRestTest
+./gradlew :x-pack:plugin:otel-data:yamlRestTest
 ```
 
 Refer to the [rest-api-spec documentation](../../../rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc)

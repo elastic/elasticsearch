@@ -974,90 +974,6 @@ public class EvaluatorImplementer {
         }
     }
 
-    private record WarningsProcessFunctionArg() implements ProcessFunctionArg {
-        @Override
-        public TypeName dataType(boolean blockStyle) {
-            return WARNINGS;
-        }
-
-        @Override
-        public String paramName(boolean blockStyle) {
-            // never passed as a parameter
-            return null;
-        }
-
-        @Override
-        public void declareField(TypeSpec.Builder builder) {
-            // Nothing to declare
-        }
-
-        @Override
-        public void declareFactoryField(TypeSpec.Builder builder) {
-            // Nothing to declare
-        }
-
-        @Override
-        public void implementCtor(MethodSpec.Builder builder) {
-            // Nothing to do
-        }
-
-        @Override
-        public void implementFactoryCtor(MethodSpec.Builder builder) {
-            // Nothing to do
-        }
-
-        @Override
-        public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
-            return null; // Not used in the factory
-        }
-
-        @Override
-        public void evalToBlock(MethodSpec.Builder builder) {
-            // nothing to do
-        }
-
-        @Override
-        public void closeEvalToBlock(MethodSpec.Builder builder) {
-            // nothing to do
-        }
-
-        @Override
-        public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
-            // nothing to do
-        }
-
-        @Override
-        public void createScratch(MethodSpec.Builder builder) {
-            // nothing to do
-        }
-
-        @Override
-        public void skipNull(MethodSpec.Builder builder) {
-            // nothing to do
-        }
-
-        @Override
-        public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {
-            // nothing to do
-        }
-
-        @Override
-        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
-            pattern.append("$L");
-            args.add("this.warnings");
-        }
-
-        @Override
-        public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
-            // Don't want to include
-        }
-
-        @Override
-        public String closeInvocation() {
-            return null;
-        }
-    }
-
     private static class ProcessFunction {
         private final ExecutableElement function;
         private final List<ProcessFunctionArg> args;
@@ -1114,10 +1030,6 @@ public class EvaluatorImplementer {
                         hasBlockType = true;
                     }
                     args.add(new BlockProcessFunctionArg(type, name));
-                    continue;
-                }
-                if (type.equals(WARNINGS)) {
-                    args.add(new WarningsProcessFunctionArg());
                     continue;
                 }
                 args.add(new StandardProcessFunctionArg(type, name));

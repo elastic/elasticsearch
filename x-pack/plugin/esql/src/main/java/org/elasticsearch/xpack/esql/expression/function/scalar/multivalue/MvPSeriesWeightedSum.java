@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -97,6 +96,8 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         }
 
         if (p.dataType() == NULL) {
+            // If the type is `null` this parameter doesn't have to be foldable. It's effectively foldable anyway.
+            // TODO figure out if the tests are wrong here, or if null is really different from foldable null
             return resolution;
         }
 
@@ -140,14 +141,13 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         return field.dataType();
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static void process(
         DoubleBlock.Builder builder,
         int position,
         DoubleBlock block,
         @Fixed(includeInToString = false, build = true) CompensatedSum sum,
-        @Fixed double p,
-        Warnings warnings
+        @Fixed double p
     ) {
         sum.reset(0, 0);
         int start = block.getFirstValueIndex(position);
@@ -160,8 +160,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         if (Double.isFinite(sum.value())) {
             builder.appendDouble(sum.value());
         } else {
-            builder.appendNull();
-            warnings.registerException(new ArithmeticException("double overflow"));
+            throw new ArithmeticException("double overflow");
         }
     }
 

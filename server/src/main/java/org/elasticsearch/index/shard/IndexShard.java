@@ -1742,14 +1742,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         var cleanUpAndClose = ActionListener.runBefore(closeListener, () -> {
                             // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                             // Also closing refreshListeners to prevent us from accumulating any more listeners
-                            // TODO Consider closing the engine asynchronously, but since it should be already be closed,
-                            // a sync call should complete immediately
-                            IOUtils.close(() -> {
-                                // TODO Make it async
-                                var future = new PlainActionFuture<Void>();
-                                Engine.close(engine, future);
-                                FutureUtils.get(future);
-                            }, globalCheckpointListeners, refreshListeners, pendingReplicationActions, indexShardOperationPermits);
+                            IOUtils.close(
+                                () -> Engine.close(
+                                    engine,
+                                    ActionListener.wrap(unused -> {}, e -> logger.warn("Unable to close engine", e))
+                                ),
+                                globalCheckpointListeners,
+                                refreshListeners,
+                                pendingReplicationActions,
+                                indexShardOperationPermits
+                            );
                         });
                         if (engine != null && flushEngine) {
                             engine.flushAndClose(cleanUpAndClose);

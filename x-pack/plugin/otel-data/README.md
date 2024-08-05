@@ -1,5 +1,3 @@
-NOTE: this plugin is not related to APM Metrics used in ES codebase. The APM Metrics are in :modules:apm
-
 ## OpenTelemetry Ingest plugin
 
 The OpenTelemetry Ingest plugin installs index templates and component templates for Elastic OpenTelemetry data.
@@ -22,22 +20,13 @@ Any update to resources included by this package also requires a bump to the
 
 ## Testing
 
-## Unit testing
-
-Java unit tests cover basic, low-level details of the plugin, such as the parsing and loading of resources.
-These can be run with:
-
-```
-./gradlew x-pack:plugin:apm-data:test
-```
-
 ## Integration testing
 
 The index templates and ingest pipeline functionality is tested using YAML REST tests.
 These can be run with:
 
 ```
-./gradlew x-pack:plugin:apm-data:yamlRestTest
+./gradlew x-pack:plugin:otel-data:yamlRestTest
 ```
 
 Refer to the [rest-api-spec documentation](../../../rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc)

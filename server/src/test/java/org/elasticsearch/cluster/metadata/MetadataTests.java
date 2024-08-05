@@ -50,6 +50,7 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -1459,12 +1460,13 @@ public class MetadataTests extends ESTestCase {
 
     public void testMetadataSerializationPreMultiProject() throws IOException {
         final Metadata orig = randomMetadata();
+        TransportVersion version = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.K_FOR_KNN_QUERY_ADDED);
+        out.setTransportVersion(version);
         orig.writeTo(out);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final StreamInput input = out.bytes().streamInput();
-        input.setTransportVersion(TransportVersions.K_FOR_KNN_QUERY_ADDED);
+        input.setTransportVersion(version);
         final Metadata fromStreamMeta = Metadata.readFrom(new NamedWriteableAwareStreamInput(input, namedWriteableRegistry));
         assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
     }

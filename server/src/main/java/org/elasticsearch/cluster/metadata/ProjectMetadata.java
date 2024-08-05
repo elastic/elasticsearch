@@ -67,7 +67,6 @@ import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUS
 import static org.elasticsearch.cluster.metadata.Metadata.ALL;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
-import static org.elasticsearch.cluster.metadata.Metadata.UNKNOWN_CLUSTER_UUID;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent {
@@ -75,7 +74,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
 
-    private final ProjectId projectId;
     private final ImmutableOpenMap<String, IndexMetadata> indices;
     private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
@@ -97,7 +95,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final IndexVersion oldestIndexVersion;
 
     public ProjectMetadata(
-        ProjectId projectId,
         ImmutableOpenMap<String, IndexMetadata> indices,
         ImmutableOpenMap<String, Set<Index>> aliasedIndices,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
@@ -114,7 +111,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         Map<String, MappingMetadata> mappingsByHash,
         IndexVersion oldestIndexVersion
     ) {
-        this.projectId = projectId;
         this.indices = indices;
         this.aliasedIndices = aliasedIndices;
         this.templates = templates;
@@ -193,7 +189,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         // have changed, and hence it is expensive -- since we are changing so little about the metadata
         // (and at a leaf in the object tree), we can bypass that validation for efficiency's sake
         return new ProjectMetadata(
-            projectId,
             builder.build(),
             aliasedIndices,
             templates,
@@ -225,7 +220,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             );
         });
         return new ProjectMetadata(
-            projectId,
             builder.build(),
             aliasedIndices,
             templates,
@@ -258,7 +252,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
         updatedIndicesBuilder.putAllFromMap(updates);
         return new ProjectMetadata(
-            projectId,
             updatedIndicesBuilder.build(),
             aliasedIndices,
             templates,
@@ -345,7 +338,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             ProjectMetadata.Builder.validateAlias(entry.getKey(), aliasIndices);
         }
         return new ProjectMetadata(
-            projectId,
             indicesMap,
             updatedAliases,
             templates,
@@ -1072,7 +1064,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     public static ProjectMetadata.Builder builder() {
-        return new ProjectMetadata.Builder(Map.of(), 0, UNKNOWN_CLUSTER_UUID);
+        return new ProjectMetadata.Builder(Map.of(), 0);
     }
 
     public static ProjectMetadata.Builder builder(ProjectMetadata projectMetadata) {
@@ -1081,7 +1073,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
     public static class Builder {
 
-        private final ProjectId projectId;
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
@@ -1097,7 +1088,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         private boolean checkForUnusedMappings = true;
 
         Builder(ProjectMetadata projectMetadata) {
-            this.projectId = projectMetadata.projectId;
             this.indices = ImmutableOpenMap.builder(projectMetadata.indices);
             this.aliasedIndices = ImmutableOpenMap.builder(projectMetadata.aliasedIndices);
             this.templates = ImmutableOpenMap.builder(projectMetadata.templates);
@@ -1107,8 +1097,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             this.checkForUnusedMappings = false;
         }
 
-        Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint, String clusterUUID) {
-            projectId = ProjectId.fromClusterUUID(clusterUUID);
+        Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             indices = ImmutableOpenMap.builder(indexCountHint);
             aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
@@ -1633,7 +1622,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(String[]::new);
 
             return new ProjectMetadata(
-                projectId,
                 indicesMap,
                 aliasedIndices,
                 templates.build(),
@@ -1932,12 +1920,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
     }
 
-    public record ProjectId(String id) {
-        static ProjectId fromClusterUUID(String clusterUUID) {
-            return new ProjectId(clusterUUID);
-        }
-    }
-
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
         Metadata.XContentContext context = Metadata.XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
@@ -2069,17 +2051,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         @Override
         public ProjectMetadata apply(ProjectMetadata part) {
-            // assume the cluster uuid isn't changing
-            return apply(part, part.projectId.id());
-        }
-
-        ProjectMetadata apply(ProjectMetadata part, String clusterUUID) {
             if (indices.isEmpty() && templates.isEmpty() && customs.isEmpty()) {
                 // nothing to do
                 return part;
             }
             var updatedIndices = indices.apply(part.indices);
-            Builder builder = new Builder(part.mappingsByHash, updatedIndices.size(), clusterUUID);
+            Builder builder = new Builder(part.mappingsByHash, updatedIndices.size());
             builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));

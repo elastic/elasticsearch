@@ -79,6 +79,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final NodeService nodeService;
     private final IndicesService indicesService;
     private final SearchUsageHolder searchUsageHolder;
+    private final CCSUsageTelemetry ccsUsageHolder;
 
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
@@ -104,6 +105,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.nodeService = nodeService;
         this.indicesService = indicesService;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
+        this.ccsUsageHolder = usageService.getCcsUsageHolder();
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
     }
@@ -243,6 +245,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         }
 
         SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        CCSTelemetrySnapshot ccsUsage = ccsUsageHolder.getCCSTelemetrySnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -250,7 +253,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             nodeInfo,
             nodeStats,
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
-            searchUsageStats
+            searchUsageStats,
+            ccsUsage
         );
     }
 

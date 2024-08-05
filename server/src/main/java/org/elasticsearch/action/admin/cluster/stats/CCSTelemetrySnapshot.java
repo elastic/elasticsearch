@@ -312,7 +312,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
      *      "p90": 2570
      * }
      */
-    public static void publishLatency(XContentBuilder builder, String name, LongMetricValue took) throws IOException {
+    private static void publishLatency(XContentBuilder builder, String name, LongMetricValue took) throws IOException {
         builder.startObject(name);
         {
             builder.field("max", took.max());

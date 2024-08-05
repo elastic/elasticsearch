@@ -1120,27 +1120,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // TODO: Is the next block even required? Aggregates shouldn't directly reference invalid mapped fields, only their converted,
-            // union type versions.
-
-            // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
-            // Now that we have resolved those, we need to re-resolve the aggregates.
-            if (plan instanceof Aggregate agg) {
-                // TODO once inlinestats supports expressions in groups we'll likely need the same sort of extraction here
-                // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
-                plan = agg.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
-
-                // Aggregates where the grouping key comes from a union-type field need to be resolved against the grouping key
-                Map<Attribute, Expression> resolved = new HashMap<>();
-                for (Expression e : agg.groupings()) {
-                    Attribute attr = Expressions.attribute(e);
-                    if (attr != null && attr.resolved()) {
-                        resolved.put(attr, e);
-                    }
-                }
-                plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
-            }
-
             // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
             // and thereby get used in FieldExtractExec
             plan = plan.transformDown(EsRelation.class, esr -> {
@@ -1249,13 +1228,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
-            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(LogicalPlan.class, p -> {
-                if (p instanceof EsRelation esRelation) {
-                    // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
-                    return esRelation;
-                }
-                return p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
-            });
+            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(LogicalPlan.class, p ->
+                p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
+            );
 
             // To drop synthetic attributes at the end, we need to compute the plan's output.
             // This is only legal to do if the plan is resolved.
@@ -1267,7 +1242,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
+                String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
+                return new UnsupportedAttribute(fa.source(), fa.name(), new UnsupportedEsField(imf.getName(), types), unresolvedMessage, fa.id());
             }
             return fa;
         }

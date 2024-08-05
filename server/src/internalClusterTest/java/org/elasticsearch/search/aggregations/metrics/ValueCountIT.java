@@ -99,7 +99,7 @@ public class ValueCountIT extends ESIntegTestCase {
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(10L));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 ValueCount valueCount = global.getAggregations().get("count");
                 assertThat(valueCount, notNullValue());

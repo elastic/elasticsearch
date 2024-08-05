@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +29,7 @@ public record ResolvedEnrichPolicy(
             in.readString(),
             in.readStringCollectionAsList(),
             in.readMap(StreamInput::readString),
-            in.readMap(StreamInput::readString, ResolvedEnrichPolicy::readEsField)
+            in.readMap(EsField::new)
         );
     }
 
@@ -40,25 +39,13 @@ public record ResolvedEnrichPolicy(
         out.writeString(matchType);
         out.writeStringCollection(enrichFields);
         out.writeMap(concreteIndices, StreamOutput::writeString);
-        out.writeMap(mapping, ResolvedEnrichPolicy::writeEsField);
-    }
-
-    // TODO: we should have made EsField and DataType Writable, but write it as NamedWritable in PlanStreamInput
-    private static void writeEsField(StreamOutput out, EsField field) throws IOException {
-        out.writeString(field.getName());
-        out.writeString(field.getDataType().typeName());
-        out.writeMap(field.getProperties(), ResolvedEnrichPolicy::writeEsField);
-        out.writeBoolean(field.isAggregatable());
-        out.writeBoolean(field.isAlias());
-    }
-
-    private static EsField readEsField(StreamInput in) throws IOException {
-        return new EsField(
-            in.readString(),
-            EsqlDataTypes.fromTypeName(in.readString()),
-            in.readMap(ResolvedEnrichPolicy::readEsField),
-            in.readBoolean(),
-            in.readBoolean()
+        out.writeMap(
+            mapping,
+            /*
+             * There are lots of subtypes of ESField, but we always write the field
+             * as though it were the base class.
+             */
+            (o, v) -> new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias()).writeTo(o)
         );
     }
 }

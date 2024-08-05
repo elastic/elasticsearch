@@ -18,14 +18,13 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -74,20 +73,18 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     private MvZip(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            ((PlanStreamInput) in).readExpression(),
-            // TODO readOptionalNamedWriteable
-            in.readOptionalWriteable(i -> ((PlanStreamInput) i).readExpression())
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(mvLeft);
-        ((PlanStreamOutput) out).writeExpression(mvRight);
-        // TODO writeOptionalNamedWriteable
-        out.writeOptionalWriteable(delim == null ? null : o -> ((PlanStreamOutput) o).writeExpression(delim));
+        out.writeNamedWriteable(mvLeft);
+        out.writeNamedWriteable(mvRight);
+        out.writeOptionalNamedWriteable(delim);
     }
 
     @Override

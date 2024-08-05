@@ -9,7 +9,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoTests;
@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
@@ -69,8 +68,8 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
 
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
     private final ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
-    private ThreadPool threadPool = mock(ThreadPool.class);
-    private TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+    private final ThreadPool threadPool = mock(ThreadPool.class);
+    private final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
     private TransportGetDesiredBalanceAction transportGetDesiredBalanceAction;
 
     @Before
@@ -87,24 +86,25 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         );
     }
 
-    private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {
-        return PlainActionFuture.get(
-            future -> action.masterOperation(
+    private static SubscribableListener<DesiredBalanceResponse> execute(
+        TransportGetDesiredBalanceAction action,
+        ClusterState clusterState
+    ) {
+        return SubscribableListener.newForked(
+            listener -> action.masterOperation(
                 new Task(1, "test", TransportGetDesiredBalanceAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT),
                 clusterState,
-                future
-            ),
-            10,
-            TimeUnit.SECONDS
+                listener
+            )
         );
     }
 
-    private DesiredBalanceResponse executeAction(ClusterState clusterState) throws Exception {
+    private SubscribableListener<DesiredBalanceResponse> executeAction(ClusterState clusterState) {
         return execute(transportGetDesiredBalanceAction, clusterState);
     }
 
-    public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
+    public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() {
         var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataWithConfiguredAllocator(BALANCED_ALLOCATOR)).build();
         final var action = new TransportGetDesiredBalanceAction(
             transportService,
@@ -117,7 +117,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             mock(WriteLoadForecaster.class)
         );
 
-        final var exception = expectThrows(ResourceNotFoundException.class, () -> execute(action, clusterState));
+        final var exception = asInstanceOf(ResourceNotFoundException.class, safeAwaitFailure(execute(action, clusterState)));
         assertEquals("Desired balance allocator is not in use, no desired balance found", exception.getMessage());
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
     }
@@ -129,7 +129,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
 
         assertEquals(
             "Desired balance is not computed yet",
-            expectThrows(ResourceNotFoundException.class, () -> executeAction(clusterState)).getMessage()
+            asInstanceOf(ResourceNotFoundException.class, safeAwaitFailure(executeAction(clusterState))).getMessage()
         );
     }
 
@@ -230,7 +230,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             .routingTable(routingTable)
             .build();
 
-        final var desiredBalanceResponse = executeAction(clusterState);
+        final var desiredBalanceResponse = safeAwait(executeAction(clusterState));
         assertThat(desiredBalanceResponse.getStats(), equalTo(desiredBalanceStats));
         assertThat(desiredBalanceResponse.getClusterBalanceStats(), notNullValue());
         assertThat(desiredBalanceResponse.getClusterInfo(), equalTo(clusterInfo));

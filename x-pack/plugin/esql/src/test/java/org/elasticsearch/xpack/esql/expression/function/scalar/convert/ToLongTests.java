@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ToLongTests extends AbstractFunctionTestCase {
+public class ToLongTests extends AbstractScalarFunctionTestCase {
     public ToLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -227,7 +227,11 @@ public class ToLongTests extends AbstractFunctionTestCase {
             l -> ((Integer) l).longValue(),
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true,
+            suppliers,
+            (v, p) -> "boolean or counter_integer or counter_long or datetime or numeric or string"
+        );
     }
 
     @Override

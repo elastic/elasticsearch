@@ -32,11 +32,11 @@ GET my-index-000001/_search
 [[semantic-query-params]]
 ==== Top-level parameters for `semantic`
 
-field::
+`field`::
 (Required, string)
 The `semantic_text` field to perform the query on.
 
-query::
+`query`::
 (Required, string)
 The query text to be searched for on the field.
 
@@ -127,6 +127,10 @@ The `semantic` query uses default settings for searching on `semantic_text` fiel
 If you want to fine-tune a search on a `semantic_text` field, you need to know the task type used by the `inference_id` configured in `semantic_text`.
 You can find the task type using the <<get-inference-api>>, and check the `task_type` associated with the {infer} service.
 Depending on the `task_type`, use either the <<query-dsl-sparse-vector-query,`sparse_vector`>> or the <<query-dsl-knn-query,`knn`>> query for greater flexibility and customization.
+
+NOTE: While it is possible to use the `sparse_vector` query or the `knn` query
+on a `semantic_text` field, it is not supported to use the `semantic_query` on a
+`sparse_vector` or `dense_vector` field type.
 
 
 [discrete]

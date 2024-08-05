@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -29,7 +29,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SubstringTests extends AbstractFunctionTestCase {
+public class SubstringTests extends AbstractScalarFunctionTestCase {
     public SubstringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -86,7 +86,12 @@ public class SubstringTests extends AbstractFunctionTestCase {
                         equalTo(new BytesRef(""))
                     );
                 })
-            )
+            ),
+            (v, p) -> switch (p) {
+                case 0 -> "string";
+                case 1, 2 -> "integer";
+                default -> "";
+            }
         );
     }
 

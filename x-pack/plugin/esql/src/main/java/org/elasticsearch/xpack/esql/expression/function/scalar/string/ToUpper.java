@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -60,12 +59,12 @@ public class ToUpper extends EsqlConfigurationFunction {
     }
 
     private ToUpper(StreamInput in) throws IOException {
-        this(Source.EMPTY, ((PlanStreamInput) in).readExpression(), ((PlanStreamInput) in).configuration());
+        this(Source.EMPTY, in.readNamedWriteable(Expression.class), ((PlanStreamInput) in).configuration());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeExpression(field());
+        out.writeNamedWriteable(field);
     }
 
     @Override

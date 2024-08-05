@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
-public class ToDatetimeTests extends AbstractFunctionTestCase {
+public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
     public ToDatetimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -162,7 +162,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "datetime or numeric or string");
     }
 
     private static String randomDateString(long from, long to) {

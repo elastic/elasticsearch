@@ -212,6 +212,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -258,7 +259,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     @After
-    public void verifyReposThenStopServices() {
+    public void verifyReposThenStopServices() throws ExecutionException {
         try {
             clearDisruptionsAndAwaitSync();
 
@@ -1352,7 +1353,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (randomBoolean()) {
                 final var snapshotName = "snapshot-" + i;
                 testListener = testListener.andThen(
-                    (stepListener, v) -> scheduleNow(
+                    stepListener -> scheduleNow(
                         ActionRunnable.wrap(
                             stepListener,
                             l -> client.admin()
@@ -1366,7 +1367,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
             } else {
                 final var cloneName = "clone-" + i;
-                testListener = testListener.andThen((stepListener, v) -> scheduleNow(ActionRunnable.wrap(stepListener, l -> {
+                testListener = testListener.andThen(stepListener -> scheduleNow(ActionRunnable.wrap(stepListener, l -> {
                     // The clone API only responds when the clone is complete, but we only want to wait until the clone starts so we watch
                     // the cluster state instead.
                     ClusterServiceUtils.addTemporaryStateListener(
@@ -1377,7 +1378,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             .anyMatch(
                                 e -> e.snapshot().getSnapshotId().getName().equals(cloneName)
                                     && e.isClone()
-                                    && e.shardsByRepoShardId().isEmpty() == false
+                                    && e.shardSnapshotStatusByRepoShardId().isEmpty() == false
                             )
                     ).addListener(l);
                     client.admin()
@@ -1389,7 +1390,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         }
 
-        testListener = testListener.andThen((l, ignored) -> scheduleNow(() -> {
+        testListener = testListener.andThen(l -> scheduleNow(() -> {
             // Once all snapshots & clones have started, drop the data node and wait for all snapshot activity to complete
             testClusterNodes.disconnectNode(testClusterNodes.randomDataNodeSafe());
             ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty()).addListener(l);
@@ -1443,7 +1444,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             // Take the snapshot to check the reaction to having unassigned shards
             .<Void>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setWaitForCompletion(randomBoolean())
@@ -1494,7 +1495,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final var testListener = createRepoAndIndex(repoName, "index", between(1, 2))
             // take snapshot once
             .<CreateSnapshotResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                     .setWaitForCompletion(true)
@@ -1502,7 +1503,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
             // take snapshot again
             .<CreateSnapshotResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                     .setWaitForCompletion(randomBoolean())
@@ -1521,7 +1522,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
             // attempt to clone snapshot
             .<AcknowledgedResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName, snapshotName)
                     .setIndices("*")
@@ -1580,7 +1581,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
             // take snapshot of index that does not exist
             .<CreateSnapshotResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setIndices(indexName)
@@ -1632,7 +1633,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             )
             // attempt to take snapshot with illegal config ('none' is allowed as a feature state iff it's the only one in the list)
             .<CreateSnapshotResponse>andThen(
-                (l, ignored) -> client().admin()
+                l -> client().admin()
                     .cluster()
                     .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier())
                     .setFeatureStates("none", "none")

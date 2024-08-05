@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -44,7 +43,7 @@ public class RequestManagerTests {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[3];
             requestSender.send(
                 mock(Logger.class),
                 RequestTests.mockRequest(inferenceEntityId),
@@ -55,7 +54,7 @@ public class RequestManagerTests {
             );
 
             return Void.TYPE;
-        }).when(mockManager).execute(any(), anyList(), any(), any(), any());
+        }).when(mockManager).execute(any(), any(), any(), any());
 
         // just return something consistent so the hashing works
         when(mockManager.rateLimitGrouping()).thenReturn(inferenceEntityId);

@@ -28,9 +28,29 @@ NOTE: When using this model the recommended similarity measure to use in the
 embeddings are normalized to unit length in which case the `dot_product` and
 the `cosine` measures are equivalent.
 
-
-
 // end::cohere[]
+
+// tag::elser[]
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/elser_embeddings <1>
+{
+  "service": "elser",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `sparse_embedding` in the path and the `inference_id` which
+is the unique identifier of the {infer} endpoint is `elser_embeddings`.
+
+You don't need to download and deploy the ELSER model upfront, the API request
+above will download the model if it's not downloaded yet and then deploy it.
+
+// end::elser[]
 
 // tag::hugging-face[]
 
@@ -177,3 +197,29 @@ PUT _inference/text_embedding/mistral_embeddings <1>
 <3> The Mistral embeddings model name, for example `mistral-embed`.
 
 // end::mistral[]
+
+// tag::amazon-bedrock[]
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/amazon_bedrock_embeddings <1>
+{
+    "service": "amazonbedrock",
+    "service_settings": {
+        "access_key": "<aws_access_key>", <2>
+        "secret_key": "<aws_secret_key>", <3>
+        "region": "<region>", <4>
+        "provider": "<provider>", <5>
+        "model": "<model_id>" <6>
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `text_embedding` in the path and the `inference_id` which is the unique identifier of the {infer} endpoint is `amazon_bedrock_embeddings`.
+<2> The access key can be found on your AWS IAM management page for the user account to access Amazon Bedrock.
+<3> The secret key should be the paired key for the specified access key.
+<4> Specify the region that your model is hosted in.
+<5> Specify the model provider.
+<6> The model ID or ARN of the model to use.
+
+// end::amazon-bedrock[]

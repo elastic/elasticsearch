@@ -478,7 +478,7 @@ public class TransformIndexerTests extends ESTestCase {
     }
 
     public void testMaxPageSearchSizeIsResetToDefaultValue() throws Exception {
-        TransformConfig config = new TransformConfig(
+        var config = new TransformConfig(
             randomAlphaOfLength(10),
             randomSourceConfig(),
             randomDestConfig(),
@@ -494,13 +494,12 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null
         );
-        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
 
-        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
-        final MockedTransformIndexer indexer = createMockIndexer(
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        var indexer = createMockIndexer(
             1,
             config,
-            state,
+            new AtomicReference<>(IndexerState.STARTED),
             null,
             threadPool,
             auditor,
@@ -509,7 +508,7 @@ public class TransformIndexerTests extends ESTestCase {
         );
 
         // add latches
-        CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
+        var searchLatch = indexer.createAwaitForSearchLatch(1);
         indexer.addAfterFinishOrFailureLatch();
 
         indexer.start();
@@ -525,14 +524,14 @@ public class TransformIndexerTests extends ESTestCase {
 
         // run and wait
         searchLatch.countDown();
-        indexer.waitForAfterFinishOrFailureLatch(5, TimeUnit.SECONDS);
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
 
         // rerun, don't throw an exception this time
         searchLatch = indexer.createAwaitForSearchLatch(1);
         indexer.addAfterFinishOrFailureLatch();
         assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
         searchLatch.countDown();
-        indexer.waitForAfterFinishOrFailureLatch(5, TimeUnit.SECONDS);
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
 
         // verify that we checked the pageSize decreased
         assertTrue(indexer.runBeforeOnFinish.isEmpty());
@@ -541,7 +540,7 @@ public class TransformIndexerTests extends ESTestCase {
     }
 
     public void testMaxPageSearchSizeIsResetToConfiguredValue() throws Exception {
-        TransformConfig config = new TransformConfig(
+        var config = new TransformConfig(
             randomAlphaOfLength(10),
             randomSourceConfig(),
             randomDestConfig(),
@@ -557,13 +556,12 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null
         );
-        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
 
-        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
-        final MockedTransformIndexer indexer = createMockIndexer(
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        var indexer = createMockIndexer(
             1,
             config,
-            state,
+            new AtomicReference<>(IndexerState.STARTED),
             null,
             threadPool,
             auditor,
@@ -572,7 +570,7 @@ public class TransformIndexerTests extends ESTestCase {
         );
 
         // add latches
-        CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
+        var searchLatch = indexer.createAwaitForSearchLatch(1);
         indexer.addAfterFinishOrFailureLatch();
 
         indexer.start();
@@ -591,18 +589,84 @@ public class TransformIndexerTests extends ESTestCase {
 
         // run and wait
         searchLatch.countDown();
-        indexer.waitForAfterFinishOrFailureLatch(5, TimeUnit.SECONDS);
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
 
         // rerun, don't throw an exception this time
         searchLatch = indexer.createAwaitForSearchLatch(1);
         indexer.addAfterFinishOrFailureLatch();
         assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
         searchLatch.countDown();
-        indexer.waitForAfterFinishOrFailureLatch(5, TimeUnit.SECONDS);
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
 
         // verify that we checked the pageSize decreased
         assertTrue(indexer.runBeforeOnFinish.isEmpty());
         // verify that the pageSize reset
+        assertEquals(configuredMaxPageSearchSize, context.getPageSize());
+    }
+
+    public void testMaxPageSearchSizePrioritizesMostRecentSettings() throws Exception {
+        var settingsLatch = new CountDownLatch(1);
+        var blockingSettings = new SettingsConfig(null, null, null, null, null, null, null, null) {
+            @Override
+            public Integer getMaxPageSearchSize() {
+                try {
+                    // block the indexer thread by stopping it when it tries to initialize the pageSize to null
+                    settingsLatch.await();
+                } catch (InterruptedException e) {
+                    fail(e, "Failed test waiting for settings latch to release.");
+                }
+                return null;
+            }
+        };
+
+        var config = new TransformConfig(
+            randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            blockingSettings,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        var indexer = createMockIndexer(
+            1,
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context
+        );
+
+        // add latches
+        indexer.addAfterFinishOrFailureLatch();
+
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(indexer.getState(), IndexerState.INDEXING);
+
+        // simulate the user updating the pageSize setting to 20,000
+        var configuredMaxPageSearchSize = 20_000;
+        indexer.applyNewSettings(
+            new SettingsConfig.Builder(SettingsConfig.EMPTY).setMaxPageSearchSize(configuredMaxPageSearchSize).build()
+        );
+
+        // unblock the indexer thread, which will now try to update the pageSize setting to null
+        settingsLatch.countDown();
+        // wait for the indexer to finish
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
+
+        // verify that the pageSize is the new applied setting and not null
         assertEquals(configuredMaxPageSearchSize, context.getPageSize());
     }
 

@@ -277,7 +277,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new PlaceHolderFieldMapper.Builder(simpleName(), typeName()).init(this);
+        return new PlaceHolderFieldMapper.Builder(leafName(), typeName()).init(this);
     }
 
     @Override

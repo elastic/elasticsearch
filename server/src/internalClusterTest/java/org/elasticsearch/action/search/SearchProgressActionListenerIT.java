@@ -9,7 +9,9 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.Strings;
@@ -23,6 +25,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,6 +41,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/109830",
+    value = "org.elasticsearch.action.search:TRACE," + "org.elasticsearch.search.SearchService:TRACE"
+)
 public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
     private List<SearchShard> shards;
 
@@ -192,7 +199,11 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             client.prepareIndex(indexName).setSource("number", i, "foo", "bar").get();
         }
         client.admin().indices().prepareRefresh("index-*").get();
-        ClusterSearchShardsResponse resp = client.admin().cluster().prepareSearchShards("index-*").get();
+        ClusterSearchShardsResponse resp = safeExecute(
+            client,
+            TransportClusterSearchShardsAction.TYPE,
+            new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "index-*")
+        );
         return Arrays.stream(resp.getGroups()).map(e -> new SearchShard(null, e.getShardId())).sorted().toList();
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -29,21 +30,20 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -65,6 +65,9 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private final Expression field, order;
 
     private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataType.KEYWORD);
+    private static final Literal DESC = new Literal(Source.EMPTY, "DESC", DataType.KEYWORD);
+
+    private static final String INVALID_ORDER_ERROR = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -85,7 +88,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
             optional = true
         ) Expression order
     ) {
-        super(source, order == null ? Arrays.asList(field, ASC) : Arrays.asList(field, order));
+        super(source, order == null ? Arrays.asList(field) : Arrays.asList(field, order));
         this.field = field;
         this.order = order;
     }
@@ -93,18 +96,16 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private MvSort(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readExpression(),
-            // TODO readOptionalNamedWriteable
-            in.readOptionalWriteable(i -> ((PlanStreamInput) i).readExpression())
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeExpression(field);
-        // TODO writeOptionalNamedWriteable
-        out.writeOptionalWriteable(order == null ? null : o -> ((PlanStreamOutput) o).writeExpression(order));
+        out.writeNamedWriteable(field);
+        out.writeOptionalNamedWriteable(order);
     }
 
     @Override
@@ -126,11 +127,12 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field, EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isType(field, DataType::isRepresentable, sourceText(), FIRST, "representable");
 
         if (resolution.unresolved()) {
             return resolution;
         }
+
         if (order == null) {
             return resolution;
         }
@@ -147,10 +149,23 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        Expression nonNullOrder = order == null ? ASC : order;
-        boolean ordering = nonNullOrder.foldable() && ((BytesRef) nonNullOrder.fold()).utf8ToString().equalsIgnoreCase("DESC")
-            ? false
-            : true;
+        boolean ordering = true;
+        if (isValidOrder() == false) {
+            throw new IllegalArgumentException(
+                LoggerMessageFormat.format(
+                    null,
+                    INVALID_ORDER_ERROR,
+                    sourceText(),
+                    ASC.value(),
+                    DESC.value(),
+                    ((BytesRef) order.fold()).utf8ToString()
+                )
+            );
+        }
+        if (order != null && order.foldable()) {
+            ordering = ((BytesRef) order.fold()).utf8ToString().equalsIgnoreCase((String) ASC.value());
+        }
+
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BOOLEAN -> new MvSort.EvaluatorFactory(
                 toEvaluator.apply(field),
@@ -219,8 +234,33 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
     @Override
     public void validate(Failures failures) {
+        if (order == null) {
+            return;
+        }
         String operation = sourceText();
         failures.add(isFoldable(order, operation, SECOND));
+        if (isValidOrder() == false) {
+            failures.add(
+                Failure.fail(order, INVALID_ORDER_ERROR, sourceText(), ASC.value(), DESC.value(), ((BytesRef) order.fold()).utf8ToString())
+            );
+        }
+    }
+
+    private boolean isValidOrder() {
+        boolean isValidOrder = true;
+        if (order != null && order.foldable()) {
+            Object obj = order.fold();
+            String o = null;
+            if (obj instanceof BytesRef ob) {
+                o = ob.utf8ToString();
+            } else if (obj instanceof String os) {
+                o = os;
+            }
+            if (o == null || o.equalsIgnoreCase((String) ASC.value()) == false && o.equalsIgnoreCase((String) DESC.value()) == false) {
+                isValidOrder = false;
+            }
+        }
+        return isValidOrder;
     }
 
     private record EvaluatorFactory(

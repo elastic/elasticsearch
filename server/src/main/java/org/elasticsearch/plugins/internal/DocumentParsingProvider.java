@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
@@ -16,20 +17,6 @@ import org.elasticsearch.index.mapper.MapperService;
 public interface DocumentParsingProvider {
     DocumentParsingProvider EMPTY_INSTANCE = new DocumentParsingProvider() {
     };
-
-    /**
-     * @return a new 'empty' observer to use when observing parsing
-     */
-    default DocumentSizeObserver newDocumentSizeObserver() {
-        return DocumentSizeObserver.EMPTY_INSTANCE;
-    }
-
-    /**
-     * @return an observer with a previously observed value (fixed to this value, not continuing)
-     */
-    default DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
-        return DocumentSizeObserver.EMPTY_INSTANCE;
-    }
 
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful
@@ -49,4 +36,10 @@ public interface DocumentParsingProvider {
         return DocumentSizeAccumulator.EMPTY_INSTANCE;
     }
 
+    /**
+     * @return an observer
+     */
+    default <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
+        return XContentMeteringParserDecorator.NOOP;
+    }
 }

@@ -16,16 +16,17 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeRegistry;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,18 +65,17 @@ public class IndexResolver {
         .build();
 
     private final Client client;
-    private final DataTypeRegistry typeRegistry;
 
-    public IndexResolver(Client client, DataTypeRegistry typeRegistry) {
+    public IndexResolver(Client client) {
         this.client = client;
-        this.typeRegistry = typeRegistry;
     }
 
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
     public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
-        client.fieldCaps(
+        client.execute(
+            EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
@@ -172,7 +172,7 @@ public class IndexResolver {
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
-        DataType type = typeRegistry.fromEs(first.type(), first.metricType());
+        DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
         boolean aggregatable = first.isAggregatable();
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
@@ -181,7 +181,7 @@ public class IndexResolver {
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
-                if (type != typeRegistry.fromEs(fc.type(), fc.metricType())) {
+                if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
                     return conflictingTypes(name, fullName, fieldCapsResponse);
                 }
             }
@@ -221,7 +221,7 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null) {
-                DataType type = typeRegistry.fromEs(fc.type(), fc.metricType());
+                DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);
                 }

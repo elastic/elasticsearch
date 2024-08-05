@@ -229,6 +229,7 @@ setup:
         Content-Type: application/json
       catch: bad_request
       search:
+        allow_partial_search_results: false
         body:
           query:
             script_score:
@@ -243,6 +244,7 @@ setup:
         Content-Type: application/json
       catch: bad_request
       search:
+        allow_partial_search_results: false
         body:
           query:
             script_score:

@@ -30,6 +30,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -76,6 +77,10 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
         createIndex("test", Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true).build());
         ensureGreen("test");
 
+        assert request.getOptions().containsHeader(Task.X_OPAQUE_ID_HTTP_HEADER) == false;
+        final var opaqueId = getTestClass().getSimpleName() + "-" + getTestName() + "-" + randomUUID();
+        request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId));
+
         final List<Semaphore> searcherBlocks = new ArrayList<>();
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             for (final IndexService indexService : indicesService) {
@@ -96,7 +101,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             }
 
             final PlainActionFuture<Response> future = new PlainActionFuture<>();
-            logger.info("--> sending request");
+            logger.info("--> sending request, opaque id={}", opaqueId);
+
             final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
             awaitTaskWithPrefix(actionPrefix);
@@ -108,7 +114,7 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             cancellable.cancel();
             expectThrows(CancellationException.class, future::actionGet);
 
-            assertAllCancellableTasksAreCancelled(actionPrefix);
+            assertAllCancellableTasksAreCancelled(actionPrefix, opaqueId);
         } finally {
             Releasables.close(releasables);
         }

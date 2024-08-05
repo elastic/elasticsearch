@@ -21,6 +21,7 @@ import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.ssl.SslCloseCompletionEvent;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
@@ -474,6 +475,16 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             serverTransport.onException(channel, new Exception(cause));
         } else {
             serverTransport.onException(channel, (Exception) cause);
+        }
+    }
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if (evt instanceof SslCloseCompletionEvent closeEvent) {
+            if (closeEvent.isSuccess() && ctx.channel().isActive()) {
+                logger.trace("received TLS close_notify, closing connection {}", ctx.channel());
+                ctx.channel().close();
+            }
         }
     }
 

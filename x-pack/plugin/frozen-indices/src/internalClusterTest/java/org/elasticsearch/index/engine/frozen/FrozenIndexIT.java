@@ -112,17 +112,15 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureYellowAndNoInitializingShards("index");
 
-        final IndexLongFieldRange timestampFieldRange = clusterAdmin().prepareState()
-            .get()
-            .getState()
-            .metadata()
-            .index("index")
-            .getTimestampRange();
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("index");
+        final IndexLongFieldRange timestampFieldRange = indexMetadata.getTimestampRange();
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
         assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
+
+        assertThat(indexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
     }
 
     public void testTimestampFieldTypeExposedByAllIndicesServices() throws Exception {
@@ -155,6 +153,11 @@ public class FrozenIndexIT extends ESIntegTestCase {
                     jsonBuilder().startObject()
                         .startObject("_doc")
                         .startObject("properties")
+                        .startObject(IndexMetadata.EVENT_INGESTED_FIELD_NAME)
+                        .field("type", "date")
+                        .field("format", "dd LLL yyyy HH:mm:ssX")
+                        .field("locale", locale)
+                        .endObject()
                         .startObject(DataStream.TIMESTAMP_FIELD_NAME)
                         .field("type", "date")
                         .field("format", "dd LLL yyyy HH:mm:ssX")

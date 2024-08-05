@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,6 +23,17 @@ public class Dissect extends RegexExtract {
     private final Parser parser;
 
     public record Parser(String pattern, String appendSeparator, DissectParser parser) {
+
+        public List<Attribute> keyAttributes(Source src) {
+            List<Attribute> keys = new ArrayList<>();
+            for (var x : parser.outputKeys()) {
+                if (x.isEmpty() == false) {
+                    keys.add(new ReferenceAttribute(src, x, DataType.KEYWORD));
+                }
+            }
+
+            return keys;
+        }
 
         // Override hashCode and equals since the parser is considered equal if its pattern and
         // appendSeparator are equal ( and DissectParser uses reference equality )
@@ -52,6 +64,11 @@ public class Dissect extends RegexExtract {
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
         return NodeInfo.create(this, Dissect::new, child(), input, parser, extractedFields);
+    }
+
+    @Override
+    public Dissect withGeneratedNames(List<String> newNames) {
+        return new Dissect(source(), child(), input, parser, renameExtractedFields(newNames));
     }
 
     @Override

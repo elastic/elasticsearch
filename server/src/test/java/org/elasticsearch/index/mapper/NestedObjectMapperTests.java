@@ -1755,4 +1755,91 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         }));
         return (NestedObjectMapper) mapper.mapping().getRoot().getMapper("nested_object");
     }
+
+    public void testNestedMapperBuilderContextConstructor() {
+        boolean isSourceSynthetic = randomBoolean();
+        boolean isDataStream = randomBoolean();
+        boolean parentContainsDimensions = randomBoolean();
+        MergeReason mergeReason = randomFrom(MergeReason.values());
+        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
+        mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null);
+        builder.add(new Mapper.Builder("name") {
+            @Override
+            public Mapper build(MapperBuilderContext context) {
+                assertEquals(isSourceSynthetic, context.isSourceSynthetic());
+                assertEquals(isDataStream, context.isDataStream());
+                assertEquals(parentContainsDimensions, context.parentObjectContainsDimensions());
+                return new MockFieldMapper("name");
+            }
+        });
+        NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
+        assertNotNull(nestedObjectMapper.getMapper("name"));
+    }
+
+    public void testNestedMapperMergeContextRootConstructor() {
+        boolean isSourceSynthetic = randomBoolean();
+        boolean isDataStream = randomBoolean();
+        boolean parentContainsDimensions = randomBoolean();
+        MergeReason mergeReason = randomFrom(MergeReason.values());
+        {
+            MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false, mergeReason);
+            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null);
+            NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
+            MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
+            MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
+            MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
+            assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
+            assertEquals(isDataStream, nestedBuilderContext.isDataStream());
+        }
+        {
+            MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
+            MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
+            MapperBuilderContext childMapperBuilderContext = mapperBuilderContext.createChildContext(
+                "name",
+                parentContainsDimensions,
+                randomFrom(Dynamic.values())
+            );
+            MapperMergeContext childMergeContext = mapperMergeContext.createChildContext(childMapperBuilderContext);
+            MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
+            assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
+            assertEquals(isDataStream, nestedBuilderContext.isDataStream());
+            assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
+        }
+    }
+
+    public void testNestedMapperMergeContextFromConstructor() {
+        boolean isSourceSynthetic = randomBoolean();
+        boolean isDataStream = randomBoolean();
+        boolean parentContainsDimensions = randomBoolean();
+        MergeReason mergeReason = randomFrom(MergeReason.values());
+        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
+        mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null);
+        NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
+
+        MapperMergeContext mapperMergeContext = MapperMergeContext.from(mapperBuilderContext, randomLong());
+        MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
+        MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
+        assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
+        assertEquals(isDataStream, nestedBuilderContext.isDataStream());
+        assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
+    }
+
+    public void testIsInNestedContext() {
+        NestedObjectMapper.NestedMapperBuilderContext context = new NestedObjectMapper.NestedMapperBuilderContext(
+            "nested_path",
+            false,
+            false,
+            false,
+            null,
+            false,
+            Dynamic.FALSE,
+            MergeReason.INDEX_TEMPLATE
+        );
+        assertTrue(context.isInNestedContext());
+
+        MapperBuilderContext childContext = context.createChildContext("child", false, Dynamic.FALSE);
+        assertTrue(childContext.isInNestedContext());
+    }
 }

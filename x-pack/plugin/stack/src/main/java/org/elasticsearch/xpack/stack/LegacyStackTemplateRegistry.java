@@ -51,7 +51,12 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     private final FeatureService featureService;
     private volatile boolean stackTemplateEnabled;
 
-    private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "true");
+    private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of(
+        "xpack.stack.template.deprecated",
+        "true",
+        "xpack.stack.template.logsdb.index.mode",
+        "standard"
+    );
 
     // General mappings conventions for any data that ends up in a data stream
     public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams-mappings";

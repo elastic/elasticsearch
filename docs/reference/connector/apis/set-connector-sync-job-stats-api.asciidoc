@@ -53,6 +53,9 @@ This API is mainly used by the connector service for updating sync job informati
 `last_seen`::
 (Optional, instant) The timestamp to set the connector sync job's `last_seen` property.
 
+`metadata`::
+(Optional, object) The connector-specific metadata.
+
 [[set-connector-sync-job-stats-api-response-codes]]
 ==== {api-response-codes-title}
 

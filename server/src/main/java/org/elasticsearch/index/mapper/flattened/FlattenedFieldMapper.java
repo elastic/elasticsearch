@@ -275,6 +275,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        public String rootName() {
+            return this.rootName;
+        }
+
         public String key() {
             return key;
         }
@@ -733,8 +737,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(String simpleName, MappedFieldType mappedFieldType, Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, Builder builder) {
+        super(leafName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
@@ -801,7 +805,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -815,11 +819,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
         if (fieldType().hasDocValues()) {
-            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
+            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(fullPath(), fullPath() + "._keyed", leafName());
         }
 
         throw new IllegalArgumentException(
-            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
         );
     }
 }

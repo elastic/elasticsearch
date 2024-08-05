@@ -121,6 +121,10 @@ The amount of time in milliseconds spent fetching data from the cache on success
 `misses_time_in_millis`::
 (Long)
 The amount of time in milliseconds spent fetching data from the enrich index and updating the cache, on cache misses only.
+
+`size_in_bytes`::
+(Long)
+An _approximation_ of the size in bytes that the enrich cache takes up on the heap.
 --
 
 [[enrich-stats-api-example]]
@@ -172,7 +176,8 @@ The API returns the following response:
       "misses": 0,
       "evictions": 0,
       "hits_time_in_millis": 0,
-      "misses_time_in_millis": 0
+      "misses_time_in_millis": 0,
+      "size_in_bytes": 0
     }
   ]
 }
@@ -187,3 +192,4 @@ The API returns the following response:
 // TESTRESPONSE[s/"evictions": 0/"evictions" : $body.cache_stats.0.evictions/]
 // TESTRESPONSE[s/"hits_time_in_millis": 0/"hits_time_in_millis" : $body.cache_stats.0.hits_time_in_millis/]
 // TESTRESPONSE[s/"misses_time_in_millis": 0/"misses_time_in_millis" : $body.cache_stats.0.misses_time_in_millis/]
+// TESTRESPONSE[s/"size_in_bytes": 0/"size_in_bytes" : $body.cache_stats.0.size_in_bytes/]

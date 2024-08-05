@@ -126,6 +126,63 @@ public class XContentUtilsTests extends ESTestCase {
         }
     }
 
+    public void testPositionParserAtTokenAfterFieldCurrentObj() throws IOException {
+        var json = """
+            {
+                "key": "value"
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            parser.nextToken();
+            XContentUtils.positionParserAtTokenAfterFieldCurrentFlatObj(parser, "key", "some error");
+
+            assertEquals("value", parser.text());
+        }
+    }
+
+    public void testPositionParserAtTokenAfterFieldCurrentObj_ThrowsIfFieldIsMissing() throws IOException {
+        var json = """
+            {
+                "key": "value"
+            }
+            """;
+        var errorFormat = "Error: %s";
+        var missingField = "missing field";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            parser.nextToken();
+            var exception = expectThrows(
+                IllegalStateException.class,
+                () -> XContentUtils.positionParserAtTokenAfterFieldCurrentFlatObj(parser, missingField, errorFormat)
+            );
+
+            assertEquals(String.format(Locale.ROOT, errorFormat, missingField), exception.getMessage());
+        }
+    }
+
+    public void testPositionParserAtTokenAfterFieldCurrentObj_DoesNotFindNested() throws IOException {
+        var json = """
+            {
+                "nested": {
+                    "key": "value"
+                }
+            }
+            """;
+        var errorFormat = "Error: %s";
+        var missingField = "missing field";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            parser.nextToken();
+            var exception = expectThrows(
+                IllegalStateException.class,
+                () -> XContentUtils.positionParserAtTokenAfterFieldCurrentFlatObj(parser, missingField, errorFormat)
+            );
+
+            assertEquals(String.format(Locale.ROOT, errorFormat, missingField), exception.getMessage());
+        }
+    }
+
     public void testConsumeUntilObjectEnd() throws IOException {
         var json = """
             {

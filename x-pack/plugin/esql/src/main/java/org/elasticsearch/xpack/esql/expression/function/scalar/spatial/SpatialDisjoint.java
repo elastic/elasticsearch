@@ -11,6 +11,8 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
@@ -27,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -48,6 +49,12 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * Here we simply wire the rules together specific to ST_DISJOINT and QueryRelation.DISJOINT.
  */
 public class SpatialDisjoint extends SpatialRelatesFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialDisjoint",
+        SpatialDisjoint::new
+    );
+
     // public for test access with reflection
     public static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.DISJOINT,
@@ -87,6 +94,15 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
 
     private SpatialDisjoint(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
+    }
+
+    private SpatialDisjoint(StreamInput in) throws IOException {
+        super(in, false, false);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -146,7 +162,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
                         SpatialDisjointGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -178,7 +194,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
                         SpatialDisjointCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
+                if (DataType.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(

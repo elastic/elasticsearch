@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xpack.esql.core.analyzer.AnalyzerRules;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +50,7 @@ public final class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggreg
         aggregates = removeDuplicateNames(aggregates);
 
         // replace EsqlAggregate with Aggregate
-        return new Aggregate(agg.source(), agg.child(), groupings, aggregates);
+        return new Aggregate(agg.source(), agg.child(), agg.aggregateType(), groupings, aggregates);
     }
 
     private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {

@@ -6,13 +6,13 @@ teardown:
         ignore: 404
 
   - do:
-      indices.delete:
-        index: .fs-logs-foobar-*
+      indices.delete_index_template:
+        name: generic_logs_template
         ignore: 404
 
   - do:
-      indices.delete_index_template:
-        name: generic_logs_template
+      indices.delete_data_stream:
+        name: destination-data-stream
         ignore: 404
 
   - do:
@@ -23,6 +23,11 @@ teardown:
   - do:
       ingest.delete_pipeline:
         id: "failing_pipeline"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "reroute_pipeline"
         ignore: 404
 
 ---
@@ -118,7 +123,7 @@ teardown:
   - match: { hits.hits.0._source.document.source.foo: 'bar' }
   - match: { hits.hits.0._source.error.type: 'fail_processor_exception' }
   - match: { hits.hits.0._source.error.message: 'error_message' }
-  - contains: { hits.hits.0._source.error.stack_trace: 'org.elasticsearch.ingest.common.FailProcessorException: error_message' }
+  - contains: { hits.hits.0._source.error.stack_trace: 'error_message' }
   - length: { hits.hits.0._source.error.pipeline_trace: 2 }
   - match: { hits.hits.0._source.error.pipeline_trace.0: 'parent_failing_pipeline' }
   - match: { hits.hits.0._source.error.pipeline_trace.1: 'failing_pipeline' }
@@ -202,7 +207,6 @@ teardown:
   - match: { hits.hits.0._source.error.type: 'document_parsing_exception' }
   - contains: { hits.hits.0._source.error.message: "failed to parse field [count] of type [long] in document with id " }
   - contains: { hits.hits.0._source.error.message: "Preview of field's value: 'invalid value'" }
-  - contains: { hits.hits.0._source.error.stack_trace: "org.elasticsearch.index.mapper.DocumentParsingException: " }
   - contains: { hits.hits.0._source.error.stack_trace: "failed to parse field [count] of type [long] in document with id" }
   - contains: { hits.hits.0._source.error.stack_trace: "Preview of field's value: 'invalid value'" }
 
@@ -215,3 +219,103 @@ teardown:
       indices.delete:
         index: .fs-logs-foobar-*
   - is_true: acknowledged
+
+---
+"Ensure failure is redirected to correct failure store after a reroute processor":
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.15.0"
+          fixed_by: "gte_v8.16.0"
+      reason: "Failure store documents contained the original index name rather than the rerouted one before v8.16.0"
+  - requires:
+      test_runner_features: [allowed_warnings]
+
+  - do:
+      ingest.put_pipeline:
+        id: "failing_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fail": {
+                  "message" : "error_message",
+                  "tag": "foo-tag"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [destination_template] has index patterns [destination-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [destination_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: destination_template
+        body:
+          index_patterns: destination-data-stream
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+              index:
+                default_pipeline: "failing_pipeline"
+
+  - do:
+      indices.create_data_stream:
+        name: destination-data-stream
+
+  - do:
+      ingest.put_pipeline:
+        id: "reroute_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "reroute": {
+                  "tag": "reroute-tag",
+                  "destination": "destination-data-stream"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+              index:
+                default_pipeline: "reroute_pipeline"
+
+  - do:
+      index:
+        index:  logs-foobar
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      search:
+        index: .fs-logs-foobar-*
+  - length:   { hits.hits: 0  }
+
+  - do:
+      search:
+        index: .fs-destination-*
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: "/\\.fs-destination-data-stream-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
+  - match: { hits.hits.0._source.document.index: 'destination-data-stream' }

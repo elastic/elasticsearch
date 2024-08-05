@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
-import java.util.List;
 
 public abstract class AbstractArithmeticSerializationTests<T extends EsqlArithmeticOperation> extends AbstractExpressionSerializationTests<
     T> {
@@ -34,10 +32,5 @@ public abstract class AbstractArithmeticSerializationTests<T extends EsqlArithme
             right = randomValueOtherThan(instance.right(), AbstractExpressionSerializationTests::randomChild);
         }
         return create(instance.source(), left, right);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return EsqlArithmeticOperation.getNamedWriteables();
     }
 }

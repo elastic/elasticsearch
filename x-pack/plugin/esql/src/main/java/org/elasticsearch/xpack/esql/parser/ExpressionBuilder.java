@@ -15,6 +15,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -25,8 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy;
-import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -89,9 +91,22 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private int expressionDepth = 0;
 
     /**
-     * Maximum depth for nested expressions
+     * Maximum depth for nested expressions.
+     * Avoids StackOverflowErrors at parse time with very convoluted expressions,
+     * eg. EVAL x = sin(sin(sin(sin(sin(sin(sin(sin(sin(....sin(x)....)
+     * ANTLR parser is recursive, so the only way to prevent a StackOverflow is to detect how
+     * deep we are in the expression parsing and abort the query execution after a threshold
+     *
+     * This value is defined empirically, but the actual stack limit is highly
+     * dependent on the JVM and on the JIT.
+     *
+     * A value of 500 proved to be right below the stack limit, but it still triggered
+     * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
+     * Even though we didn't manage to reproduce the problem in real conditions, we decided
+     * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
+     *
      */
-    public static final int MAX_EXPRESSION_DEPTH = 500;
+    public static final int MAX_EXPRESSION_DEPTH = 400;
 
     protected final QueryParams params;
 
@@ -226,7 +241,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitString(EsqlBaseParser.StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, unquoteString(source), DataType.KEYWORD);
+        return new Literal(source, unquote(source), DataType.KEYWORD);
     }
 
     @Override
@@ -729,7 +744,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
                 String message = "";
-                int np = params.positionalParams().size();
+                int np = params.size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
@@ -748,5 +763,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
             return params.get(nameOrPosition);
         }
+    }
+
+    @Override
+    public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source(ctx), "MATCH operator currently requires a snapshot build");
+        }
+        return new MatchQueryPredicate(
+            source(ctx),
+            visitQualifiedName(ctx.qualifiedName()),
+            visitString(ctx.queryString).fold().toString(),
+            null
+        );
     }
 }

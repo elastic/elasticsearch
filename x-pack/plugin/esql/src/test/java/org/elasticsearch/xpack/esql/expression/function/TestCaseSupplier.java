@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -31,6 +30,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -820,6 +820,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unary(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
+    /**
+     * Generate cases for {@link DataType#INTEGER}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#intCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> intCases(int min, int max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0 <= max && 0 >= min && includeZero) {
@@ -844,6 +850,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#LONG}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#longCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> longCases(long min, long max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0L <= max && 0L >= min && includeZero) {
@@ -869,6 +881,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#UNSIGNED_LONG}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ulongCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -909,6 +927,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#DOUBLE}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#doubleCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> doubleCases(double min, double max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -973,6 +997,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#BOOLEAN}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#booleanCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> booleanCases() {
         return List.of(
             new TypedDataSupplier("<true>", () -> true, DataType.BOOLEAN),
@@ -980,6 +1010,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#DATETIME}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> dateCases() {
         return List.of(
             new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME),
@@ -1047,12 +1083,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cartesianShapeCases(ESTestCase::randomBoolean);
     }
 
+    /**
+     * Generate cases for {@link DataType#GEO_POINT}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#geoPointCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), DataType.GEO_POINT)
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#CARTESIAN_POINT}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#cartesianPointCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> cartesianPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
@@ -1083,6 +1131,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#IP}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#ipCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> ipCases() {
         return List.of(
             new TypedDataSupplier(
@@ -1095,6 +1149,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for String DataTypes.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#stringCases}.
+     * </p>
+     */
     public static List<TypedDataSupplier> stringCases(DataType type) {
         List<TypedDataSupplier> result = new ArrayList<>();
         result.add(new TypedDataSupplier("<empty " + type + ">", () -> new BytesRef(""), type));
@@ -1123,6 +1183,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Supplier test case data for {@link Version} fields.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.
+     * </p>
      */
     public static List<TypedDataSupplier> versionCases(String prefix) {
         return List.of(
@@ -1243,11 +1306,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final Class<? extends Throwable> foldingExceptionClass;
         private final String foldingExceptionMessage;
 
-        public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+        public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, equalTo(evaluatorToString), expectedType, matcher);
         }
 
-        public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+        public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, evaluatorToString, expectedType, matcher, null, null, null, null);
         }
 
@@ -1259,7 +1322,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             List<TypedData> data,
             Matcher<String> evaluatorToString,
             DataType expectedType,
-            Matcher<Object> matcher,
+            Matcher<?> matcher,
             String[] expectedWarnings,
             String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
@@ -1269,10 +1332,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType;
-            this.matcher = matcher;
+            @SuppressWarnings("unchecked")
+            Matcher<Object> downcast = (Matcher<Object>) matcher;
+            this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
-            this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || EsqlDataTypes.isRepresentable(d.type));
+            this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type));
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
         }
@@ -1299,6 +1364,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public List<Object> getDataValues() {
             return data.stream().filter(d -> d.forceLiteral == false).map(TypedData::data).collect(Collectors.toList());
+        }
+
+        public List<TypedData> getMultiRowFields() {
+            return data.stream().filter(TypedData::isMultiRow).collect(Collectors.toList());
+        }
+
+        public boolean canGetDataAsLiterals() {
+            return data.stream().noneMatch(d -> d.isMultiRow() && d.multiRowData().size() != 1);
         }
 
         public boolean canBuildEvaluator() {
@@ -1363,14 +1436,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral) {
+    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral, boolean multiRow) {
+
+        public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral) {
+            this(name, supplier, type, forceLiteral, false);
+        }
 
         public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
-            this(name, supplier, type, false);
+            this(name, supplier, type, false, false);
         }
 
         public TypedData get() {
-            return new TypedData(supplier.get(), type, name, forceLiteral);
+            return new TypedData(supplier.get(), type, name, forceLiteral, multiRow);
         }
     }
 
@@ -1379,19 +1456,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      */
     public static class TypedData {
         public static final TypedData NULL = new TypedData(null, DataType.NULL, "<null>");
+        public static final TypedData MULTI_ROW_NULL = TypedData.multiRow(Collections.singletonList(null), DataType.NULL, "<null>");
 
         private final Object data;
         private final DataType type;
         private final String name;
         private final boolean forceLiteral;
+        private final boolean multiRow;
 
         /**
          * @param data value to test against
          * @param type type of the value, for building expressions
          * @param name a name for the value, used for generating test case names
          * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
+         * @param multiRow if true, data is expected to be a List of values, one per row
          */
-        private TypedData(Object data, DataType type, String name, boolean forceLiteral) {
+        private TypedData(Object data, DataType type, String name, boolean forceLiteral, boolean multiRow) {
+            assert multiRow == false || data instanceof List : "multiRow data must be a List";
+            assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
+
             if (type == DataType.UNSIGNED_LONG && data instanceof BigInteger b) {
                 this.data = NumericUtils.asLongUnsigned(b);
             } else {
@@ -1400,6 +1483,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.type = type;
             this.name = name;
             this.forceLiteral = forceLiteral;
+            this.multiRow = multiRow;
         }
 
         /**
@@ -1408,7 +1492,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public TypedData(Object data, DataType type, String name) {
-            this(data, type, name, false);
+            this(data, type, name, false, false);
         }
 
         /**
@@ -1421,12 +1505,22 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * Create a TypedData object for field to be aggregated.
+         * @param data values to test against, one per row
+         * @param type type of the value, for building expressions
+         * @param name a name for the value, used for generating test case names
+         */
+        public static TypedData multiRow(List<?> data, DataType type, String name) {
+            return new TypedData(data, type, name, false, true);
+        }
+
+        /**
          * Return a {@link TypedData} that always returns a {@link Literal} from
          * {@link #asField} and {@link #asDeepCopyOfField}. Use this for things that
          * must be constants.
          */
         public TypedData forceLiteral() {
-            return new TypedData(data, type, name, true);
+            return new TypedData(data, type, name, true, multiRow);
         }
 
         /**
@@ -1437,11 +1531,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
-         * Return a {@link TypedData} that always returns {@code null} for it's
-         * value without modifying anything else in the supplier.
+         * If true, the data is expected to be a List of values, one per row.
          */
-        public TypedData forceValueToNull() {
-            return new TypedData(null, type, name, forceLiteral);
+        public boolean isMultiRow() {
+            return multiRow;
+        }
+
+        /**
+         * Return a {@link TypedData} with the new data.
+         *
+         * @param data The new data for the {@link TypedData}.
+         */
+        public TypedData withData(Object data) {
+            return new TypedData(data, type, name, forceLiteral, multiRow);
         }
 
         @Override
@@ -1476,6 +1578,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * Convert this into a {@link Literal}.
          */
         public Literal asLiteral() {
+            if (multiRow) {
+                var values = multiRowData();
+
+                if (values.size() != 1) {
+                    throw new IllegalStateException("Multirow values require exactly 1 element to be a literal, got " + values.size());
+                }
+
+                return new Literal(Source.synthetic(name), values.get(0), type);
+            }
             return new Literal(Source.synthetic(name), data, type);
         }
 
@@ -1484,6 +1595,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Object data() {
             return data;
+        }
+
+        /**
+         * Values to test against.
+         */
+        @SuppressWarnings("unchecked")
+        public List<Object> multiRowData() {
+            return (List<Object>) data;
         }
 
         /**

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -149,7 +150,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 request,
                 state.nodes(),
                 state.getMinTransportVersion(),
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 listener
             ).run();
             return;
@@ -387,6 +388,9 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private final List<BlobAnalyzeAction.Response> responses;
         private final RepositoryPerformanceSummary.Builder summary = new RepositoryPerformanceSummary.Builder();
 
+        private final RepositoryVerificationException analysisCancelledException;
+        private final RepositoryVerificationException analysisTimedOutException;
+
         public AsyncAction(
             TransportService transportService,
             BlobStoreRepository repository,
@@ -410,6 +414,12 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             this.listener = ActionListener.runBefore(listener, () -> cancellationListener.onResponse(null));
 
             responses = new ArrayList<>(request.blobCount);
+
+            this.analysisCancelledException = new RepositoryVerificationException(request.repositoryName, "analysis cancelled");
+            this.analysisTimedOutException = new RepositoryVerificationException(
+                request.repositoryName,
+                "analysis timed out after [" + request.getTimeout() + "]"
+            );
         }
 
         private boolean setFirstFailure(Exception e) {
@@ -453,12 +463,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 assert e instanceof ElasticsearchTimeoutException : e;
                 if (isRunning()) {
                     // if this CAS fails then we're already failing for some other reason, nbd
-                    setFirstFailure(
-                        new RepositoryVerificationException(
-                            request.repositoryName,
-                            "analysis timed out after [" + request.getTimeout() + "]"
-                        )
-                    );
+                    setFirstFailure(analysisTimedOutException);
                 }
             }
         }
@@ -472,7 +477,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             cancellationListener.addTimeout(request.getTimeout(), repository.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             cancellationListener.addListener(new CheckForCancelListener());
 
-            task.addListener(() -> setFirstFailure(new RepositoryVerificationException(request.repositoryName, "analysis cancelled")));
+            task.addListener(() -> setFirstFailure(analysisCancelledException));
 
             final Random random = new Random(request.getSeed());
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
@@ -873,13 +878,20 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 );
             } else {
                 logger.debug(() -> "analysis of repository [" + request.repositoryName + "] failed", exception);
-                listener.onFailure(
-                    new RepositoryVerificationException(
-                        request.getRepositoryName(),
-                        "analysis failed, you may need to manually remove [" + blobPath + "]",
-                        exception
-                    )
-                );
+
+                final String failureDetail;
+                if (exception == analysisCancelledException) {
+                    failureDetail = "Repository analysis was cancelled.";
+                } else if (exception == analysisTimedOutException) {
+                    failureDetail = Strings.format("""
+                        Repository analysis timed out. Consider specifying a longer timeout using the [?timeout] request parameter. See \
+                        [%s] for more information.""", ReferenceDocs.SNAPSHOT_REPOSITORY_ANALYSIS);
+                } else {
+                    failureDetail = repository.getAnalysisFailureExtraDetail();
+                }
+                listener.onFailure(new RepositoryVerificationException(request.getRepositoryName(), Strings.format("""
+                    %s Elasticsearch attempted to remove the data it wrote at [%s] but may have left some behind. If so, \
+                    please now remove this data manually.""", failureDetail, blobPath), exception));
             }
         }
     }

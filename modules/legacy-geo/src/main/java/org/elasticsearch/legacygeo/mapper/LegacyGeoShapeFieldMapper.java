@@ -81,7 +81,7 @@ import java.util.stream.Collectors;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  *
- * @deprecated use {@link org.elasticsearch.index.mapper.GeoShapeFieldMapper}
+ * @deprecated use the field mapper in the spatial module
  */
 @Deprecated
 public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>> {
@@ -610,7 +610,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
-            simpleName(),
+            leafName(),
             indexCreatedVersion,
             builder.ignoreMalformed.getDefaultValue().value(),
             builder.coerce.getDefaultValue().value()
@@ -621,7 +621,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (mergeWith instanceof LegacyGeoShapeFieldMapper == false && CONTENT_TYPE.equals(mergeWith.typeName())) {
             throw new IllegalArgumentException(
-                "mapper [" + name() + "] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"
+                "mapper [" + fullPath() + "] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"
             );
         }
         super.checkIncomingMergeType(mergeWith);

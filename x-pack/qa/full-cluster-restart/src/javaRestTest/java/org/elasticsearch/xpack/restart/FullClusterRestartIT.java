@@ -16,6 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -98,6 +99,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Request createDoc = new Request("PUT", docLocation);
             createDoc.addParameter("refresh", "true");
             createDoc.setJsonEntity(doc);
+            createDoc.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             client().performRequest(createDoc);
         }
 
@@ -447,6 +449,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                         }
                     }
                     """);
+                req.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
                 client().performRequest(req);
             }
 
@@ -541,7 +544,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                     }
                   }
                 }""");
-
+            createIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             Map<String, Object> createIndexResponse = entityAsMap(client().performRequest(createIndexRequest));
             assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
@@ -972,6 +975,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 .field("@timestamp", System.currentTimeMillis())
                 .endObject();
             indexRequest.setJsonEntity(Strings.toString(builder));
+            indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             assertOK(client().performRequest(indexRequest));
         }
 
@@ -1027,7 +1031,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 {
                   "settings": {
                     "index": {
-                      "number_of_replicas": 0
+                      "number_of_replicas": 1
                     }
                   },
                   "mappings": {
@@ -1038,11 +1042,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                     }
                   }
                 }""");
-            createIndex.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> switch (warnings.size()) {
-                case 0 -> false;  // old versions don't return a warning
-                case 1 -> false == warnings.get(0).contains("_field_names");
-                default -> true;
-            }));
+            createIndex.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             client().performRequest(createIndex);
 
             Request createDoc = new Request("PUT", docLocation);
@@ -1061,12 +1061,35 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                   "query": "FROM nofnf | LIMIT 1"
                 }""");
             // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}
-            assertMap(
-                entityAsMap(client().performRequest(esql)),
-                matchesMap().entry("columns", List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword")))
-                    .entry("values", List.of(List.of("test", "test")))
-            );
+            try {
+                assertMap(
+                    entityAsMap(client().performRequest(esql)),
+                    matchesMap().entry(
+                        "columns",
+                        List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword"))
+                    ).entry("values", List.of(List.of("test", "test")))
+                );
+            } catch (ResponseException e) {
+                logger.error(
+                    "failed to query index without field name field. Existing indices:\n{}",
+                    EntityUtils.toString(client().performRequest(new Request("GET", "_cat/indices")).getEntity())
+                );
+                throw e;
+            }
         }
+    }
+
+    /**
+     * Ignore the warning about the {@code _field_names} field. We intentionally
+     * turn that field off sometimes. And other times old versions spuriously
+     * send it back to us.
+     */
+    private WarningsHandler fieldNamesFieldOk() {
+        return warnings -> switch (warnings.size()) {
+            case 0 -> false;  // old versions don't return a warning
+            case 1 -> false == warnings.get(0).contains("_field_names");
+            default -> true;
+        };
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {

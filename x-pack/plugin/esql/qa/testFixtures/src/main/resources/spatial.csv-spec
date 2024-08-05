@@ -883,10 +883,10 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 ;
 
 wkt:keyword    | pt:geo_point  | distance:double
-"POINT(1 1)"   | POINT(1 1)    | 157249.59776811762
-"POINT(-1 -1)" | POINT(-1 -1)  | 157249.59776811762
-"POINT(-1 1)"  | POINT(-1 1)   | 157249.59776811762
-"POINT(1 -1)"  | POINT(1 -1)   | 157249.59776811762
+"POINT(1 1)"   | POINT(1 1)    | 157249.5916907891
+"POINT(-1 -1)" | POINT(-1 -1)  | 157249.6015756357
+"POINT(-1 1)"  | POINT(-1 1)   | 157249.5982806869
+"POINT(1 -1)"  | POINT(1 -1)   | 157249.59498573805
 ;
 
 airportCityLocationPointDistance
@@ -898,7 +898,7 @@ FROM airports
 ;
 
 distance:double    | count:long
-15869.987675939537 | 891
+15869.9876282387   | 891
 ;
 
 airportDistanceToCityCopenhagen
@@ -914,7 +914,7 @@ FROM airports
 
 // tag::st_distance-airports-result[]
 abbrev:k | name:text   | location:geo_point                       | city_location:geo_point | distance:d
-CPH      | Copenhagen  | POINT(12.6493508684508 55.6285017221528) | POINT(12.5683 55.6761)  | 7339.57266575626
+CPH      | Copenhagen  | POINT(12.6493508684508 55.6285017221528) | POINT(12.5683 55.6761)  | 7339.573896618216
 // end::st_distance-airports-result[]
 ;
 
@@ -966,6 +966,83 @@ ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | 
 SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
 ;
 
+airportsWithinDistanceBandFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 600000
+    AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 400000
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+GDN      | Gdansk Lech Walesa      | POINT(18.4684422165911 54.3807025352925) | Poland    | Gdańsk          | POINT(18.6453 54.3475)  | 402.61     | 414.59
+NYO      | Stockholm-Skavsta       | POINT(16.9216055584254 58.7851041303448) | Sweden    | Nyköping        | POINT(17.0086 58.7531)  | 433.99     | 434.43
+OSL      | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+BMA      | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+PLQ      | Palanga Int'l           | POINT(21.0974463986251 55.9713426235358) | Lithuania | Klaipėda        | POINT(21.1667 55.75)    | 533.67     | 538.56
+ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
+;
+
+airportsWithComplexDistancePredicateFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+      AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000)
+      OR
+        (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 300000
+      AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 200000)
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg      | POINT(11.9675 57.7075)  | 224.42     | 229.15
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
+GDN      | Gdansk Lech Walesa      | POINT(18.4684422165911 54.3807025352925) | Poland    | Gdańsk          | POINT(18.6453 54.3475)  | 402.61     | 414.59
+NYO      | Stockholm-Skavsta       | POINT(16.9216055584254 58.7851041303448) | Sweden    | Nyköping        | POINT(17.0086 58.7531)  | 433.99     | 434.43
+OSL      | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+BMA      | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+PLQ      | Palanga Int'l           | POINT(21.0974463986251 55.9713426235358) | Lithuania | Klaipėda        | POINT(21.1667 55.75)    | 533.67     | 538.56
+ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
+;
+
+airportsWithVeryComplexDistancePredicateFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE ((ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+      AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000
+      AND NOT (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 500000
+           AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 430000))
+      OR
+         (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 300000
+      AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 200000))
+    AND NOT abbrev == "PLQ"
+    AND scalerank < 6
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, scalerank, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | scalerank:i | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+HAM      | 3           | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
+OSL      | 2           | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+BMA      | 5           | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+ARN      | 2           | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+;
+
 airportsWithinDistanceCopenhagenTrainStationCount
 required_capability: st_distance
 
@@ -979,6 +1056,24 @@ count:long | country:k
 3          | Germany
 3          | Sweden
 1          | Denmark
+1          | Poland
+;
+
+airportsWithinDistanceBandCopenhagenTrainStationCount
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 600000
+    AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 400000
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+3          | Sweden
+2          | Norway
+1          | Germany
+1          | Lithuania
 1          | Poland
 ;
 
@@ -1013,11 +1108,69 @@ FROM airports
 ;
 
 abbrev:k | name:text               | location:geo_point                        | country:k    | city:k                  | city_location:geo_point  | distance:d    
-TRD      | Trondheim Vaernes       | POINT(10.9168095241445 63.472029381717)   | Norway       | Stjørdalshalsen         | POINT(10.9189 63.4712)   | 138.86728011324072
-DHA      | King Abdulaziz AB       | POINT(50.1477245727844 26.2703680854768)  | Saudi Arabia | Dhahran                 | POINT(50.15 26.2667)     | 466.7314410344158
-NDB      | Nouadhibou Int'l        | POINT(-17.0334398691538 20.9290523064387) | Mauritania   | Nouadhibou              | POINT(-17.0333 20.9333)  | 472.545954400989
-ESE      | Ensenada                | POINT(-116.595724400418 31.7977139760569) | Mexico       | Rodolfo Sánchez Taboada | POINT(-116.5911 31.7958) | 486.1044856437723
-INU      | Nauru Int'l             | POINT(166.91613965882 -0.545037226856384) | Nauru        | Yaren                   | POINT(166.9209 -0.5477)  | 606.4888777331985
+TRD      | Trondheim Vaernes       | POINT(10.9168095241445 63.472029381717)   | Norway       | Stjørdalshalsen         | POINT(10.9189 63.4712)   | 138.86985803478004
+DHA      | King Abdulaziz AB       | POINT(50.1477245727844 26.2703680854768)  | Saudi Arabia | Dhahran                 | POINT(50.15 26.2667)     | 466.7321285739462
+NDB      | Nouadhibou Int'l        | POINT(-17.0334398691538 20.9290523064387) | Mauritania   | Nouadhibou              | POINT(-17.0333 20.9333)  | 472.54642026512636
+ESE      | Ensenada                | POINT(-116.595724400418 31.7977139760569) | Mexico       | Rodolfo Sánchez Taboada | POINT(-116.5911 31.7958) | 486.1022373716486
+INU      | Nauru Int'l             | POINT(166.91613965882 -0.545037226856384) | Nauru        | Yaren                   | POINT(166.9209 -0.5477)  | 606.4899254580574
+;
+
+distancesNearQuantizationBoundary
+required_capability: st_distance
+
+FROM distances
+| EVAL d = ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)"))
+| EVAL delta = ABS(distance - d)
+| WHERE delta > 0
+| KEEP distance, d, delta, location
+;
+
+distance:double  |  d:double  |  delta:double | location:geo_point  
+;
+
+distancesNearQuantizationBoundaryStats
+required_capability: st_distance
+
+FROM distances
+| EVAL d = ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)"))
+| STATS count=COUNT(*) BY d
+| SORT d ASC
+;
+
+count:long  | d:double
+12          | 0.2685179415497728
+3           | 0.26851794154977293
+30          | 0.2848062860101459
+15          | 0.2848062860101461
+30          | 0.30021218524180354
+3           | 3.258374219844941
+6           | 3.2597569375901188
+6           | 3.262520615015394
+12          | 3.2625206150153967
+;
+
+distancesNearQuantizationBoundaryFilterStatsA
+required_capability: st_distance
+
+FROM distances
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)")) == 0.2848062860101461
+| STATS count=COUNT(*)
+;
+
+count:long
+15
+;
+
+distancesNearQuantizationBoundaryFilterStatsB
+required_capability: st_distance
+
+FROM distances
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)")) == 3.2625206150153967
+| STATS count=COUNT(*)
+;
+
+count:long
+12
 ;
 
 ###############################################

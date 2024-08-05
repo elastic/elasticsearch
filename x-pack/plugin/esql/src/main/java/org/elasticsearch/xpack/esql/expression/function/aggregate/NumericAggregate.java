@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -49,6 +51,10 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
 
     NumericAggregate(Source source, Expression field) {
         super(source, field);
+    }
+
+    NumericAggregate(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

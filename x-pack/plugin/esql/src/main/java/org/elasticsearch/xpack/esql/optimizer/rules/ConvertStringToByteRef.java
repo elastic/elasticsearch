@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 
 import java.util.ArrayList;
 import java.util.List;

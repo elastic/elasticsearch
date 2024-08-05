@@ -67,7 +67,10 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             actionFilters,
             ShardRequest::new,
             ShardRequest::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 

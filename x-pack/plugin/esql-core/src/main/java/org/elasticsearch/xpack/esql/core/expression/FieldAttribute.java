@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
@@ -29,10 +30,14 @@ import java.util.Objects;
  * - nestedParent - if nested, what's the parent (which might not be the immediate one)
  */
 public class FieldAttribute extends TypedAttribute {
+    // TODO: This constant should not be used if possible; use .synthetic()
+    // https://github.com/elastic/elasticsearch/issues/105821
+    public static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "FieldAttribute",
-        FieldAttribute::new
+        FieldAttribute::readFrom
     );
 
     private final FieldAttribute parent;
@@ -72,13 +77,12 @@ public class FieldAttribute extends TypedAttribute {
         boolean synthetic
     ) {
         super(source, name, type, qualifier, nullability, id, synthetic);
-        this.path = parent != null ? parent.name() : StringUtils.EMPTY;
+        this.path = parent != null ? parent.fieldName() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
     }
 
-    @SuppressWarnings("unchecked")
-    public FieldAttribute(StreamInput in) throws IOException {
+    private FieldAttribute(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -89,7 +93,7 @@ public class FieldAttribute extends TypedAttribute {
          */
         this(
             Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readOptionalWriteable(FieldAttribute::new),
+            in.readOptionalWriteable(FieldAttribute::readFrom),
             in.readString(),
             DataType.readFrom(in),
             in.readNamedWriteable(EsField.class),
@@ -102,15 +106,21 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeOptionalWriteable(parent);
-        out.writeString(name());
-        dataType().writeTo(out);
-        out.writeNamedWriteable(field);
-        out.writeOptionalString(qualifier());
-        out.writeEnum(nullable());
-        id().writeTo(out);
-        out.writeBoolean(synthetic());
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            out.writeOptionalWriteable(parent);
+            out.writeString(name());
+            dataType().writeTo(out);
+            out.writeNamedWriteable(field);
+            out.writeOptionalString(qualifier());
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
+        }
+    }
+
+    public static FieldAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::new);
     }
 
     @Override
@@ -129,6 +139,20 @@ public class FieldAttribute extends TypedAttribute {
 
     public String path() {
         return path;
+    }
+
+    /**
+     * The full name of the field in the index, including all parent fields. E.g. {@code parent.subfield.this_field}.
+     */
+    public String fieldName() {
+        // Before 8.15, the field name was the same as the attribute's name.
+        // On later versions, the attribute can be renamed when creating synthetic attributes.
+        // TODO: We should use synthetic() to check for that case.
+        // https://github.com/elastic/elasticsearch/issues/105821
+        if (name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX) == false) {
+            return name();
+        }
+        return Strings.hasText(path) ? path + "." + field.getName() : field.getName();
     }
 
     public String qualifiedPath() {

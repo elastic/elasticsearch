@@ -3,7 +3,7 @@ setup:
       cluster_features: [ "gte_v8.15.0" ]
       reason: Introduced in 8.15.0
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset
         body:
           rules:
@@ -28,7 +28,7 @@ setup:
                   - 'id3'
                   - 'id4'
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-to-delete
         body:
           rules:
@@ -55,19 +55,19 @@ setup:
 ---
 teardown:
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset
         ignore: 404
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset-to-delete
         ignore: 404
 
 ---
 "Delete Query Rule, ruleset still exists":
   - do:
-      query_rule.delete:
+      query_rules.delete_rule:
         ruleset_id: test-query-ruleset
         rule_id: query-rule-id1
 
@@ -75,12 +75,12 @@ teardown:
 
   - do:
       catch: "missing"
-      query_rule.get:
+      query_rules.get_rule:
         ruleset_id: test-query-ruleset
         rule_id: query-rule-id1
 
   - do:
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-query-ruleset
 
   - match: { rules.0.rule_id: query-rule-id2 }
@@ -88,7 +88,7 @@ teardown:
 ---
 "Delete Query Rule, ruleset is also deleted as it is now empty":
   - do:
-      query_rule.delete:
+      query_rules.delete_rule:
         ruleset_id: test-query-ruleset-to-delete
         rule_id: query-rule-id1
 
@@ -96,18 +96,18 @@ teardown:
 
   - do:
       catch: "missing"
-      query_rule.get:
+      query_rules.get_rule:
         ruleset_id: test-query-ruleset-to-delete
         rule_id: query-rule-id1
 
   - do:
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-query-ruleset-to-delete
 
   - match: { rules.0.rule_id: query-rule-id2 }
 
   - do:
-      query_rule.delete:
+      query_rules.delete_rule:
         ruleset_id: test-query-ruleset-to-delete
         rule_id: query-rule-id2
 
@@ -115,20 +115,20 @@ teardown:
 
   - do:
       catch: "missing"
-      query_rule.get:
+      query_rules.get_rule:
         ruleset_id: test-query-ruleset-to-delete
         rule_id: query-rule-id2
 
   - do:
       catch: "missing"
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-query-ruleset-to-delete
 
 ---
 "Delete Query Rule - Rule does not exist":
   - do:
       catch: "missing"
-      query_rule.delete:
+      query_rules.delete_rule:
         ruleset_id: test-query-ruleset
         rule_id: nonexistent-rule
 
@@ -136,7 +136,7 @@ teardown:
 "Delete Query Rule - Ruleset does not exist":
   - do:
       catch: "missing"
-      query_rule.delete:
+      query_rules.delete_rule:
         ruleset_id: nonexistent-query-ruleset
         rule_id: nonexistent-rule
 
@@ -148,7 +148,7 @@ teardown:
   - do:
       catch: forbidden
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
-      query_rule.delete:
+      query_rules.delete_rule:
         ruleset_id: test-query-ruleset
         rule_id: query-rule-id1
 

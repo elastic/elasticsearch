@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.action.mistral;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.MistralEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -35,6 +36,6 @@ public class MistralActionCreator implements MistralActionVisitor {
             serviceComponents.threadPool()
         );
         var errorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Mistral embeddings");
-        return new MistralAction(sender, requestManager, errorMessage);
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

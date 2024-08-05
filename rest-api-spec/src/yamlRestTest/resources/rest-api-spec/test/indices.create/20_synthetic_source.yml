@@ -13,7 +13,7 @@ invalid:
               mode: synthetic
             properties:
               kwd:
-                type: keyword
+                type: boolean
                 doc_values: false
 
 
@@ -1155,3 +1155,52 @@ doubly nested object:
   - match:  { hits.hits.2._source.nested_field.1.sub_nested_field.1.number: 42 }
   - length: { hits.hits.3._source: 1 }
   - match:  { hits.hits.3._source.id: 3 }
+
+
+---
+nested object with stored array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              nested_array_regular:
+                type: nested
+              nested_array_stored:
+                type: nested
+                store_array_source: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "A", "nested_array_regular": [ { "b": [ { "c": 10 }, { "c": 100 } ] }, { "b": [ { "c": 20 }, { "c": 200 } ] } ] }'
+          - '{ "create": { } }'
+          - '{ "name": "B", "nested_array_stored": [ { "b": [ { "c": 10 }, { "c": 100 } ] }, { "b": [ { "c": 20 }, { "c": 200 } ] } ] }'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.nested_array_regular.0.b.c: [ 10, 100] }
+  - match: { hits.hits.0._source.nested_array_regular.1.b.c: [ 20, 200] }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.nested_array_stored.0.b.0.c: 10 }
+  - match: { hits.hits.1._source.nested_array_stored.0.b.1.c: 100 }
+  - match: { hits.hits.1._source.nested_array_stored.1.b.0.c: 20 }
+  - match: { hits.hits.1._source.nested_array_stored.1.b.1.c: 200 }

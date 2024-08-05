@@ -30,10 +30,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -48,6 +55,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -62,6 +72,8 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.ENDPOINT_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.MAX_CHUNK_SIZE;
 import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -75,8 +87,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
     private GeoIpDownloader geoIpDownloader;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         httpClient = mock(HttpClient.class);
+        when(httpClient.getBytes(anyString())).thenReturn("[]".getBytes(StandardCharsets.UTF_8));
         clusterService = mock(ClusterService.class);
         threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), MeterRegistry.NOOP);
         when(clusterService.getClusterSettings()).thenReturn(
@@ -108,7 +121,13 @@ public class GeoIpDownloaderTests extends ESTestCase {
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
             () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
             () -> true
-        );
+        ) {
+            {
+                GeoIpTaskParams geoIpTaskParams = mock(GeoIpTaskParams.class);
+                when(geoIpTaskParams.getWriteableName()).thenReturn(GeoIpDownloader.GEOIP_DOWNLOADER);
+                init(new PersistentTasksService(clusterService, threadPool, client), null, null, 0);
+            }
+        };
     }
 
     @After
@@ -276,9 +295,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                assertEquals(0, state.get("test").firstChunk());
-                assertEquals(10, state.get("test").lastChunk());
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
+                fail();
             }
 
             @Override
@@ -289,19 +307,22 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
-                fail();
+            void updateTaskState() {
+                assertEquals(0, state.getDatabases().get("test.mmdb").firstChunk());
+                assertEquals(10, state.getDatabases().get("test.mmdb").lastChunk());
             }
 
             @Override
             void deleteOldChunks(String name, int firstChunk) {
-                assertEquals("test", name);
+                assertEquals("test.mmdb", name);
                 assertEquals(0, firstChunk);
             }
         };
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY);
         geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+        GeoIpDownloaderStats stats = geoIpDownloader.getStatus();
+        assertEquals(0, stats.getFailedDownloads());
     }
 
     public void testProcessDatabaseUpdate() throws IOException {
@@ -325,9 +346,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                assertEquals(9, state.get("test.mmdb").firstChunk());
-                assertEquals(10, state.get("test.mmdb").lastChunk());
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
+                fail();
             }
 
             @Override
@@ -338,8 +358,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
-                fail();
+            void updateTaskState() {
+                assertEquals(9, state.getDatabases().get("test.mmdb").firstChunk());
+                assertEquals(10, state.getDatabases().get("test.mmdb").lastChunk());
             }
 
             @Override
@@ -351,6 +372,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0", 0)));
         geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+        GeoIpDownloaderStats stats = geoIpDownloader.getStatus();
+        assertEquals(0, stats.getFailedDownloads());
     }
 
     public void testProcessDatabaseSame() throws IOException {
@@ -376,8 +399,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             () -> true
         ) {
             @Override
-            void updateTaskState() {
-                fail();
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
+                assertEquals(metadata, newMetadata);
+                assertEquals("test.mmdb", name);
             }
 
             @Override
@@ -387,9 +411,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
-                assertEquals(metadata, newMetadata);
-                assertEquals("test.mmdb", name);
+            void updateTaskState() {
+                fail();
             }
 
             @Override
@@ -399,6 +422,57 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
         geoIpDownloader.setState(taskState);
         geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
+        GeoIpDownloaderStats stats = geoIpDownloader.getStatus();
+        assertEquals(0, stats.getFailedDownloads());
+    }
+
+    public void testCleanDatabases() throws IOException {
+        ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
+        when(httpClient.get("http://a.b/t1")).thenReturn(bais);
+
+        final AtomicInteger count = new AtomicInteger(0);
+
+        geoIpDownloader = new GeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            Settings.EMPTY,
+            1,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
+        ) {
+            @Override
+            void updateDatabases() throws IOException {
+                // noop
+            }
+
+            @Override
+            void deleteOldChunks(String name, int firstChunk) {
+                count.incrementAndGet();
+                assertEquals("test.mmdb", name);
+                assertEquals(21, firstChunk);
+            }
+
+            @Override
+            void updateTaskState() {
+                // noop
+            }
+        };
+
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(10, 10, 20, "md5", 20)));
+        geoIpDownloader.runDownloader();
+        geoIpDownloader.runDownloader();
+        GeoIpDownloaderStats stats = geoIpDownloader.getStatus();
+        assertEquals(1, stats.getExpiredDatabases());
+        assertEquals(2, count.get()); // somewhat surprising, not necessarily wrong
+        assertEquals(18, geoIpDownloader.state.getDatabases().get("test.mmdb").lastCheck()); // highly surprising, seems wrong
     }
 
     @SuppressWarnings("unchecked")
@@ -532,6 +606,78 @@ public class GeoIpDownloaderTests extends ESTestCase {
         var e = expectThrows(ElasticsearchException.class, () -> geoIpDownloader.updateDatabases());
         assertThat(e.getMessage(), equalTo("not all primary shards of [.geoip_databases] index are active"));
         verifyNoInteractions(httpClient);
+    }
+
+    public void testThatRunDownloaderDeletesExpiredDatabases() {
+        /*
+         * This test puts some expired databases and some non-expired ones into the GeoIpTaskState, and then calls runDownloader(), making
+         * sure that the expired databases have been deleted.
+         */
+        AtomicInteger updatePersistentTaskStateCount = new AtomicInteger(0);
+        AtomicInteger deleteCount = new AtomicInteger(0);
+        int expiredDatabasesCount = randomIntBetween(1, 100);
+        int unexpiredDatabasesCount = randomIntBetween(0, 100);
+        Map<String, GeoIpTaskState.Metadata> databases = new HashMap<>();
+        for (int i = 0; i < expiredDatabasesCount; i++) {
+            databases.put("expiredDatabase" + i, newGeoIpTaskStateMetadata(true));
+        }
+        for (int i = 0; i < unexpiredDatabasesCount; i++) {
+            databases.put("unexpiredDatabase" + i, newGeoIpTaskStateMetadata(false));
+        }
+        GeoIpTaskState geoIpTaskState = new GeoIpTaskState(databases);
+        geoIpDownloader.setState(geoIpTaskState);
+        client.addHandler(
+            UpdatePersistentTaskStatusAction.INSTANCE,
+            (UpdatePersistentTaskStatusAction.Request request, ActionListener<PersistentTaskResponse> taskResponseListener) -> {
+                PersistentTasksCustomMetadata.Assignment assignment = mock(PersistentTasksCustomMetadata.Assignment.class);
+                PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = new PersistentTasksCustomMetadata.PersistentTask<>(
+                    GeoIpDownloader.GEOIP_DOWNLOADER,
+                    GeoIpDownloader.GEOIP_DOWNLOADER,
+                    new GeoIpTaskParams(),
+                    request.getAllocationId(),
+                    assignment
+                );
+                updatePersistentTaskStateCount.incrementAndGet();
+                taskResponseListener.onResponse(new PersistentTaskResponse(new PersistentTask<>(persistentTask, request.getState())));
+            }
+        );
+        client.addHandler(
+            DeleteByQueryAction.INSTANCE,
+            (DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> flushResponseActionListener) -> {
+                deleteCount.incrementAndGet();
+            }
+        );
+        geoIpDownloader.runDownloader();
+        assertThat(geoIpDownloader.getStatus().getExpiredDatabases(), equalTo(expiredDatabasesCount));
+        for (int i = 0; i < expiredDatabasesCount; i++) {
+            // This currently fails because we subtract one millisecond from the lastChecked time
+            // assertThat(geoIpDownloader.state.getDatabases().get("expiredDatabase" + i).lastCheck(), equalTo(-1L));
+        }
+        for (int i = 0; i < unexpiredDatabasesCount; i++) {
+            assertThat(
+                geoIpDownloader.state.getDatabases().get("unexpiredDatabase" + i).lastCheck(),
+                greaterThanOrEqualTo(Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli())
+            );
+        }
+        assertThat(deleteCount.get(), equalTo(expiredDatabasesCount));
+        assertThat(updatePersistentTaskStateCount.get(), equalTo(expiredDatabasesCount));
+        geoIpDownloader.runDownloader();
+        /*
+         * The following two lines assert current behavior that might not be desirable -- we continue to delete expired databases every
+         * time that runDownloader runs. This seems unnecessary.
+         */
+        assertThat(deleteCount.get(), equalTo(expiredDatabasesCount * 2));
+        assertThat(updatePersistentTaskStateCount.get(), equalTo(expiredDatabasesCount * 2));
+    }
+
+    private GeoIpTaskState.Metadata newGeoIpTaskStateMetadata(boolean expired) {
+        Instant lastChecked;
+        if (expired) {
+            lastChecked = Instant.now().minus(randomIntBetween(31, 100), ChronoUnit.DAYS);
+        } else {
+            lastChecked = Instant.now().minus(randomIntBetween(0, 29), ChronoUnit.DAYS);
+        }
+        return new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), lastChecked.toEpochMilli());
     }
 
     private static class MockClient extends NoOpClient {

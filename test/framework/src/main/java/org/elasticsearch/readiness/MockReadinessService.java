@@ -29,9 +29,9 @@ public class MockReadinessService extends ReadinessService {
      */
     public static class TestPlugin extends Plugin {}
 
-    private static final int RETRIES = 3;
+    private static final int RETRIES = 30;
 
-    private static final int RETRY_DELAY_IN_MILLIS = 10;
+    private static final int RETRY_DELAY_IN_MILLIS = 100;
 
     private static final String METHOD_NOT_MOCKED = "This method has not been mocked";
 

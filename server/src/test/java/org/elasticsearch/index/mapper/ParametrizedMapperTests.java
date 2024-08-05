@@ -228,7 +228,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         public Builder getMergeBuilder() {
-            return new ParametrizedMapperTests.Builder(simpleName()).init(this);
+            return new ParametrizedMapperTests.Builder(leafName()).init(this);
         }
 
         @Override

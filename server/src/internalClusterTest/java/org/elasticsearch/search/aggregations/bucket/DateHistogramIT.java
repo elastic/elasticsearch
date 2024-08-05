@@ -24,9 +24,9 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.LongBounds;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -241,7 +241,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -283,7 +283,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(6));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 23, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -354,7 +354,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 expectedKeys.add(ZonedDateTime.of(2012, 3, 22, 23, 0, 0, 0, ZoneOffset.UTC));
 
                 Iterator<ZonedDateTime> keyIterator = expectedKeys.iterator();
-                for (Histogram.Bucket bucket : buckets) {
+                for (Bucket bucket : buckets) {
                     assertThat(bucket, notNullValue());
                     ZonedDateTime expectedKey = keyIterator.next();
                     String bucketKey = bucket.getKeyAsString();
@@ -380,7 +380,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 int i = 0;
-                for (Histogram.Bucket bucket : buckets) {
+                for (Bucket bucket : buckets) {
                     assertThat(((ZonedDateTime) bucket.getKey()), equalTo(ZonedDateTime.of(2012, i + 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)));
                     i++;
                 }
@@ -400,7 +400,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(3));
 
                 int i = 2;
-                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                for (Bucket bucket : histo.getBuckets()) {
                     assertThat(((ZonedDateTime) bucket.getKey()), equalTo(ZonedDateTime.of(2012, i + 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)));
                     i--;
                 }
@@ -420,7 +420,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(3));
 
                 int i = 0;
-                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                for (Bucket bucket : histo.getBuckets()) {
                     assertThat(((ZonedDateTime) bucket.getKey()), equalTo(ZonedDateTime.of(2012, i + 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)));
                     i++;
                 }
@@ -440,7 +440,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(3));
 
                 int i = 2;
-                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                for (Bucket bucket : histo.getBuckets()) {
                     assertThat(((ZonedDateTime) bucket.getKey()), equalTo(ZonedDateTime.of(2012, i + 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)));
                     i--;
                 }
@@ -465,7 +465,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 Object[] propertiesCounts = (Object[]) ((InternalAggregation) histo).getProperty("sum.value");
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -521,7 +521,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(3));
 
                 int i = 0;
-                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                for (Bucket bucket : histo.getBuckets()) {
                     assertThat(((ZonedDateTime) bucket.getKey()), equalTo(ZonedDateTime.of(2012, i + 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)));
                     i++;
                 }
@@ -544,7 +544,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(3));
 
                 int i = 2;
-                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                for (Bucket bucket : histo.getBuckets()) {
                     assertThat(((ZonedDateTime) bucket.getKey()), equalTo(ZonedDateTime.of(2012, i + 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)));
                     i--;
                 }
@@ -567,7 +567,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(3));
 
                 int i = 2;
-                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                for (Bucket bucket : histo.getBuckets()) {
                     assertThat(((ZonedDateTime) bucket.getKey()), equalTo(ZonedDateTime.of(2012, i + 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)));
                     i--;
                 }
@@ -590,7 +590,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), equalTo(3));
 
                 int i = 1;
-                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                for (Bucket bucket : histo.getBuckets()) {
                     assertThat(bucket.getKey(), equalTo(date(i, 1)));
                     i++;
                 }
@@ -645,7 +645,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 2, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -688,7 +688,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(4));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -729,9 +729,9 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histo.getName(), equalTo("histo"));
                 assertThat(histo.getBuckets().size(), equalTo(4));
 
-                List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+                List<Bucket> buckets = new ArrayList<>(histo.getBuckets());
 
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKey(), equalTo(date(3, 1)));
                 assertThat(bucket.getDocCount(), equalTo(5L));
@@ -781,7 +781,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(4));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 2, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -835,7 +835,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -874,7 +874,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(4));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -940,7 +940,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 ZonedDateTime key = ZonedDateTime.of(2012, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -976,10 +976,10 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(response.getHits().getTotalHits().value, equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
-                List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                List<? extends Bucket> buckets = histo.getBuckets();
                 assertThat(buckets.size(), equalTo(3));
 
-                Histogram.Bucket bucket = buckets.get(1);
+                Bucket bucket = buckets.get(1);
                 assertThat(bucket, Matchers.notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo("1.0"));
 
@@ -1013,10 +1013,10 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(response.getHits().getTotalHits().value, equalTo(5L));
 
                 Histogram histo = response.getAggregations().get("date_histo");
-                List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                List<? extends Bucket> buckets = histo.getBuckets();
                 assertThat(buckets.size(), equalTo(2));
 
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo("2014-03-10:00-00-00-02:00"));
                 assertThat(bucket.getDocCount(), equalTo(2L));
@@ -1118,7 +1118,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
                     ZonedDateTime key = baseKey.isBefore(boundsMinKey) ? baseKey : boundsMinKey;
                     for (int i = 0; i < bucketsCount; i++) {
-                        Histogram.Bucket bucket = buckets.get(i);
+                        Bucket bucket = buckets.get(i);
                         assertThat(bucket, notNullValue());
                         assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
                         assertThat(bucket.getKeyAsString(), equalTo(format(key, pattern)));
@@ -1185,7 +1185,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(24));
 
                 for (int i = 0; i < buckets.size(); i++) {
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat(bucket, notNullValue());
                     ZonedDateTime zonedDateTime = timeZoneStartToday.plus(i * 60 * 60 * 1000, ChronoUnit.MILLIS);
                     assertThat("InternalBucket " + i + " had wrong key", (ZonedDateTime) bucket.getKey(), equalTo(zonedDateTime));
@@ -1283,11 +1283,11 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertSearchHits(response, "0", "1", "2", "3", "4");
 
                 Histogram histo = response.getAggregations().get("date_histo");
-                List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                List<? extends Bucket> buckets = histo.getBuckets();
                 assertThat(buckets.size(), equalTo(1));
 
                 ZonedDateTime key = ZonedDateTime.of(2014, 3, 10, 0, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -1315,7 +1315,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.size(), equalTo(3));
 
                 ZonedDateTime key = ZonedDateTime.of(2011, 12, 31, 23, 0, 0, 0, ZoneOffset.UTC);
-                Histogram.Bucket bucket = buckets.get(0);
+                Bucket bucket = buckets.get(0);
                 assertThat(bucket, notNullValue());
                 assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
                 assertThat(((ZonedDateTime) bucket.getKey()), equalTo(key));
@@ -1683,7 +1683,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(histogram.getBuckets().size(), equalTo(expectedKeys.length));
 
                 int i = 0;
-                for (Histogram.Bucket bucket : histogram.getBuckets()) {
+                for (Bucket bucket : histogram.getBuckets()) {
                     assertThat(bucket, notNullValue());
                     assertThat(key(bucket), equalTo(expectedKeys[i]));
                     assertThat(bucket.getDocCount(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("_count")));
@@ -1699,7 +1699,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         );
     }
 
-    private ZonedDateTime key(Histogram.Bucket bucket) {
+    private ZonedDateTime key(Bucket bucket) {
         return (ZonedDateTime) bucket.getKey();
     }
 
@@ -1753,7 +1753,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             ),
             response -> {
                 InternalDateHistogram histogram = response.getAggregations().get("histo");
-                List<InternalDateHistogram.Bucket> buckets = histogram.getBuckets();
+                List<? extends Bucket> buckets = histogram.getBuckets();
                 assertThat(buckets.get(0).getKeyAsString(), equalTo("2012-01-01T00:00:00.000-07:00"));
                 assertThat(buckets.get(1).getKeyAsString(), equalTo("2012-02-01T00:00:00.000-07:00"));
                 assertThat(buckets.get(2).getKeyAsString(), equalTo("2012-03-01T00:00:00.000-07:00"));
@@ -1770,7 +1770,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             ),
             response -> {
                 InternalDateHistogram histogram = response.getAggregations().get("histo");
-                List<InternalDateHistogram.Bucket> buckets = histogram.getBuckets();
+                List<? extends Bucket> buckets = histogram.getBuckets();
                 assertThat(buckets.size(), equalTo(30));
                 assertThat(buckets.get(1).getKeyAsString(), equalTo("2012-02-03T00:00:00.000Z"));
                 assertThat(buckets.get(29).getKeyAsString(), equalTo("2012-03-02T00:00:00.000Z"));

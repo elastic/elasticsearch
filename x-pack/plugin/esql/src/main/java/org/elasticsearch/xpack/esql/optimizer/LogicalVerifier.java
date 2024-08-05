@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.core.common.Failures;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.LogicalPlanDependencyCheck;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class LogicalVerifier {
 

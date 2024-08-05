@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 
+import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.List;
@@ -37,6 +39,16 @@ public class Range extends ScalarFunction {
         this.includeLower = inclLower;
         this.includeUpper = inclUpper;
         this.zoneId = zoneId;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.time.Duration;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SubTests extends AbstractFunctionTestCase {
+public class SubTests extends AbstractScalarFunctionTestCase {
     public SubTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -78,6 +78,38 @@ public class SubTests extends AbstractFunctionTestCase {
                 equalTo(asLongUnsigned(lhsBI.subtract(rhsBI).longValue()))
             );
           }) */
+
+        // Double overflows
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "rhs")
+                        ),
+                        "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                )
+            )
+        );
 
         suppliers.add(new TestCaseSupplier("Datetime - Period", () -> {
             long lhs = (Long) randomLiteral(DataType.DATETIME).value();

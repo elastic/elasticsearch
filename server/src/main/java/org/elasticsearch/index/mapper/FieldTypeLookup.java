@@ -55,10 +55,10 @@ final class FieldTypeLookup {
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
-            String fieldName = fieldMapper.name();
+            String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.name(), fieldName));
+            fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.fullPath(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
             }
@@ -80,8 +80,8 @@ final class FieldTypeLookup {
         this.maxParentPathDots = maxParentPathDots;
 
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
-            String aliasName = fieldAliasMapper.name();
-            String path = fieldAliasMapper.path();
+            String aliasName = fieldAliasMapper.fullPath();
+            String path = fieldAliasMapper.targetPath();
             MappedFieldType fieldType = fullNameToFieldType.get(path);
             if (fieldType == null) {
                 continue;
@@ -99,24 +99,31 @@ final class FieldTypeLookup {
         for (PassThroughObjectMapper passThroughMapper : passThroughMappers) {
             for (Mapper subfield : passThroughMapper.mappers.values()) {
                 if (subfield instanceof FieldMapper fieldMapper) {
-                    String name = fieldMapper.simpleName();
+                    String name = fieldMapper.leafName();
                     // Check for conflict between PassThroughObjectMapper subfields.
                     PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
                     if (conflict != null) {
                         if (conflict.priority() > passThroughMapper.priority()) {
                             // Keep the conflicting field if it has higher priority.
                             passThroughFieldAliases.put(name, conflict);
-                            continue;
                         }
-                    } else if (fullNameToFieldType.containsKey(name)) {
-                        // There's an existing field or alias for the same field.
-                        continue;
                     }
-                    MappedFieldType fieldType = fieldMapper.fieldType();
-                    fullNameToFieldType.put(name, fieldType);
-                    if (fieldType instanceof DynamicFieldType) {
-                        dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
-                    }
+                }
+            }
+        }
+
+        for (Map.Entry<String, PassThroughObjectMapper> entry : passThroughFieldAliases.entrySet()) {
+            String name = entry.getKey();
+            if (fullNameToFieldType.containsKey(name)) {
+                // There's an existing field or alias for the same field.
+                continue;
+            }
+            Mapper mapper = entry.getValue().getMapper(name);
+            if (mapper instanceof FieldMapper fieldMapper) {
+                MappedFieldType fieldType = fieldMapper.fieldType();
+                fullNameToFieldType.put(name, fieldType);
+                if (fieldType instanceof DynamicFieldType) {
+                    dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
                 }
             }
         }

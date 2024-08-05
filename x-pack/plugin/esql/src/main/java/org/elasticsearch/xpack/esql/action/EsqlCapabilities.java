@@ -45,9 +45,34 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
-         * Support for aggregation function {@code TOP_LIST}.
+         * Support for the {@code INLINESTATS} syntax.
          */
-        AGG_TOP_LIST,
+        INLINESTATS(true),
+
+        /**
+         * Support for aggregation function {@code TOP}.
+         */
+        AGG_TOP,
+
+        /**
+         * Support for booleans in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_BOOLEAN_SUPPORT,
+
+        /**
+         * Support for ips in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_IP_SUPPORT,
+
+        /**
+         * Support for booleans in {@code TOP} aggregation.
+         */
+        AGG_TOP_BOOLEAN_SUPPORT,
+
+        /**
+         * Support for ips in {@code TOP} aggregation.
+         */
+        AGG_TOP_IP_SUPPORT,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -60,9 +85,12 @@ public class EsqlCapabilities {
         METADATA_IGNORED_FIELD,
 
         /**
-         * Support for the syntax {@code "tables": {"type": [<values>]}}.
+         * LOOKUP command with
+         * - tables using syntax {@code "tables": {"type": [<values>]}}
+         * - fixed variable shadowing
+         * - fixed Join.references(), requiring breaking change to Join serialization
          */
-        TABLES_TYPES(true),
+        LOOKUP_V4(true),
 
         /**
          * Support for requesting the "REPEAT" command.
@@ -90,9 +118,96 @@ public class EsqlCapabilities {
         ST_DISTANCE,
 
         /**
+         * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
+         * https://github.com/elastic/elasticsearch/issues/110184
+         */
+        GROK_DISSECT_MASKING,
+
+        /**
+         * Support for quoting index sources in double quotes.
+         */
+        DOUBLE_QUOTES_SOURCE_ENCLOSING,
+
+        /**
+         * Support for WEIGHTED_AVG function.
+         */
+        AGG_WEIGHTED_AVG,
+
+        /**
+         * Fix for union-types when aggregating over an inline conversion with casting operator. Done in #110476.
+         */
+        UNION_TYPES_AGG_CAST,
+
+        /**
+         * Fix to GROK validation in case of multiple fields with same name and different types
+         * https://github.com/elastic/elasticsearch/issues/110533
+         */
+        GROK_VALIDATION,
+
+        /**
+         * Fix for union-types when aggregating over an inline conversion with conversion function. Done in #110652.
+         */
+        UNION_TYPES_INLINE_FIX,
+
+        /**
+         * Fix for union-types when sorting a type-casted field. We changed how we remove synthetic union-types fields.
+         */
+        UNION_TYPES_REMOVE_FIELDS,
+
+        /**
+         * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
+         */
+        FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
+
+        /**
+         * Fix the status code returned when trying to run count_distinct on the _source type (which is not supported).
+         * see <a href="https://github.com/elastic/elasticsearch/issues/105240">count_distinct(_source) returns a 500 response</a>
+         */
+        FIX_COUNT_DISTINCT_SOURCE_ERROR,
+
+        /**
+         * Use RangeQuery for BinaryComparison on DateTime fields.
+         */
+        RANGEQUERY_FOR_DATETIME,
+
+        /**
+         * Fix for non-unique attribute names in ROW and logical plans.
+         * https://github.com/elastic/elasticsearch/issues/110541
+         */
+        UNIQUE_NAMES,
+
+        /**
+         * Make attributes of GROK/DISSECT adjustable and fix a shadowing bug when pushing them down past PROJECT.
+         * https://github.com/elastic/elasticsearch/issues/108008
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT,
+
+        /**
+         * Adds the {@code MV_PSERIES_WEIGHTED_SUM} function for converting sorted lists of numbers into
+         * a bounded score. This is a generalization of the
+         * <a href="https://en.wikipedia.org/wiki/Riemann_zeta_function">riemann zeta function</a> but we
+         * don't name it that because we don't support complex numbers and don't want to make folks think
+         * of mystical number theory things. This is just a weighted sum that is adjacent to magic.
+         */
+        MV_PSERIES_WEIGHTED_SUM,
+
+        /**
+         * Support for match operator
+         */
+        MATCH_OPERATOR(true),
+
+        /**
+         * Add CombineBinaryComparisons rule.
+         */
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
          * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
         CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+
+        private final boolean snapshotOnly;
 
         Cap() {
             snapshotOnly = false;
@@ -106,7 +221,9 @@ public class EsqlCapabilities {
             return name().toLowerCase(Locale.ROOT);
         }
 
-        private final boolean snapshotOnly;
+        public boolean snapshotOnly() {
+            return snapshotOnly;
+        }
     }
 
     public static final Set<String> CAPABILITIES = capabilities();

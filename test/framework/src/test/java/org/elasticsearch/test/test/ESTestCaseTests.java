@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -183,6 +184,10 @@ public class ESTestCaseTests extends ESTestCase {
 
     public void testRandomNonNegativeInt() {
         assertThat(randomNonNegativeInt(), greaterThanOrEqualTo(0));
+    }
+
+    public void testRandomNegativeInt() {
+        assertThat(randomNegativeInt(), lessThan(0));
     }
 
     public void testRandomValueOtherThan() {

@@ -31,10 +31,33 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
         putLearningToRankModel(MODEL_ID, """
             {
               "description": "super complex model for tests",
-              "input": { "field_names": ["cost", "product"] },
               "inference_config": {
                 "learning_to_rank": {
                   "feature_extractors": [
+                    {
+                      "query_extractor": {
+                        "feature_name": "cost",
+                        "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return doc['cost'].value;"}}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_tv",
+                        "query": {"constant_score": {"filter": {"term": { "product": "TV" }}, "boost": 1.0}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_vcr",
+                        "query": {"constant_score": {"filter": {"term": { "product": "VCR" }}, "boost": 1.0}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "type_laptop",
+                        "query": {"constant_score": {"filter": {"term": { "product": "Laptop" }}, "boost": 1.0}}
+                      }
+                    },
                     {
                         "query_extractor": {
                             "feature_name": "two",
@@ -51,16 +74,6 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
                 }
               },
               "definition": {
-                "preprocessors" : [{
-                  "one_hot_encoding": {
-                    "field": "product",
-                    "hot_map": {
-                      "TV": "type_tv",
-                      "VCR": "type_vcr",
-                      "Laptop": "type_laptop"
-                    }
-                  }
-                }],
                 "trained_model": {
                   "ensemble": {
                     "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"],
@@ -351,7 +364,6 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
         deleteLearningToRankModel(MODEL_ID);
         putLearningToRankModel(MODEL_ID, """
             {
-              "input": { "field_names": ["cost"] },
               "inference_config": {
                 "learning_to_rank": {
                   "feature_extractors": [

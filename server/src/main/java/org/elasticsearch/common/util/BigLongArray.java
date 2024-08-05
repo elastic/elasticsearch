@@ -35,15 +35,15 @@ final class BigLongArray extends AbstractBigByteArray implements LongArray {
 
     @Override
     public long get(long index) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
         return (long) VH_PLATFORM_NATIVE_LONG.get(pages[pageIndex], indexInPage << 3);
     }
 
     @Override
     public long getAndSet(long index, long value) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
         final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(page, indexInPage << 3);
         VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, value);
@@ -52,16 +52,16 @@ final class BigLongArray extends AbstractBigByteArray implements LongArray {
 
     @Override
     public void set(long index, long value) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
         VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, value);
     }
 
     @Override
     public long increment(long index, long inc) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
         final byte[] page = getPageForWriting(pageIndex);
         final long newVal = (long) VH_PLATFORM_NATIVE_LONG.get(page, indexInPage << 3) + inc;
         VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, newVal);
@@ -81,16 +81,16 @@ final class BigLongArray extends AbstractBigByteArray implements LongArray {
         if (fromIndex == toIndex) {
             return; // empty range
         }
-        final int fromPage = pageIndex(fromIndex);
-        final int toPage = pageIndex(toIndex - 1);
+        final int fromPage = pageIdx(fromIndex);
+        final int toPage = pageIdx(toIndex - 1);
         if (fromPage == toPage) {
-            fill(getPageForWriting(fromPage), indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            fill(getPageForWriting(fromPage), idxInPage(fromIndex), idxInPage(toIndex - 1) + 1, value);
         } else {
-            fill(getPageForWriting(fromPage), indexInPage(fromIndex), pageSize(), value);
+            fill(getPageForWriting(fromPage), idxInPage(fromIndex), LONG_PAGE_SIZE, value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                fill(getPageForWriting(i), 0, pageSize(), value);
+                fill(getPageForWriting(i), 0, LONG_PAGE_SIZE, value);
             }
-            fill(getPageForWriting(toPage), 0, indexInPage(toIndex - 1) + 1, value);
+            fill(getPageForWriting(toPage), 0, idxInPage(toIndex - 1) + 1, value);
         }
     }
 
@@ -129,5 +129,15 @@ final class BigLongArray extends AbstractBigByteArray implements LongArray {
             out.writeBytes(pages[i], 0, len);
             remainedBytes -= len;
         }
+    }
+
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(LONG_PAGE_SIZE);
+
+    private static int pageIdx(long index) {
+        return (int) (index >>> PAGE_SHIFT);
+    }
+
+    private static int idxInPage(long index) {
+        return (int) (index & LONG_PAGE_SIZE - 1);
     }
 }

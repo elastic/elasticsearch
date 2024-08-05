@@ -9,28 +9,32 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -53,6 +57,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * In the former case, two parameters will be provided, in the latter four.
  */
 public class Bucket extends GroupingFunction implements Validatable, TwoOptionalArguments {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -193,6 +199,30 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         this.to = to;
     }
 
+    private Bucket(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(buckets);
+        out.writeOptionalNamedWriteable(from);
+        out.writeOptionalNamedWriteable(to);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
     @Override
     public boolean foldable() {
         return field.foldable() && buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable());
@@ -202,13 +232,13 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         if (field.dataType() == DataType.DATETIME) {
             Rounding.Prepared preparedRounding;
-            if (buckets.dataType().isInteger()) {
+            if (buckets.dataType().isWholeNumber()) {
                 int b = ((Number) buckets.fold()).intValue();
                 long f = foldToLong(from);
                 long t = foldToLong(to);
                 preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
             } else {
-                assert EsqlDataTypes.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
+                assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
                 preparedRounding = DateTrunc.createRounding(buckets.fold(), DEFAULT_TZ);
             }
             return DateTrunc.evaluator(source(), toEvaluator.apply(field), preparedRounding);
@@ -221,7 +251,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 double t = ((Number) to.fold()).doubleValue();
                 roundTo = pickRounding(b, f, t);
             } else {
-                assert buckets.dataType().isRational() : "Unexpected rounding data type [" + buckets.dataType() + "]";
+                assert buckets.dataType().isRationalNumber() : "Unexpected rounding data type [" + buckets.dataType() + "]";
                 roundTo = ((Number) buckets.fold()).doubleValue();
             }
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
@@ -292,21 +322,21 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         if (fieldType == DataType.DATETIME) {
             TypeResolution resolution = isType(
                 buckets,
-                dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt),
+                dt -> dt.isWholeNumber() || DataType.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
                 "integral",
                 "date_period",
                 "time_duration"
             );
-            return bucketsType.isInteger()
+            return bucketsType.isWholeNumber()
                 ? resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
                     .and(() -> isStringOrDate(to, sourceText(), FOURTH))
                 : resolution.and(checkArgsCount(2)); // temporal amount
         }
         if (fieldType.isNumeric()) {
-            return bucketsType.isInteger()
+            return bucketsType.isWholeNumber()
                 ? checkArgsCount(4).and(() -> isNumeric(from, sourceText(), THIRD)).and(() -> isNumeric(to, sourceText(), FOURTH))
                 : isNumeric(buckets, sourceText(), SECOND).and(checkArgsCount(2));
         }

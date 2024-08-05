@@ -21,11 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
@@ -34,11 +29,17 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -53,10 +54,17 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanup;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operators;
+import static org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.TransformDirection.UP;
 
+/**
+ * <p>This class is part of the planner. Data node level logical optimizations.  At this point we have access to
+ * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index. </p>
+ *
+ * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()}
+ * </p>
+ */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
@@ -139,7 +147,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
 
                 for (NamedExpression projection : projections) {
-                    if (projection instanceof FieldAttribute f && stats.exists(f.qualifiedName()) == false) {
+                    // Do not use the attribute name, this can deviate from the field name for union types.
+                    if (projection instanceof FieldAttribute f && stats.exists(f.fieldName()) == false) {
                         DataType dt = f.dataType();
                         Alias nullAlias = nullLiteral.get(f.dataType());
                         // save the first field as null (per datatype)
@@ -162,14 +171,17 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                     plan = new Eval(project.source(), project.child(), new ArrayList<>(nullLiteral.values()));
                     plan = new Project(project.source(), plan, newProjections);
                 }
-            }
-            // otherwise transform fields in place
-            else {
-                plan = plan.transformExpressionsOnlyUp(
-                    FieldAttribute.class,
-                    f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)
-                );
-            }
+            } else if (plan instanceof Eval
+                || plan instanceof Filter
+                || plan instanceof OrderBy
+                || plan instanceof RegexExtract
+                || plan instanceof TopN) {
+                    plan = plan.transformExpressionsOnlyUp(
+                        FieldAttribute.class,
+                        // Do not use the attribute name, this can deviate from the field name for union types.
+                        f -> stats.exists(f.fieldName()) ? f : Literal.of(f, null)
+                    );
+                }
 
             return plan;
         }

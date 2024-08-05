@@ -57,7 +57,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             1
         );
         algos.add(hllpp);
-        int values = between(0, 1000);
+        int values = between(20, 1000);
         for (int i = 0; i < values; i++) {
             hllpp.collect(0, BitMixer.mix64(randomInt()));
         }
@@ -99,7 +99,8 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
                     new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
                     0
                 );
-                for (int i = 0; i < 10; i++) {
+                int values = between(0, 10);
+                for (int i = 0; i < values; i++) {
                     newState.collect(0, BitMixer.mix64(randomIntBetween(500, 10000)));
                 }
                 algos.add(newState);

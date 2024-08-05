@@ -47,6 +47,11 @@ abstract class AbstractVectorBlock extends AbstractNonThreadSafeRefCounted imple
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        return false;
+    }
+
+    @Override
     public final MvOrdering mvOrdering() {
         return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
     }

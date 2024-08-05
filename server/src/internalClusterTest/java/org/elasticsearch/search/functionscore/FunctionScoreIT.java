@@ -116,11 +116,8 @@ public class FunctionScoreIT extends ESIntegTestCase {
             ),
             response -> {
                 assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
-                assertThat(
-                    ((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(),
-                    equalTo("1.0")
-                );
-                assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
+                assertThat(((Terms) response.getAggregations().get("score_agg")).getBuckets().get(0).getKeyAsString(), equalTo("1.0"));
+                assertThat(((Terms) response.getAggregations().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
             }
         );
     }

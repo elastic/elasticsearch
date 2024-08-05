@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -88,18 +87,16 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         });
         addUnassignedShardsWatcher(clusterService, indexName);
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> putShutdownMetadata(
+        safeAwait(
+            (ActionListener<Void> listener) -> putShutdownMetadata(
                 clusterService,
                 SingleNodeShutdownMetadata.builder()
                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                     .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
                     .setReason("test"),
                 originalNode,
-                fut
-            ),
-            10,
-            TimeUnit.SECONDS
+                listener
+            )
         );
         assertFalse(snapshotCompletesWithoutPausingListener.isDone());
         unblockAllDataNodes(repoName); // lets the shard snapshot continue so the snapshot can succeed
@@ -451,11 +448,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void putShutdownForRemovalMetadata(String nodeName, ClusterService clusterService) {
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> putShutdownForRemovalMetadata(clusterService, nodeName, fut),
-            10,
-            TimeUnit.SECONDS
-        );
+        safeAwait((ActionListener<Void> listener) -> putShutdownForRemovalMetadata(clusterService, nodeName, listener));
     }
 
     private static void flushMasterQueue(ClusterService clusterService, ActionListener<Void> listener) {
@@ -490,7 +483,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         SubscribableListener
 
             .<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
-            .<Void>andThen((l, ignored) -> flushMasterQueue(clusterService, l))
+            .<Void>andThen(l -> flushMasterQueue(clusterService, l))
             .addListener(listener);
     }
 
@@ -525,7 +518,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void clearShutdownMetadata(ClusterService clusterService) {
-        PlainActionFuture.get(fut -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
+        safeAwait(listener -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return currentState.copyAndUpdateMetadata(mdb -> mdb.putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
@@ -538,8 +531,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
             @Override
             public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                fut.onResponse(null);
+                listener.onResponse(null);
             }
-        }), 10, TimeUnit.SECONDS);
+        }));
     }
 }

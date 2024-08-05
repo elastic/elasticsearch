@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -19,12 +20,15 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.ADAPTIVE_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.MODEL_ID;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 
@@ -46,6 +50,14 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         static {
             PARSER.declareString(Request::setDeploymentId, MODEL_ID);
             PARSER.declareInt(Request::setNumberOfAllocations, NUMBER_OF_ALLOCATIONS);
+            if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
+                PARSER.declareObjectOrNull(
+                    Request::setAdaptiveAllocationsSettings,
+                    (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
+                    AdaptiveAllocationsSettings.RESET_PLACEHOLDER,
+                    ADAPTIVE_ALLOCATIONS
+                );
+            }
             PARSER.declareString((r, val) -> r.ackTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
 
@@ -62,7 +74,9 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         }
 
         private String deploymentId;
-        private int numberOfAllocations;
+        private Integer numberOfAllocations;
+        private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
+        private boolean isInternal;
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -76,7 +90,15 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            numberOfAllocations = in.readVInt();
+            if (in.getTransportVersion().before(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                numberOfAllocations = in.readVInt();
+                adaptiveAllocationsSettings = null;
+                isInternal = false;
+            } else {
+                numberOfAllocations = in.readOptionalVInt();
+                adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+                isInternal = in.readBoolean();
+            }
         }
 
         public final void setDeploymentId(String deploymentId) {
@@ -87,26 +109,53 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             return deploymentId;
         }
 
-        public void setNumberOfAllocations(int numberOfAllocations) {
+        public void setNumberOfAllocations(Integer numberOfAllocations) {
             this.numberOfAllocations = numberOfAllocations;
         }
 
-        public int getNumberOfAllocations() {
+        public Integer getNumberOfAllocations() {
             return numberOfAllocations;
+        }
+
+        public void setAdaptiveAllocationsSettings(AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
+            this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
+        }
+
+        public boolean isInternal() {
+            return isInternal;
+        }
+
+        public void setIsInternal(boolean isInternal) {
+            this.isInternal = isInternal;
+        }
+
+        public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
+            return adaptiveAllocationsSettings;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            out.writeVInt(numberOfAllocations);
+            if (out.getTransportVersion().before(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+                out.writeVInt(numberOfAllocations);
+            } else {
+                out.writeOptionalVInt(numberOfAllocations);
+                out.writeOptionalWriteable(adaptiveAllocationsSettings);
+                out.writeBoolean(isInternal);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MODEL_ID.getPreferredName(), deploymentId);
-            builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            if (numberOfAllocations != null) {
+                builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            }
+            if (adaptiveAllocationsSettings != null) {
+                builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
+            }
             builder.endObject();
             return builder;
         }
@@ -114,15 +163,30 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
-            if (numberOfAllocations < 1) {
-                validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+            if (numberOfAllocations != null) {
+                if (numberOfAllocations < 1) {
+                    validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
+                }
+                if (isInternal == false
+                    && adaptiveAllocationsSettings != null
+                    && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
+                    validationException.addValidationError(
+                        "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
+                    );
+                }
+            }
+            ActionRequestValidationException autoscaleException = adaptiveAllocationsSettings == null
+                ? null
+                : adaptiveAllocationsSettings.validate();
+            if (autoscaleException != null) {
+                validationException.addValidationErrors(autoscaleException.validationErrors());
             }
             return validationException.validationErrors().isEmpty() ? null : validationException;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, numberOfAllocations);
+            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal);
         }
 
         @Override
@@ -134,7 +198,10 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(deploymentId, other.deploymentId) && numberOfAllocations == other.numberOfAllocations;
+            return Objects.equals(deploymentId, other.deploymentId)
+                && Objects.equals(numberOfAllocations, other.numberOfAllocations)
+                && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings)
+                && isInternal == other.isInternal;
         }
 
         @Override

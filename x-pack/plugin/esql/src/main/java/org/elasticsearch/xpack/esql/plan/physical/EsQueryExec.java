@@ -11,12 +11,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.querydsl.container.Sort;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -28,9 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
-    static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
-    static final EsField TSID_FIELD = new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true);
-    static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataType.DATETIME, Map.of(), true);
+    public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
 
     private final EsIndex index;
     private final IndexMode indexMode;
@@ -48,15 +46,15 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) {
         public FieldSortBuilder fieldSortBuilder() {
             FieldSortBuilder builder = new FieldSortBuilder(field.name());
-            builder.order(Sort.Direction.from(direction).asOrder());
-            builder.missing(Sort.Missing.from(nulls).searchOrder());
+            builder.order(Direction.from(direction).asOrder());
+            builder.missing(Missing.from(nulls).searchOrder());
             builder.unmappedType(field.dataType().esType());
             return builder;
         }
     }
 
-    public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, QueryBuilder query) {
-        this(source, index, indexMode, sourceAttributes(source, indexMode), query, null, null, null);
+    public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
+        this(source, index, indexMode, attributes, query, null, null, null);
     }
 
     public EsQueryExec(
@@ -77,17 +75,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.limit = limit;
         this.sorts = sorts;
         this.estimatedRowSize = estimatedRowSize;
-    }
-
-    private static List<Attribute> sourceAttributes(Source source, IndexMode indexMode) {
-        return switch (indexMode) {
-            case STANDARD, LOGS -> List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD));
-            case TIME_SERIES -> List.of(
-                new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
-                new FieldAttribute(source, TSID_FIELD.getName(), TSID_FIELD),
-                new FieldAttribute(source, TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD)
-            );
-        };
     }
 
     public static boolean isSourceAttribute(Attribute attr) {
@@ -218,5 +205,48 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + "] estimatedRowSize["
             + estimatedRowSize
             + "]";
+    }
+
+    public enum Direction {
+        ASC,
+        DESC;
+
+        public static Direction from(Order.OrderDirection dir) {
+            return dir == null || dir == Order.OrderDirection.ASC ? ASC : DESC;
+        }
+
+        public SortOrder asOrder() {
+            return this == Direction.ASC ? SortOrder.ASC : SortOrder.DESC;
+        }
+    }
+
+    public enum Missing {
+        FIRST("_first"),
+        LAST("_last"),
+        /**
+         * Nulls position has not been specified by the user and an appropriate default will be used.
+         *
+         * The default values are chosen such that it stays compatible with previous behavior. Unfortunately, this results in
+         * inconsistencies across different types of queries (see https://github.com/elastic/elasticsearch/issues/77068).
+         */
+        ANY(null);
+
+        private final String searchOrder;
+
+        Missing(String searchOrder) {
+            this.searchOrder = searchOrder;
+        }
+
+        public static Missing from(Order.NullsPosition pos) {
+            return switch (pos) {
+                case FIRST -> FIRST;
+                case LAST -> LAST;
+                default -> ANY;
+            };
+        }
+
+        public String searchOrder() {
+            return searchOrder;
+        }
     }
 }

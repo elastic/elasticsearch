@@ -28,8 +28,9 @@ a:integer | b:integer
 ;
 
 
-length
-from employees | sort emp_no | limit 3 | eval l = length(first_name) | keep emp_no, l;
+lengthAndSourceQuoting
+required_capability: double_quotes_source_enclosing
+from "employees" | sort emp_no | limit 3 | eval l = length(first_name) | keep emp_no, l;
 
 emp_no:integer | l:integer
 10001 | 6
@@ -79,10 +80,11 @@ a:integer | ss:keyword | l:keyword | r:keyword
 1         | bcd        | ab        | cd
 ;
 
-stringCastEmp
+stringCastEmpAndSourceTripleQuoting
 required_capability: string_literal_auto_casting
+required_capability: double_quotes_source_enclosing
 
-from employees
+from """employees"""
 | eval ss = substring(first_name, "2")
 | sort emp_no
 | keep emp_no, first_name, ss
@@ -342,8 +344,8 @@ required_capability: mv_warn
 
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
-warning:Line 1:24: evaluation of [job_positions in (\"Internship\", first_name)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[job_positions in \(\\\"Internship\\\", first_name\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer |job_positions:keyword
 10048          |Internship
@@ -533,8 +535,8 @@ lessThanMultivalue
 required_capability: mv_warn
 
 from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
-warning:Line 1:24: evaluation of [job_positions < \"C\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[job_positions < \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -546,8 +548,8 @@ greaterThanMultivalue
 required_capability: mv_warn
 
 from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
-warning:Line 1:24: evaluation of [job_positions > \"C\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[job_positions > \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -563,8 +565,8 @@ equalToMultivalue
 required_capability: mv_warn
 
 from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
-warning:Line 1:24: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[job_positions == \\\"Accountant\\\"\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -575,8 +577,8 @@ equalToOrEqualToMultivalue
 required_capability: mv_warn
 
 from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
-warning:Line 1:24: evaluation of [job_positions] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[job_positions\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -588,8 +590,8 @@ inMultivalue
 required_capability: mv_warn
 
 from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
-warning:Line 1:24: evaluation of [job_positions in (\"Accountant\", \"Tech Lead\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[job_positions in \(\\\"Accountant\\\", \\"Tech Lead\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -601,8 +603,8 @@ notLessThanMultivalue
 required_capability: mv_warn
 
 from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
-warning:Line 1:24: evaluation of [not(job_positions < \"C\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions < \"C\"] failed, treating result as null. Only first 20 failures recorded.]
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+warningRegex:evaluation of \[.*job_positions < \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -618,8 +620,8 @@ notGreaterThanMultivalue
 required_capability: mv_warn
 
 from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
-warning:Line 1:24: evaluation of [not(job_positions > \"C\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions > \"C\"] failed, treating result as null. Only first 20 failures recorded.]
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+warningRegex:evaluation of \[.*job_positions > \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -631,8 +633,8 @@ notEqualToMultivalue
 required_capability: mv_warn
 
 from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
-warning:Line 1:24: evaluation of [not(job_positions == \"Accountant\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.]
-warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+warningRegex:evaluation of \[.*job_positions == \\\"Accountant\\\".*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword

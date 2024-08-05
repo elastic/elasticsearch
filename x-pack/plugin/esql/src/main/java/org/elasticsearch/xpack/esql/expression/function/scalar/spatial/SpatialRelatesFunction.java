@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,6 +44,10 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, false);
+    }
+
+    protected SpatialRelatesFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues) throws IOException {
+        super(in, leftDocValues, rightDocValues, false);
     }
 
     public abstract ShapeField.QueryRelation queryRelation();
@@ -73,7 +77,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         return exp instanceof FieldAttribute fa
             && fa.getExactInfo().hasExact()
             && isAggregatable.test(fa)
-            && EsqlDataTypes.isSpatial(fa.dataType());
+            && DataType.isSpatial(fa.dataType());
     }
 
     @Override

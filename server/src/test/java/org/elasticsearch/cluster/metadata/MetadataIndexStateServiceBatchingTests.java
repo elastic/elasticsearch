@@ -19,13 +19,13 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_BLOCKS_WRITE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -126,6 +126,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         // wait for the queue to have the second close tasks (the close-indices tasks)
         assertBusy(() -> assertThat(findPendingTasks(masterService, "close-indices"), hasSize(2)));
 
+        // wait for all ongoing tasks to complete on GENERIC to ensure that the batch is fully-formed (see #109187)
+        flushThreadPoolExecutor(getInstanceFromNode(ThreadPool.class), ThreadPool.Names.GENERIC);
+
         block2.run(); // release block
 
         // assert that the requests were acknowledged
@@ -208,14 +211,14 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
     private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {
         final var executionBarrier = new CyclicBarrier(2);
         masterService.createTaskQueue("block", Priority.URGENT, batchExecutionContext -> {
-            executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
-            executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
+            safeAwait(executionBarrier); // notify test thread that the master service is blocked
+            safeAwait(executionBarrier); // wait for test thread to release us
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> {});
             }
             return batchExecutionContext.initialState();
         }).submitTask("block", new ExpectSuccessTask(), null);
-        return () -> executionBarrier.await(10, TimeUnit.SECONDS);
+        return () -> safeAwait(executionBarrier);
     }
 
     private static ClusterStateListener closedIndexCountListener(int closedIndices) {

@@ -7,27 +7,34 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Join extends BinaryPlan {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
 
     private final JoinConfig config;
-    // TODO: The matching attributes from the left and right logical plans should become part of the `expressions()`
-    // so that `references()` returns the attributes we actually rely on.
     private List<Attribute> lazyOutput;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
@@ -35,16 +42,39 @@ public class Join extends BinaryPlan {
         this.config = config;
     }
 
-    public Join(PlanStreamInput in) throws IOException {
-        super(Source.readFrom(in), in.readLogicalPlanNode(), in.readLogicalPlanNode());
+    public Join(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinType type,
+        List<Attribute> matchFields,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields
+    ) {
+        super(source, left, right);
+        this.config = new JoinConfig(type, matchFields, leftFields, rightFields);
+    }
+
+    public Join(StreamInput in) throws IOException {
+        super(
+            Source.readFrom((PlanStreamInput) in),
+            ((PlanStreamInput) in).readLogicalPlanNode(),
+            ((PlanStreamInput) in).readLogicalPlanNode()
+        );
         this.config = new JoinConfig(in);
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeLogicalPlanNode(left());
-        out.writeLogicalPlanNode(right());
+        ((PlanStreamOutput) out).writeLogicalPlanNode(left());
+        ((PlanStreamOutput) out).writeLogicalPlanNode(right());
         config.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public JoinConfig config() {
@@ -53,7 +83,18 @@ public class Join extends BinaryPlan {
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, Join::new, left(), right(), config);
+        // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
+        // expressions and references.
+        return NodeInfo.create(
+            this,
+            Join::new,
+            left(),
+            right(),
+            config.type(),
+            config.matchFields(),
+            config.leftFields(),
+            config.rightFields()
+        );
     }
 
     @Override
@@ -68,47 +109,41 @@ public class Join extends BinaryPlan {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput();
+            lazyOutput = computeOutput(left().output(), right().output(), config);
         }
         return lazyOutput;
     }
 
-    private List<Attribute> computeOutput() {
-        List<Attribute> right = makeReference(right().output());
+    /**
+     * Merge output fields.
+     * Currently only implemented for LEFT JOINs; the rightOutput shadows the leftOutput, except for any attributes that
+     * occur in the join's matchFields.
+     */
+    public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
+        AttributeSet matchFieldSet = new AttributeSet(config.matchFields());
+        Set<String> matchFieldNames = new HashSet<>(Expressions.names(config.matchFields()));
         return switch (config.type()) {
-            case LEFT -> // right side becomes nullable
-                mergeOutput(left().output(), makeNullable(right), config.matchFields());
-            case RIGHT -> // left side becomes nullable
-                mergeOutput(makeNullable(left().output()), right, config.matchFields());
-            case FULL -> // both sides become nullable
-                mergeOutput(makeNullable(left().output()), makeNullable(right), config.matchFields());
-            default -> // neither side becomes nullable
-                mergeOutput(left().output(), right, config.matchFields());
+            case LEFT -> {
+                // Right side becomes nullable.
+                List<Attribute> fieldsAddedFromRight = removeCollisionsWithMatchFields(rightOutput, matchFieldSet, matchFieldNames);
+                yield mergeOutputAttributes(makeNullable(makeReference(fieldsAddedFromRight)), leftOutput);
+            }
+            default -> throw new UnsupportedOperationException("Other JOINs than LEFT not supported");
         };
     }
 
-    /**
-     * Merge output fields, left hand side wins in name conflicts <strong>except</strong>
-     * for fields defined in {@link JoinConfig#matchFields()}.
-     */
-    public static List<Attribute> mergeOutput(
-        List<? extends Attribute> lhs,
-        List<? extends Attribute> rhs,
-        List<NamedExpression> matchFields
+    private static List<Attribute> removeCollisionsWithMatchFields(
+        List<Attribute> attributes,
+        AttributeSet matchFields,
+        Set<String> matchFieldNames
     ) {
-        List<Attribute> results = new ArrayList<>(lhs.size() + rhs.size());
-
-        for (Attribute a : lhs) {
-            if (rhs.contains(a) == false || matchFields.stream().anyMatch(m -> m.name().equals(a.name()))) {
-                results.add(a);
+        List<Attribute> result = new ArrayList<>();
+        for (Attribute attr : attributes) {
+            if ((matchFields.contains(attr) || matchFieldNames.contains(attr.name())) == false) {
+                result.add(attr);
             }
         }
-        for (Attribute a : rhs) {
-            if (false == matchFields.stream().anyMatch(m -> m.name().equals(a.name()))) {
-                results.add(a);
-            }
-        }
-        return results;
+        return result;
     }
 
     /**
@@ -125,7 +160,7 @@ public class Join extends BinaryPlan {
     public static List<Attribute> makeReference(List<Attribute> output) {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
-            if (a.resolved()) {
+            if (a.resolved() && a instanceof ReferenceAttribute == false) {
                 out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
             } else {
                 out.add(a);

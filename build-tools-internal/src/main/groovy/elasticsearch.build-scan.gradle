@@ -26,12 +26,9 @@ develocity {
     if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev') || System.getenv('BUILDKITE') == 'true') {
       publishing.onlyIf { true }
       server = 'https://gradle-enterprise.elastic.co'
-    } else {
-      publishing.onlyIf {
-        server.isPresent();
-      }
+    } else if( server.isPresent() == false) {
+      publishing.onlyIf { false }
     }
-
 
     background {
       tag OS.current().name()

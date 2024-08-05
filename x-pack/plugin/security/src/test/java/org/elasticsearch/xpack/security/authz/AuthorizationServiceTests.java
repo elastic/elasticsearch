@@ -203,7 +203,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -1571,7 +1571,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, TransportShardBulkAction.ACTION_NAME, request);
 
         MappingUpdatePerformer mappingUpdater = (m, s, l) -> l.onResponse(null);
-        Consumer<ActionListener<Void>> waitForMappingUpdate = l -> l.onResponse(null);
+        ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate = (l, mappingVersion) -> l.onResponse(null);
         PlainActionFuture<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> future = new PlainActionFuture<>();
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {

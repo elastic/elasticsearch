@@ -20,9 +20,9 @@ public class HttpSettings {
     // These settings are default scope for testing
     static final Setting<ByteSizeValue> MAX_HTTP_RESPONSE_SIZE = Setting.byteSizeSetting(
         "xpack.inference.http.max_response_size",
-        new ByteSizeValue(10, ByteSizeUnit.MB),   // default
+        new ByteSizeValue(50, ByteSizeUnit.MB),   // default
         ByteSizeValue.ONE, // min
-        new ByteSizeValue(50, ByteSizeUnit.MB),   // max
+        new ByteSizeValue(100, ByteSizeUnit.MB),   // max
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -45,7 +45,7 @@ public class HttpSettings {
         this.maxResponseSize = maxResponseSize;
     }
 
-    public static List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettingsDefinitions() {
         return List.of(MAX_HTTP_RESPONSE_SIZE);
     }
 }

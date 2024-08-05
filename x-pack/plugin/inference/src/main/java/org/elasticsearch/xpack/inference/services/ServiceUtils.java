@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -23,6 +24,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
@@ -37,6 +40,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public final class ServiceUtils {
@@ -126,6 +132,33 @@ public final class ServiceUtils {
         return null;
     }
 
+    public static AdaptiveAllocationsSettings removeAsAdaptiveAllocationsSettings(
+        Map<String, Object> sourceMap,
+        String key,
+        ValidationException validationException
+    ) {
+        if (AdaptiveAllocationsFeatureFlag.isEnabled() == false) {
+            return null;
+        }
+        Map<String, Object> settingsMap = ServiceUtils.removeFromMap(sourceMap, key);
+        if (settingsMap == null) {
+            return null;
+        }
+        AdaptiveAllocationsSettings settings = new AdaptiveAllocationsSettings(
+            ServiceUtils.removeAsType(settingsMap, ENABLED.getPreferredName(), Boolean.class, validationException),
+            ServiceUtils.removeAsType(settingsMap, MIN_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class, validationException),
+            ServiceUtils.removeAsType(settingsMap, MAX_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class, validationException)
+        );
+        for (String settingName : settingsMap.keySet()) {
+            validationException.addValidationError(invalidSettingError(settingName, key));
+        }
+        ActionRequestValidationException exception = settings.validate();
+        if (exception != null) {
+            validationException.addValidationErrors(exception.validationErrors());
+        }
+        return settings;
+    }
+
     @SuppressWarnings("unchecked")
     public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
         return (Map<String, Object>) sourceMap.remove(fieldName);
@@ -175,6 +208,10 @@ public final class ServiceUtils {
 
     public static String missingSettingErrorMsg(String settingName, String scope) {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
+    }
+
+    public static String missingOneOfSettingsErrorMsg(List<String> settingNames, String scope) {
+        return Strings.format("[%s] does not contain one of the required settings [%s]", scope, String.join(", ", settingNames));
     }
 
     public static String invalidTypeErrorMsg(String settingName, Object foundObject, String expectedType) {
@@ -233,11 +270,7 @@ public final class ServiceUtils {
 
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
-            if (url == null) {
-                return null;
-            }
-
-            return createUri(url);
+            return createOptionalUri(url);
         } catch (IllegalArgumentException cause) {
             validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope, cause.getMessage()));
             return null;
@@ -355,6 +388,32 @@ public final class ServiceUtils {
         return optionalField;
     }
 
+    public static Integer extractRequiredPositiveInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Integer field = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (field == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        } else if (field <= 0) {
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, field));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return field;
+    }
+
     public static Integer extractOptionalPositiveInteger(
         Map<String, Object> map,
         String settingName,
@@ -370,9 +429,6 @@ public final class ServiceUtils {
 
         if (optionalField != null && optionalField <= 0) {
             validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, optionalField));
-        }
-
-        if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 
@@ -623,6 +679,10 @@ public final class ServiceUtils {
     public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
+    }
+
+    public static <T> T nonNullOrDefault(@Nullable T requestValue, @Nullable T originalSettingsValue) {
+        return requestValue == null ? originalSettingsValue : requestValue;
     }
 
     private ServiceUtils() {}

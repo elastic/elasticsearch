@@ -13,11 +13,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,10 +28,13 @@ import java.util.Objects;
 import static org.elasticsearch.core.Tuple.tuple;
 
 public class MetadataAttribute extends TypedAttribute {
+    public static final String TIMESTAMP_FIELD = "@timestamp";
+    public static final String TSID_FIELD = "_tsid";
+
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "MetadataAttribute",
-        MetadataAttribute::new
+        MetadataAttribute::readFrom
     );
 
     private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
@@ -42,7 +47,9 @@ public class MetadataAttribute extends TypedAttribute {
         IgnoredFieldMapper.NAME,
         tuple(DataType.KEYWORD, true),
         SourceFieldMapper.NAME,
-        tuple(DataType.SOURCE, false)
+        tuple(DataType.SOURCE, false),
+        IndexModeFieldMapper.NAME,
+        tuple(DataType.KEYWORD, true)
     );
 
     private final boolean searchable;
@@ -66,7 +73,7 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @SuppressWarnings("unchecked")
-    public MetadataAttribute(StreamInput in) throws IOException {
+    private MetadataAttribute(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -89,14 +96,20 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeString(name());
-        dataType().writeTo(out);
-        out.writeOptionalString(qualifier());
-        out.writeEnum(nullable());
-        id().writeTo(out);
-        out.writeBoolean(synthetic());
-        out.writeBoolean(searchable);
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            out.writeString(name());
+            dataType().writeTo(out);
+            out.writeOptionalString(qualifier());
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
+            out.writeBoolean(searchable);
+        }
+    }
+
+    public static MetadataAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(MetadataAttribute::new);
     }
 
     @Override

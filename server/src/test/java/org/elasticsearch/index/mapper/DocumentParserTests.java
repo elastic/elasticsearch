@@ -1568,7 +1568,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         })).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testParseToJsonAndParse() throws Exception {
@@ -1581,7 +1581,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = builtDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testSimpleParser() throws Exception {
@@ -1593,7 +1593,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testSimpleParserNoTypeNoId() throws Exception {
@@ -1602,7 +1602,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fullPath()), equalTo("shay"));
     }
 
     public void testAttributes() throws Exception {
@@ -2605,8 +2605,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertTrue(barMapper instanceof ObjectMapper);
         Mapper baz = ((ObjectMapper) barMapper).getMapper("baz");
         assertNotNull(baz);
-        assertEquals("foo.bar.baz", baz.name());
-        assertEquals("baz", baz.simpleName());
+        assertEquals("foo.bar.baz", baz.fullPath());
+        assertEquals("baz", baz.leafName());
         List<IndexableField> fields = doc.rootDoc().getFields("foo.bar.baz");
         assertEquals(2, fields.size());
         String[] fieldStrings = fields.stream().map(Object::toString).toArray(String[]::new);
@@ -3245,7 +3245,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
             @Override
             public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-                return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+                return new StringStoredFieldFieldLoader(fullPath(), leafName(), null) {
                     @Override
                     protected void write(XContentBuilder b, Object value) throws IOException {
                         BytesRef ref = (BytesRef) value;

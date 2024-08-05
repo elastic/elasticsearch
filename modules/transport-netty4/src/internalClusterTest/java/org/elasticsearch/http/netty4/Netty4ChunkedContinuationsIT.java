@@ -20,7 +20,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
@@ -71,6 +70,7 @@ import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -435,13 +435,22 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
             @Inject
             public TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService) {
-                super(TYPE.name(), actionFilters, transportService.getTaskManager());
-                executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
+                this(actionFilters, transportService, transportService.getThreadPool().executor(ThreadPool.Names.GENERIC));
+            }
+
+            TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService, ExecutorService executor) {
+                super(TYPE.name(), actionFilters, transportService.getTaskManager(), executor);
+                this.executor = executor;
             }
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-                executor.execute(ActionRunnable.supply(listener, () -> new Response(request.failIndex, executor)));
+                var response = new Response(request.failIndex, executor);
+                try {
+                    listener.onResponse(response);
+                } catch (Exception e) {
+                    ESTestCase.fail(e);
+                }
             }
         }
 
@@ -585,18 +594,22 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
             @Inject
             public TransportInfiniteContinuationsAction(ActionFilters actionFilters, TransportService transportService) {
-                super(TYPE.name(), actionFilters, transportService.getTaskManager());
-                this.executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
+                this(actionFilters, transportService, transportService.getThreadPool().executor(ThreadPool.Names.GENERIC));
+            }
+
+            TransportInfiniteContinuationsAction(ActionFilters actionFilters, TransportService transportService, ExecutorService executor) {
+                super(TYPE.name(), actionFilters, transportService.getTaskManager(), executor);
+                this.executor = executor;
             }
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-                executor.execute(
-                    ActionRunnable.supply(
-                        ActionTestUtils.assertNoFailureListener(listener::onResponse),
-                        () -> new Response(randomFrom(executor, EsExecutors.DIRECT_EXECUTOR_SERVICE))
-                    )
-                );
+                var response = new Response(randomFrom(executor, EsExecutors.DIRECT_EXECUTOR_SERVICE));
+                try {
+                    listener.onResponse(response);
+                } catch (Exception e) {
+                    ESTestCase.fail(e);
+                }
             }
         }
 
@@ -636,9 +649,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                             @Override
                             public void accept(RestChannel channel) {
                                 localRefs.mustIncRef();
-                                client.execute(TYPE, new Request(), new RestActionListener<>(channel) {
+                                client.execute(TYPE, new Request(), ActionListener.releaseAfter(new RestActionListener<>(channel) {
                                     @Override
                                     protected void processResponse(Response response) {
+                                        localRefs.mustIncRef();
                                         channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getResponseBodyPart(), () -> {
                                             // cancellation notification only happens while processing a continuation, not while computing
                                             // the next one; prompt cancellation requires use of something like RestCancellableNodeClient
@@ -647,7 +661,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                                             localRefs.decRef();
                                         }));
                                     }
-                                });
+                                }, () -> {
+                                    assertSame(localRefs, refs);
+                                    localRefs.decRef();
+                                }));
                             }
                         };
                     } else {

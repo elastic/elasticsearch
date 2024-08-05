@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
+import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -727,7 +728,7 @@ class NodeConstruction {
                 clusterService::state,
                 clusterService.getClusterSettings(),
                 client,
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 rerouteService
             )::onNewInfo
         );
@@ -752,6 +753,7 @@ class NodeConstruction {
             clusterService.addListener(
                 new TransportVersionsFixupListener(clusterService, client.admin().cluster(), featureService, threadPool)
             );
+            clusterService.addListener(new NodeFeaturesFixupListener(clusterService, client.admin().cluster(), threadPool));
         }
 
         SourceFieldMetrics sourceFieldMetrics = new SourceFieldMetrics(
@@ -883,7 +885,7 @@ class NodeConstruction {
             circuitBreakerService,
             createUsageService(),
             systemIndices,
-            telemetryProvider.getTracer(),
+            telemetryProvider,
             clusterService,
             rerouteService,
             buildReservedStateHandlers(
@@ -1445,7 +1447,12 @@ class NodeConstruction {
             ClusterCoordinationPlugin.PersistedClusterStateServiceFactory.class
         ).map(f -> f.newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool, compatibilityVersions))
             .orElseGet(
-                () -> new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool::relativeTimeInMillis)
+                () -> new PersistedClusterStateService(
+                    nodeEnvironment,
+                    xContentRegistry,
+                    clusterSettings,
+                    threadPool.relativeTimeInMillisSupplier()
+                )
             );
 
         return b -> b.bind(PersistedClusterStateService.class).toInstance(service);

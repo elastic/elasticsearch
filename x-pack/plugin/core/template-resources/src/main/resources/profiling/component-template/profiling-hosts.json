@@ -76,6 +76,12 @@
                   "type": "date",
                   "format": "epoch_millis"
                 },
+                "protocol": {
+                  "type": "keyword"
+                },
+                "env_https_proxy": {
+                  "type": "keyword"
+                },
                 "config.bpf_log_level": {
                   "type": "long"
                 },

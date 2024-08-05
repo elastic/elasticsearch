@@ -700,7 +700,7 @@ public class RecoverySourceHandler {
                 .newForked(this::sendShardRecoveryPlanFileInfo)
                 // instruct the target to recover files from snapshot, possibly updating the plan on failure
                 .<List<StoreFileMetadata>>andThen(
-                    (l, ignored) -> recoverSnapshotFiles(shardRecoveryPlan, l.delegateResponse((recoverSnapshotFilesListener, e) -> {
+                    l -> recoverSnapshotFiles(shardRecoveryPlan, l.delegateResponse((recoverSnapshotFilesListener, e) -> {
                         if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false
                             && e instanceof CancellableThreads.ExecutionCancelledException == false) {
                             shardRecoveryPlan = shardRecoveryPlan.getFallbackPlan();
@@ -731,10 +731,7 @@ public class RecoverySourceHandler {
                 })
                 // create a retention lease
                 .<RetentionLease>andThen(
-                    (createRetentionLeaseListener, ignored) -> createRetentionLease(
-                        shardRecoveryPlan.getStartingSeqNo(),
-                        createRetentionLeaseListener
-                    )
+                    createRetentionLeaseListener -> createRetentionLease(shardRecoveryPlan.getStartingSeqNo(), createRetentionLeaseListener)
                 )
                 // run cleanFiles, renaming temp files, removing surplus ones, creating an empty translog and so on
                 .<Void>andThen((finalRecoveryPlanListener, retentionLease) -> {
@@ -1052,7 +1049,7 @@ public class RecoverySourceHandler {
         }
         SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.commitUserData().entrySet());
         SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.commitUserData().entrySet());
-        if (sourceSeqNos.localCheckpoint != targetSeqNos.localCheckpoint || targetSeqNos.maxSeqNo != sourceSeqNos.maxSeqNo) {
+        if (sourceSeqNos.localCheckpoint() != targetSeqNos.localCheckpoint() || targetSeqNos.maxSeqNo() != sourceSeqNos.maxSeqNo()) {
             final String message = "try to recover "
                 + request.shardId()
                 + " with sync id but "

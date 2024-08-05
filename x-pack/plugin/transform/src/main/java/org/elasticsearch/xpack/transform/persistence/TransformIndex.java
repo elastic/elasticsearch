@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -201,7 +202,7 @@ public final class TransformIndex {
             ActionListener.wrap(createIndexResponse -> {
                 listener.onResponse(true);
             }, e -> {
-                if (e instanceof ResourceAlreadyExistsException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                     // Already existing index is ok, it could have been created by the indexing process of the running transform.
                     listener.onResponse(false);
                     return;

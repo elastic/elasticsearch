@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [method, path, parameters, capabilities]
-          capabilities: [metadata_fields, metadata_field_ignored]
+          capabilities: [metadata_fields, metadata_ignored_field]
       reason: "Ignored metadata field capability required"
 
   - do:
@@ -140,3 +140,18 @@ setup:
   - match: {columns.0.name: "count_distinct(_ignored)"}
   - match: {columns.0.type: "long"}
   - match: {values.0.0: 2}
+
+---
+"Count_distinct on _source is a 400 error":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [fix_count_distinct_source_error]
+      reason: "Capability marks fixing this bug"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test [metadata _source] | STATS COUNT_DISTINCT(_source)'

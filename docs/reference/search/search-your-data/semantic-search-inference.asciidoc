@@ -11,12 +11,12 @@ IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer 
 
 The following examples use Cohere's `embed-english-v3.0` model, the `all-mpnet-base-v2` model from HuggingFace, and OpenAI's `text-embedding-ada-002` second generation embedding model.
 You can use any Cohere and OpenAI models, they are all supported by the {infer} API.
-For a list of supported models available on HuggingFace, refer to
-<<inference-example-hugging-face-supported-models, the supported model list>>.
+For a list of recommended models available on HuggingFace, refer to <<inference-example-hugging-face-supported-models, the supported model list>>.
 
 Azure based examples use models available through https://ai.azure.com/explore/models?selectedTask=embeddings[Azure AI Studio]
 or https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models[Azure OpenAI].
 Mistral examples use the `mistral-embed` model from https://docs.mistral.ai/getting-started/models/[the Mistral API].
+Amazon Bedrock examples use the `amazon.titan-embed-text-v1` model from https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[the Amazon Bedrock base models].
 
 Click the name of the service you want to use on any of the widgets below to review the corresponding instructions.
 
@@ -39,8 +39,7 @@ include::{es-ref-dir}/tab-widgets/inference-api/infer-api-task-widget.asciidoc[]
 ==== Create the index mapping
 
 The mapping of the destination index - the index that contains the embeddings that the model will create based on your input text - must be created.
-The destination index must have a field with the <<dense-vector, `dense_vector`>>
-field type to index the output of the used model.
+The destination index must have a field with the <<dense-vector, `dense_vector`>> field type for most models and the <<sparse-vector, `sparse_vector`>> field type for the sparse vector models like in the case of the `elser` service to index the output of the used model.
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-mapping-widget.asciidoc[]
 
@@ -48,8 +47,7 @@ include::{es-ref-dir}/tab-widgets/inference-api/infer-api-mapping-widget.asciido
 [[infer-service-inference-ingest-pipeline]]
 ==== Create an ingest pipeline with an inference processor
 
-Create an <<ingest,ingest pipeline>> with an
-<<inference-processor,{infer} processor>> and use the model you created above to infer against the data that is being ingested in the pipeline.
+Create an <<ingest,ingest pipeline>> with an <<inference-processor,{infer} processor>> and use the model you created above to infer against the data that is being ingested in the pipeline.
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-ingest-pipeline-widget.asciidoc[]
 
@@ -102,8 +100,8 @@ POST _tasks/<task_id>/_cancel
 ==== Semantic search
 
 After the data set has been enriched with the embeddings, you can query the data using {ref}/knn-search.html#knn-semantic-search[semantic search].
-Pass a
-`query_vector_builder` to the k-nearest neighbor (kNN) vector search API, and provide the query text and the model you have used to create the embeddings.
+In case of dense vector models, pass a `query_vector_builder` to the k-nearest neighbor (kNN) vector search API, and provide the query text and the model you have used to create the embeddings.
+In case of a sparse vector model like ELSER, use a `sparse_vector` query, and provide the query text with the model you have used to create the embeddings.
 
 NOTE: If you cancelled the reindexing process, you run the query only a part of the data which affects the quality of your results.
 

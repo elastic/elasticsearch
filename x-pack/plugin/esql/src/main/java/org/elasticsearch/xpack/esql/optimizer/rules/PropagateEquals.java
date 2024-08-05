@@ -35,10 +35,10 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
  * When encountering a different Equals, non-containing {@link Range} or {@link BinaryComparison}, the conjunction becomes false.
  * When encountering a containing {@link Range}, {@link BinaryComparison} or {@link NotEquals}, these get eliminated by the equality.
  */
-public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryLogic> {
+public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRule<BinaryLogic> {
 
     public PropagateEquals() {
-        super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN);
+        super(OptimizerRules.TransformDirection.DOWN);
     }
 
     public Expression rule(BinaryLogic e) {

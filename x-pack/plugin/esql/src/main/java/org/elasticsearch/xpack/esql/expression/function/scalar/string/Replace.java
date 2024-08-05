@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -20,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -32,10 +36,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 public class Replace extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Replace", Replace::new);
 
     private final Expression str;
-    private final Expression newStr;
     private final Expression regex;
+    private final Expression newStr;
 
     @FunctionInfo(
         returnType = "keyword",
@@ -58,6 +63,27 @@ public class Replace extends EsqlScalarFunction {
         this.str = str;
         this.regex = regex;
         this.newStr = newStr;
+    }
+
+    private Replace(StreamInput in) throws IOException {
+        this(
+            Source.EMPTY,
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(str);
+        out.writeNamedWriteable(regex);
+        out.writeNamedWriteable(newStr);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -139,5 +165,17 @@ public class Replace extends EsqlScalarFunction {
 
         var regexEval = toEvaluator.apply(regex);
         return new ReplaceEvaluator.Factory(source(), strEval, regexEval, newStrEval);
+    }
+
+    Expression str() {
+        return str;
+    }
+
+    Expression regex() {
+        return regex;
+    }
+
+    Expression newStr() {
+        return newStr;
     }
 }

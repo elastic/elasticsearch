@@ -72,7 +72,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitiveAndSupported;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
@@ -121,7 +121,7 @@ public class EsqlDataTypeConverter {
             return true;
         }
         // only primitives are supported so far
-        return isPrimitive(from) && isPrimitive(to) && converterFor(from, to) != null;
+        return isPrimitiveAndSupported(from) && isPrimitiveAndSupported(to) && converterFor(from, to) != null;
     }
 
     public static Converter converterFor(DataType from, DataType to) {
@@ -148,7 +148,7 @@ public class EsqlDataTypeConverter {
             if (to == DataType.BOOLEAN) {
                 return EsqlConverter.STRING_TO_BOOLEAN;
             }
-            if (EsqlDataTypes.isSpatial(to)) {
+            if (DataType.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
             }
             if (to == DataType.TIME_DURATION) {

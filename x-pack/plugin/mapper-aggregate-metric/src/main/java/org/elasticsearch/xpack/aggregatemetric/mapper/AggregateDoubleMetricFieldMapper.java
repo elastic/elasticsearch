@@ -588,7 +588,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
         XContentParser.Token token;
         XContentSubParser subParser = null;
         EnumMap<Metric, Number> metricsParsed = new EnumMap<>(Metric.class);
@@ -665,7 +665,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 if (context.doc().getByKey(delegateFieldMapper.fieldType().name()) != null) {
                     throw new IllegalArgumentException(
                         "Field ["
-                            + name()
+                            + fullPath()
                             + "] of type ["
                             + typeName()
                             + "] does not support indexing multiple values for the same field in the same document"
@@ -687,10 +687,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 if (malformedDataForSyntheticSource != null) {
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(name(), malformedDataForSyntheticSource));
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
                 }
 
-                context.addIgnoredField(name());
+                context.addIgnoredField(fullPath());
                 context.path().remove();
                 return;
             }
@@ -707,7 +707,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode).metric(metricType).init(this);
     }
 
     @Override
@@ -718,10 +718,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return new CompositeSyntheticFieldLoader(
-            simpleName(),
-            name(),
-            new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics),
-            new CompositeSyntheticFieldLoader.MalformedValuesLayer(name())
+            leafName(),
+            fullPath(),
+            new AggregateMetricSyntheticFieldLoader(fullPath(), leafName(), metrics),
+            new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
         );
     }
 

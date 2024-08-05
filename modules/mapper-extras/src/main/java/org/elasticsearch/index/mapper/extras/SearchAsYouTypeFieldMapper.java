@@ -721,7 +721,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

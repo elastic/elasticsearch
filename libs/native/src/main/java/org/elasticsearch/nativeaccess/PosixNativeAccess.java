@@ -12,12 +12,17 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     public static final int MCL_CURRENT = 1;
     public static final int ENOMEM = 12;
+    public static final int O_RDONLY = 0;
+    public static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
     protected final VectorSimilarityFunctions vectorDistance;
@@ -120,6 +125,52 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     protected abstract void logMemoryLimitInstructions();
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        assert Files.isRegularFile(path) : path;
+        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+
+        int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY);
+        if (fd == -1) {
+            logger.warn("Could not open file [" + path + "] to get allocated size: " + libc.strerror(libc.errno()));
+            return OptionalLong.empty();
+        }
+
+        if (libc.fstat64(fd, stats) != 0) {
+            logger.warn("Could not get stats for file [" + path + "] to get allocated size: " + libc.strerror(libc.errno()));
+            return OptionalLong.empty();
+        }
+        if (libc.close(fd) != 0) {
+            logger.warn("Failed to close file [" + path + "] after getting stats: " + libc.strerror(libc.errno()));
+        }
+        return OptionalLong.of(stats.st_blocks() * 512);
+    }
+
+    @Override
+    public void tryPreallocate(Path file, long newSize) {
+        // get fd and current size, then pass to OS variant
+        int fd = libc.open(file.toAbsolutePath().toString(), O_WRONLY, constants.O_CREAT());
+        if (fd == -1) {
+            logger.warn("Could not open file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
+            return;
+        }
+
+        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        if (libc.fstat64(fd, stats) != 0) {
+            logger.warn("Could not get stats for file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
+        } else {
+            if (nativePreallocate(fd, stats.st_size(), newSize)) {
+                logger.debug("pre-allocated file [{}] to {} bytes", file, newSize);
+            } // OS specific preallocate logs its own errors
+        }
+
+        if (libc.close(fd) != 0) {
+            logger.warn("Could not close file [" + file + "] after trying to preallocate size: " + libc.strerror(libc.errno()));
+        }
+    }
+
+    protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 
     @Override
     public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {

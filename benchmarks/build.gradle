@@ -47,8 +47,8 @@ dependencies {
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
-  runtimeOnly 'net.sf.jopt-simple:jopt-simple:4.6'
-  runtimeOnly 'org.apache.commons:commons-math3:3.2'
+  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
+  runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes

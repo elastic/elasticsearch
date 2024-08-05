@@ -18,9 +18,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
@@ -39,7 +38,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
-public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctionTestCase {
+public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
      * Build many test cases with {@code boolean} values.
      */
@@ -615,13 +614,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
     }
 
     protected abstract Expression build(Source source, Expression field);
-
-    protected abstract DataType[] supportedTypes();
-
-    protected final DataType[] representableNumerics() {
-        // TODO numeric should only include representable numbers but that is a change for a followup
-        return DataType.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
-    }
 
     protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);

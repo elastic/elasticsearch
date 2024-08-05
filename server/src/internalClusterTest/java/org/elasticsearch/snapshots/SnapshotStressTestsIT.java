@@ -216,11 +216,13 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
         static final Logger logger = LogManager.getLogger(TrackedCluster.class);
         static final String CLIENT = "client";
+        static final String NODE_RESTARTER = "node_restarter";
 
         private final ThreadPool threadPool = new TestThreadPool(
             "TrackedCluster",
             // a single thread for "client" activities, to limit the number of activities all starting at once
-            new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, true, CLIENT)
+            new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, true, CLIENT),
+            new ScalingExecutorBuilder(NODE_RESTARTER, 1, 5, TimeValue.ZERO, true, NODE_RESTARTER)
         );
         private final Executor clientExecutor = threadPool.executor(CLIENT);
 
@@ -1163,7 +1165,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             final String nodeName = trackedNode.nodeName;
                             final Releasable releaseAll = localReleasables.transfer();
 
-                            threadPool.generic().execute(mustSucceed(() -> {
+                            threadPool.executor(NODE_RESTARTER).execute(mustSucceed(() -> {
                                 logger.info("--> restarting [{}]", nodeName);
                                 cluster.restartNode(nodeName);
                                 logger.info("--> finished restarting [{}]", nodeName);
@@ -1255,7 +1257,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         )
 
                         .<Void>andThen(
-                            (l, ignored) -> clusterService.submitUnbatchedStateUpdateTask(
+                            l -> clusterService.submitUnbatchedStateUpdateTask(
                                 "unmark [" + node + "] for removal",
                                 new ClusterStateUpdateTask() {
                                     @Override

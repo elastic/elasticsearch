@@ -39,7 +39,7 @@ public class CohereRerankRequest extends CohereRequest {
         this.input = Objects.requireNonNull(input);
         this.query = Objects.requireNonNull(query);
         taskSettings = model.getTaskSettings();
-        this.model = model.getServiceSettings().getCommonSettings().modelId();
+        this.model = model.getServiceSettings().modelId();
         inferenceEntityId = model.getInferenceEntityId();
     }
 

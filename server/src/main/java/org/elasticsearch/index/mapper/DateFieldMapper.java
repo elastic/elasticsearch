@@ -359,11 +359,12 @@ public final class DateFieldMapper extends FieldMapper {
             );
 
             Long nullTimestamp = parseNullValue(ft);
-            if (leafName().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            if (ft.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                 && context.isDataStream()
                 && ignoreMalformed.isConfigured() == false) {
                 ignoreMalformed.setValue(false);
             }
+
             return new DateFieldMapper(
                 leafName(),
                 ft,
@@ -868,8 +869,10 @@ public final class DateFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final FieldValues<Long> scriptValues;
 
+    private final boolean isDataStreamTimestampField;
+
     private DateFieldMapper(
-        String simpleName,
+        String leafName,
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
@@ -878,7 +881,7 @@ public final class DateFieldMapper extends FieldMapper {
         boolean isSourceSynthetic,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
+        super(leafName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
@@ -894,11 +897,12 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
+        this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), resolution, null, scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(leafName(), resolution, null, scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
     @Override
@@ -929,7 +933,7 @@ public final class DateFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                     }
                     return;
                 } else {
@@ -942,6 +946,16 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {
+        // DataStreamTimestampFieldMapper and TsidExtractingFieldMapper need to use timestamp value,
+        // so when this is true we store it in a well-known place
+        // instead of forcing them to iterate over all fields.
+        //
+        // DataStreamTimestampFieldMapper is present and enabled both
+        // in data streams and standalone indices in time_series mode
+        if (isDataStreamTimestampField && context.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+            DataStreamTimestampFieldMapper.storeTimestampValueForReuse(context.doc(), timestamp);
+        }
+
         if (indexed && hasDocValues) {
             context.doc().add(new LongField(fieldType().name(), timestamp));
         } else if (hasDocValues) {
@@ -989,15 +1003,19 @@ public final class DateFieldMapper extends FieldMapper {
         }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+                "field ["
+                    + fullPath()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
             @Override
             protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(fieldType().format(value, fieldType().dateTimeFormatter()));

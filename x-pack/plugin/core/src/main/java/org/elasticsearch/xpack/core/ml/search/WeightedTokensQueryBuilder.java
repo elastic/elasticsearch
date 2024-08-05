@@ -15,6 +15,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -29,7 +31,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * @deprecated Replaced by sparse_vector query
+ */
+@Deprecated
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
+
     public static final String NAME = "weighted_tokens";
 
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
@@ -40,6 +47,10 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     private final TokenPruningConfig tokenPruningConfig;
 
     private static final Set<String> ALLOWED_FIELD_TYPES = Set.of("sparse_vector", "rank_features");
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
+    public static final String WEIGHTED_TOKENS_DEPRECATION_MESSAGE = NAME
+        + " is deprecated and will be removed. Use sparse_vector instead.";
 
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
         this(fieldName, tokens, null);
@@ -153,6 +164,9 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     }
 
     public static WeightedTokensQueryBuilder fromXContent(XContentParser parser) throws IOException {
+
+        deprecationLogger.critical(DeprecationCategory.API, NAME, WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+
         String currentFieldName = null;
         String fieldName = null;
         List<WeightedToken> tokens = new ArrayList<>();

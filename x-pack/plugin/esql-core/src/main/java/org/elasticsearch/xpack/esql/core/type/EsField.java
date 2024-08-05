@@ -55,7 +55,7 @@ public class EsField implements NamedWriteable {
     public EsField(StreamInput in) throws IOException {
         this.name = in.readString();
         this.esDataType = DataType.readFrom(in);
-        this.properties = in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class));
+        this.properties = in.readImmutableMap(i -> i.readNamedWriteable(EsField.class));
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
     }

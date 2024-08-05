@@ -337,6 +337,67 @@ set start_time and end_time without timeseries mode:
                 end_time: 1632625782000
 
 ---
+set start_time, end_time and routing_path via put settings api without time_series mode:
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: bug fixed in 8.15.0
+
+  - do:
+      indices.create:
+        index: test-index
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /\[index.time_series.end_time\] requires \[index.mode=time_series\]/
+      indices.put_settings:
+        index: test-index
+        body:
+          index.time_series.end_time: 1632625782000
+
+  - do:
+      catch: /Can't update non dynamic settings \[\[index.time_series.start_time\]\] for open indices/
+      indices.put_settings:
+        index: test-index
+        body:
+          index.time_series.start_time: 1632625782000
+
+  - do:
+      catch: /Can't update non dynamic settings \[\[index.routing_path\]\] for open indices/
+      indices.put_settings:
+        index: test-index
+        body:
+          settings:
+            index:
+              routing_path: foo
+
+  - do:
+      indices.close:
+        index: test-index
+
+  - do:
+      catch: /\[index.time_series.end_time\] requires \[index.mode=time_series\]/
+      indices.put_settings:
+        index: test-index
+        body:
+          index.time_series.end_time: 1632625782000
+
+  - do:
+      catch: /final test-index setting \[index.time_series.start_time\], not updateable/
+      indices.put_settings:
+        index: test-index
+        body:
+          index.time_series.start_time: 1632625782000
+
+  - do:
+      catch: /final test-index setting \[index.routing_path\], not updateable/
+      indices.put_settings:
+        index: test-index
+        body:
+          settings:
+            index:
+              routing_path: foo
+
+---
 set bad start_time and end_time:
   - requires:
       cluster_features: ["gte_v8.2.0"]

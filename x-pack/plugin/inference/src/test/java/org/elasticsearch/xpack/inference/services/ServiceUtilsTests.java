@@ -21,6 +21,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
@@ -36,13 +38,16 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalTimeValue;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.getEmbeddingSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -284,6 +289,50 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(map.entrySet(), hasSize(3));
     }
 
+    public void testRemoveAsAdaptiveAllocationsSettings() {
+        assumeTrue("Should only run if adaptive allocations feature flag is enabled", AdaptiveAllocationsFeatureFlag.isEnabled());
+
+        Map<String, Object> map = new HashMap<>(
+            Map.of("settings", new HashMap<>(Map.of("enabled", true, "min_number_of_allocations", 7, "max_number_of_allocations", 42)))
+        );
+        ValidationException validationException = new ValidationException();
+        assertThat(
+            ServiceUtils.removeAsAdaptiveAllocationsSettings(map, "settings", validationException),
+            equalTo(new AdaptiveAllocationsSettings(true, 7, 42))
+        );
+        assertThat(validationException.validationErrors(), empty());
+
+        assertThat(ServiceUtils.removeAsAdaptiveAllocationsSettings(map, "non-existent-key", validationException), nullValue());
+        assertThat(validationException.validationErrors(), empty());
+
+        map = new HashMap<>(Map.of("settings", new HashMap<>(Map.of("enabled", false))));
+        assertThat(
+            ServiceUtils.removeAsAdaptiveAllocationsSettings(map, "settings", validationException),
+            equalTo(new AdaptiveAllocationsSettings(false, null, null))
+        );
+        assertThat(validationException.validationErrors(), empty());
+    }
+
+    public void testRemoveAsAdaptiveAllocationsSettings_exceptions() {
+        assumeTrue("Should only run if adaptive allocations feature flag is enabled", AdaptiveAllocationsFeatureFlag.isEnabled());
+
+        Map<String, Object> map = new HashMap<>(
+            Map.of("settings", new HashMap<>(Map.of("enabled", "YES!", "blah", 42, "max_number_of_allocations", -7)))
+        );
+        ValidationException validationException = new ValidationException();
+        ServiceUtils.removeAsAdaptiveAllocationsSettings(map, "settings", validationException);
+        assertThat(validationException.validationErrors(), hasSize(3));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [enabled] is not of the expected type. The value [YES!] cannot be converted to a [Boolean]")
+        );
+        assertThat(validationException.validationErrors().get(1), containsString("[settings] does not allow the setting [blah]"));
+        assertThat(
+            validationException.validationErrors().get(2),
+            containsString("[max_number_of_allocations] must be a positive integer or null")
+        );
+    }
+
     public void testConvertToUri_CreatesUri() {
         var validation = new ValidationException();
         var uri = convertToUri("www.elastic.co", "name", "scope", validation);
@@ -464,6 +513,41 @@ public class ServiceUtilsTests extends ESTestCase {
         Map<String, Object> map = modifiableMap(Map.of("abc", 4_000_000_000L));
         assertEquals(Long.valueOf(4_000_000_000L), extractOptionalPositiveLong(map, "abc", "scope", validation));
         assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractRequiredPositiveInteger_ReturnsValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var parsedInt = extractRequiredPositiveInteger(map, "key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(1));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveInteger_AddsErrorForNegativeValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveInteger(map, "key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), is("[scope] Invalid value [-1]. [key] must be a positive integer"));
+    }
+
+    public void testExtractRequiredPositiveInteger_AddsErrorWhenKeyIsMissing() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveInteger(map, "not_key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
     }
 
     public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {

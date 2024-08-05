@@ -14,17 +14,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 
 public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQueryBuilder> {
 
@@ -51,22 +48,17 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestGeoShapeFieldMapperPlugin.class);
-    }
-
-    @Override
     protected ExactKnnQueryBuilder doCreateTestQueryBuilder() {
         float[] query = new float[VECTOR_DIMENSION];
         for (int i = 0; i < VECTOR_DIMENSION; i++) {
             query[i] = randomFloat();
         }
-        return new ExactKnnQueryBuilder(query, VECTOR_FIELD);
+        return new ExactKnnQueryBuilder(VectorData.fromFloats(query), VECTOR_FIELD, randomBoolean() ? randomFloat() : null);
     }
 
     @Override
     public void testValidOutput() {
-        ExactKnnQueryBuilder query = new ExactKnnQueryBuilder(new float[] { 1.0f, 2.0f, 3.0f }, "field");
+        ExactKnnQueryBuilder query = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[] { 1.0f, 2.0f, 3.0f }), "field", null);
         String expected = """
             {
               "exact_knn" : {
@@ -79,15 +71,36 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
               }
             }""";
         assertEquals(expected, query.toString());
+        query = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[] { 1.0f, 2.0f, 3.0f }), "field", 1f);
+        expected = """
+            {
+              "exact_knn" : {
+                "query" : [
+                  1.0,
+                  2.0,
+                  3.0
+                ],
+                "field" : "field",
+                "similarity" : 1.0
+              }
+            }""";
+        assertEquals(expected, query.toString());
     }
 
     @Override
     protected void doAssertLuceneQuery(ExactKnnQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        if (queryBuilder.vectorSimilarity() != null) {
+            assertTrue(query instanceof VectorSimilarityQuery);
+            VectorSimilarityQuery vectorSimilarityQuery = (VectorSimilarityQuery) query;
+            query = vectorSimilarityQuery.getInnerKnnQuery();
+        }
         assertTrue(query instanceof DenseVectorQuery.Floats);
         DenseVectorQuery.Floats denseVectorQuery = (DenseVectorQuery.Floats) query;
         assertEquals(VECTOR_FIELD, denseVectorQuery.field);
         float[] expected = Arrays.copyOf(queryBuilder.getQuery().asFloatVector(), queryBuilder.getQuery().asFloatVector().length);
-        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)) {
+        float magnitude = VectorUtil.dotProduct(expected, expected);
+        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)
+            && DenseVectorFieldMapper.isNotUnitVector(magnitude)) {
             VectorUtil.l2normalize(expected);
             assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
         } else {

@@ -14,6 +14,8 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.concurrent.CancellationException;
@@ -21,6 +23,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class PlainActionFutureTests extends ESTestCase {
 
@@ -70,7 +73,6 @@ public class PlainActionFutureTests extends ESTestCase {
         assumeTrue("assertions required for this test", Assertions.ENABLED);
         final var future = new PlainActionFuture<>();
         expectThrows(AssertionError.class, future::result);
-        expectThrows(AssertionError.class, future::actionResult);
     }
 
     public void testUnwrapException() {
@@ -90,19 +92,17 @@ public class PlainActionFutureTests extends ESTestCase {
 
         assertEquals(actionGetException, expectThrows(RuntimeException.class, future::actionGet).getClass());
         assertEquals(actionGetException, expectThrows(RuntimeException.class, () -> future.actionGet(10, TimeUnit.SECONDS)).getClass());
-        assertEquals(actionGetException, expectThrows(RuntimeException.class, future::actionResult).getClass());
-        assertEquals(actionGetException, expectThrows(RuntimeException.class, expectIgnoresInterrupt(future::actionResult)).getClass());
         assertEquals(getException, expectThrows(ExecutionException.class, future::get).getCause().getClass());
         assertEquals(getException, expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS)).getCause().getClass());
 
         if (exception instanceof RuntimeException) {
-            assertEquals(getException, expectThrows(Exception.class, future::result).getClass());
-            assertEquals(getException, expectThrows(Exception.class, expectIgnoresInterrupt(future::result)).getClass());
+            expectThrows(ExecutionException.class, getException, future::result);
+            expectThrows(ExecutionException.class, getException, expectIgnoresInterrupt(future::result));
             assertEquals(getException, expectThrows(Exception.class, () -> FutureUtils.get(future)).getClass());
             assertEquals(getException, expectThrows(Exception.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS)).getClass());
         } else {
-            assertEquals(getException, expectThrowsWrapped(future::result).getClass());
-            assertEquals(getException, expectThrowsWrapped(expectIgnoresInterrupt(future::result)).getClass());
+            expectThrows(ExecutionException.class, getException, future::result);
+            expectThrows(ExecutionException.class, getException, expectIgnoresInterrupt(future::result));
             assertEquals(getException, expectThrowsWrapped(() -> FutureUtils.get(future)).getClass());
             assertEquals(getException, expectThrowsWrapped(() -> FutureUtils.get(future, 10, TimeUnit.SECONDS)).getClass());
         }
@@ -126,12 +126,10 @@ public class PlainActionFutureTests extends ESTestCase {
         assertCancellation(() -> future.get(10, TimeUnit.SECONDS));
         assertCancellation(() -> future.actionGet(10, TimeUnit.SECONDS));
         assertCancellation(future::result);
-        assertCancellation(future::actionResult);
 
         try {
             Thread.currentThread().interrupt();
             assertCancellation(future::result);
-            assertCancellation(future::actionResult);
         } finally {
             assertTrue(Thread.interrupted());
         }
@@ -140,6 +138,39 @@ public class PlainActionFutureTests extends ESTestCase {
         assertCapturesInterrupt(() -> future.get(10, TimeUnit.SECONDS));
         assertPropagatesInterrupt(future::actionGet);
         assertPropagatesInterrupt(() -> future.actionGet(10, TimeUnit.SECONDS));
+    }
+
+    public void testAssertCompleteAllowedAllowsConcurrentCompletesFromSamePool() {
+        final AtomicReference<PlainActionFuture<?>> futureReference = new AtomicReference<>(new PlainActionFuture<>());
+        final var executorName = randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT);
+        final var running = new AtomicBoolean(true);
+        try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
+            // We only need 4 threads to reproduce this issue reliably, using more threads
+            // just increases the run time due to the additional synchronisation
+            final var threadCount = Math.min(threadPool.info(executorName).getMax(), 4);
+            final var startBarrier = new CyclicBarrier(threadCount + 1);
+            // N threads competing to complete the futures
+            for (int i = 0; i < threadCount; i++) {
+                threadPool.executor(executorName).execute(() -> {
+                    safeAwait(startBarrier);
+                    while (running.get()) {
+                        futureReference.get().onResponse(null);
+                    }
+                });
+            }
+            // The race can only occur once per completion, so we provide
+            // a stream of new futures to the competing threads to
+            // maximise the probability it occurs. Providing them
+            // with new futures while they spin proved to be much
+            // more reliable at reproducing the issue than releasing
+            // them all from a barrier to complete a single future.
+            safeAwait(startBarrier);
+            for (int i = 0; i < 20; i++) {
+                futureReference.set(new PlainActionFuture<>());
+                safeSleep(1);
+            }
+            running.set(false);
+        }
     }
 
     private static void assertCancellation(ThrowingRunnable runnable) {

@@ -20,6 +20,7 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -288,7 +289,7 @@ public class ClientYamlTestExecutionContext {
         String capabilitiesString,
         boolean any
     ) {
-        Map<String, String> params = Maps.newMapWithExpectedSize(5);
+        Map<String, String> params = Maps.newMapWithExpectedSize(6);
         params.put("method", method);
         params.put("path", path);
         if (Strings.hasLength(parametersString)) {
@@ -297,30 +298,47 @@ public class ClientYamlTestExecutionContext {
         if (Strings.hasLength(capabilitiesString)) {
             params.put("capabilities", capabilitiesString);
         }
-        params.put("local_node", "true");   // we're calling each node individually
         params.put("error_trace", "false"); // disable error trace
 
-        // individually call each node, so we can control whether we do an 'any' or 'all' check
-        List<Node> nodes = clientYamlTestClient.getRestClient(NodeSelector.ANY).getNodes();
-
-        for (Node n : nodes) {
-            Optional<Boolean> nodeResult = nodeHasCapability(n, params);
-            if (nodeResult.isEmpty()) {
-                return Optional.empty();
-            } else if (any == nodeResult.get()) {
-                // either any == true and node has cap,
-                // or any == false (all) and this node does not have cap
-                return nodeResult;
+        if (clusterHasFeature(RestNodesCapabilitiesAction.LOCAL_ONLY_CAPABILITIES.id()) == false) {
+            // can only check the whole cluster
+            if (any) {
+                logger.warn(
+                    "Cluster does not support checking individual nodes for capabilities,"
+                        + "check for [{} {}?{} {}] may be incorrect in mixed-version clusters",
+                    method,
+                    path,
+                    parametersString,
+                    capabilitiesString
+                );
             }
-        }
+            return checkCapability(NodeSelector.ANY, params);
+        } else {
+            // check each node individually - we can actually check any here
+            params.put("local_only", "true");   // we're calling each node individually
 
-        // if we got here, either any is true and no node has it, or any == false and all nodes have it
-        return Optional.of(any == false);
+            // individually call each node, so we can control whether we do an 'any' or 'all' check
+            List<Node> nodes = clientYamlTestClient.getRestClient(NodeSelector.ANY).getNodes();
+
+            for (Node n : nodes) {
+                Optional<Boolean> nodeResult = checkCapability(new SpecificNodeSelector(n), params);
+                if (nodeResult.isEmpty()) {
+                    return Optional.empty();
+                } else if (any == nodeResult.get()) {
+                    // either any == true and node has cap,
+                    // or any == false (ie all) and this node does not have cap
+                    return nodeResult;
+                }
+            }
+
+            // if we got here, either any is true and no node has it, or any == false and all nodes have it
+            return Optional.of(any == false);
+        }
     }
 
-    private Optional<Boolean> nodeHasCapability(Node node, Map<String, String> params) {
+    private Optional<Boolean> checkCapability(NodeSelector nodeSelector, Map<String, String> params) {
         try {
-            ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap(), new SpecificNodeSelector(node));
+            ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap(), nodeSelector);
             // anything other than 200 should result in an exception, handled below
             assert resp.getStatusCode() == 200 : "Unknown response code " + resp.getStatusCode();
             return Optional.ofNullable(resp.evaluate("supported"));
@@ -337,8 +355,10 @@ public class ClientYamlTestExecutionContext {
     private record SpecificNodeSelector(Node node) implements NodeSelector {
         @Override
         public void select(Iterable<Node> nodes) {
+            // between getting the list of nodes, and checking here, the thing that is consistent is the host
+            // which becomes one of the bound addresses
             for (var it = nodes.iterator(); it.hasNext();) {
-                if (it.next().equals(node) == false) {
+                if (it.next().getBoundHosts().contains(node.getHost()) == false) {
                     it.remove();
                 }
             }

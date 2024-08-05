@@ -30,6 +30,7 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     public static final NodeFeature CAPABILITIES_ACTION = new NodeFeature("rest.capabilities_action");
+    public static final NodeFeature LOCAL_ONLY_CAPABILITIES = new NodeFeature("rest.local_only_capabilities");
 
     @Override
     public List<Route> routes() {

@@ -16,6 +16,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.IOException;
@@ -38,22 +39,40 @@ public class ShardSnapshotTaskRunner {
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
 
     abstract static class SnapshotTask extends AbstractRunnable implements Comparable<SnapshotTask> {
-
-        private static final Comparator<SnapshotTask> COMPARATOR = Comparator.comparingLong(
-            (SnapshotTask t) -> t.context().snapshotStartTime()
-        ).thenComparing(t -> t.context().snapshotId().getUUID()).thenComparingInt(SnapshotTask::priority);
-
         protected final SnapshotShardContext context;
 
         SnapshotTask(SnapshotShardContext context) {
             this.context = context;
         }
 
-        public abstract int priority();
-
-        public SnapshotShardContext context() {
+        public final SnapshotShardContext context() {
             return context;
         }
+
+        private long getSnapshotStartTime() {
+            return context().snapshotStartTime();
+        }
+
+        private String snapshotUUID() {
+            return context().snapshotId().getUUID();
+        }
+
+        public abstract int priority();
+
+        @SuppressWarnings("resource")
+        private ShardId shardId() {
+            return context().store().shardId();
+        }
+
+        private static final Comparator<SnapshotTask> COMPARATOR = Comparator
+            // Prefer work from the oldest running snapshot ...
+            .comparingLong(SnapshotTask::getSnapshotStartTime)
+            // ... tiebreaking on UUID ...
+            .thenComparing(SnapshotTask::snapshotUUID)
+            // ... then prefer starting new shard snapshots over uploading files for ongoing ones (for fast noop shard snapshots) ...
+            .thenComparingInt(SnapshotTask::priority)
+            // .. finally breaking ties by shard ID to limit WIP
+            .thenComparing(SnapshotTask::shardId);
 
         @Override
         public final int compareTo(SnapshotTask other) {

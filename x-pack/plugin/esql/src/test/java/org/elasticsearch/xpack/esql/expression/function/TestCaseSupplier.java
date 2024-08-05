@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -1305,11 +1306,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final Class<? extends Throwable> foldingExceptionClass;
         private final String foldingExceptionMessage;
 
-        public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+        public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, equalTo(evaluatorToString), expectedType, matcher);
         }
 
-        public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+        public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, evaluatorToString, expectedType, matcher, null, null, null, null);
         }
 
@@ -1321,7 +1322,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             List<TypedData> data,
             Matcher<String> evaluatorToString,
             DataType expectedType,
-            Matcher<Object> matcher,
+            Matcher<?> matcher,
             String[] expectedWarnings,
             String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
@@ -1331,7 +1332,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType;
-            this.matcher = matcher;
+            @SuppressWarnings("unchecked")
+            Matcher<Object> downcast = (Matcher<Object>) matcher;
+            this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
             this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type));
@@ -1453,6 +1456,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      */
     public static class TypedData {
         public static final TypedData NULL = new TypedData(null, DataType.NULL, "<null>");
+        public static final TypedData MULTI_ROW_NULL = TypedData.multiRow(Collections.singletonList(null), DataType.NULL, "<null>");
 
         private final Object data;
         private final DataType type;
@@ -1581,7 +1585,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     throw new IllegalStateException("Multirow values require exactly 1 element to be a literal, got " + values.size());
                 }
 
-                return new Literal(Source.synthetic(name), values, type);
+                return new Literal(Source.synthetic(name), values.get(0), type);
             }
             return new Literal(Source.synthetic(name), data, type);
         }

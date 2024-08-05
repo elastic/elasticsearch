@@ -281,7 +281,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         TrainedModelAssignmentMetadata assignments = TrainedModelAssignmentMetadata.fromState(state);
         for (TrainedModelAssignment assignment : assignments.allAssignments().values()) {
             deploymentIds.add(assignment.getDeploymentId());
-            if (assignment.getAdaptiveAllocationsSettings() != null && assignment.getAdaptiveAllocationsSettings().getEnabled()) {
+            if (assignment.getAdaptiveAllocationsSettings() != null
+                && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
                 AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.computeIfAbsent(
                     assignment.getDeploymentId(),
                     key -> new AdaptiveAllocationsScaler(assignment.getDeploymentId(), assignment.totalTargetAllocations())

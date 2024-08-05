@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.TypesTests;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -130,7 +129,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolution() {
-        EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
+        EsIndex idx = new EsIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
@@ -1835,13 +1834,13 @@ public class AnalyzerTests extends ESTestCase {
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
             line 2:39: argument of [max(x)] must be [boolean, datetime, ip or numeric except unsigned_long or counter types],\
-             found value [max(x)] type [unsigned_long]
+             found value [x] type [unsigned_long]
             line 2:47: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:88: argument of [min(x)] must be [boolean, datetime, ip or numeric except unsigned_long or counter types],\
-             found value [min(x)] type [unsigned_long]
+             found value [x] type [unsigned_long]
             line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
              found value [x] type [unsigned_long]
             line 2:115: argument of [sum(x)] must be [numeric except unsigned_long or counter types],\
@@ -1855,13 +1854,13 @@ public class AnalyzerTests extends ESTestCase {
             line 2:10: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:18: argument of [max(x)] must be [boolean, datetime, ip or numeric except unsigned_long or counter types],\
-             found value [max(x)] type [version]
+             found value [x] type [version]
             line 2:26: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:67: argument of [min(x)] must be [boolean, datetime, ip or numeric except unsigned_long or counter types],\
-             found value [min(x)] type [version]
+             found value [x] type [version]
             line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
             line 2:94: argument of [sum(x)] must be [numeric except unsigned_long or counter types], found value [x] type [version]""");
     }
@@ -2128,7 +2127,7 @@ public class AnalyzerTests extends ESTestCase {
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true));
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = new IndexResolver(null, EsqlDataTypeRegistry.INSTANCE).mergedMappings("test*", caps);
+        IndexResolution resolution = new IndexResolver(null).mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

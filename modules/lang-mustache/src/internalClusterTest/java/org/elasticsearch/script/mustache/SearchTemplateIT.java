@@ -176,7 +176,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
               }
             }""");
 
-        GetStoredScriptResponse getResponse = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("testTemplate"));
+        GetStoredScriptResponse getResponse = safeExecute(
+            GetStoredScriptAction.INSTANCE,
+            new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "testTemplate")
+        );
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -199,9 +202,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             4
         );
 
-        assertAcked(safeExecute(TransportDeleteStoredScriptAction.TYPE, new DeleteStoredScriptRequest("testTemplate")));
+        assertAcked(
+            safeExecute(
+                TransportDeleteStoredScriptAction.TYPE,
+                new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "testTemplate")
+            )
+        );
 
-        getResponse = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("testTemplate"));
+        getResponse = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "testTemplate"));
         assertNull(getResponse.getSource());
     }
 
@@ -343,7 +351,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         for (int i = 1; i < iterations; i++) {
             putJsonStoredScript("git01", query.replace("{{slop}}", Integer.toString(-1)));
 
-            GetStoredScriptResponse getResponse = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest("git01"));
+            GetStoredScriptResponse getResponse = safeExecute(
+                GetStoredScriptAction.INSTANCE,
+                new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "git01")
+            );
             assertNotNull(getResponse.getSource());
 
             Map<String, Object> templateParams = new HashMap<>();
@@ -458,7 +469,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertAcked(
             safeExecute(
                 TransportPutStoredScriptAction.TYPE,
-                new PutStoredScriptRequest().id(id).content(new BytesArray(jsonContent), XContentType.JSON)
+                new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id(id)
+                    .content(new BytesArray(jsonContent), XContentType.JSON)
             )
         );
     }

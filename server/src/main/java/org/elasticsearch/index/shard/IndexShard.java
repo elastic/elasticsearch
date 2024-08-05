@@ -56,13 +56,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -626,7 +624,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (resyncStarted == false) {
                         throw new IllegalStateException("cannot start resync while it's already in progress");
                     }
-                    bumpPrimaryTerm(newPrimaryTerm, () -> {
+                    bumpPrimaryTerm(newPrimaryTerm, (completionListener) -> {
                         shardStateUpdated.await();
                         assert pendingPrimaryTerm == newPrimaryTerm
                             : "shard term changed on primary. expected ["
@@ -692,6 +690,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             });
                         } catch (final AlreadyClosedException e) {
                             // okay, the index was deleted
+                        } finally {
+                            completionListener.onResponse(null);
                         }
                     }, null);
                 }
@@ -3624,7 +3624,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private <E extends Exception> void bumpPrimaryTerm(
         final long newPrimaryTerm,
-        final CheckedRunnable<E> onBlocked,
+        final CheckedConsumer<ActionListener<Void>, E> onBlocked,
         @Nullable ActionListener<Releasable> combineWithAction
     ) {
         assert Thread.holdsLock(mutex);
@@ -3654,6 +3654,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             @Override
             public void onResponse(final Releasable releasable) {
                 final Releasable releaseOnce = Releasables.releaseOnce(releasable);
+                var completionListener = ActionListener.<Void>wrap(unused -> {
+                    if (combineWithAction != null) {
+                        combineWithAction.onResponse(releasable);
+                    } else {
+                        releaseOnce.close();
+                    }
+                }, e -> {
+                    if (combineWithAction == null) {
+                        // otherwise leave it to combineWithAction to release the permit
+                        releaseOnce.close();
+                    }
+                    innerFail(e);
+                });
                 try {
                     assert getOperationPrimaryTerm() <= pendingPrimaryTerm;
                     termUpdated.await();
@@ -3661,20 +3674,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // in the order submitted. We need to guard against another term bump
                     if (getOperationPrimaryTerm() < newPrimaryTerm) {
                         replicationTracker.setOperationPrimaryTerm(newPrimaryTerm);
-                        onBlocked.run();
+                        onBlocked.accept(completionListener);
+                    } else {
+                        completionListener.onResponse(null);
                     }
                 } catch (final Exception e) {
-                    if (combineWithAction == null) {
-                        // otherwise leave it to combineWithAction to release the permit
-                        releaseOnce.close();
-                    }
-                    innerFail(e);
-                } finally {
-                    if (combineWithAction != null) {
-                        combineWithAction.onResponse(releasable);
-                    } else {
-                        releaseOnce.close();
-                    }
+                    completionListener.onFailure(e);
                 }
             }
         }, 30, TimeUnit.MINUTES);
@@ -3795,7 +3800,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardNotStartedException(shardId, shardState);
                     }
 
-                    bumpPrimaryTerm(opPrimaryTerm, () -> {
+                    bumpPrimaryTerm(opPrimaryTerm, (completionListener) -> {
                         updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                         final long currentGlobalCheckpoint = getLastKnownGlobalCheckpoint();
                         final long maxSeqNo = seqNoStats().getMaxSeqNo();
@@ -3806,12 +3811,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             maxSeqNo
                         );
                         if (currentGlobalCheckpoint < maxSeqNo) {
-                            // TODO FIX ME
-                            var future = new PlainActionFuture<Void>();
-                            resetEngineToGlobalCheckpoint(future);
-                            FutureUtils.get(future);
+                            resetEngineToGlobalCheckpoint(completionListener);
                         } else {
                             getEngine().rollTranslogGeneration();
+                            completionListener.onResponse(null);
                         }
                     }, allowCombineOperationWithPrimaryTermUpdate ? operationListener : null);
 

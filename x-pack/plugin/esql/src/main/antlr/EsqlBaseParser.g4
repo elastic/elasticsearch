@@ -53,6 +53,7 @@ booleanExpression
     : NOT booleanExpression                                                      #logicalNot
     | valueExpression                                                            #booleanDefault
     | regexBooleanExpression                                                     #regexExpression
+    | matchBooleanExpression                                                     #matchExpression
     | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
@@ -62,6 +63,10 @@ booleanExpression
 regexBooleanExpression
     : valueExpression (NOT)? kind=LIKE pattern=string
     | valueExpression (NOT)? kind=RLIKE pattern=string
+    ;
+
+matchBooleanExpression
+    : qualifiedName MATCH queryString=string
     ;
 
 valueExpression

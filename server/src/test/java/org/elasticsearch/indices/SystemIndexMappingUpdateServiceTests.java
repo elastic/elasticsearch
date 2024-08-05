@@ -208,8 +208,18 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         );
     }
 
-    // TODO[wrb]: add test where we have the old mappings version but not the new one
-    // Is this where we "placeholder" a "distant future" version string?
+    /**
+     * Check that the manager will try to upgrade indices when we have the old mappings version but not the new one
+     */
+    public void testManagerProcessesIndicesWithOldMappingsVersion() {
+        assertThat(
+            SystemIndexMappingUpdateService.getUpgradeStatus(
+                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", null)))),
+                DESCRIPTOR
+            ),
+            equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+        );
+    }
 
     /**
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.

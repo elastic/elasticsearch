@@ -63,7 +63,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Dat
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -461,7 +460,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (stats.expressionsResolved() == false) {
                 AttributeMap<Expression> resolved = new AttributeMap<>();
                 for (Expression e : groupings) {
-                    Attribute attr = Expressions.attribute(e);
+                    // In case of union types, the expression may contain yet-to-be resolved conversion functions, so do not perform a
+                    // type check here.
+                    Attribute attr = Expressions.attributeUnchecked(e);
                     if (attr != null && attr.resolved()) {
                         resolved.put(attr, attr);
                     }
@@ -1067,12 +1068,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     target,
                     e.getMessage()
                 );
-                return new UnresolvedAttribute(
-                    from.source(),
-                    String.valueOf(from.fold()),
-                    null,
-                    message
-                );
+                return new UnresolvedAttribute(from.source(), String.valueOf(from.fold()), null, message);
             }
         }
     }
@@ -1139,15 +1135,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return esr;
             });
             return plan;
-        }
-
-        private Expression resolveAttribute(UnresolvedAttribute ua, Map<Attribute, Expression> resolved) {
-            var named = resolveAgainstList(ua, resolved.keySet());
-            return switch (named.size()) {
-                case 0 -> ua;
-                case 1 -> named.get(0).equals(ua) ? ua : resolved.get(named.get(0));
-                default -> ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
-            };
         }
 
         private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
@@ -1228,8 +1215,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
-            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(LogicalPlan.class, p ->
-                p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
+            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(
+                LogicalPlan.class,
+                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
             );
 
             // To drop synthetic attributes at the end, we need to compute the plan's output.
@@ -1243,7 +1231,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
                 String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
-                return new UnsupportedAttribute(fa.source(), fa.name(), new UnsupportedEsField(imf.getName(), types), unresolvedMessage, fa.id());
+                return new UnsupportedAttribute(
+                    fa.source(),
+                    fa.name(),
+                    new UnsupportedEsField(imf.getName(), types),
+                    unresolvedMessage,
+                    fa.id()
+                );
             }
             return fa;
         }

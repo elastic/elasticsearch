@@ -1087,7 +1087,7 @@ FROM sample_data, sample_data_ts_long
            null | 172.21.0.5   |             1232382 | Disconnected
 ;
 
-multiIndexIndirectUseOfUnionTypesInWildcardKeep2-Ignore
+multiIndexIndirectUseOfUnionTypesInWildcardKeep2
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.
 required_capability: union_types

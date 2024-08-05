@@ -55,7 +55,17 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         return synthetic;
     }
 
+    /**
+     * Try to return either {@code this} if it is an {@link Attribute}, or a {@link ReferenceAttribute} to it otherwise.
+     * Return an {@link UnresolvedAttribute} if this is unresolved.
+     */
     public abstract Attribute toAttribute();
+
+    /**
+     * Return either {@code this} if it is an {@link Attribute}, or a {@link ReferenceAttribute} to it otherwise.
+     * Do not return an {@link UnresolvedAttribute} if this is unresolved.
+     */
+    public abstract Attribute toAttributeUnchecked();
 
     @Override
     public int hashCode() {

@@ -132,6 +132,11 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    public Attribute toAttributeUnchecked() {
+        return this;
+    }
+
+    @Override
     public int semanticHash() {
         return id().hashCode();
     }

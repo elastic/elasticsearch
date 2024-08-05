@@ -43,4 +43,9 @@ public abstract class UnresolvedNamedExpression extends NamedExpression implemen
     public Attribute toAttribute() {
         throw new UnresolvedException("attribute", this);
     }
+
+    @Override
+    public Attribute toAttributeUnchecked() {
+        throw new UnresolvedException("attribute", this);
+    }
 }

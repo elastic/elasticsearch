@@ -107,7 +107,7 @@ public final class ChunkedZipResponse implements Releasable {
     public ChunkedZipResponse(String filename, RestChannel restChannel, Releasable onCompletion) {
         this.filename = filename;
         this.restChannel = restChannel;
-        this.listenersRefs = AbstractRefCounted.of(() -> enqueueEntry(null, null, ActionListener.releasing(onCompletion)));
+        this.listenersRefs = AbstractRefCounted.of(() -> enqueueEntry(null, NO_MORE_ENTRIES, ActionListener.releasing(onCompletion)));
         this.rootListenerRef = Releasables.releaseOnce(listenersRefs::decRef);
     }
 
@@ -272,9 +272,8 @@ public final class ChunkedZipResponse implements Releasable {
         private ZipEntry zipEntry;
 
         /**
-         * The body part which is currently being transmitted.
+         * The body part which is currently being transmitted, or {@link #NO_MORE_ENTRIES} if we're transmitting the zip file footer.
          */
-        @Nullable // when finishing the transmission of the whole response
         private ChunkedRestResponseBodyPart bodyPart;
 
         private boolean isPartComplete;
@@ -396,9 +395,9 @@ public final class ChunkedZipResponse implements Releasable {
 
         private void writeNextBytes(int sizeHint, Recycler<BytesRef> recycler, ArrayList<Releasable> releasables) throws IOException {
             try {
-                if (bodyPart == null) {
-                    // When the last ref from listenersRefs is completed we enqueue a final null entry to trigger the transmission of the
-                    // zip file footer, which happens here:
+                if (bodyPart == NO_MORE_ENTRIES) {
+                    // When the last ref from listenersRefs is completed we enqueue a final sentinel entry to trigger the transmission of
+                    // the zip file footer, which happens here:
                     finishResponse(releasables);
                     return;
                 }
@@ -488,4 +487,39 @@ public final class ChunkedZipResponse implements Releasable {
             return ZIP_CONTENT_TYPE;
         }
     }
+
+    /**
+     * Sentinel body part indicating the end of the zip file.
+     */
+    private static final ChunkedRestResponseBodyPart NO_MORE_ENTRIES = new ChunkedRestResponseBodyPart() {
+        @Override
+        public boolean isPartComplete() {
+            assert false : "never called";
+            return true;
+        }
+
+        @Override
+        public boolean isLastPart() {
+            assert false : "never called";
+            return true;
+        }
+
+        @Override
+        public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+            assert false : "never called";
+            listener.onFailure(new IllegalStateException("impossible"));
+        }
+
+        @Override
+        public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+            assert false : "never called";
+            return ReleasableBytesReference.empty();
+        }
+
+        @Override
+        public String getResponseContentTypeString() {
+            assert false : "never called";
+            return ZIP_CONTENT_TYPE;
+        }
+    };
 }

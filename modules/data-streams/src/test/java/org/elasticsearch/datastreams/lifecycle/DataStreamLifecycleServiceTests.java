@@ -1392,13 +1392,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         {
             // non time_series indices are not within time bounds (they don't have any)
             IndexMetadata indexMeta = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-                        .build()
-                )
+                .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current()))
                 .build();
 
             Metadata newMetadata = Metadata.builder(clusterState.metadata()).put(indexMeta, true).build();
@@ -1596,12 +1590,14 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         Map<String, IndexMetadata> indices = new HashMap<>();
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 10))
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-            .build();
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).version(randomLong()).settings(indexSettings);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .version(randomLong())
+            .settings(
+                indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 3)).put(
+                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                    IndexVersion.current()
+                )
+            );
         if (customDataStreamLifecycleMetadata != null) {
             indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customDataStreamLifecycleMetadata);
         }

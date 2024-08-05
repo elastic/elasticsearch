@@ -2379,4 +2379,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public SearchUsage searchUsage() {
         return searchUsage;
     }
+
+    public void searchUsage(SearchUsage searchUsage) {
+        assert this.searchUsage == null : "searchUsage can only be set for testing purposes and should not override the existing value";
+        this.searchUsage = searchUsage;
+    }
 }

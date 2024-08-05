@@ -31,6 +31,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.usage.SearchUsage;
 
 import java.util.Arrays;
 import java.util.List;
@@ -598,6 +599,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setRuntimeMappings(Map<String, Object> runtimeMappings) {
         sourceBuilder().runtimeMappings(runtimeMappings);
+        return this;
+    }
+
+    /**
+     * Sets search usage information. This needs to be provided explicitly as SearchUsage is populated during request parsing.
+     */
+    public SearchRequestBuilder setSearchUsage(SearchUsage searchUsage) {
+        sourceBuilder().searchUsage(searchUsage);
         return this;
     }
 }

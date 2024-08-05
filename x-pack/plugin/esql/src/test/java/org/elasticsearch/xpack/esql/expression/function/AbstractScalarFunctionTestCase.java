@@ -11,7 +11,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -20,28 +19,29 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -238,47 +238,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
-        Expression expression = buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
-        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        List<Object> simpleData = testCase.getDataValues();
-        try (EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext())) {
-            BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-            Block[] orig = BlockUtils.fromListRow(blockFactory, simpleData);
-            for (int i = 0; i < orig.length; i++) {
-                List<Object> data = new ArrayList<>();
-                Block[] blocks = new Block[orig.length];
-                for (int b = 0; b < blocks.length; b++) {
-                    if (b == i) {
-                        blocks[b] = orig[b].elementType().newBlockBuilder(1, blockFactory).appendNull().build();
-                        data.add(null);
-                    } else {
-                        blocks[b] = orig[b];
-                        data.add(simpleData.get(b));
-                    }
-                }
-                try (Block block = eval.eval(new Page(blocks))) {
-                    assertSimpleWithNulls(data, block, i);
-                }
-            }
-
-            // Note: the null-in-fast-null-out handling prevents any exception from being thrown, so the warnings provided in some test
-            // cases won't actually be registered. This isn't an issue for unary functions, but could be an issue for n-ary ones, if
-            // function processing of the first parameter(s) could raise an exception/warning. (But hasn't been the case so far.)
-            // N-ary non-MV functions dealing with one multivalue (before hitting the null parameter injected above) will now trigger
-            // a warning ("SV-function encountered a MV") that thus needs to be checked.
-            if (this instanceof AbstractMultivalueFunctionTestCase == false
-                && simpleData.stream().anyMatch(List.class::isInstance)
-                && testCase.getExpectedWarnings() != null) {
-                assertWarnings(testCase.getExpectedWarnings());
-            }
-        }
-    }
-
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         Expression expression = buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
@@ -418,5 +377,31 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             }))
             .forEach(suppliers::add);
         return suppliers;
+    }
+
+    /**
+     * Build a test case checking for arithmetic overflow.
+     */
+    protected static TestCaseSupplier arithmeticExceptionOverflowCase(
+        DataType dataType,
+        Supplier<Object> lhsSupplier,
+        Supplier<Object> rhsSupplier,
+        String evaluator
+    ) {
+        String typeNameOverflow = dataType.typeName().toLowerCase(Locale.ROOT) + " overflow";
+        return new TestCaseSupplier(
+            "<" + typeNameOverflow + ">",
+            List.of(dataType),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhsSupplier.get(), dataType, "lhs"),
+                    new TestCaseSupplier.TypedData(rhsSupplier.get(), dataType, "rhs")
+                ),
+                evaluator + "[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                dataType,
+                is(nullValue())
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.ArithmeticException: " + typeNameOverflow)
+        );
     }
 }

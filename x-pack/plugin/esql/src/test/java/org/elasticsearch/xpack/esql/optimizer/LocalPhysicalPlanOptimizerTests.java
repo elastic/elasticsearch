@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -761,6 +762,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       estimatedRowSize[324]
      */
     public void testSingleMatchFilterPushdown() {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where first_name match "Anna"
@@ -791,6 +794,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *         [_doc{f}#22], limit[1000], sort[[FieldSort[field=emp_no{f}#12, direction=ASC, nulls=LAST]]] estimatedRowSize[336]
      */
     public void testMultipleMatchFilterPushdown() {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where first_name match "Anna" OR first_name match "Anneke"

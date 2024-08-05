@@ -1,56 +1,72 @@
 [[repository-azure]]
 === Azure repository
 
-You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for <<snapshot-restore,Snapshot/Restore>>.
+You can use
+https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure
+Blob storage] as a repository for <<snapshot-restore,Snapshot and restore>>.
 
 [[repository-azure-usage]]
 ==== Setup
 
-To enable Azure repositories, you have first to define your Azure storage settings as
-{ref}/secure-settings.html[secure settings].
+To enable Azure repositories, first configure an Azure repository client by
+specifying one or more settings of the form
+`azure.client.CLIENT_NAME.SETTING_NAME`. By default, `azure` repositories use a
+client named `default`, but you may specify a different client name when
+registering each repository.
 
-You can define these settings before the node is started, or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>> after the settings are defined to apply them to a running node.
-
-[source,sh]
-----------------------------------------------------------------
-bin/elasticsearch-keystore add azure.client.default.account
-bin/elasticsearch-keystore add azure.client.default.key
-----------------------------------------------------------------
-
-Note that you can also define more than one account:
+The only mandatory Azure repository client setting is `account`, which is a
+{ref}/secure-settings.html[secure setting] defined in the <<secure-settings,{es}
+keystore>>. To provide this setting, use the `elasticsearch-keystore` tool on
+each node:
 
 [source,sh]
 ----------------------------------------------------------------
 bin/elasticsearch-keystore add azure.client.default.account
-bin/elasticsearch-keystore add azure.client.default.key
+----------------------------------------------------------------
+
+If you adjust this setting after a node has started, call the
+<<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>> to
+reload the new value.
+
+You may define more than one client by setting their `account` values. For
+instance, to set the `default` client and another client called `secondary`, run
+the following commands on each node:
+
+[source,sh]
+----------------------------------------------------------------
+bin/elasticsearch-keystore add azure.client.default.account
 bin/elasticsearch-keystore add azure.client.secondary.account
+----------------------------------------------------------------
+
+The `key` and `sas_token` settings are also secure settings and can be set using
+commands like the following:
+
+[source,sh]
+----------------------------------------------------------------
+bin/elasticsearch-keystore add azure.client.default.key
 bin/elasticsearch-keystore add azure.client.secondary.sas_token
 ----------------------------------------------------------------
 
-For more information about these settings, see
-<<repository-azure-client-settings>>.
+Other Azure repository client settings must be set in `elasticsearch.yml` before
+the node starts. For example:
 
-[IMPORTANT]
-.Supported Azure Storage Account types
-===============================================
-The Azure repository type works with all Standard storage accounts
+[source,yaml]
+----
+azure.client.default.timeout: 10s
+azure.client.default.max_retries: 7
+azure.client.default.endpoint_suffix: core.chinacloudapi.cn
+azure.client.secondary.timeout: 30s
+----
 
-* Standard Locally Redundant Storage - `Standard_LRS`
-* Standard Zone-Redundant Storage - `Standard_ZRS`
-* Standard Geo-Redundant Storage - `Standard_GRS`
-* Standard Read Access Geo-Redundant Storage - `Standard_RAGRS`
+In this example, the client side timeout is `10s` per try for repositories which
+use the `default` client, with `7` retries before failing and an endpoint
+suffix of `core.chinacloudapi.cn`. Repositories which use the `secondary` client
+will have a timeout of `30s` per try, but will use the default endpoint and will
+fail after the default number of retries.
 
-https://azure.microsoft.com/en-gb/documentation/articles/storage-premium-storage[Premium Locally Redundant Storage] (`Premium_LRS`) is **not supported** as it is only usable as VM disk storage, not as general storage.
-===============================================
-
-[[repository-azure-client-settings]]
-==== Client settings
-
-The client that you use to connect to Azure has a number of settings available.
-The settings have the form `azure.client.CLIENT_NAME.SETTING_NAME`. By default,
-`azure` repositories use a client named `default`, but this can be modified using
-the <<repository-azure-repository-settings,repository setting>> `client`.
-For example:
+Once an Azure repository client is configured correctly, register an Azure
+repository as follows, providing the client name using the `client`
+<<repository-azure-repository-settings,repository setting>>:
 
 [source,console]
 ----
@@ -64,48 +80,45 @@ PUT _snapshot/my_backup
 ----
 // TEST[skip:we don't have azure setup while testing this]
 
-Most client settings can be added to the `elasticsearch.yml` configuration file.
-For example:
+If you are using the `default` client, you may omit the `client` repository
+setting:
 
-[source,yaml]
+[source,console]
 ----
-azure.client.default.timeout: 10s
-azure.client.default.max_retries: 7
-azure.client.default.endpoint_suffix: core.chinacloudapi.cn
-azure.client.secondary.timeout: 30s
+PUT _snapshot/my_backup
+{
+  "type": "azure"
+}
 ----
-
-In this example, the client side timeout is `10s` per try for the `default`
-account with `7` retries before failing. The endpoint suffix is
-`core.chinacloudapi.cn` and `30s` per try for the `secondary` account with `3`
-retries.
-
-The `account`, `key`, and `sas_token` storage settings are reloadable secure
-settings, which you add to the {es} keystore. For more information about
-creating and updating the {es} keystore, see
-{ref}/secure-settings.html[Secure settings]. After you reload the settings, the
-internal Azure clients, which are used to transfer the snapshot, utilize the
-latest settings from the keystore.
+// TEST[skip:we don't have azure setup while testing this]
 
 NOTE: In progress snapshot or restore jobs will not be preempted by a *reload*
 of the storage secure settings. They will complete using the client as it was
 built when the operation started.
 
-The following list contains the available client settings. Those that must be
-stored in the keystore are marked as "secure"; the other settings belong in the
-`elasticsearch.yml` file.
+[[repository-azure-client-settings]]
+==== Client settings
 
-`account` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
-  The Azure account name, which is used by the repository's internal Azure client.
+The following list describes the available client settings. Those that must be
+stored in the keystore are marked as ({ref}/secure-settings.html[Secure],
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable]); the other
+settings must be stored in the `elasticsearch.yml` file. The default
+`CLIENT_NAME` is `default` but you may configure a client with a different name
+and specify that client by name when registering a repository.
 
-`endpoint_suffix`::
+`azure.client.CLIENT_NAME.account` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
+  The Azure account name, which is used by the repository's internal Azure
+  client. This setting is required for all clients.
+
+`azure.client.CLIENT_NAME.endpoint_suffix`::
   The Azure endpoint suffix to connect to. The default value is
   `core.windows.net`.
 
-`key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
-  The Azure secret key, which is used by the repository's internal Azure client. Alternatively, use `sas_token`.
+`azure.client.CLIENT_NAME.key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
+  The Azure secret key, which is used by the repository's internal Azure client.
+  Alternatively, use `sas_token`.
 
-`max_retries`::
+`azure.client.CLIENT_NAME.max_retries`::
     The number of retries to use when an Azure request fails. This setting helps
     control the exponential backoff policy. It specifies the number of retries
     that must occur before the snapshot fails. The default value is `3`. The
@@ -113,19 +126,20 @@ stored in the keystore are marked as "secure"; the other settings belong in the
     of wait time before retrying after a first timeout or failure. The maximum
     backoff period is defined by Azure SDK as `90s`.
 
-`proxy.host`::
-  The host name of a proxy to connect to Azure through. For example: `azure.client.default.proxy.host: proxy.host`.
+`azure.client.CLIENT_NAME.proxy.host`::
+  The host name of a proxy to connect to Azure through. By default, no proxy is
+  used.
 
-`proxy.port`::
-  The port of a proxy to connect to Azure through. For example, `azure.client.default.proxy.port: 8888`.
+`azure.client.CLIENT_NAME.proxy.port`::
+  The port of a proxy to connect to Azure through. By default, no proxy is used.
 
-`proxy.type`::
+`azure.client.CLIENT_NAME.proxy.type`::
  Register a proxy type for the client. Supported values are `direct`, `http`,
  and `socks`. For example: `azure.client.default.proxy.type: http`. When
  `proxy.type` is set to `http` or `socks`, `proxy.host` and `proxy.port` must
  also be provided. The default value is `direct`.
 
-`sas_token` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
+`azure.client.CLIENT_NAME.sas_token` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
   A shared access signatures (SAS) token, which the repository's internal Azure
   client uses for authentication. The SAS token must have read (r), write (w),
   list (l), and delete (d) permissions for the repository base path and all its
@@ -133,28 +147,79 @@ stored in the keystore are marked as "secure"; the other settings belong in the
   to resource types service (s), container (c), and object (o). Alternatively,
   use `key`.
 
-`timeout`::
-  The client side timeout for any single request to Azure. The value should
-  specify the time unit. For example, a value of `5s` specifies a 5 second
+`azure.client.CLIENT_NAME.timeout`::
+  The client side timeout for any single request to Azure, as a
+  <<time-units,time unit>>. For example, a value of `5s` specifies a 5 second
   timeout. There is no default value, which means that {es} uses the
-  https://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
-  set by the Azure client (known as 5 minutes). This setting can be defined
-  globally, per account, or both.
+  https://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default
+  value] set by the Azure client.
 
-`endpoint`::
-  The Azure endpoint to connect to. It must include the protocol used to connect to Azure.
+`azure.client.CLIENT_NAME.endpoint`::
+  The Azure endpoint to connect to. It must include the protocol used to connect
+  to Azure.
 
-`secondary_endpoint`::
-  The Azure secondary endpoint to connect to. It must include the protocol used to connect to Azure.
+`azure.client.CLIENT_NAME.secondary_endpoint`::
+  The Azure secondary endpoint to connect to. It must include the protocol used
+  to connect to Azure.
+
+[[repository-azure-default-credentials]]
+[NOTE]
+.Obtaining credentials from the environment
+======================================================
+If you specify neither the `key` nor the `sas_token` settings for a client then
+{es} will use the Azure SDK's
+https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable[`DefaultAzureCredential`]
+to attempt to obtain credentials from the environment in which it is running.
+This is ideal for when running {es} on the Azure platform.
+
+When running {es} on an
+https://azure.microsoft.com/en-gb/products/virtual-machines[Azure Virtual
+Machine], you should use
+https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview[Azure
+Managed Identity] to provide credentials to {es}. To use Azure Managed Identity,
+assign a suitably authorized identity to the Azure Virtual Machine on which {es}
+is running.
+
+When running {es} in
+https://azure.microsoft.com/en-gb/products/kubernetes-service[Azure Kubernetes
+Service], for instance using {eck-ref}[{eck}], you should use
+https://azure.github.io/azure-workload-identity/docs/introduction.html[Azure
+Workload Identity] to provide credentials to {es}. To use Azure Workload
+Identity, mount the `azure-identity-token` volume as a subdirectory of the
+<<config-files-location,{es} config directory>> and set the
+`AZURE_FEDERATED_TOKEN_FILE` environment variable to point to a file called
+`azure-identity-token` within the mounted volume.
+
+The `DefaultAzureCredential` mechanism supports several other ways for {es} to
+obtain credentials from its environment, but we recommend using only one of the
+methods mentioned above.
+======================================================
+
+
 
 [[repository-azure-repository-settings]]
 ==== Repository settings
 
-The Azure repository supports following settings:
+The Azure repository supports the following settings, which may be specified
+when registering an Azure repository as follows:
+
+[source,console]
+----
+PUT _snapshot/my_backup
+{
+  "type": "azure",
+  "settings": {
+    "client": "secondary",
+    "container": "my_container",
+    "base_path": "snapshots_prefix"
+  }
+}
+----
+// TEST[skip:we don't have azure setup while testing this]
 
 `client`::
 
-    Azure named client to use. Defaults to `default`.
+    The name of the Azure repository client to use. Defaults to `default`.
 
 `container`::
 
@@ -172,13 +237,15 @@ multiple deployments may share the same bucket.
 
 `chunk_size`::
 
-    Big files can be broken down into multiple smaller blobs in the blob store during snapshotting.
-    It is not recommended to change this value from its default unless there is an explicit reason for limiting the
-    size of blobs in the repository. Setting a value lower than the default can result in an increased number of API
-    calls to the Azure blob store during snapshot create as well as restore operations compared to using the default
-    value and thus make both operations slower as well as more costly.
-    Specify the chunk size as a value and unit, for example:
-    `10MB`, `5KB`, `500B`. Defaults to the maximum size of a blob in the Azure blob store which is `5TB`.
+    Big files can be broken down into multiple smaller blobs in the blob store
+    during snapshotting. It is not recommended to change this value from its
+    default unless there is an explicit reason for limiting the size of blobs in
+    the repository. Setting a value lower than the default can result in an
+    increased number of API calls to the Azure blob store during snapshot create
+    as well as restore operations compared to using the default value and thus
+    make both operations slower as well as more costly. Specify the chunk size
+    as a <<byte-units,byte unit>>, for example: `10MB`, `5KB`, `500B`. Defaults
+    to the maximum size of a blob in the Azure blob store which is `5TB`.
 
 `compress`::
 
@@ -193,59 +260,6 @@ include::repository-shared-settings.asciidoc[]
     `primary_only` or `secondary_only`. Defaults to `primary_only`. Note that if you set it
     to `secondary_only`, it will force `readonly` to true.
 
-Some examples, using scripts:
-
-[source,console]
-----
-# The simplest one
-PUT _snapshot/my_backup1
-{
-  "type": "azure"
-}
-
-# With some settings
-PUT _snapshot/my_backup2
-{
-  "type": "azure",
-  "settings": {
-    "container": "backup-container",
-    "base_path": "backups",
-    "chunk_size": "32MB",
-    "compress": true
-  }
-}
-
-
-# With two accounts defined in elasticsearch.yml (my_account1 and my_account2)
-PUT _snapshot/my_backup3
-{
-  "type": "azure",
-  "settings": {
-    "client": "secondary"
-  }
-}
-PUT _snapshot/my_backup4
-{
-  "type": "azure",
-  "settings": {
-    "client": "secondary",
-    "location_mode": "primary_only"
-  }
-}
-----
-// TEST[skip:we don't have azure setup while testing this]
-
-Example using Java:
-
-[source,java]
-----
-client.admin().cluster().preparePutRepository("my_backup_java1")
-    .setType("azure").setSettings(Settings.builder()
-        .put(Storage.CONTAINER, "backup-container")
-        .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
-    ).get();
-----
-
 [[repository-azure-validation]]
 ==== Repository validation rules
 
@@ -259,6 +273,19 @@ following naming rules:
 permitted in container names.
 * All letters in a container name must be lowercase.
 * Container names must be from 3 through 63 characters long.
+
+[IMPORTANT]
+.Supported Azure Storage Account types
+===============================================
+The Azure repository type works with all Standard storage accounts
+
+* Standard Locally Redundant Storage - `Standard_LRS`
+* Standard Zone-Redundant Storage - `Standard_ZRS`
+* Standard Geo-Redundant Storage - `Standard_GRS`
+* Standard Read Access Geo-Redundant Storage - `Standard_RAGRS`
+
+https://azure.microsoft.com/en-gb/documentation/articles/storage-premium-storage[Premium Locally Redundant Storage] (`Premium_LRS`) is **not supported** as it is only usable as VM disk storage, not as general storage.
+===============================================
 
 [[repository-azure-linearizable-registers]]
 ==== Linearizable register implementation

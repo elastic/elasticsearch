@@ -298,7 +298,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> snapshot");
         final String index = "test-idx";
-        assertAcked(prepareCreate(index, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(index, 1, indexSettings(1, 0)));
         for (int i = 0; i < 10; i++) {
             indexDoc(index, Integer.toString(i), "foo", "bar" + i);
         }

@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.index;
+package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.xpack.esql.core.type.EsField;
 

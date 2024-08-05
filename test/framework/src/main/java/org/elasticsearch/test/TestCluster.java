@@ -10,21 +10,23 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -35,7 +37,7 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -69,14 +71,116 @@ public abstract class TestCluster {
      * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
     public void wipe(Set<String> excludeTemplates) {
-        // First delete data streams, because composable index templates can't be deleted if these templates are still used by data streams.
-        wipeAllDataStreams();
-        wipeAllComposableIndexTemplates(excludeTemplates);
-        wipeAllComponentTemplates(excludeTemplates);
+        var deleteLegacyTemplates = wipeAllTemplates(excludeTemplates);
+        final PlainActionFuture<Void> templatesDeleted = new PlainActionFuture<>();
+        final PlainActionFuture<Void> indicesAndRepositoriesDeleted = new PlainActionFuture<>();
+        if (size() > 0) {
+            // First delete data streams, because composable index templates can't be deleted if these templates are still used by data
+            // streams.
+            client().execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request("*").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        assertAcked(acknowledgedResponse);
+                        wipeIndicesAsync(
+                            new String[] { "_all" },
+                            indicesAndRepositoriesDeleted.delegateFailure((l, r) -> wipeRepositories(l))
+                        );
+                        deleteTemplates(excludeTemplates, templatesDeleted);
+                    }
 
-        wipeIndices("_all");
-        wipeAllTemplates(excludeTemplates);
-        wipeRepositories();
+                    @Override
+                    public void onFailure(Exception e) {
+                        // Ignore if action isn't registered, because data streams is a module and
+                        // if the delete action isn't registered then there no data streams to delete.
+                        if (e.getMessage().startsWith("failed to find action") == false) {
+                            templatesDeleted.onFailure(e);
+                        } else {
+                            onResponse(AcknowledgedResponse.TRUE);
+                        }
+                    }
+                }
+            );
+        } else {
+            templatesDeleted.onResponse(null);
+            indicesAndRepositoriesDeleted.onResponse(null);
+        }
+        try {
+            templatesDeleted.get();
+            indicesAndRepositoriesDeleted.get();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        try {
+            deleteLegacyTemplates.get();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> templatesDeleted) {
+        final ListenableActionFuture<AcknowledgedResponse> deleteComposableTemplates = new ListenableActionFuture<>();
+        client().execute(
+            GetComposableIndexTemplateAction.INSTANCE,
+            new GetComposableIndexTemplateAction.Request("*"),
+            deleteComposableTemplates.delegateFailure((l, r) -> {
+                var templates = r.indexTemplates()
+                    .keySet()
+                    .stream()
+                    .filter(template -> excludeTemplates.contains(template) == false)
+                    .toArray(String[]::new);
+                if (templates.length == 0) {
+                    l.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
+                    client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request, l);
+                }
+            })
+        );
+        client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"), new ActionListener<>() {
+            @Override
+            public void onResponse(GetComponentTemplateAction.Response response) {
+                var componentTemplates = response.getComponentTemplates()
+                    .keySet()
+                    .stream()
+                    .filter(template -> excludeTemplates.contains(template) == false)
+                    .toArray(String[]::new);
+                deleteComposableTemplates.addListener(templatesDeleted.delegateFailure((l, r) -> {
+                    assertAcked(r);
+                    if (componentTemplates.length == 0) {
+                        l.onResponse(null);
+                        return;
+                    }
+                    client().execute(
+                        TransportDeleteComponentTemplateAction.TYPE,
+                        new TransportDeleteComponentTemplateAction.Request(componentTemplates),
+                        l.delegateFailureAndWrap((ll, rr) -> {
+                            assertAcked(rr);
+                            ll.onResponse(null);
+                        })
+                    );
+                }));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                deleteComposableTemplates.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        assertAcked(acknowledgedResponse);
+                        templatesDeleted.onFailure(e);
+                    }
+
+                    @Override
+                    public void onFailure(Exception ex) {
+                        ex.addSuppressed(e);
+                        templatesDeleted.onFailure(ex);
+                    }
+                });
+            }
+        });
     }
 
     /**
@@ -136,52 +240,96 @@ public abstract class TestCluster {
      * all indices are removed.
      */
     public void wipeIndices(String... indices) {
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        wipeIndicesAsync(indices, future);
+        try {
+            future.get();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private void wipeIndicesAsync(String[] indices, ActionListener<Void> listener) {
         assert indices != null && indices.length > 0;
-        if (size() > 0) {
-            try {
-                // include wiping hidden indices!
-                assertAcked(
-                    client().admin()
-                        .indices()
-                        .prepareDelete(indices)
-                        .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false))
-                );
-            } catch (IndexNotFoundException e) {
-                // ignore
-            } catch (IllegalArgumentException e) {
-                // Happens if `action.destructive_requires_name` is set to true
-                // which is the case in the CloseIndexDisableCloseAllTests
-                if ("_all".equals(indices[0])) {
-                    ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-                    ArrayList<String> concreteIndices = new ArrayList<>();
-                    for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
-                        concreteIndices.add(indexMetadata.getIndex().getName());
-                    }
-                    if (concreteIndices.isEmpty() == false) {
-                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(new String[0])));
+        // include wiping hidden indices!
+        client().admin()
+            .indices()
+            .prepareDelete(indices)
+            .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false))
+            .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    assertAcked(acknowledgedResponse);
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Throwable t = ExceptionsHelper.unwrap(e, IndexNotFoundException.class, IllegalArgumentException.class);
+                    if (t instanceof IndexNotFoundException) {
+                        // ignore
+                        listener.onResponse(null);
+                    } else if (t instanceof IllegalArgumentException) {
+                        // Happens if `action.destructive_requires_name` is set to true
+                        // which is the case in the CloseIndexDisableCloseAllTests
+                        if ("_all".equals(indices[0])) {
+                            ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+                            ArrayList<String> concreteIndices = new ArrayList<>();
+                            for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
+                                concreteIndices.add(indexMetadata.getIndex().getName());
+                            }
+                            if (concreteIndices.isEmpty() == false) {
+                                client().admin()
+                                    .indices()
+                                    .prepareDelete(concreteIndices.toArray(Strings.EMPTY_ARRAY))
+                                    .execute(listener.delegateFailure((l, r) -> {
+                                        assertAcked(r);
+                                        l.onResponse(null);
+                                    }));
+                            }
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    } else {
+                        listener.onFailure(e);
                     }
                 }
-            }
-        }
+            });
     }
 
     /**
      * Removes all templates, except the templates defined in the exclude
      */
-    public void wipeAllTemplates(Set<String> exclude) {
-        if (size() > 0) {
-            GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
-            for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
-                if (exclude.contains(indexTemplate.getName())) {
-                    continue;
-                }
-                try {
-                    client().admin().indices().prepareDeleteTemplate(indexTemplate.getName()).get();
-                } catch (IndexTemplateMissingException e) {
-                    // ignore
+    private Future<Void> wipeAllTemplates(Set<String> exclude) {
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        if (size() == 0) {
+            future.onResponse(null);
+            return future;
+        }
+        client().admin().indices().prepareGetTemplates().execute(future.delegateFailure((f, response) -> {
+            try (RefCountingListener subscribableListener = new RefCountingListener(f)) {
+                for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
+                    if (exclude.contains(indexTemplate.getName())) {
+                        continue;
+                    }
+                    client().admin()
+                        .indices()
+                        .prepareDeleteTemplate(indexTemplate.getName())
+                        .execute(subscribableListener.acquire().<AcknowledgedResponse>safeMap(r -> {
+                            assertAcked(r);
+                            return null;
+                        }).delegateResponse((l, e) -> {
+                            if (e instanceof IndexTemplateMissingException) {
+                                // ignore
+                                l.onResponse(null);
+                            } else {
+                                l.onFailure(e);
+                            }
+                        }));
                 }
             }
-        }
+        }));
+        return future;
     }
 
     /**
@@ -207,91 +355,30 @@ public abstract class TestCluster {
     /**
      * Deletes repositories, supports wildcard notation.
      */
-    public void wipeRepositories(String... repositories) {
-        if (size() > 0) {
-            // if nothing is provided, delete all
-            if (repositories.length == 0) {
-                repositories = new String[] { "*" };
-            }
-            final var future = new PlainActionFuture<Void>();
-            try (var listeners = new RefCountingListener(future)) {
-                for (String repository : repositories) {
-                    ActionListener.run(
-                        listeners.acquire(),
-                        l -> client().admin()
-                            .cluster()
-                            .prepareDeleteRepository(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT, repository)
-                            .execute(new ActionListener<>() {
-                                @Override
-                                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                                    l.onResponse(null);
-                                }
+    private void wipeRepositories(ActionListener<Void> listener) {
+        ActionListener.run(
+            listener,
+            l -> client().admin()
+                .cluster()
+                .prepareDeleteRepository(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT, "*")
+                .execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        assertAcked(acknowledgedResponse);
+                        l.onResponse(null);
+                    }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    if (e instanceof RepositoryMissingException) {
-                                        // ignore
-                                        l.onResponse(null);
-                                    } else {
-                                        l.onFailure(e);
-                                    }
-                                }
-                            })
-                    );
-                }
-            }
-            future.actionGet(30, TimeUnit.SECONDS);
-        }
-    }
-
-    public void wipeAllDataStreams() {
-        if (size() > 0) {
-            var request = new DeleteDataStreamAction.Request("*");
-            request.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
-            try {
-                assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, request).actionGet());
-            } catch (IllegalStateException e) {
-                // Ignore if action isn't registered, because data streams is a module and
-                // if the delete action isn't registered then there no data streams to delete.
-                if (e.getMessage().startsWith("failed to find action") == false) {
-                    throw e;
-                }
-            }
-        }
-    }
-
-    public void wipeAllComposableIndexTemplates(Set<String> excludeTemplates) {
-        if (size() > 0) {
-            var templates = client().execute(GetComposableIndexTemplateAction.INSTANCE, new GetComposableIndexTemplateAction.Request("*"))
-                .actionGet()
-                .indexTemplates()
-                .keySet()
-                .stream()
-                .filter(template -> excludeTemplates.contains(template) == false)
-                .toArray(String[]::new);
-
-            if (templates.length != 0) {
-                var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
-                assertAcked(client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request).actionGet());
-            }
-        }
-    }
-
-    public void wipeAllComponentTemplates(Set<String> excludeTemplates) {
-        if (size() > 0) {
-            var templates = client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"))
-                .actionGet()
-                .getComponentTemplates()
-                .keySet()
-                .stream()
-                .filter(template -> excludeTemplates.contains(template) == false)
-                .toArray(String[]::new);
-
-            if (templates.length != 0) {
-                var request = new TransportDeleteComponentTemplateAction.Request(templates);
-                assertAcked(client().execute(TransportDeleteComponentTemplateAction.TYPE, request).actionGet());
-            }
-        }
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof RepositoryMissingException) {
+                            // ignore
+                            l.onResponse(null);
+                        } else {
+                            l.onFailure(e);
+                        }
+                    }
+                })
+        );
     }
 
     /**

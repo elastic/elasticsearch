@@ -1650,7 +1650,7 @@ public class TransportSearchActionTests extends ESTestCase {
             clusterState,
             null,
             null,
-            new SearchContextId(contexts, aliasFilterMap),
+            new SearchContextId(contexts, aliasFilterMap, null),
             keepAlive,
             randomBoolean()
         );
@@ -1695,7 +1695,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 clusterState,
                 null,
                 null,
-                new SearchContextId(contexts, aliasFilterMap),
+                new SearchContextId(contexts, aliasFilterMap, null),
                 keepAlive,
                 false
             );
@@ -1706,7 +1706,7 @@ public class TransportSearchActionTests extends ESTestCase {
             clusterState,
             null,
             null,
-            new SearchContextId(contexts, aliasFilterMap),
+            new SearchContextId(contexts, aliasFilterMap, null),
             keepAlive,
             true
         ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();

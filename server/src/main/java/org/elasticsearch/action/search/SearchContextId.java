@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -26,6 +27,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,15 +38,25 @@ public final class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final Map<String, AliasFilter> aliasFilter;
     private final transient Set<ShardSearchContextId> contextIds;
+    private final Map<SearchShardTarget, String> failedShardsWithCauses;
 
-    SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
+    SearchContextId(
+        Map<ShardId, SearchContextIdForNode> shards,
+        Map<String, AliasFilter> aliasFilter,
+        Map<SearchShardTarget, String> failedShards
+    ) {
         this.shards = shards;
         this.aliasFilter = aliasFilter;
         this.contextIds = shards.values().stream().map(SearchContextIdForNode::getSearchContextId).collect(Collectors.toSet());
+        this.failedShardsWithCauses = failedShards;
     }
 
     public Map<ShardId, SearchContextIdForNode> shards() {
         return shards;
+    }
+
+    public Map<SearchShardTarget, String> failedShards() {
+        return failedShardsWithCauses;
     }
 
     public Map<String, AliasFilter> aliasFilter() {
@@ -58,12 +70,22 @@ public final class SearchContextId {
     public static BytesReference encode(
         List<SearchPhaseResult> searchPhaseResults,
         Map<String, AliasFilter> aliasFilter,
-        TransportVersion version
+        TransportVersion version,
+        ShardSearchFailure[] shardFailures
     ) {
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
             out.writeCollection(searchPhaseResults, SearchContextId::writeSearchPhaseResult);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+                Map<SearchShardTarget, String> failedShardsWithCauses = new HashMap<>();
+                for (ShardSearchFailure shardFailure : shardFailures) {
+                    if (shardFailure.shard() != null) {
+                        failedShardsWithCauses.put(shardFailure.shard(), shardFailure.reason());
+                    }
+                }
+                out.writeMap(failedShardsWithCauses, StreamOutput::writeWriteable, StreamOutput::writeString);
+            }
             out.writeMap(aliasFilter, StreamOutput::writeWriteable);
             return out.bytes();
         } catch (IOException e) {
@@ -85,11 +107,15 @@ public final class SearchContextId {
             final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
                 in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
             );
+            Map<SearchShardTarget, String> failedShards = new HashMap<>();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+                failedShards = in.readMap(SearchShardTarget::new, StreamInput::readString);
+            }
             final Map<String, AliasFilter> aliasFilters = in.readImmutableMap(AliasFilter::readFrom);
             if (in.available() > 0) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }
-            return new SearchContextId(shards, aliasFilters);
+            return new SearchContextId(shards, aliasFilters, failedShards);
         } catch (IOException e) {
             assert false : e;
             throw new IllegalArgumentException(e);
@@ -103,7 +129,11 @@ public final class SearchContextId {
             final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
                 in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
             );
-            return new SearchContextId(shards, Collections.emptyMap()).getActualIndices();
+            Map<SearchShardTarget, String> failedShards = new HashMap<>();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+                failedShards = in.readMap(SearchShardTarget::new, StreamInput::readString);
+            }
+            return new SearchContextId(shards, Collections.emptyMap(), failedShards).getActualIndices();
         } catch (IOException e) {
             assert false : e;
             throw new IllegalArgumentException(e);
@@ -120,6 +150,15 @@ public final class SearchContextId {
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards().entrySet()) {
             final String indexName = entry.getKey().getIndexName();
             final String clusterAlias = entry.getValue().getClusterAlias();
+            if (Strings.isEmpty(clusterAlias)) {
+                indices.add(indexName);
+            } else {
+                indices.add(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + indexName);
+            }
+        }
+        for (Map.Entry<SearchShardTarget, String> entry : failedShards().entrySet()) {
+            final String indexName = entry.getKey().getIndex();
+            final String clusterAlias = entry.getKey().getClusterAlias();
             if (Strings.isEmpty(clusterAlias)) {
                 indices.add(indexName);
             } else {

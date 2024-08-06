@@ -8,6 +8,7 @@
 module org.elasticsearch.jose {
     requires org.elasticsearch.server;
     requires com.nimbusds.jose.jwt;
+    requires oauth2.oidc.sdk;
 
-    exports org.elasticsearch.jose;
+    exports org.elasticsearch.nimbus;
 }

@@ -279,7 +279,9 @@ public class OpenIdConnectAuthenticator {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("ID Token Header: {}", idToken.getHeader());
             }
-            JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
+            JWTClaimsSet verifiedIdTokenClaims = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<JWTClaimsSet>) () -> idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet()
+            );
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
             }
@@ -298,24 +300,34 @@ public class OpenIdConnectAuthenticator {
                 }
                 claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
             }
-        } catch (BadJOSEException e) {
-            // We only try to update the cached JWK set once if a remote source is used and
-            // RSA or ECDSA is used for signatures
-            if (shouldRetry
-                && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
-                && opConfig.getJwkSetPath().startsWith("https://")) {
-                ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(ActionListener.wrap(v -> {
-                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
-                    }, ex -> {
-                        LOGGER.debug("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                        claimsListener.onFailure(ex);
-                    }));
+        } catch (PrivilegedActionException exception) {
+            Exception innerException = exception.getException();
+            if (innerException instanceof BadJOSEException e) {
+                // We only try to update the cached JWK set once if a remote source is used and
+                // RSA or ECDSA is used for signatures
+                if (shouldRetry
+                    && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
+                    && opConfig.getJwkSetPath().startsWith("https://")) {
+                    ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
+                        .triggerReload(ActionListener.wrap(v -> {
+                            getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
+                        }, ex -> {
+                            LOGGER.debug("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                            claimsListener.onFailure(ex);
+                        }));
+                } else {
+                    LOGGER.debug("Failed to parse or validate the ID Token", e);
+                    claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
+                }
             } else {
-                LOGGER.debug("Failed to parse or validate the ID Token", e);
-                claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
+                LOGGER.debug(
+                    () -> format("ID Token: [%s], Nonce: [%s]", JwtUtil.toStringRedactSignature(idToken).get(), expectedNonce.toString()),
+                    innerException
+                );
+                claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", innerException));
             }
-        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
+
+        } catch (ParseException e) {
             LOGGER.debug(
                 () -> format("ID Token: [%s], Nonce: [%s]", JwtUtil.toStringRedactSignature(idToken).get(), expectedNonce.toString()),
                 e

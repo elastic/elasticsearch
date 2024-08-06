@@ -104,7 +104,7 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-  testImplementation('com.nimbusds:nimbus-jose-jwt:9.37.3') //fixme??
+  testImplementation('com.nimbusds:nimbus-jose-jwt:9.37.3')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')

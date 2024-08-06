@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.jose;
+package org.elasticsearch.nimbus;
 
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.util.Base64URL;
@@ -26,10 +26,10 @@ import java.util.Map;
  * Can't do these operations inline with giving too much access due to how the security manager calculates the stack for lambda expressions.
  * Isolating the calls here allows for least privilege access to this helper jar.
  */
-public class JoseWrapper {
+public class NimubsWrapper {
 
     // utility class
-    private JoseWrapper() {}
+    private NimubsWrapper() {}
 
     public static String getHeaderAsString(SignedJWT signedJWT) {
         SpecialPermission.check();

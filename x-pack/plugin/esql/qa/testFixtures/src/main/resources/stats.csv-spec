@@ -2018,8 +2018,7 @@ M
 null
 ;
 
-shadowingInternalWithGroup2
-required_capability: union_types_fix_rename_resolution
+shadowingInternalWithGroup2#[skip:-8.14.1,reason:implemented in 8.14]
 FROM employees
 | STATS x = MAX(emp_no), y = count(x) BY x = emp_no, x = gender
 | SORT x ASC

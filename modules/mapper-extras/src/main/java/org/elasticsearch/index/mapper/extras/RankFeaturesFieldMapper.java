@@ -12,6 +12,7 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -91,7 +92,10 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            throw new IllegalArgumentException("[rank_features] fields do not support [exists] queries");
+            if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.RANK_FEATURES_IN_FIELD_NAMES_SUPPORT)) {
+                throw new IllegalArgumentException("[rank_features] fields do not support [exists] queries");
+            }
+            return super.existsQuery(context);
         }
 
         @Override
@@ -195,6 +199,9 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                             + token
                     );
                 }
+            }
+            if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.RANK_FEATURES_IN_FIELD_NAMES_SUPPORT)) {
+                context.addToFieldNames(fieldType().name());
             }
         } finally {
             context.path().setWithinLeafObject(false);

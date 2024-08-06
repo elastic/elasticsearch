@@ -52,8 +52,8 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(chunkSize));
         }
-        assertEquals(totalChunks, stream.contentChunkQueue().size());
-        assertEquals(totalChunks * chunkSize, stream.contentChunkQueue().availableBytes());
+        assertEquals(totalChunks, stream.chunkQueue().size());
+        assertEquals(totalChunks * chunkSize, stream.chunkQueue().availableBytes());
     }
 
     // test that every small request consume at least one chunk
@@ -114,7 +114,7 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(chunkSize));
         }
-        assertEquals(chunkSize * totalChunks, stream.contentChunkQueue().availableBytes());
+        assertEquals(chunkSize * totalChunks, stream.chunkQueue().availableBytes());
     }
 
     public void testFlushSingleLastContent() {
@@ -140,16 +140,16 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
             channel.writeInbound(randomContent(chunkSize));
         }
 
-        assertEquals("should not read until requested", 0, stream.contentChunkQueue().size());
+        assertEquals("should not read until requested", 0, stream.chunkQueue().size());
         stream.requestBytes(chunkSize);
         assertEquals(1, gotChunks.size());
 
         stream.requestBytes(Integer.MAX_VALUE);
-        assertEquals("should enqueue remaining chunks", totalChunks - 1, stream.contentChunkQueue().size());
+        assertEquals("should enqueue remaining chunks", totalChunks - 1, stream.chunkQueue().size());
 
         // send last content and flush queued content
         channel.writeInbound(randomLastContent(0));
-        assertEquals(0, stream.contentChunkQueue().size());
+        assertEquals(0, stream.chunkQueue().size());
         assertEquals(2, gotChunks.size());
         assertTrue(gotLast.get());
     }

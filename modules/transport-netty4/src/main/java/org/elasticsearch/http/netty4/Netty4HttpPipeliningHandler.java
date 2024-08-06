@@ -9,18 +9,15 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.compression.JdkZlibEncoder;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
@@ -119,9 +116,9 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        if (msg instanceof HttpRequest request) {
-            try {
-                activityTracker.startActivity();
+        activityTracker.startActivity();
+        try {
+            if (msg instanceof HttpRequest request) {
                 final Netty4HttpRequest netty4HttpRequest;
                 if (request.decoderResult().isFailure()) {
                     final Throwable cause = request.decoderResult().cause();
@@ -135,36 +132,24 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     netty4HttpRequest = new Netty4HttpRequest(readSequence++, (FullHttpRequest) request, nonError);
                 } else {
                     if (request instanceof FullHttpRequest fullHttpRequest) {
-                        currentRequestStream = null;
                         netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
                     } else {
                         var contentStream = new Netty4HttpRequestBodyStream(ctx.channel());
                         currentRequestStream = contentStream;
-                        netty4HttpRequest = new Netty4HttpRequest(
-                            readSequence++,
-                            new DefaultFullHttpRequest(
-                                request.protocolVersion(),
-                                request.method(),
-                                request.uri(),
-                                Unpooled.EMPTY_BUFFER,
-                                request.headers(),
-                                EmptyHttpHeaders.INSTANCE
-                            ),
-                            contentStream
-                        );
+                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
                     }
                 }
                 handlePipelinedRequest(ctx, netty4HttpRequest);
-            } finally {
-                activityTracker.stopActivity();
+            } else {
+                assert msg instanceof HttpContent : "expect HttpContent got " + msg;
+                assert currentRequestStream != null : "current stream must exists before handling http content";
+                currentRequestStream.handleNettyContent((HttpContent) msg);
+                if (msg instanceof LastHttpContent) {
+                    currentRequestStream = null;
+                }
             }
-        } else {
-            assert msg instanceof HttpContent : "expect HttpContent got " + msg;
-            assert currentRequestStream != null : "current stream must exists before handling http content";
-            currentRequestStream.handleNettyContent((HttpContent) msg);
-            if (msg instanceof LastHttpContent) {
-                currentRequestStream = null;
-            }
+        } finally {
+            activityTracker.stopActivity();
         }
     }
 

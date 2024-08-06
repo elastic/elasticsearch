@@ -11,6 +11,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -47,8 +48,22 @@ public class Netty4HttpRequest implements HttpRequest {
     private final boolean pooled;
     private final int sequence;
 
-    Netty4HttpRequest(int sequence, FullHttpRequest request, Netty4HttpRequestBodyStream contentStream) {
-        this(sequence, request, new AtomicBoolean(false), false, contentStream, null);
+    Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
+        this(
+            sequence,
+            new DefaultFullHttpRequest(
+                request.protocolVersion(),
+                request.method(),
+                request.uri(),
+                Unpooled.EMPTY_BUFFER,
+                request.headers(),
+                EmptyHttpHeaders.INSTANCE
+            ),
+            new AtomicBoolean(false),
+            false,
+            contentStream,
+            null
+        );
     }
 
     Netty4HttpRequest(int sequence, FullHttpRequest request) {

@@ -20,7 +20,6 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Netty based implementation of {@link HttpBody.Stream}.
@@ -33,11 +32,11 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private final Channel channel;
     private final BlockingQueue<Integer> requestQueue = new LinkedBlockingQueue<>();
     private final ChunkQueue chunkQueue = new ChunkQueue();
-    private final AtomicBoolean isDone = new AtomicBoolean(false);
     private HttpBody.ChunkHandler handler;
 
     public Netty4HttpRequestBodyStream(Channel channel) {
         this.channel = channel;
+        channel.closeFuture().addListener((f) -> releaseQueuedChunks());
         channel.config().setAutoRead(false);
     }
 
@@ -97,7 +96,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     // visible for tests
-    ChunkQueue contentChunkQueue() {
+    ChunkQueue chunkQueue() {
         return chunkQueue;
     }
 
@@ -133,9 +132,16 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     private void flushAndRead() {
-        flushQueued(); // flush on channel's thread only
+        assert channel.eventLoop().inEventLoop();
+        flushQueued();
         if (requestQueue.isEmpty() == false) {
             channel.read();
+        }
+    }
+
+    private void releaseQueuedChunks() {
+        while (chunkQueue.isEmpty() == false) {
+            chunkQueue.poll().buf.release();
         }
     }
 

@@ -43,7 +43,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -80,39 +79,94 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     // ensure empty http content has single 0 size chunk
     public void testEmptyContent() throws Exception {
         try (var ctx = setupClientCtx()) {
-            ctx.clientChannel.writeAndFlush(fullRequest(Unpooled.EMPTY_BUFFER));
-            var handler = ctx.awaitRestChannelAccepted();
-            handler.stream.requestBytes(1);
-            var recvChunk = safePoll(handler.recvChunks);
-            assertTrue(recvChunk.isLast);
-            assertEquals(0, recvChunk.chunk.length());
-            recvChunk.chunk.close();
+            var totalRequests = randomIntBetween(1, 10);
+            for (int reqNo = 0; reqNo < totalRequests; reqNo++) {
+                // send request with empty content
+                ctx.clientChannel.writeAndFlush(fullHttpRequest(Unpooled.EMPTY_BUFFER));
+                var handler = ctx.awaitRestChannelAccepted();
+                handler.stream.requestBytes(1);
+
+                // should receive a single empty chunk
+                var recvChunk = safePoll(handler.recvChunks);
+                assertTrue(recvChunk.isLast);
+                assertEquals(0, recvChunk.chunk.length());
+                recvChunk.chunk.close();
+
+                // send response to process following request
+                handler.sendResponse(new RestResponse(RestStatus.OK, ""));
+            }
+            assertBusy(() -> assertEquals("should receive all server responses", totalRequests, ctx.clientRespQueue.size()));
         }
     }
 
     // ensures content integrity, no loses and re-order
     public void testReceiveAllChunks() throws Exception {
         try (var ctx = setupClientCtx()) {
-            var dataSize = randomIntBetween(1024, 10 * 1024 * 1024);
-            var sendData = Unpooled.wrappedBuffer(randomByteArrayOfLength(dataSize));
-            sendData.retain();
-            ctx.clientChannel.writeAndFlush(fullRequest(sendData));
+            var totalRequests = randomIntBetween(1, 10);
+            for (int reqNo = 0; reqNo < totalRequests; reqNo++) {
 
-            var handler = ctx.awaitRestChannelAccepted();
+                // this dataset will be compared with one on server side
+                var dataSize = randomIntBetween(1024, 10 * 1024 * 1024);
+                var sendData = Unpooled.wrappedBuffer(randomByteArrayOfLength(dataSize));
+                sendData.retain();
+                ctx.clientChannel.writeAndFlush(fullHttpRequest(sendData));
 
-            var gotAllChunks = false;
-            var recvData = Unpooled.buffer(dataSize);
-            while (gotAllChunks == false) {
-                handler.stream.requestBytes(randomIntBetween(1024, 64 * 1024));
-                var recvChunk = safePoll(handler.recvChunks);
-                try (recvChunk.chunk) {
-                    if (recvChunk.isLast) {
-                        gotAllChunks = true;
+                var handler = ctx.awaitRestChannelAccepted();
+
+                // consume chunks at random pace
+                var gotAllChunks = false;
+                var recvData = Unpooled.buffer(dataSize);
+                while (gotAllChunks == false) {
+                    handler.stream.requestBytes(randomIntBetween(1024, 64 * 1024));
+                    var recvChunk = safePoll(handler.recvChunks);
+                    try (recvChunk.chunk) {
+                        if (recvChunk.isLast) {
+                            gotAllChunks = true;
+                        }
+                        recvData.writeBytes(BytesReference.toBytes(recvChunk.chunk));
                     }
-                    recvData.writeBytes(BytesReference.toBytes(recvChunk.chunk));
                 }
+
+                assertEquals("sent and received payloads are not the same", sendData, recvData);
+                handler.sendResponse(new RestResponse(RestStatus.OK, ""));
             }
-            assertEquals(sendData, recvData);
+            assertBusy(() -> assertEquals("should receive all server responses", totalRequests, ctx.clientRespQueue.size()));
+        }
+    }
+
+    // ensures that all queued chunks are released when connection closed
+    public void testClientConnectionCloseMidStream() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            // write half of http request
+            ctx.clientChannel.writeAndFlush(httpRequest(16 * 1024));
+            ctx.clientChannel.writeAndFlush(randomContent(8 * 1024, false));
+
+            // await stream handler is ready and request full content
+            var handler = ctx.awaitRestChannelAccepted();
+            handler.stream.requestBytes(Integer.MAX_VALUE);
+            assertBusy(() -> assertEquals(1, handler.stream.chunkQueue().size()));
+
+            // terminate connection and wait resources are released
+            ctx.clientChannel.close();
+            assertBusy(() -> assertEquals(0, handler.stream.chunkQueue().size()));
+        }
+    }
+
+    // ensures that all queued chunks are released when server decides to close connection
+    public void testServerCloseConnectionMidStream() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            // write half of http request
+            ctx.clientChannel.writeAndFlush(httpRequest(16 * 1024));
+            ctx.clientChannel.writeAndFlush(randomContent(8 * 1024, false));
+
+            // await stream handler is ready and request full content
+            var handler = ctx.awaitRestChannelAccepted();
+            handler.stream.requestBytes(Integer.MAX_VALUE);
+            assertBusy(() -> assertEquals(1, handler.stream.chunkQueue().size()));
+
+            // terminate connection on server and wait resources are released
+            handler.httpChannel.close();
+            assertBusy(() -> assertEquals(0, handler.stream.chunkQueue().size()));
         }
     }
 
@@ -126,7 +180,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             final var totalWriteSize = writeChunkSize * totalWriteChunks;
             var writtenChunks = 0;
 
-            ctx.clientChannel.writeAndFlush(notFullRequest(totalWriteSize));
+            ctx.clientChannel.writeAndFlush(httpRequest(totalWriteSize));
             var handler = ctx.awaitRestChannelAccepted();
 
             // write chunks until channel is no longer writable
@@ -185,15 +239,19 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    static FullHttpRequest fullRequest(ByteBuf content) {
+    static FullHttpRequest fullHttpRequest(ByteBuf content) {
         var req = new DefaultFullHttpRequest(HTTP_1_1, POST, SingleRequestHandlerPlugin.ROUTE, Unpooled.wrappedBuffer(content));
         req.headers().add(CONTENT_LENGTH, content.readableBytes());
         req.headers().add(CONTENT_TYPE, APPLICATION_JSON);
         return req;
     }
 
-    static HttpRequest notFullRequest(int contentLength) {
-        var req = new DefaultHttpRequest(HTTP_1_1, POST, SingleRequestHandlerPlugin.ROUTE);
+    static HttpRequest httpRequest(int contentLength) {
+        return httpRequest(SingleRequestHandlerPlugin.ROUTE, contentLength);
+    }
+
+    static HttpRequest httpRequest(String uri, int contentLength) {
+        var req = new DefaultHttpRequest(HTTP_1_1, POST, uri);
         req.headers().add(CONTENT_LENGTH, contentLength);
         req.headers().add(CONTENT_TYPE, APPLICATION_JSON);
         return req;
@@ -283,7 +341,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         SubscribableListener<Void> channelAccepted = new SubscribableListener<>();
         RestChannel channel;
         HttpChannel httpChannel;
-        HttpBody.Stream stream;
+        Netty4HttpRequestBodyStream stream;
         BlockingDeque<Chunk> recvChunks = new LinkedBlockingDeque<>();
 
         record Chunk(ReleasableBytesReference chunk, boolean isLast) {}
@@ -297,8 +355,14 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         public void accept(RestChannel channel) throws Exception {
             this.channel = channel;
             this.httpChannel = channel.request().getHttpChannel();
-            this.stream = channel.request().contentStream();
+            this.stream = (Netty4HttpRequestBodyStream) channel.request().contentStream();
             channelAccepted.onResponse(null);
+        }
+
+        void sendResponse(RestResponse response) {
+            assertEquals(SingleRequestHandlerPlugin.handlers.get(0), this);
+            SingleRequestHandlerPlugin.handlers.remove(0);
+            channel.sendResponse(response);
         }
     }
 

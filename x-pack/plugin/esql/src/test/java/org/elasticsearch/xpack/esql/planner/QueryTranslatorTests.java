@@ -103,16 +103,32 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testRanges() {
-        // Note: Currently binary comparisons are not combined into range queries, so we get bool queries with multiple
-        // one-sided ranges for now.
-
-        // Once we combine binary comparisons, this query should be trivial.
+        // ORs
         assertQueryTranslation("""
             FROM test | WHERE 10 < integer OR integer < 12""", matchesRegex("""
             .*should.*""" + """
             esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"gt":10,.*""" + """
             esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"lt":12.*"""));
 
+        assertQueryTranslation("""
+            FROM test | WHERE 10 <= integer OR integer < 12""", matchesRegex("""
+            .*should.*""" + """
+            esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"gte":10,.*""" + """
+            esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"lt":12.*"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE 10 < integer OR integer <= 12""", matchesRegex("""
+            .*should.*""" + """
+            esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"gt":10,.*""" + """
+            esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"lte":12.*"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE 10 <= integer OR integer <= 12""", matchesRegex("""
+            .*should.*""" + """
+            esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"gte":10,.*""" + """
+            esql_single_value":\\{"field":"integer".*"range":\\{"integer":\\{"lte":12.*"""));
+
+        // ANDs
         assertQueryTranslation("""
             FROM test | WHERE 10 < integer AND integer < 12""", containsString("""
             "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gt":10,"lt":12,"time_zone":"Z","boost":1.0}}}"""));
@@ -122,12 +138,20 @@ public class QueryTranslatorTests extends ESTestCase {
             "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gte":10,"lte":12,"time_zone":"Z","boost":1.0}}}"""));
 
         assertQueryTranslation("""
+            FROM test | WHERE 10 <= integer AND integer < 12""", containsString("""
+            "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gte":10,"lt":12,"time_zone":"Z","boost":1.0}}}"""));
+
+        assertQueryTranslation("""
             FROM test | WHERE 10.9 < double AND double < 12.1""", containsString("""
             "esql_single_value":{"field":"double","next":{"range":{"double":{"gt":10.9,"lt":12.1,"time_zone":"Z","boost":1.0}}}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE 10.9 <= double AND double <= 12.1""", containsString("""
             "esql_single_value":{"field":"double","next":{"range":{"double":{"gte":10.9,"lte":12.1,"time_zone":"Z","boost":1.0}}}"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE 10.9 < double AND double <= 12.1""", containsString("""
+            "esql_single_value":{"field":"double","next":{"range":{"double":{"gt":10.9,"lte":12.1,"time_zone":"Z","boost":1.0}}}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", containsString("""

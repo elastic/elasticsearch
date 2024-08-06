@@ -57,6 +57,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.or;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -69,13 +70,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 public final class EsqlExpressionTranslators {
-
-    public static Object valueOf(Expression e) {
-        if (e.foldable()) {
-            return e.fold();
-        }
-        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
-    }
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
@@ -502,22 +496,21 @@ public final class EsqlExpressionTranslators {
                 format = formatter.pattern();
             }
 
-            if (DataType.isDateTime(r.value().dataType())
-                && DataType.isDateTime(r.lower().dataType())
-                && DataType.isDateTime(r.upper().dataType())) {
+            DataType dataType = r.value().dataType();
+            if (DataType.isDateTime(dataType) && DataType.isDateTime(r.lower().dataType()) && DataType.isDateTime(r.upper().dataType())) {
                 lower = dateTimeToString((Long) lower);
                 upper = dateTimeToString((Long) upper);
                 format = DEFAULT_DATE_TIME_FORMATTER.pattern();
             }
 
-            if (r.value().dataType() == IP) {
+            if (dataType == IP) {
                 if (lower instanceof BytesRef bytesRef) {
                     lower = ipToString(bytesRef);
                 }
                 if (upper instanceof BytesRef bytesRef) {
                     upper = ipToString(bytesRef);
                 }
-            } else if (r.value().dataType() == VERSION) {
+            } else if (dataType == VERSION) {
                 // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
                 // encoded) representation of the version as it'll do the encoding itself.
                 if (lower instanceof BytesRef bytesRef) {
@@ -530,7 +523,7 @@ public final class EsqlExpressionTranslators {
                 } else if (upper instanceof Version version) {
                     upper = versionToString(version);
                 }
-            } else if (r.value().dataType() == UNSIGNED_LONG) {
+            } else if (dataType == UNSIGNED_LONG) {
                 if (lower instanceof Long ul) {
                     lower = unsignedLongAsNumber(ul);
                 }

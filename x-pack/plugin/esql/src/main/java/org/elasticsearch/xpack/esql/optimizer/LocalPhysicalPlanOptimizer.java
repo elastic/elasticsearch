@@ -293,7 +293,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
             pushable.forEach(e -> {
                 if (e instanceof GreaterThan || e instanceof GreaterThanOrEqual || e instanceof LessThan || e instanceof LessThanOrEqual) {
-                    bcs.add((EsqlBinaryComparison) e);
+                    if (((EsqlBinaryComparison) e).right().foldable()) {
+                        bcs.add((EsqlBinaryComparison) e);
+                    } else {
+                        others.add(e);
+                    }
                 } else {
                     others.add(e);
                 }
@@ -301,14 +305,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
             for (int i = 0, step = 1; i < bcs.size() - 1; i += step, step = 1) {
                 BinaryComparison main = bcs.get(i);
-                if (main.right().foldable() == false) {
-                    continue;
-                }
                 for (int j = i + 1; j < bcs.size(); j++) {
                     BinaryComparison other = bcs.get(j);
-                    if (other.right().foldable() == false) {
-                        continue;
-                    }
                     if (main.left().semanticEquals(other.left())) {
                         // >/>= AND </<=
                         if ((main instanceof GreaterThan || main instanceof GreaterThanOrEqual)

@@ -34,6 +34,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests.randomPrimaryTermAndGeneration;
 
 public class RegisterCommitResponseSerializationTests extends AbstractWireSerializingTestCase<RegisterCommitResponse> {
@@ -102,12 +103,7 @@ public class RegisterCommitResponseSerializationTests extends AbstractWireSerial
             .collect(Collectors.toMap(Function.identity(), s -> {
                 long fileLength = randomLongBetween(100, 1000);
                 long offset = randomLongBetween(0, 200);
-                return new BlobLocation(
-                    randomLongBetween(1, 10),
-                    StatelessCompoundCommit.PREFIX + randomLongBetween(1, 1000),
-                    offset,
-                    fileLength
-                );
+                return createBlobLocation(randomLongBetween(1, 10), randomLongBetween(1, 1000), offset, fileLength);
             }));
     }
 }

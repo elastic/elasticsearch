@@ -74,6 +74,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -170,7 +171,7 @@ public class IndexDirectoryTests extends ESTestCase {
                             2L,
                             length,
                             Set.of(fileName),
-                            Map.of(fileName, new BlobLocation(1L, StatelessCompoundCommit.PREFIX + fileName.hashCode(), 0L, length))
+                            Map.of(fileName, createBlobLocation(1L, fileName.hashCode(), 0L, length))
                         );
                         var fileLength = filesSizes.remove(fileName);
                         assertThat(directory.estimateSizeInBytes(), equalTo(totalSize - fileLength));
@@ -209,7 +210,7 @@ public class IndexDirectoryTests extends ESTestCase {
                                 .collect(
                                     Collectors.toMap(
                                         Map.Entry::getKey,
-                                        o -> new BlobLocation(1L, StatelessCompoundCommit.PREFIX + o.getKey().hashCode(), 0L, o.getValue())
+                                        o -> createBlobLocation(1L, o.getKey().hashCode(), 0L, o.getValue())
                                     )
                                 )
                         );
@@ -390,7 +391,7 @@ public class IndexDirectoryTests extends ESTestCase {
                     1,
                     fileLength,
                     Set.of(generationalFilename),
-                    Map.of(generationalFilename, new BlobLocation(1, "stateless_commit_4", 0, fileLength))
+                    Map.of(generationalFilename, createBlobLocation(1L, 4L, 0L, fileLength))
                 );
             }
             assertThat(capturedOnDeletions, empty());
@@ -437,12 +438,7 @@ public class IndexDirectoryTests extends ESTestCase {
 
     private static StatelessCompoundCommit createCommit(IndexDirectory directory, Set<String> files, long generation) {
         Map<String, BlobLocation> commitFiles = files.stream()
-            .collect(
-                Collectors.toMap(
-                    Function.identity(),
-                    o -> new BlobLocation(1L, StatelessCompoundCommit.PREFIX + o.hashCode(), 0L, between(1, 100))
-                )
-            );
+            .collect(Collectors.toMap(Function.identity(), o -> createBlobLocation(1L, o.hashCode(), 0L, between(1, 100))));
         return new StatelessCompoundCommit(
             directory.getBlobStoreCacheDirectory().getShardId(),
             generation,

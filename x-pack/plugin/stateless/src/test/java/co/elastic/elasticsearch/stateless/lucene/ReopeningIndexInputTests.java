@@ -21,7 +21,6 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.store.FilterIndexInput;
@@ -71,6 +70,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
@@ -292,7 +292,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 1L,
                 bytes.length,
                 Set.of(fileName),
-                Map.of(fileName, new BlobLocation(primaryTerm, "stateless_commit_1", 0L, bytes.length))
+                Map.of(fileName, createBlobLocation(primaryTerm, 1L, 0L, bytes.length))
             );
 
             readNBytes(input, bytes, input.getFilePointer(), 1024);
@@ -394,7 +394,12 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 final InputStream inputStream = new InputStreamIndexInput(input, length);
                 blobContainer.writeBlob(randomFrom(OperationPurpose.values()), blobName, inputStream, length, randomBoolean());
 
-                directory.updateCommit(generation, length, Set.of(fileName), Map.of(fileName, new BlobLocation(1L, blobName, 0L, length)));
+                directory.updateCommit(
+                    generation,
+                    length,
+                    Set.of(fileName),
+                    Map.of(fileName, createBlobLocation(1L, generation, 0L, length))
+                );
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

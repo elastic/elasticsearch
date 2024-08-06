@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
@@ -25,6 +24,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -152,11 +152,6 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
                 );
             }));
         }
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assumeFalse("generated test cases containing nulls by hand", true);
     }
 
     @Override

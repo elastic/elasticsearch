@@ -8,7 +8,6 @@
 
 package org.elasticsearch.logsdb.datageneration.datasource;
 
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigInteger;
@@ -58,13 +57,8 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.HalfFloatGenerator handle(DataSourceRequest.HalfFloatGenerator request) {
-        // This trick taken from NumberFieldMapper reduces precision of float to actual half float precision.
-        // We do this to avoid getting tripped on values in synthetic source having reduced precision but
-        // values in stored source having full float precision.
-        // This can be removed with a more lenient matcher.
-        return new DataSourceResponse.HalfFloatGenerator(
-            () -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(ESTestCase.randomFloat()))
-        );
+        // All floats are accepted but stored precision is reduced.
+        return new DataSourceResponse.HalfFloatGenerator(ESTestCase::randomFloat);
     }
 
     @Override

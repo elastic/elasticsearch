@@ -52,8 +52,8 @@ Use the <<put-inference-api>> to create the endpoint.
 The `inference_id` will not be validated when the mapping is created, but when documents are ingested into the index.
 When the first document is indexed, the `inference_id` will be used to generate underlying indexing structures for the field.
 
-WARNING: Removing an {infer}  endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that {infer}  endpoint as their `inference_id`.
-Please check that {infer}  endpoints are not used in `semantic_text` fields before removal.
+WARNING: Removing an {infer}  endpoint will cause ingestion of documents and semantic queries to fail on indices that define `semantic_text` fields with that {infer} endpoint as their `inference_id`.
+Before removal, check if {infer} endpoints are used in `semantic_text` fields.
 
 [discrete]
 [[auto-text-chunking]]

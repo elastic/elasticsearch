@@ -2333,7 +2333,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             private final PrimaryTermAndGeneration primaryTermAndGeneration;
             private final Set<PrimaryTermAndGeneration> includedCommitGenerations;
             private final Set<String> internalFiles;
-            private final Set<BlobReference> references;
+            private volatile Set<BlobReference> references;
             private final AtomicBoolean readersClosed = new AtomicBoolean();
             /**
              * Set to track the commits that are opened locally by Lucene.
@@ -2493,6 +2493,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (remainingLocalCommits != null && remainingLocalCommits.isEmpty()) {
                     var previousUsedLocalCommits = localCommitsRef.getAndUpdate(existing -> null);
                     if (previousUsedLocalCommits != null && previousUsedLocalCommits.isEmpty()) {
+                        assert references != null : references;
                         logger.trace(
                             () -> format(
                                 "%s locally deleted %s, also releases %s",
@@ -2503,6 +2504,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         );
                         references.forEach(AbstractRefCounted::decRef);
                         decRef();
+                        // We set references to null, in order to allow any closed referenced BlobReferences to be garbage collected.
+                        references = null;
                     }
                 }
             }

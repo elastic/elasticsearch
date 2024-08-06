@@ -175,7 +175,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
 
                                 @Override
                                 public EntryBody setValue(EntryBody value) {
-                                    return fail(null, "");
+                                    return fail(null, "must not setValue");
                                 }
                             };
                         }

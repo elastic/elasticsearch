@@ -15,13 +15,14 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -92,7 +93,11 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
                 return OBJECT_MAPPER.valueToTree(templateParams);
             });
         } catch (PrivilegedActionException e) {
-            throw new ElasticsearchException("failed to convert parameters while validating", e);
+            throw new ElasticsearchStatusException(
+                "failed to convert parameters while validating",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e.getCause()
+            );
         }
         validateWithSchema(this.jsonSchema, secondParam);
     }

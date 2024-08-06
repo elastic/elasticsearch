@@ -33,12 +33,9 @@ public class TemplateParamValidatorTests extends ESTestCase {
         TemplateParamValidator validator = new TemplateParamValidator(
             "{\"properties\":{\"title_boost\":{\"type\":\"number\"},\"additionalProperties\":false},\"required\":[\"query_string\"]}"
         );
-        try {
-            validator.validate(passingParams);
-        } catch (Exception e) {
-            // We don't have nice assertions for this in JUnit 4
-            fail("Should not throw an exception");
-        }
+        // This shouldn't throw
+        // We don't have nice assertions for this in JUnit 4
+        validator.validate(passingParams);
     }
 
 }

@@ -140,6 +140,9 @@ tests:
 - class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/111664
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/111666
 
 # Examples:
 #

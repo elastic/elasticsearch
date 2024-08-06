@@ -1,0 +1,6 @@
+pr: 111639
+summary: "ESQL: Add warnings capabilities to aggregators, and prevent overflow on\
+  \ SUM aggregation"
+area: ES|QL
+type: bug
+issues: []

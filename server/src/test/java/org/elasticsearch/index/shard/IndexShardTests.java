@@ -1814,9 +1814,7 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.refresh("test");
         } else {
             // trigger internal refresh
-            try (Engine.GetResult getResult = shard.get(new Engine.Get(true, false, "first_0"))) {
-                assertTrue(getResult.exists());
-            }
+            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
         }
         assertThat(shard.getShardFieldStats(), sameInstance(stats));
         // index more docs
@@ -1834,9 +1832,7 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.refresh("test");
         } else {
             // trigger internal refresh
-            try (Engine.GetResult getResult = shard.get(new Engine.Get(true, false, "first_0"))) {
-                assertTrue(getResult.exists());
-            }
+            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
         }
         stats = shard.getShardFieldStats();
         assertThat(stats.numSegments(), equalTo(2));

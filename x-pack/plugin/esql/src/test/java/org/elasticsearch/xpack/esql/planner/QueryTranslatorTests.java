@@ -165,6 +165,16 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testIPs() {
+        // Nothing to combine
+        assertQueryTranslationIPs("""
+            FROM hosts | WHERE CIDR_MATCH(ip0, "127.0.0.1") OR CIDR_MATCH(ip0, "127.0.0.3") AND CIDR_MATCH(ip1, "fe80::cae2:65ff:fece:fec0")
+            """, matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"ip0".*"terms":\\{"ip0":\\["127.0.0.1".*""" + """
+            .*bool.*must.*""" + """
+            esql_single_value":\\{"field":"ip0".*"terms":\\{"ip0":\\["127.0.0.3".*""" + """
+            esql_single_value":\\{"field":"ip1".*"terms":\\{"ip1":\\["fe80::cae2:65ff:fece:fec0".*"""));
+
         // Combine Equals, In and CIDRMatch on IP type
         assertQueryTranslationIPs("""
             FROM hosts | WHERE host == "alpha" OR host == "gamma" OR CIDR_MATCH(ip1, "127.0.0.2/32") OR CIDR_MATCH(ip1, "127.0.0.3/32") \

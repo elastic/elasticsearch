@@ -354,24 +354,6 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9                       
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                         |fe81::cae2:65ff:fece:feb9
 ;
 
-cdirMatchOrsWithoutCombination
-required_capability: combine_disjunctive_cidrmatches
-
-FROM hosts
-| WHERE CIDR_MATCH(ip0, "127.0.0.2") OR CIDR_MATCH(ip0, "127.0.0.3") AND CIDR_MATCH(ip1, "fe80::cae2:65ff:fece:fec0")
-| STATS c = COUNT(*)
-;
-warning:Line 2:41: evaluation of [CIDR_MATCH(ip0, \"127.0.0.3\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:41: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 2:74: evaluation of [CIDR_MATCH(ip1, \"fe80::cae2:65ff:fece:fec0\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:74: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 2:9: evaluation of [CIDR_MATCH(ip0, \"127.0.0.2\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
-
-c:long
-0
-;
-
 pushDownIP
 from hosts | where ip1 == to_ip("::1") | keep card, host, ip0, ip1;
 ignoreOrder:true

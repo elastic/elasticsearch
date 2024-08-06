@@ -131,6 +131,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testMatchCommand {default}
   issue: https://github.com/elastic/elasticsearch/issues/111659
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  method: testMatchCommandWithMultipleMatches {default}
+  issue: https://github.com/elastic/elasticsearch/issues/111660
 
 # Examples:
 #

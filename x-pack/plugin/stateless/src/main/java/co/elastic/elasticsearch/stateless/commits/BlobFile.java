@@ -27,7 +27,7 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit
 public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) {
 
     public BlobFile {
-        assert (startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == 0)
+        assert (startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == -1)
             || termAndGeneration.generation() == StatelessCompoundCommit.parseGenerationFromBlobName(blobName)
             : "generation mismatch: " + termAndGeneration + " vs " + blobName;
     }

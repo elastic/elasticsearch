@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -36,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,7 +80,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
     }
 
     public void testSynonymWordDeleteByAnalyzer() throws IOException {
-        Settings settings = Settings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.my_synonym.type", "synonym")
@@ -86,17 +88,49 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put("index.analysis.filter.stop_within_synonym.type", "stop")
             .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
             .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
-            .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "my_synonym")
-            .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try {
+            .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "my_synonym");
+
+        CheckedBiConsumer<IndexVersion, Boolean, IOException> assertIsLenient = (iv, updateable) -> {
+            Settings settings = settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, iv)
+                .put("index.analysis.filter.my_synonym.updateable", updateable)
+                .build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
             indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
-            fail("fail! due to synonym word deleted by analyzer");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("failed to build synonyms"));
-            assertThat(e.getMessage(), containsString("['my_synonym' analyzer settings]"));
-        }
+            match("synonymAnalyzerWithStopSynonymBeforeSynonym", "kimchy is the dude abides", "is the dude man!");
+        };
+
+        BiConsumer<IndexVersion, Boolean> assertIsNotLenient = (iv, updateable) -> {
+            Settings settings = settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, iv)
+                .put("index.analysis.filter.my_synonym.updateable", updateable)
+                .build();
+            try {
+                IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+                indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+                fail("fail! due to synonym word deleted by analyzer");
+            } catch (Exception e) {
+                assertThat(e, instanceOf(IllegalArgumentException.class));
+                assertThat(e.getMessage(), startsWith("failed to build synonyms"));
+                assertThat(e.getMessage(), containsString("['my_synonym' analyzer settings]"));
+            }
+        };
+
+        // Test with an index version where lenient should always be false by default
+        IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.INDEX_SORTING_ON_NESTED
+        );
+        assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
+        assertIsNotLenient.accept(randomNonLenientIndexVersion, true);
+
+        // Test with an index version where the default lenient value is based on updateable
+        IndexVersion randomLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.LENIENT_UPDATEABLE_SYNONYMS,
+            IndexVersion.current()
+        );
+        assertIsNotLenient.accept(randomLenientIndexVersion, false);
+        assertIsLenient.accept(randomLenientIndexVersion, true);
     }
 
     public void testSynonymWordDeleteByAnalyzerFromFile() throws IOException {
@@ -106,7 +140,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Files.createDirectory(config);
         Files.copy(synonyms, config.resolve("synonyms.txt"));
 
-        Settings settings = Settings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("path.home", home)
             .put("index.analysis.filter.my_synonym.type", "synonym")
@@ -114,20 +148,52 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put("index.analysis.filter.stop_within_synonym.type", "stop")
             .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
             .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
-            .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "my_synonym")
-            .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try {
+            .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "my_synonym");
+
+        CheckedBiConsumer<IndexVersion, Boolean, IOException> assertIsLenient = (iv, updateable) -> {
+            Settings settings = settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, iv)
+                .put("index.analysis.filter.my_synonym.updateable", updateable)
+                .build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
             indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
-            fail("fail! due to synonym word deleted by analyzer");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("failed to build synonyms from [synonyms.txt]"));
-        }
+            match("synonymAnalyzerWithStopSynonymBeforeSynonym", "kimchy is the dude abides", "is the dude man!");
+        };
+
+        BiConsumer<IndexVersion, Boolean> assertIsNotLenient = (iv, updateable) -> {
+            Settings settings = settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, iv)
+                .put("index.analysis.filter.my_synonym.updateable", updateable)
+                .build();
+            try {
+                IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+                indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+                fail("fail! due to synonym word deleted by analyzer");
+            } catch (Exception e) {
+                assertThat(e, instanceOf(IllegalArgumentException.class));
+                assertThat(e.getMessage(), equalTo("failed to build synonyms from [synonyms.txt]"));
+            }
+        };
+
+        // Test with an index version where lenient should always be false by default
+        IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.INDEX_SORTING_ON_NESTED
+        );
+        assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
+        assertIsNotLenient.accept(randomNonLenientIndexVersion, true);
+
+        // Test with an index version where the default lenient value is based on updateable
+        IndexVersion randomLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.LENIENT_UPDATEABLE_SYNONYMS,
+            IndexVersion.current()
+        );
+        assertIsNotLenient.accept(randomLenientIndexVersion, false);
+        assertIsLenient.accept(randomLenientIndexVersion, true);
     }
 
     public void testExpandSynonymWordDeleteByAnalyzer() throws IOException {
-        Settings settings = Settings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonym_expand.type", "synonym")
@@ -135,17 +201,49 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put("index.analysis.filter.stop_within_synonym.type", "stop")
             .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
             .put("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.tokenizer", "whitespace")
-            .putList("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.filter", "stop_within_synonym", "synonym_expand")
-            .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try {
+            .putList("index.analysis.analyzer.synonymAnalyzerExpandWithStopBeforeSynonym.filter", "stop_within_synonym", "synonym_expand");
+
+        CheckedBiConsumer<IndexVersion, Boolean, IOException> assertIsLenient = (iv, updateable) -> {
+            Settings settings = settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, iv)
+                .put("index.analysis.filter.synonym_expand.updateable", updateable)
+                .build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
             indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
-            fail("fail! due to synonym word deleted by analyzer");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("failed to build synonyms"));
-            assertThat(e.getMessage(), containsString("['synonym_expand' analyzer settings]"));
-        }
+            match("synonymAnalyzerExpandWithStopBeforeSynonym", "kimchy is the dude abides", "is the dude abides man!");
+        };
+
+        BiConsumer<IndexVersion, Boolean> assertIsNotLenient = (iv, updateable) -> {
+            Settings settings = settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, iv)
+                .put("index.analysis.filter.synonym_expand.updateable", updateable)
+                .build();
+            try {
+                IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+                indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+                fail("fail! due to synonym word deleted by analyzer");
+            } catch (Exception e) {
+                assertThat(e, instanceOf(IllegalArgumentException.class));
+                assertThat(e.getMessage(), startsWith("failed to build synonyms"));
+                assertThat(e.getMessage(), containsString("['synonym_expand' analyzer settings]"));
+            }
+        };
+
+        // Test with an index version where lenient should always be false by default
+        IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.INDEX_SORTING_ON_NESTED
+        );
+        assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
+        assertIsNotLenient.accept(randomNonLenientIndexVersion, true);
+
+        // Test with an index version where the default lenient value is based on updateable
+        IndexVersion randomLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.LENIENT_UPDATEABLE_SYNONYMS,
+            IndexVersion.current()
+        );
+        assertIsNotLenient.accept(randomLenientIndexVersion, false);
+        assertIsLenient.accept(randomLenientIndexVersion, true);
     }
 
     public void testSynonymsWrappedByMultiplexer() throws IOException {
@@ -272,7 +370,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
         for (String factory : bypassingFactories) {
             TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
-            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings, null);
             Analyzer analyzer = SynonymTokenFilterFactory.buildSynonymAnalyzer(
                 tok,
                 Collections.emptyList(),
@@ -348,7 +445,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
         for (String factory : disallowedFactories) {
             TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
-            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings, null);
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -372,7 +468,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             sb.append(termAtt.toString()).append(" ");
         }
 
-        MatcherAssert.assertThat(target, equalTo(sb.toString().trim()));
+        MatcherAssert.assertThat(sb.toString().trim(), equalTo(target));
     }
 
 }

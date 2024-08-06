@@ -438,6 +438,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);
             List<Expression> groupings = stats.groupings();
+            List<? extends NamedExpression> aggregates = stats.aggregates();
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             if (Resolvables.resolved(groupings) == false) {
@@ -456,7 +457,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (Resolvables.resolved(stats.groupings()) == false || (Resolvables.resolved(stats.aggregates()) == false)) {
+            if (Resolvables.resolved(groupings) == false || (Resolvables.resolved(aggregates) == false)) {
                 ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);

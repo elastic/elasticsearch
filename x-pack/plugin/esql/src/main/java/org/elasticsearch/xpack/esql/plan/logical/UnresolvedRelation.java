@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -44,6 +45,16 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         this.metadataFields = metadataFields;
         this.indexMode = indexMode;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override

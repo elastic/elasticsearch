@@ -99,7 +99,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         indicesAdmin().preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .setSettings(indexSettings(1, 0))
             .get();
         indicesAdmin().preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
@@ -138,7 +138,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
         ensureAllContextsReleased(getInstanceFromNode(SearchService.class));
         super.tearDown();
-        var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
+        var deleteDataStreamsRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {
             assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest));

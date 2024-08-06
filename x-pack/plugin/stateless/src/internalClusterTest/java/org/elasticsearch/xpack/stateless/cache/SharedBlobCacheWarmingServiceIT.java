@@ -108,6 +108,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256))
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         var indexNodeA = startIndexNode(cacheSettings);
@@ -156,6 +157,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .build();
         var indexNodeA = startIndexNode(cacheSettings);
 
@@ -212,6 +214,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .build();
         var indexNodeA = startIndexNode(cacheSettings);
 
@@ -289,6 +292,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .build();
         var indexNode = startIndexNode(cacheSettings);
 
@@ -332,6 +336,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), randomIntBetween(1, 10))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
@@ -395,6 +400,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), "1g")
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -508,6 +514,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         boolean indexNodeUploadDelayed = randomBoolean();

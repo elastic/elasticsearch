@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
@@ -49,6 +50,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -69,6 +72,7 @@ import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 
@@ -95,6 +99,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -106,6 +112,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Base class for function tests.
@@ -189,6 +196,318 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             parameters.add(new Object[] { supplier });
         }
         return parameters;
+    }
+
+    /**
+     * Adds cases with {@code null} and asserts that the result is {@code null}.
+     * <p>
+     * Note: This won't add more than a single null to any existing test case,
+     * just to keep the number of test cases from exploding totally.
+     * </p>
+     *
+     * @param entirelyNullPreservesType should a test case that only contains parameters
+     *                                  with the {@code null} type keep it's expected type?
+     *                                  This is <strong>mostly</strong> going to be {@code true}
+     *                                  except for functions that base their type entirely
+     *                                  on input types like {@link Greatest} or {@link Coalesce}.
+     */
+    protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
+        return anyNullIsNull(
+            testCaseSuppliers,
+            (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
+                && nullValueDataType == DataType.NULL
+                && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullData, original) -> original
+        );
+    }
+
+    public interface ExpectedType {
+        DataType expectedType(int nullPosition, DataType nullValueDataType, TestCaseSupplier.TestCase original);
+    }
+
+    public interface ExpectedEvaluatorToString {
+        Matcher<String> evaluatorToString(int nullPosition, TestCaseSupplier.TypedData nullData, Matcher<String> original);
+    }
+
+    protected static List<TestCaseSupplier> anyNullIsNull(
+        List<TestCaseSupplier> testCaseSuppliers,
+        ExpectedType expectedType,
+        ExpectedEvaluatorToString evaluatorToString
+    ) {
+        typesRequired(testCaseSuppliers);
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        /*
+         * For each original test case, add as many copies as there were
+         * arguments, replacing one of the arguments with null and keeping
+         * the others.
+         *
+         * Also, if this was the first time we saw the signature we copy it
+         * *again*, replacing the argument with null, but annotating the
+         * argument's type as `null` explicitly.
+         */
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+        for (TestCaseSupplier original : testCaseSuppliers) {
+            boolean firstTimeSeenSignature = uniqueSignatures.add(original.types());
+            for (int nullPosition = 0; nullPosition < original.types().size(); nullPosition++) {
+                int finalNullPosition = nullPosition;
+                suppliers.add(new TestCaseSupplier(original.name() + " null in " + nullPosition, original.types(), () -> {
+                    TestCaseSupplier.TestCase oc = original.get();
+                    List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
+                        TestCaseSupplier.TypedData od = oc.getData().get(i);
+                        if (i != finalNullPosition) {
+                            return od;
+                        }
+                        return od.withData(od.isMultiRow() ? Collections.singletonList(null) : null);
+                    }).toList();
+                    TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
+                    return new TestCaseSupplier.TestCase(
+                        data,
+                        evaluatorToString.evaluatorToString(finalNullPosition, nulledData, oc.evaluatorToString()),
+                        expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
+                        nullValue(),
+                        null,
+                        oc.getExpectedTypeError(),
+                        null,
+                        null
+                    );
+                }));
+
+                if (firstTimeSeenSignature) {
+                    List<DataType> typesWithNull = IntStream.range(0, original.types().size())
+                        .mapToObj(i -> i == finalNullPosition ? DataType.NULL : original.types().get(i))
+                        .toList();
+                    boolean newSignature = uniqueSignatures.add(typesWithNull);
+                    if (newSignature) {
+                        suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
+                            TestCaseSupplier.TestCase oc = original.get();
+                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size())
+                                .mapToObj(
+                                    i -> i == finalNullPosition
+                                        ? (oc.getData().get(i).isMultiRow()
+                                            ? TestCaseSupplier.TypedData.MULTI_ROW_NULL
+                                            : TestCaseSupplier.TypedData.NULL)
+                                        : oc.getData().get(i)
+                                )
+                                .toList();
+                            return new TestCaseSupplier.TestCase(
+                                data,
+                                equalTo("LiteralsEvaluator[lit=null]"),
+                                expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
+                                nullValue(),
+                                null,
+                                oc.getExpectedTypeError(),
+                                null,
+                                null
+                            );
+                        }));
+                    }
+                }
+            }
+        }
+
+        return suppliers;
+    }
+
+    @FunctionalInterface
+    protected interface PositionalErrorMessageSupplier {
+        /**
+         * This interface defines functions to supply error messages for incorrect types in specific positions. Functions which have
+         * the same type requirements for all positions can simplify this with a lambda returning a string constant.
+         *
+         * @param validForPosition - the set of {@link DataType}s that the test infrastructure believes to be allowable in the
+         *                         given position.
+         * @param position - the zero-index position in the list of parameters the function has detected the bad argument to be.
+         * @return The string describing the acceptable parameters for that position.  Note that this function should not return
+         *         the full error string; that will be constructed by the test.  Just return the type string for that position.
+         */
+        String apply(Set<DataType> validForPosition, int position);
+    }
+
+    /**
+     * Adds test cases containing unsupported parameter types that assert
+     * that they throw type errors.
+     */
+    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
+        List<TestCaseSupplier> testCaseSuppliers,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
+    ) {
+        return errorsForCasesWithoutExamples(testCaseSuppliers, (i, v, t) -> typeErrorMessage(i, v, t, positionalErrorMessageSupplier));
+    }
+
+    /**
+     * Build the expected error message for an invalid type signature.
+     */
+    protected static String typeErrorMessage(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> types,
+        PositionalErrorMessageSupplier expectedTypeSupplier
+    ) {
+        int badArgPosition = -1;
+        for (int i = 0; i < types.size(); i++) {
+            if (validPerPosition.get(i).contains(types.get(i)) == false) {
+                badArgPosition = i;
+                break;
+            }
+        }
+        if (badArgPosition == -1) {
+            throw new IllegalStateException(
+                "Can't generate error message for these types, you probably need a custom error message function"
+            );
+        }
+        String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
+        String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
+        String name = types.get(badArgPosition).typeName();
+        return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
+    }
+
+    @FunctionalInterface
+    protected interface TypeErrorMessageSupplier {
+        String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
+    }
+
+    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
+        List<TestCaseSupplier> testCaseSuppliers,
+        TypeErrorMessageSupplier typeErrorMessageSupplier
+    ) {
+        typesRequired(testCaseSuppliers);
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
+        List<Set<DataType>> validPerPosition = validPerPosition(valid);
+
+        testCaseSuppliers.stream()
+            .map(s -> s.types().size())
+            .collect(Collectors.toSet())
+            .stream()
+            .flatMap(count -> allPermutations(count))
+            .filter(types -> valid.contains(types) == false)
+            /*
+             * Skip any cases with more than one null. Our tests don't generate
+             * the full combinatorial explosions of all nulls - just a single null.
+             * Hopefully <null>, <null> cases will function the same as <null>, <valid>
+             * cases.
+             */.filter(types -> types.stream().filter(t -> t == DataType.NULL).count() <= 1)
+            .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types, typeErrorMessageSupplier))
+            .forEach(suppliers::add);
+        return suppliers;
+    }
+
+    private static List<DataType> append(List<DataType> orig, DataType extra) {
+        List<DataType> longer = new ArrayList<>(orig.size() + 1);
+        longer.addAll(orig);
+        longer.add(extra);
+        return longer;
+    }
+
+    protected static Stream<DataType> representable() {
+        return DataType.types().stream().filter(DataType::isRepresentable);
+    }
+
+    protected static TestCaseSupplier typeErrorSupplier(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> types,
+        PositionalErrorMessageSupplier errorMessageSupplier
+    ) {
+        return typeErrorSupplier(includeOrdinal, validPerPosition, types, (o, v, t) -> typeErrorMessage(o, v, t, errorMessageSupplier));
+    }
+
+    /**
+     * Build a test case that asserts that the combination of parameter types is an error.
+     */
+    protected static TestCaseSupplier typeErrorSupplier(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> types,
+        TypeErrorMessageSupplier errorMessageSupplier
+    ) {
+        return new TestCaseSupplier(
+            "type error for " + TestCaseSupplier.nameFromTypes(types),
+            types,
+            () -> TestCaseSupplier.TestCase.typeError(
+                types.stream().map(type -> new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, type.typeName())).toList(),
+                errorMessageSupplier.apply(includeOrdinal, validPerPosition, types)
+            )
+        );
+    }
+
+    private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
+        int max = valid.stream().mapToInt(List::size).max().getAsInt();
+        List<Set<DataType>> result = new ArrayList<>(max);
+        for (int i = 0; i < max; i++) {
+            result.add(new HashSet<>());
+        }
+        for (List<DataType> signature : valid) {
+            for (int i = 0; i < signature.size(); i++) {
+                result.get(i).add(signature.get(i));
+            }
+        }
+        return result;
+    }
+
+    protected static Stream<List<DataType>> allPermutations(int argumentCount) {
+        if (argumentCount == 0) {
+            return Stream.of(List.of());
+        }
+        if (argumentCount > 3) {
+            throw new IllegalArgumentException("would generate too many combinations");
+        }
+        Stream<List<DataType>> stream = validFunctionParameters().map(List::of);
+        for (int i = 1; i < argumentCount; i++) {
+            stream = stream.flatMap(types -> validFunctionParameters().map(t -> append(types, t)));
+        }
+        return stream;
+    }
+
+    /**
+     * The types that are valid in function parameters. This is used by the
+     * function tests to enumerate all possible parameters to test error messages
+     * for invalid combinations.
+     */
+    public static Stream<DataType> validFunctionParameters() {
+        return Arrays.stream(DataType.values()).filter(t -> {
+            if (t == DataType.UNSUPPORTED) {
+                // By definition, functions never support UNSUPPORTED
+                return false;
+            }
+            if (t == DataType.DOC_DATA_TYPE || t == DataType.PARTIAL_AGG) {
+                /*
+                 * Doc and partial_agg are special and functions aren't
+                 * defined to take these. They'll use them implicitly if needed.
+                 */
+                return false;
+            }
+            if (t == DataType.OBJECT || t == DataType.NESTED) {
+                // Object and nested fields aren't supported by any functions yet
+                return false;
+            }
+            if (t == DataType.SOURCE || t == DataType.TSID_DATA_TYPE) {
+                // No functions take source or tsid fields yet. We'll make some eventually and remove this.
+                return false;
+            }
+            if (t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION) {
+                // We don't test that functions don't take date_period or time_duration. We should.
+                return false;
+            }
+            if (t.isCounter()) {
+                /*
+                 * For now, we're assuming no functions take counters
+                 * as parameters. That's not true - some do. But we'll
+                 * need to update the tests to handle that.
+                 */
+                return false;
+            }
+            if (t.widenSmallNumeric() != t) {
+                // Small numeric types are widened long before they arrive at functions.
+                return false;
+            }
+
+            return true;
+        }).sorted();
     }
 
     /**
@@ -341,11 +660,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
         return result;
-    }
-
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        // TODO remove me in favor of cases containing null
-        assertTrue("argument " + nullBlock + " is null", value.isNull(0));
     }
 
     /**
@@ -796,7 +1110,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "comment",
             "This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it."
         );
-        builder.field("type", isAggregation() ? "agg" : "eval");
+        builder.field("type", isAggregation() ? "agg" : OPERATORS.get(name) != null ? "operator" : "eval");
         builder.field("name", name);
         builder.field("description", removeAsciidocLinks(info.description()));
         if (Strings.isNullOrEmpty(info.note()) == false) {
@@ -995,6 +1309,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected static DataType[] strings() {
         return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
+    }
+
+    /**
+     * Validate that we know the types for all the test cases already created
+     * @param suppliers - list of suppliers before adding in the illegal type combinations
+     */
+    protected static void typesRequired(List<TestCaseSupplier> suppliers) {
+        String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
+        if (bad.equals("") == false) {
+            throw new IllegalArgumentException("types required but not found for these tests:\n" + bad);
+        }
     }
 
     /**

@@ -49,73 +49,6 @@ public class MaxTests extends AbstractAggregationTestCase {
 
         suppliers.addAll(
             List.of(
-                // Surrogates
-                new TestCaseSupplier(
-                    List.of(DataType.INTEGER),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5, 8, -2, 0, 200), DataType.INTEGER, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.INTEGER,
-                        equalTo(200)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.LONG, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.LONG,
-                        equalTo(200L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.DOUBLE),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5., 8., -2., 0., 200.), DataType.DOUBLE, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.DOUBLE,
-                        equalTo(200.)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.DATETIME, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.DATETIME,
-                        equalTo(200L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.BOOLEAN),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(true, false, false, true), DataType.BOOLEAN, "field")),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.BOOLEAN,
-                        equalTo(true)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.IP),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(
-                                List.of(
-                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))),
-                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))),
-                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::"))),
-                                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::")))
-                                ),
-                                DataType.IP,
-                                "field"
-                            )
-                        ),
-                        "Max[field=Attribute[channel=0]]",
-                        DataType.IP,
-                        equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::"))))
-                    )
-                ),
-
                 // Folding
                 new TestCaseSupplier(
                     List.of(DataType.INTEGER),
@@ -180,7 +113,11 @@ public class MaxTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            suppliers,
+            false,
+            (v, p) -> "boolean, datetime, ip or numeric except unsigned_long or counter types"
+        );
     }
 
     @Override

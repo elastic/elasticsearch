@@ -585,7 +585,9 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareOpen(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareClose(dataStreamName), true);
         verifyResolvability(aliasToDataStream, indicesAdmin().prepareClose(aliasToDataStream), true);
-        verifyResolvability(client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest(dataStreamName)));
+        verifyResolvability(
+            client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, dataStreamName))
+        );
         verifyResolvability(client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(dataStreamName)));
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
@@ -629,7 +631,12 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetIndex().addIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareOpen(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClose(wildcardExpression), false);
-        verifyResolvability(client().execute(TransportClusterSearchShardsAction.TYPE, new ClusterSearchShardsRequest(wildcardExpression)));
+        verifyResolvability(
+            client().execute(
+                TransportClusterSearchShardsAction.TYPE,
+                new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, wildcardExpression)
+            )
+        );
         verifyResolvability(client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(wildcardExpression)));
     }
 

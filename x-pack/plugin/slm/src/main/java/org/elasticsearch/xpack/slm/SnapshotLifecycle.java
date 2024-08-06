@@ -32,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -169,6 +170,11 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
                 Metadata.Custom.class,
                 new ParseField(SnapshotLifecycleMetadata.TYPE),
                 parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(RegisteredPolicySnapshots.TYPE),
+                RegisteredPolicySnapshots::parse
             )
         );
     }

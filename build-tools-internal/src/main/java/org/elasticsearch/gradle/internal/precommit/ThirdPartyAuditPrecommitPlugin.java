@@ -66,10 +66,8 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
                     )
                 );
             t.dependsOn(resourcesTask);
-            if (BuildParams.getIsRuntimeJavaHomeSet()) {
-                t.getJavaHome().set(project.provider(BuildParams::getRuntimeJavaHome).map(File::getPath));
-            }
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
+            t.getJavaHome().set(project.provider(BuildParams::getRuntimeJavaHome).map(File::getPath));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
             t.getJdkJarHellClasspath().from(jdkJarHellConfig);
             t.getForbiddenAPIsClasspath().from(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnly));

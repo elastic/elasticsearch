@@ -1810,7 +1810,14 @@ public class IndexShardTests extends IndexShardTestCase {
         // _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword,
         assertThat(stats.totalFields(), equalTo(9));
         // don't re-compute on refresh without change
-        shard.refresh("test");
+        if (randomBoolean()) {
+            shard.refresh("test");
+        } else {
+            // trigger internal refresh
+            try (Engine.GetResult getResult = shard.get(new Engine.Get(true, false, "first_0"))) {
+                assertTrue(getResult.exists());
+            }
+        }
         assertThat(shard.getShardFieldStats(), sameInstance(stats));
         // index more docs
         numDocs = between(1, 10);
@@ -1823,7 +1830,14 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
                 """);
         }
-        shard.refresh("test");
+        if (randomBoolean()) {
+            shard.refresh("test");
+        } else {
+            // trigger internal refresh
+            try (Engine.GetResult getResult = shard.get(new Engine.Get(true, false, "first_0"))) {
+                assertTrue(getResult.exists());
+            }
+        }
         stats = shard.getShardFieldStats();
         assertThat(stats.numSegments(), equalTo(2));
         // 9 + _id, _source, _version, _primary_term, _seq_no, f1, f1.keyword, f2, f2.keyword, f3, f3.keyword

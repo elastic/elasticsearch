@@ -310,7 +310,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         long timeShiftAmount = 3600L;
         long timestampStart = 1491004800000L;
         long bucketSpanMillis = 3600000L;
-        long timeShiftTimestamp = timestampStart + bucketSpanMillis;
+        long timeShiftTimestamp = (timestampStart + bucketSpanMillis)/1000;
 
         int totalBuckets = 2 * 24;
 
@@ -326,6 +326,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = new Job.Builder("detection-rules-it-test-force-time-shift");
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
+//        job.setCustomSettings(Collections.singletonMap("keep_job_data", "true"));
 
         putJob(job);
         openJob(job.getId());
@@ -357,7 +358,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
                 break;
             }
         }
-        assertThat(annotationFound, equalTo(true));
+        assertThat("Annotation with time shift not found", annotationFound, equalTo(true));
     }
 
     private String createIpRecord(long timestamp, String ip) throws IOException {

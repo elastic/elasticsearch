@@ -46,6 +46,34 @@ public enum DataType {
     BOOLEAN(builder().esType("boolean").estimatedSize(1)),
 
     /**
+     * 64-bit signed numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
+     */
+    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter()),
+    /**
+     * 32-bit signed numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
+     */
+    COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
+    /**
+     * 64-bit floating point numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
+     */
+    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
+
+    /**
      * 64-bit signed numbers loaded as a java {@code long}.
      */
     LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
@@ -134,34 +162,6 @@ public enum DataType {
     // wild estimate for size, based on some test data (airport_city_boundaries)
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
-
-    /**
-     * 64-bit signed numbers labeled as metric counters in time-series indices.
-     * Although stored internally as numeric fields, they represent cumulative
-     * metrics and must not be treated as regular numeric fields. Therefore,
-     * we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate
-     * aggregation, and casting to their parent numeric type.
-     */
-    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter()),
-    /**
-     * 32-bit signed numbers labeled as metric counters in time-series indices.
-     * Although stored internally as numeric fields, they represent cumulative
-     * metrics and must not be treated as regular numeric fields. Therefore,
-     * we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate
-     * aggregation, and casting to their parent numeric type.
-     */
-    COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
-    /**
-     * 64-bit floating point numbers labeled as metric counters in time-series indices.
-     * Although stored internally as numeric fields, they represent cumulative
-     * metrics and must not be treated as regular numeric fields. Therefore,
-     * we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate
-     * aggregation, and casting to their parent numeric type.
-     */
-    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:

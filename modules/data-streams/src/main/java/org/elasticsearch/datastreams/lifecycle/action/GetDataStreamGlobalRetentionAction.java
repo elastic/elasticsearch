@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -98,7 +98,7 @@ public class GetDataStreamGlobalRetentionAction {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            globalRetention.toXContentFragment(builder, params);
+            globalRetention.toXContent(builder, params);
             builder.endObject();
             return builder;
         }
@@ -120,7 +120,7 @@ public class GetDataStreamGlobalRetentionAction {
     public static class TransportGetDataStreamGlobalSettingsAction extends TransportMasterNodeReadAction<Request, Response> {
 
         private final FeatureService featureService;
-        private final DataStreamGlobalRetentionResolver globalRetentionResolver;
+        private final DataStreamGlobalRetentionProvider globalRetentionResolver;
 
         @Inject
         public TransportGetDataStreamGlobalSettingsAction(
@@ -130,7 +130,7 @@ public class GetDataStreamGlobalRetentionAction {
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             FeatureService featureService,
-            DataStreamGlobalRetentionResolver globalRetentionResolver
+            DataStreamGlobalRetentionProvider globalRetentionResolver
         ) {
             super(
                 INSTANCE.name(),
@@ -158,7 +158,7 @@ public class GetDataStreamGlobalRetentionAction {
                 );
                 return;
             }
-            DataStreamGlobalRetention globalRetention = globalRetentionResolver.resolve(state);
+            DataStreamGlobalRetention globalRetention = globalRetentionResolver.provide();
             listener.onResponse(new Response(globalRetention == null ? DataStreamGlobalRetention.EMPTY : globalRetention));
         }
 

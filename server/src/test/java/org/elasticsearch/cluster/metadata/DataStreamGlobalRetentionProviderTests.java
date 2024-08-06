@@ -8,39 +8,20 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
-
-import static org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionTests.randomGlobalRetention;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataStreamGlobalRetentionResolverTests extends ESTestCase {
-
-    public void testOnlyGlobalRetentionMetadata() {
-        DataStreamFactoryRetention factoryRetention = randomBoolean()
-            ? DataStreamFactoryRetention.emptyFactoryRetention()
-            : randomNonEmptyFactoryRetention();
-        DataStreamGlobalRetentionResolver resolver = new DataStreamGlobalRetentionResolver(factoryRetention);
-        DataStreamGlobalRetention expectedGlobalRetention = randomGlobalRetention();
-        DataStreamGlobalRetention globalRetention = resolver.resolve(
-            ClusterState.builder(ClusterName.DEFAULT).customs(Map.of(DataStreamGlobalRetention.TYPE, expectedGlobalRetention)).build()
-        );
-        assertThat(globalRetention, notNullValue());
-        assertThat(globalRetention.getDefaultRetention(), equalTo(expectedGlobalRetention.getDefaultRetention()));
-        assertThat(globalRetention.getMaxRetention(), equalTo(expectedGlobalRetention.getMaxRetention()));
-    }
+public class DataStreamGlobalRetentionProviderTests extends ESTestCase {
 
     public void testOnlyFactoryRetentionFallback() {
         DataStreamFactoryRetention factoryRetention = randomNonEmptyFactoryRetention();
-        DataStreamGlobalRetentionResolver resolver = new DataStreamGlobalRetentionResolver(factoryRetention);
-        DataStreamGlobalRetention globalRetention = resolver.resolve(ClusterState.EMPTY_STATE);
+        DataStreamGlobalRetentionProvider resolver = new DataStreamGlobalRetentionProvider(factoryRetention);
+        DataStreamGlobalRetention globalRetention = resolver.provide();
         assertThat(globalRetention, notNullValue());
         assertThat(globalRetention.getDefaultRetention(), equalTo(factoryRetention.getDefaultRetention()));
         assertThat(globalRetention.getMaxRetention(), equalTo(factoryRetention.getMaxRetention()));
@@ -69,9 +50,9 @@ public class DataStreamGlobalRetentionResolverTests extends ESTestCase {
     }
 
     public void testNoRetentionConfiguration() {
-        DataStreamGlobalRetentionResolver resolver = new DataStreamGlobalRetentionResolver(
+        DataStreamGlobalRetentionProvider resolver = new DataStreamGlobalRetentionProvider(
             DataStreamFactoryRetention.emptyFactoryRetention()
         );
-        assertThat(resolver.resolve(ClusterState.EMPTY_STATE), nullValue());
+        assertThat(resolver.provide(), nullValue());
     }
 }

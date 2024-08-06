@@ -50,10 +50,13 @@ public class NodeShutdownAutoExpandIT extends ESRestTestCase {
             Map<String, Object> status = entityAsMap(statusResponse);
             String shardMigrationStatus = ObjectPath.eval("nodes.0.shard_migration.status", status);
             if ("COMPLETE".equals(shardMigrationStatus)) {
-                logger.warn("shard migration status: [{}]", shardMigrationStatus);
-                wasComplete = true;
-            } else if (wasComplete) {
-                fail("shard migration was complete and then became not-complete: " + shardMigrationStatus);
+                String primaryNode = getNodeWithPrimaryShardForIndex(indexName);
+                if (nodeIdToShutDown.equals(primaryNode)) {
+                    fail("Migration status was complete but a primary shard still resides on the node that's shutting down");
+                } else {
+                    logger.warn("primary shard has moved to node [{}]", primaryNode);
+                    break;
+                }
             } else {
                 logger.warn("shard migration status: [{}]", shardMigrationStatus);
             }

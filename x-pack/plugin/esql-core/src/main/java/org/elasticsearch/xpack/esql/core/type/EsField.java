@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,16 +55,39 @@ public class EsField implements NamedWriteable {
 
     public EsField(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.esDataType = DataType.readFrom(in);
+        this.esDataType = readDataType(in);
         this.properties = in.readImmutableMap(i -> i.readNamedWriteable(EsField.class));
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
     }
 
+    private DataType readDataType(StreamInput in) throws IOException {
+        String name = in.readString();
+        if (in.getTransportVersion().before(TransportVersions.ESQL_NESTED_UNSUPPORTED) && name.equalsIgnoreCase("NESTED")) {
+            /*
+             * The "nested" data type existed in older versions of ESQL but was
+             * entirely used to filter mappings away. Those versions will still
+             * sometimes send it inside EsField when hitting `nested` fields in
+             * indices. But the rest of ESQL will never see that type. Thus, we
+             * translate it here. We translate to UNSUPPORTED because that seems
+             * to work. We've already performed any required filtering.
+             */
+            return DataType.UNSUPPORTED;
+        }
+        if (name.equalsIgnoreCase(DataType.DOC_DATA_TYPE.nameUpper())) {
+            return DataType.DOC_DATA_TYPE;
+        }
+        DataType dataType = DataType.fromTypeName(name);
+        if (dataType == null) {
+            throw new IOException("Unknown DataType for type name: " + name);
+        }
+        return dataType;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(esDataType.typeName());
+        esDataType.writeTo(out);
         out.writeMap(properties, StreamOutput::writeNamedWriteable);
         out.writeBoolean(aggregatable);
         out.writeBoolean(isAlias);

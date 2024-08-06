@@ -432,6 +432,39 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
+    /**
+     * TopNExec[[Order[emp_no{f}#3,ASC,LAST]],1000[INTEGER],0]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen]
+     *       \_EsQueryExec[test],
+     *          query[{"bool":{"must":[{"query_string":{"query":"last_name: Smith","fields":[]}},
+     *          {"query_string":{"query":"John","fields":[]}}],"boost":1.0}}]
+     *          sort[[FieldSort[field=emp_no{f}#3, direction=ASC, nulls=LAST]]]
+     */
+    public void testMatchCommandWithMultipleMatches() {
+        var plan = plannerOptimizer.plan("""
+            from test
+            | match "last_name: Smith"
+            | sort emp_no
+            | MATCH "John"
+            """, IS_SV_STATS);
+
+        var limit = as(plan, TopNExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        Source source = new Source(2, 8, "emp_no > 10010");
+        var queryString1 = QueryBuilders.queryStringQuery("last_name: Smith");
+        var queryString2 = QueryBuilders.queryStringQuery("John");
+        var expected = QueryBuilders.boolQuery().must(queryString1).must(queryString2);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
     // optimizer doesn't know yet how to break down different multi count
     public void testCountFieldsAndAllWithFilter() {
         var plan = plannerOptimizer.plan("""

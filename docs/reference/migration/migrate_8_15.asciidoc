@@ -79,7 +79,8 @@ From 8.15 onwards the <<get-inference-api>> response will return an
 `inference_id` field instead of a `model_id`.
 
 *Impact* +
-
+If your application looks for the `model_id` in a GET inference API response,
+switch it to use `inference_id` instead.
 ====
 
 

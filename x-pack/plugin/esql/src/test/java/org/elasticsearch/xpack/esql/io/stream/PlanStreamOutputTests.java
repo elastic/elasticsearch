@@ -28,8 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.MetadataAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttributeTests;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -54,7 +54,7 @@ public class PlanStreamOutputTests extends ESTestCase {
         PlanStreamOutput planOut = new PlanStreamOutput(
             out,
             PlanNameRegistry.INSTANCE,
-            randomBoolean() ? null : EsqlConfigurationSerializationTests.randomConfiguration()
+            randomBoolean() ? null : randomConfiguration()
         );
         assertThat(planOut.getTransportVersion(), equalTo(v1));
         TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion(random());
@@ -67,7 +67,7 @@ public class PlanStreamOutputTests extends ESTestCase {
         String tableName = randomAlphaOfLength(5);
         String columnName = randomAlphaOfLength(10);
         try (Column c = randomColumn()) {
-            EsqlConfiguration configuration = randomConfiguration(Map.of(tableName, Map.of(columnName, c)));
+            Configuration configuration = randomConfiguration("query_" + randomAlphaOfLength(1), Map.of(tableName, Map.of(columnName, c)));
             try (
                 BytesStreamOutput out = new BytesStreamOutput();
                 PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
@@ -85,7 +85,7 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testWriteBlockOnce() throws IOException {
         try (Block b = randomColumn().values()) {
-            EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+            Configuration configuration = randomConfiguration();
             try (
                 BytesStreamOutput out = new BytesStreamOutput();
                 PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
@@ -106,7 +106,7 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testWriteBlockTwice() throws IOException {
         try (Block b = randomColumn().values()) {
-            EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+            Configuration configuration = randomConfiguration();
             try (
                 BytesStreamOutput out = new BytesStreamOutput();
                 PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
@@ -129,7 +129,7 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     public void testWriteAttributeMultipleTimes() throws IOException {
         Attribute attribute = randomAttribute();
-        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        Configuration configuration = randomConfiguration();
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
@@ -163,7 +163,7 @@ public class PlanStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteMultipleAttributes() throws IOException {
-        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        Configuration configuration = randomConfiguration();
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
@@ -199,7 +199,7 @@ public class PlanStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteMultipleAttributesWithSmallCache() throws IOException {
-        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        Configuration configuration = randomConfiguration();
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration, PlanNamedTypes::name, 10)
@@ -213,7 +213,7 @@ public class PlanStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteEqualAttributesDifferentID() throws IOException {
-        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        Configuration configuration = randomConfiguration();
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
@@ -238,7 +238,7 @@ public class PlanStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteDifferentAttributesSameID() throws IOException {
-        EsqlConfiguration configuration = EsqlConfigurationSerializationTests.randomConfiguration();
+        Configuration configuration = randomConfiguration();
         try (
             BytesStreamOutput out = new BytesStreamOutput();
             PlanStreamOutput planStream = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, configuration)
@@ -272,10 +272,6 @@ public class PlanStreamOutputTests extends ESTestCase {
             default -> throw new IllegalArgumentException();
 
         };
-    }
-
-    private EsqlConfiguration randomConfiguration(Map<String, Map<String, Column>> tables) {
-        return EsqlConfigurationSerializationTests.randomConfiguration("query_" + randomAlphaOfLength(1), tables);
     }
 
     private static final int LEN = 10000;

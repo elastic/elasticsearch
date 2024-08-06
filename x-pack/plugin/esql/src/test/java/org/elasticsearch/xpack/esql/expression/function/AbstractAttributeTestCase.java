@@ -20,14 +20,13 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractAttributeTestCase<T extends Attribute> extends AbstractWireSerializingTestCase<
@@ -76,7 +75,7 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
                 in,
                 PlanNameRegistry.INSTANCE,
                 in.namedWriteableRegistry(),
-                EsqlConfigurationSerializationTests.randomConfiguration("", Map.of())
+                randomConfiguration()
             );
             ps.setTransportVersion(in.getTransportVersion());
             a = ps.readNamedWriteable(Attribute.class);

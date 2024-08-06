@@ -15,22 +15,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 
-public class EsqlConfiguration extends Configuration implements Writeable {
+public class Configuration implements Writeable {
 
-    static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
+    public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
+
+    private final String clusterName;
+    private final String username;
+    private final ZonedDateTime now;
+    private final ZoneId zoneId;
 
     private final QueryPragmas pragmas;
 
@@ -45,7 +52,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     private final Map<String, Map<String, Column>> tables;
 
-    public EsqlConfiguration(
+    public Configuration(
         ZoneId zi,
         Locale locale,
         String username,
@@ -57,7 +64,10 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         boolean profile,
         Map<String, Map<String, Column>> tables
     ) {
-        super(zi, username, clusterName);
+        this.zoneId = zi;
+        this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
+        this.username = username;
+        this.clusterName = clusterName;
         this.locale = locale;
         this.pragmas = pragmas;
         this.resultTruncationMaxSize = resultTruncationMaxSize;
@@ -68,8 +78,11 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         assert tables != null;
     }
 
-    public EsqlConfiguration(BlockStreamInput in) throws IOException {
-        super(in.readZoneId(), Instant.ofEpochSecond(in.readVLong(), in.readVInt()), in.readOptionalString(), in.readOptionalString());
+    public Configuration(BlockStreamInput in) throws IOException {
+        this.zoneId = in.readZoneId();
+        this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt()).atZone(zoneId);
+        this.username = in.readOptionalString();
+        this.clusterName = in.readOptionalString();
         locale = Locale.forLanguageTag(in.readString());
         this.pragmas = new QueryPragmas(in);
         this.resultTruncationMaxSize = in.readVInt();
@@ -106,6 +119,22 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REQUEST_TABLES)) {
             out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, (o2, column) -> column.writeTo(o2)));
         }
+    }
+
+    public ZoneId zoneId() {
+        return zoneId;
+    }
+
+    public ZonedDateTime now() {
+        return now;
+    }
+
+    public String clusterName() {
+        return clusterName;
+    }
+
+    public String username() {
+        return username;
     }
 
     public QueryPragmas pragmas() {
@@ -177,23 +206,29 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o)) {
-            EsqlConfiguration that = (EsqlConfiguration) o;
-            return resultTruncationMaxSize == that.resultTruncationMaxSize
-                && resultTruncationDefaultSize == that.resultTruncationDefaultSize
-                && Objects.equals(pragmas, that.pragmas)
-                && Objects.equals(locale, that.locale)
-                && Objects.equals(that.query, query)
-                && profile == that.profile
-                && tables.equals(that.tables);
-        }
-        return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Configuration that = (Configuration) o;
+        return Objects.equals(zoneId, that.zoneId)
+            && Objects.equals(now, that.now)
+            && Objects.equals(username, that.username)
+            && Objects.equals(clusterName, that.clusterName)
+            && resultTruncationMaxSize == that.resultTruncationMaxSize
+            && resultTruncationDefaultSize == that.resultTruncationDefaultSize
+            && Objects.equals(pragmas, that.pragmas)
+            && Objects.equals(locale, that.locale)
+            && Objects.equals(that.query, query)
+            && profile == that.profile
+            && tables.equals(that.tables);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-            super.hashCode(),
+            zoneId,
+            now,
+            username,
+            clusterName,
             pragmas,
             resultTruncationMaxSize,
             resultTruncationDefaultSize,

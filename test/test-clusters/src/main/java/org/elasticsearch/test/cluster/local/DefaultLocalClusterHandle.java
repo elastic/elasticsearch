@@ -39,7 +39,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     public static final AtomicInteger NEXT_DEBUG_PORT = new AtomicInteger(5007);
 
     private static final Logger LOGGER = LogManager.getLogger(DefaultLocalClusterHandle.class);
-    private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofMinutes(5);
 
     public final ForkJoinPool executor = new ForkJoinPool(
         Math.max(Runtime.getRuntime().availableProcessors(), 4),

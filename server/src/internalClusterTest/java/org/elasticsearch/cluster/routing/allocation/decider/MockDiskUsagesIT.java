@@ -106,7 +106,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         }
         updateClusterSettings(settings);
         // Create an index with 10 shards so we can check allocation for it
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 10).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(10, 0)));
         ensureGreen("test");
 
         assertBusy(() -> {
@@ -184,7 +184,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         updateClusterSettings(builder);
 
         // Create an index with 6 shards so we can check allocation for it
-        prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)).get();
+        prepareCreate("test").setSettings(indexSettings(6, 0)).get();
         ensureGreen("test");
 
         {
@@ -269,7 +269,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .map(RoutingNode::nodeId)
             .toList();
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)));
 
         ensureGreen("test");
 
@@ -355,10 +355,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put("number_of_shards", 6)
-                    .put("number_of_replicas", 0)
-                    .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey(), nodeIds.get(2))
+                indexSettings(6, 0).put(
+                    IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey(),
+                    nodeIds.get(2)
+                )
             )
         );
         ensureGreen("test");
@@ -422,7 +422,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .map(RoutingNode::nodeId)
             .toList();
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)));
 
         ensureGreen("test");
 

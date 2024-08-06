@@ -101,7 +101,7 @@ teardown:
                   - 'id1'
                   - 'id2'
             - rule_id: query-rule-id2
-              type: pinned
+              type: exclude
               criteria:
                 - type: exact
                   metadata: query_string
@@ -122,7 +122,7 @@ teardown:
   - match:
       rules:
         - rule_id: query-rule-id2
-          type: pinned
+          type: exclude
           criteria:
             - type: exact
               metadata: query_string
@@ -169,7 +169,7 @@ teardown:
   - match:
       rules:
         - rule_id: query-rule-id2
-          type: pinned
+          type: exclude
           criteria:
             - type: exact
               metadata: query_string
@@ -225,7 +225,7 @@ teardown:
   - match:
       rules:
         - rule_id: query-rule-id2
-          type: pinned
+          type: exclude
           criteria:
             - type: exact
               metadata: query_string

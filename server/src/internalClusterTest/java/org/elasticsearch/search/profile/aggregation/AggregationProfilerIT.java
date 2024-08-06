@@ -93,7 +93,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate("idx")
-                .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
+                .setSettings(indexSettings(1, 0))
                 .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword")
         );
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -634,11 +634,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
      * documents and that is hard to express in yaml.
      */
     public void testFilterByFilter() throws InterruptedException, IOException {
-        assertAcked(
-            indicesAdmin().prepareCreate("dateidx")
-                .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
-                .setMapping("date", "type=date")
-        );
+        assertAcked(indicesAdmin().prepareCreate("dateidx").setSettings(indexSettings(1, 0)).setMapping("date", "type=date"));
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
             String date = Instant.ofEpochSecond(i).toString();
@@ -713,7 +709,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         try {
             assertAcked(
                 indicesAdmin().prepareCreate("date_filter_by_filter_disabled")
-                    .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
+                    .setSettings(indexSettings(1, 0))
                     .setMapping("date", "type=date", "keyword", "type=keyword")
             );
             List<IndexRequestBuilder> builders = new ArrayList<>();

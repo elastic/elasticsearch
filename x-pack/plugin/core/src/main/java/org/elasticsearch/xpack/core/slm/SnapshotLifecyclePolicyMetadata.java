@@ -277,6 +277,11 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
             return this;
         }
 
+        public Builder incrementInvocationsSinceLastSuccess() {
+            this.invocationsSinceLastSuccess++;
+            return this;
+        }
+
         public SnapshotLifecyclePolicyMetadata build() {
             return new SnapshotLifecyclePolicyMetadata(
                 Objects.requireNonNull(policy),

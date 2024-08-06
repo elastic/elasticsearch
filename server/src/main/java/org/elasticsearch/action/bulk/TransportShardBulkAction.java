@@ -59,7 +59,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -364,16 +364,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             final IndexRequest request = context.getRequestToExecute();
 
-            DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request);
-
-            context.setDocumentSizeObserver(documentSizeObserver);
+            XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
                 request.source(),
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
-                documentSizeObserver
+                meteringParserDecorator
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,

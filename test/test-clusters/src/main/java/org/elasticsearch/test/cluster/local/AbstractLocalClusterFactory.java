@@ -720,6 +720,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
             environment.put("TMP", workingDir.resolve("tmp").toString());
 
+            environment = environment.entrySet()
+                .stream()
+                .map(p -> Map.entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
             String featureFlagProperties = "";
             if (spec.getFeatures().isEmpty() == false && distributionDescriptor.isSnapshot() == false) {
                 featureFlagProperties = spec.getFeatures()

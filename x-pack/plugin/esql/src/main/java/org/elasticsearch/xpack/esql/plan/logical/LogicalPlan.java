@@ -7,15 +7,14 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -24,7 +23,25 @@ import java.util.List;
  */
 public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Resolvable {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(LocalRelation.ENTRY, Lookup.ENTRY, Join.ENTRY, TopN.ENTRY);
+        return List.of(
+            Aggregate.ENTRY,
+            Dissect.ENTRY,
+            Enrich.ENTRY,
+            EsRelation.ENTRY,
+            EsqlProject.ENTRY,
+            Eval.ENTRY,
+            Filter.ENTRY,
+            Grok.ENTRY,
+            InlineStats.ENTRY,
+            LocalRelation.ENTRY,
+            Limit.ENTRY,
+            Lookup.ENTRY,
+            MvExpand.ENTRY,
+            Join.ENTRY,
+            OrderBy.ENTRY,
+            Project.ENTRY,
+            TopN.ENTRY
+        );
     }
 
     /**
@@ -43,17 +60,6 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
 
     public LogicalPlan(Source source, List<LogicalPlan> children) {
         super(source, children);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // TODO remove when all PhysicalPlans are migrated to NamedWriteable
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException();
     }
 
     public boolean preAnalyzed() {

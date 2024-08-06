@@ -358,6 +358,14 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             return policyId;
         }
 
+        public long getSnapshotTakenCount() {
+            return snapshotsTaken;
+        }
+
+        public long getSnapshotFailedCount() {
+            return snapshotsFailed;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(policyId);

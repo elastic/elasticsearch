@@ -54,15 +54,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Supplier<TestCaseSupplier.TestCase> {
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
-    /**
-     * Build a test case without types.
-     *
-     * @deprecated Supply types
-     */
-    @Deprecated
-    public TestCaseSupplier(String name, Supplier<TestCase> supplier) {
-        this(name, null, supplier);
-    }
 
     /**
      * Build a test case named after the types it takes.

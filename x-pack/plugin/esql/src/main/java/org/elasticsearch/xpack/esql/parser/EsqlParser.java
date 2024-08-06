@@ -19,15 +19,14 @@ import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.BitSet;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
 

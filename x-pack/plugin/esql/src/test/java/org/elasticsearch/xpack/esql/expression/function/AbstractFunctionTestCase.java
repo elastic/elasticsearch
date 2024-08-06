@@ -175,7 +175,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     throw new UncheckedIOException(e);
                 }
             }
-            case UNSUPPORTED, OBJECT, NESTED, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
@@ -481,7 +481,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                  */
                 return false;
             }
-            if (t == DataType.OBJECT || t == DataType.NESTED) {
+            if (t == DataType.OBJECT) {
                 // Object and nested fields aren't supported by any functions yet
                 return false;
             }
@@ -660,11 +660,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
         return result;
-    }
-
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        // TODO remove me in favor of cases containing null
-        assertTrue("argument " + nullBlock + " is null", value.isNull(0));
     }
 
     /**

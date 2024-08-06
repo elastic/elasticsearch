@@ -75,8 +75,8 @@ changes to synonym files. Only to be used for search analyzers.
 * `expand` (defaults to `true`).
 Expands definitions for equivalent synonym rules.
 See <<synonym-tokenizer-expand-equivalent-synonyms,expand equivalent synonyms>>.
-* `lenient` (defaults to `false`).
-If `true` ignores errors while parsing the synonym configuration.
+* `lenient` (defaults to the value of the `updateable` setting).
+If `true` ignores errors while parsing the synonym rules.
 It is important to note that only those synonym rules which cannot get parsed are ignored.
 See <<synonym-tokenizer-stop-token-filter,synonyms and stop token filters>> for an example of `lenient` behaviour for invalid synonym rules.
 
@@ -169,11 +169,11 @@ This can can cause errors on the synonym rule.
 
 [WARNING]
 ====
-Invalid synonym rules can cause errors when applying analyzer changes.
+If `lenient` is set to `false`, invalid synonym rules can cause errors when applying analyzer changes.
 For reloadable analyzers, this prevents reloading and applying changes.
 You must correct errors in the synonym rules and reload the analyzer.
 
-An index with invalid synonym rules cannot be reopened, making it inoperable when:
+When `lenient` is set to `false`, an index with invalid synonym rules cannot be reopened, making it inoperable when:
 
 * A node containing the index starts
 * The index is opened from a closed state

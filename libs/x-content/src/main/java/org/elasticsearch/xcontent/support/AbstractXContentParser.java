@@ -151,11 +151,8 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract int doIntValue() throws IOException;
 
-    private static BigInteger LONG_MAX_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MAX_VALUE);
-    private static BigInteger LONG_MIN_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MIN_VALUE);
-    // weak bounds on the BigDecimal representation to allow for coercion
-    private static BigDecimal BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE).add(BigDecimal.ONE);
-    private static BigDecimal BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE).subtract(BigDecimal.ONE);
+    private static final BigInteger LONG_MAX_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MAX_VALUE);
+    private static final BigInteger LONG_MIN_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MIN_VALUE);
 
     /** Return the long that {@code stringValue} stores or throws an exception if the
      *  stored value cannot be converted to a long that stores the exact same
@@ -170,11 +167,21 @@ public abstract class AbstractXContentParser implements XContentParser {
         final BigInteger bigIntegerValue;
         try {
             final BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0
-                || bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
+            // long can have a maximum of 19 digits - any more than that cannot be a long
+            // the scale is stored as the negation, so negative scale -> big number
+            if (bigDecimalValue.scale() < -19) {
                 throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
             }
-            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+            // large scale -> very small number
+            if (bigDecimalValue.scale() > 19) {
+                if (coerce) {
+                    bigIntegerValue = BigInteger.ZERO;
+                } else {
+                    throw new ArithmeticException("Number has a decimal part");
+                }
+            } else {
+                bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+            }
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
         } catch (NumberFormatException e) {

@@ -27,4 +27,26 @@ public class PreallocateTests extends ESTestCase {
         assertTrue(foundSize.isPresent());
         assertThat(foundSize.getAsLong(), equalTo(size));
     }
+
+    public void testPreallocateNonExistingFile() {
+        assumeFalse("no preallocate on windows", System.getProperty("os.name").startsWith("Windows"));
+        Path file = createTempDir().resolve("intermediate-dir").resolve("test-preallocate");
+        long size = 1024 * 1024; // 1 MB
+        var nativeAccess = NativeAccess.instance();
+        nativeAccess.tryPreallocate(file, size);
+        OptionalLong foundSize = nativeAccess.allocatedSizeInBytes(file);
+        assertTrue(foundSize.isPresent());
+        assertThat(foundSize.getAsLong(), equalTo(size));
+    }
+
+    public void testPreallocateNonExistingDirectory() {
+        assumeFalse("no preallocate on windows", System.getProperty("os.name").startsWith("Windows"));
+        Path file = createTempDir().resolve("intermediate-dir").resolve("test-preallocate");
+        long size = 1024 * 1024; // 1 MB
+        var nativeAccess = NativeAccess.instance();
+        nativeAccess.tryPreallocate(file, size);
+        OptionalLong foundSize = nativeAccess.allocatedSizeInBytes(file);
+        assertTrue(foundSize.isPresent());
+        assertThat(foundSize.getAsLong(), equalTo(size));
+    }
 }

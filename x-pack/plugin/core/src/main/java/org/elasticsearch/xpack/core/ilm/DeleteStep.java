@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -52,7 +53,10 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                 // This is the last backing index in the data stream, and it's being deleted because the policy doesn't have a rollover
                 // phase. The entire stream needs to be deleted, because we can't have an empty list of data stream backing indices.
                 // We do this even if there are multiple failure store indices because otherwise we would never delete the index.
-                DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[] { dataStream.getName() });
+                DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(
+                    MasterNodeRequest.infiniteMasterNodeTimeout(currentState.getMinTransportVersion()),
+                    dataStream.getName()
+                );
                 getClient().execute(
                     DeleteDataStreamAction.INSTANCE,
                     deleteReq,

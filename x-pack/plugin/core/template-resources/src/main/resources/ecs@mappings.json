@@ -31,7 +31,7 @@
               "doc_values": false
             },
             "path_match": [
-              "event.original"
+              "*event.original"
             ]
           }
         },
@@ -128,9 +128,9 @@
               "*file.path",
               "*file.target_path",
               "*os.full",
-              "email.subject",
-              "vulnerability.description",
-              "user_agent.original"
+              "*email.subject",
+              "*vulnerability.description",
+              "*user_agent.original"
             ],
             "unmatch_mapping_type": "object"
           }

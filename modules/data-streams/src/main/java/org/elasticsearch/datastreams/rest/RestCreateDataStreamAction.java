@@ -11,6 +11,7 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -35,7 +36,11 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        CreateDataStreamAction.Request putDataStreamRequest = new CreateDataStreamAction.Request(request.param("name"));
+        CreateDataStreamAction.Request putDataStreamRequest = new CreateDataStreamAction.Request(
+            RestUtils.getMasterNodeTimeout(request),
+            RestUtils.getAckTimeout(request),
+            request.param("name")
+        );
         return channel -> client.execute(CreateDataStreamAction.INSTANCE, putDataStreamRequest, new RestToXContentListener<>(channel));
     }
 }

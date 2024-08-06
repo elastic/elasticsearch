@@ -11,9 +11,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.List;

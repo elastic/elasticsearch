@@ -47,7 +47,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
         assertThat(newState.metadata().indices().size(), equalTo(otherIndices.size()));
@@ -71,7 +71,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             false,
             true
         );
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
         assertThat(newState.metadata().indices().size(), equalTo(otherIndices.size()));
@@ -92,7 +92,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             List.of()
         );
 
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "ba*", "eggplant" });
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ba*", "eggplant" });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         DataStream remainingDataStream = newState.metadata().dataStreams().get(dataStreamNames[0]);
@@ -116,7 +116,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             .withAddedEntry(createEntry(dataStreamName2, "repo2", true));
         ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
 
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         SnapshotInProgressException e = expectThrows(
             SnapshotInProgressException.class,
             () -> DeleteDataStreamTransportAction.removeDataStream(iner, snapshotCs, req, validator, Settings.EMPTY)
@@ -167,13 +167,16 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             () -> DeleteDataStreamTransportAction.removeDataStream(
                 iner,
                 cs,
-                new DeleteDataStreamAction.Request(new String[] { dataStreamName }),
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName }),
                 validator,
                 Settings.EMPTY
             )
         );
 
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName + "*" });
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName + "*" }
+        );
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(iner, cs, req, validator, Settings.EMPTY);
         assertThat(newState, sameInstance(cs));
         assertThat(newState.metadata().dataStreams().size(), equalTo(cs.metadata().dataStreams().size()));

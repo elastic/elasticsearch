@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisMode;
@@ -34,6 +35,101 @@ import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    protected enum SynonymsSource {
+        INLINE("synonyms") {
+            @Override
+            public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+                List<String> rulesList = Analysis.getWordList(
+                    factory.environment,
+                    factory.settings,
+                    SynonymsSource.INLINE.getSettingName()
+                );
+                StringBuilder sb = new StringBuilder();
+                for (String line : rulesList) {
+                    sb.append(line).append(System.lineSeparator());
+                }
+                return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + factory.name() + "' analyzer settings");
+            }
+        },
+        INDEX("synonyms_set") {
+            @Override
+            public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+                if (factory.analysisMode != AnalysisMode.SEARCH_TIME) {
+                    throw new IllegalArgumentException(
+                        "Can't apply ["
+                            + SynonymsSource.INDEX.getSettingName()
+                            + "]! Loading synonyms from index is supported only for search time synonyms!"
+                    );
+                }
+                String synonymsSet = factory.settings.get(SynonymsSource.INDEX.getSettingName(), null);
+                // provide empty synonyms on index creation and index metadata checks to ensure that we
+                // don't block a master thread
+                ReaderWithOrigin reader;
+                if (context != IndexCreationContext.RELOAD_ANALYZERS) {
+                    reader = new ReaderWithOrigin(
+                        new StringReader(""),
+                        "fake empty [" + synonymsSet + "] synonyms_set in .synonyms index",
+                        synonymsSet
+                    );
+                } else {
+                    reader = new ReaderWithOrigin(
+                        Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService),
+                        "[" + synonymsSet + "] synonyms_set in .synonyms index",
+                        synonymsSet
+                    );
+                }
+
+                return reader;
+            }
+        },
+        LOCAL_FILE("synonyms_path") {
+            @Override
+            public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
+                String synonymsPath = factory.settings.get(SynonymsSource.LOCAL_FILE.getSettingName(), null);
+                return new ReaderWithOrigin(
+                    // Pass the inline setting name because "_path" is appended by getReaderFromFile
+                    Analysis.getReaderFromFile(factory.environment, synonymsPath, SynonymsSource.INLINE.getSettingName()),
+                    synonymsPath
+                );
+            }
+        };
+
+        private final String settingName;
+
+        SynonymsSource(String settingName) {
+            this.settingName = settingName;
+        }
+
+        public abstract ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context);
+
+        public String getSettingName() {
+            return settingName;
+        }
+
+        public static SynonymsSource fromSettings(Settings settings) {
+            SynonymsSource synonymsSource;
+            if (settings.hasValue(SynonymsSource.INLINE.getSettingName())) {
+                synonymsSource = SynonymsSource.INLINE;
+            } else if (settings.hasValue(SynonymsSource.INDEX.getSettingName())) {
+                synonymsSource = SynonymsSource.INDEX;
+            } else if (settings.hasValue(SynonymsSource.LOCAL_FILE.getSettingName())) {
+                synonymsSource = SynonymsSource.LOCAL_FILE;
+            } else {
+                throw new IllegalArgumentException(
+                    "synonym requires either `"
+                        + SynonymsSource.INLINE.getSettingName()
+                        + "`, `"
+                        + SynonymsSource.INDEX.getSettingName()
+                        + "` or `"
+                        + SynonymsSource.LOCAL_FILE.getSettingName()
+                        + "` to be configured"
+                );
+            }
+
+            return synonymsSource;
+        }
+    }
+
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SynonymTokenFilterFactory.class);
 
     private final String format;
@@ -43,6 +139,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final Environment environment;
     protected final AnalysisMode analysisMode;
     private final SynonymsManagementAPIService synonymsManagementAPIService;
+    protected final SynonymsSource synonymsSource;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -62,10 +159,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     + "Instead, insert a lowercase filter in the filter chain before the synonym_graph filter."
             );
         }
+
+        this.synonymsSource = SynonymsSource.fromSettings(settings);
         this.expand = settings.getAsBoolean("expand", true);
-        this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
         boolean updateable = settings.getAsBoolean("updateable", false);
+        this.lenient = settings.getAsBoolean(
+            "lenient",
+            indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.LENIENT_UPDATEABLE_SYNONYMS) && updateable
+        );
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
@@ -90,8 +192,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment, context);
-        final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
+        ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
+        final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
         final String name = name();
         return new TokenFilterFactory() {
             @Override
@@ -119,7 +221,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public String getResourceName() {
-                return rulesFromSettings.resource();
+                return rulesReader.resource();
             }
         };
     }
@@ -149,43 +251,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             return parser.build();
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to build synonyms from [" + rules.origin + "]", e);
-        }
-    }
-
-    protected ReaderWithOrigin getRulesFromSettings(Environment env, IndexCreationContext context) {
-        if (settings.getAsList("synonyms", null) != null) {
-            List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
-            StringBuilder sb = new StringBuilder();
-            for (String line : rulesList) {
-                sb.append(line).append(System.lineSeparator());
-            }
-            return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings");
-        } else if (settings.get("synonyms_set") != null) {
-            if (analysisMode != AnalysisMode.SEARCH_TIME) {
-                throw new IllegalArgumentException(
-                    "Can't apply [synonyms_set]! " + "Loading synonyms from index is supported only for search time synonyms!"
-                );
-            }
-            String synonymsSet = settings.get("synonyms_set", null);
-            // provide fake synonyms on index creation and index metadata checks to ensure that we
-            // don't block a master thread
-            if (context != IndexCreationContext.RELOAD_ANALYZERS) {
-                return new ReaderWithOrigin(
-                    new StringReader("fake rule => fake"),
-                    "fake [" + synonymsSet + "] synonyms_set in .synonyms index",
-                    synonymsSet
-                );
-            }
-            return new ReaderWithOrigin(
-                Analysis.getReaderFromIndex(synonymsSet, synonymsManagementAPIService),
-                "[" + synonymsSet + "] synonyms_set in .synonyms index",
-                synonymsSet
-            );
-        } else if (settings.get("synonyms_path") != null) {
-            String synonyms_path = settings.get("synonyms_path", null);
-            return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
-        } else {
-            throw new IllegalArgumentException("synonym requires either `synonyms`, `synonyms_set` or `synonyms_path` to be configured");
         }
     }
 

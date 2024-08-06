@@ -227,10 +227,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
     public void testOpenWaitingForActiveShardsFailed() throws Exception {
         Client client = client();
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
+        Settings settings = indexSettings(1, 0).build();
         assertAcked(client.admin().indices().prepareCreate("test").setSettings(settings).get());
         assertAcked(client.admin().indices().prepareClose("test").get());
 

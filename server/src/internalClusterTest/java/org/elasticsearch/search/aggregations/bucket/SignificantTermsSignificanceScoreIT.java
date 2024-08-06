@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -548,7 +547,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testScriptCaching() throws Exception {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("s", "type=long", "t", "type=text")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         indexRandom(
             true,

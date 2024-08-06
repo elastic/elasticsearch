@@ -43,17 +43,16 @@ public class EmbeddedProviderExtension {
         });
 
         String manifestTaskName = "generate" + capitalName + "ProviderManifest";
-        Provider<Directory> generatedResourcesDir = project.getLayout().getBuildDirectory().dir("generated-resources");
+        Provider<Directory> generatedResourcesRoot = project.getLayout().getBuildDirectory().dir("generated-resources");
         var generateProviderManifest = project.getTasks().register(manifestTaskName, GenerateProviderManifest.class);
         generateProviderManifest.configure(t -> {
-            t.getManifestFile().set(generatedResourcesDir.map(d -> d.file("LISTING.TXT")));
+            t.getManifestFile().set(generatedResourcesRoot.map(d -> d.dir(manifestTaskName).file("LISTING.TXT")));
             t.getProviderImplClasspath().from(implConfig);
         });
-
         String implTaskName = "generate" + capitalName + "ProviderImpl";
         var generateProviderImpl = project.getTasks().register(implTaskName, Sync.class);
         generateProviderImpl.configure(t -> {
-            t.into(generatedResourcesDir);
+            t.into(generatedResourcesRoot.map(d -> d.dir(implTaskName)));
             t.into("IMPL-JARS/" + implName, spec -> {
                 spec.from(implConfig);
                 spec.from(generateProviderManifest);

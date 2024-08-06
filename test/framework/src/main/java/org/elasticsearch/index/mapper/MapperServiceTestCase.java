@@ -61,7 +61,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -383,7 +383,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             XContentType.JSON,
             routing,
             dynamicTemplates,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            XContentMeteringParserDecorator.NOOP
         );
     }
 

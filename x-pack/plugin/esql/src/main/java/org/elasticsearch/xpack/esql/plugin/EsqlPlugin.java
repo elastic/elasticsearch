@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
@@ -200,6 +201,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(MultiTypeEsField.ENTRY); // TODO combine with EsField.getNamedWriteables() once these are in the same module
         entries.addAll(EsqlScalarFunction.getNamedWriteables());
         entries.addAll(AggregateFunction.getNamedWriteables());
+        entries.addAll(LogicalPlan.getNamedWriteables());
         return entries;
     }
 

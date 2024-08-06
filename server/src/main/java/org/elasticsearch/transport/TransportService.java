@@ -1396,6 +1396,11 @@ public class TransportService extends AbstractLifecycleComponent
                     protected void doRun() {
                         handler.handleException(exception);
                     }
+
+                    @Override
+                    public String toString() {
+                        return "onConnectionClosed/handleException[" + handler + "]";
+                    }
                 });
             }
         }

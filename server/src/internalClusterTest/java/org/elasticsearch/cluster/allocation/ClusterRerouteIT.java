@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -395,14 +394,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         final String indexName = "test_index";
-        indicesAdmin().prepareCreate(indexName)
-            .setWaitForActiveShards(ActiveShardCount.NONE)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-            )
-            .get();
+        indicesAdmin().prepareCreate(indexName).setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings(2, 1)).get();
 
         try (var dryRunMockLog = MockLog.capture(TransportClusterRerouteAction.class)) {
             dryRunMockLog.addExpectation(

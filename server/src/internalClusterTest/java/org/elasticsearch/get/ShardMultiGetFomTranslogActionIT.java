@@ -15,9 +15,7 @@ import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,11 +40,8 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
     public void testShardMultiGetFromTranslog() throws Exception {
         assertAcked(
             prepareCreate(INDEX).setSettings(
-                Settings.builder()
-                    .put("index.refresh_interval", -1)
-                    // A ShardMultiGetFromTranslogAction runs only Stateless where there is only one active indexing shard.
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                // A ShardMultiGetFromTranslogAction runs only Stateless where there is only one active indexing shard.
+                indexSettings(1, 0).put("index.refresh_interval", -1)
             ).addAlias(new Alias(ALIAS).writeIndex(randomFrom(true, false, null)))
         );
         ensureGreen();

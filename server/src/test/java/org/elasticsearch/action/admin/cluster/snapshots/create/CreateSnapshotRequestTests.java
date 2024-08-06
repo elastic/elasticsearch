@@ -113,6 +113,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             );
             processed.waitForCompletion(original.waitForCompletion());
             processed.masterNodeTimeout(original.masterNodeTimeout());
+            processed.uuid(original.uuid());
             processed.source(map);
 
             assertEquals(original, processed);

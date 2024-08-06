@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -22,8 +23,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,6 +31,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -226,6 +227,16 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         public MockFieldAttributeCommand(Source source, LogicalPlan child, FieldAttribute field) {
             super(source, child);
             this.field = field;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException("not serialized");
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException("not serialized");
         }
 
         @Override

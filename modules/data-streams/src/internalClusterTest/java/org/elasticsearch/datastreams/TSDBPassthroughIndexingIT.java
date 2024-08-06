@@ -142,10 +142,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexingGettingAndSearching() throws Exception {
-        var templateSettings = Settings.builder()
-            .put("index.mode", "time_series")
-            .put("index.number_of_shards", randomIntBetween(2, 10))
-            .put("index.number_of_replicas", 0);
+        var templateSettings = indexSettings(randomIntBetween(2, 10), 0).put("index.mode", "time_series");
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
@@ -218,10 +215,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
 
     public void testIndexingGettingAndSearchingShrunkIndex() throws Exception {
         String dataStreamName = "k8s";
-        var templateSettings = Settings.builder()
-            .put("index.mode", "time_series")
-            .put("index.number_of_shards", 8)
-            .put("index.number_of_replicas", 0);
+        var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(

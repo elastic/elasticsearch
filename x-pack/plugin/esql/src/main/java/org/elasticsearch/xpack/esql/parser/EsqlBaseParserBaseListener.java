@@ -1008,6 +1008,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMatchCommand(EsqlBaseParser.MatchCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchCommand(EsqlBaseParser.MatchCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { }
 
   /**
    * {@inheritDoc}

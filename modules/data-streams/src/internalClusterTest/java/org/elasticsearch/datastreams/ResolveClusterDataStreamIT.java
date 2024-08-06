@@ -327,10 +327,14 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 aliases.put(dataStreamLocalAlias, AliasMetadata.builder(dataStreamLocalAlias).writeIndex(randomBoolean()).build());
             }
             putComposableIndexTemplate(client, "id1", List.of(dataStreamLocal + "*"), aliases);
-            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "metrics-foo"
+            );
             assertAcked(client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
 
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
             GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             DataStream fooDataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
@@ -358,10 +362,14 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 aliases.put(dataStreamRemote1Alias, AliasMetadata.builder(dataStreamRemote1Alias).writeIndex(randomBoolean()).build());
             }
             putComposableIndexTemplate(client, "id2", List.of(dataStreamRemote1 + "*"), aliases);
-            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "metrics-bar"
+            );
             assertAcked(client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
 
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
             GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
 

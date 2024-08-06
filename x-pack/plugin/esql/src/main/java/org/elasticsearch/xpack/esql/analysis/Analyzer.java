@@ -36,8 +36,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
@@ -62,7 +60,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -113,7 +113,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
@@ -245,8 +244,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
                 }
-                // allow compound object even if they are unknown (but not NESTED)
-                if (type != NESTED && fieldProperties.isEmpty() == false) {
+                // allow compound object even if they are unknown
+                if (fieldProperties.isEmpty() == false) {
                     mappingAsAttributes(list, source, attribute, fieldProperties);
                 }
             }

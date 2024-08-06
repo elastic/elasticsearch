@@ -49,10 +49,8 @@ public class IndexSettingsModule extends AbstractModule {
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings indexSetting, Settings nodeSettings, Setting<?>... setting) {
-        Settings build = Settings.builder()
+        Settings build = ESTestCase.indexSettings(1, 1)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(indexSetting)
             .build();
         IndexMetadata metadata = IndexMetadata.builder(index.getName())
@@ -67,10 +65,8 @@ public class IndexSettingsModule extends AbstractModule {
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings settings, IndexScopedSettings indexScopedSettings) {
-        Settings build = Settings.builder()
+        Settings build = ESTestCase.indexSettings(1, 1)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(settings)
             .build();
         IndexMetadata metadata = IndexMetadata.builder(index.getName())

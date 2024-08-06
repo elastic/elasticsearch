@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class FieldAttribute extends TypedAttribute {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "FieldAttribute",
-        FieldAttribute::new
+        FieldAttribute::readFrom
     );
 
     private final FieldAttribute parent;
@@ -81,7 +82,7 @@ public class FieldAttribute extends TypedAttribute {
         this.field = field;
     }
 
-    public FieldAttribute(StreamInput in) throws IOException {
+    private FieldAttribute(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -92,7 +93,7 @@ public class FieldAttribute extends TypedAttribute {
          */
         this(
             Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readOptionalWriteable(FieldAttribute::new),
+            in.readOptionalWriteable(FieldAttribute::readFrom),
             in.readString(),
             DataType.readFrom(in),
             in.readNamedWriteable(EsField.class),
@@ -105,15 +106,21 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeOptionalWriteable(parent);
-        out.writeString(name());
-        dataType().writeTo(out);
-        out.writeNamedWriteable(field);
-        out.writeOptionalString(qualifier());
-        out.writeEnum(nullable());
-        id().writeTo(out);
-        out.writeBoolean(synthetic());
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            out.writeOptionalWriteable(parent);
+            out.writeString(name());
+            dataType().writeTo(out);
+            out.writeNamedWriteable(field);
+            out.writeOptionalString(qualifier());
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
+        }
+    }
+
+    public static FieldAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::new);
     }
 
     @Override

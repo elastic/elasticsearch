@@ -7,31 +7,31 @@
 
 package org.elasticsearch.xpack.application.rules;
 
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
+
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
-
 public class AppliedQueryRules {
 
-    private final List<String> pinnedIds;
-    private final List<Item> pinnedDocs;
+    private final List<SpecifiedDocument> pinnedDocs;
+    private final List<SpecifiedDocument> excludedDocs;
 
     public AppliedQueryRules() {
         this(new ArrayList<>(0), new ArrayList<>(0));
     }
 
-    public AppliedQueryRules(List<String> pinnedIds, List<Item> pinnedDocs) {
-        this.pinnedIds = pinnedIds;
+    public AppliedQueryRules(List<SpecifiedDocument> pinnedDocs, List<SpecifiedDocument> excludedDocs) {
         this.pinnedDocs = pinnedDocs;
+        this.excludedDocs = excludedDocs;
     }
 
-    public List<String> pinnedIds() {
-        return pinnedIds;
-    }
-
-    public List<Item> pinnedDocs() {
+    public List<SpecifiedDocument> pinnedDocs() {
         return pinnedDocs;
+    }
+
+    public List<SpecifiedDocument> excludedDocs() {
+        return excludedDocs;
     }
 
 }

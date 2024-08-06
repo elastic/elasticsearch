@@ -20,7 +20,7 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected Request createTestInstance() {
-        return new Request(switch (randomIntBetween(1, 4)) {
+        return new Request(TEST_REQUEST_TIMEOUT, switch (randomIntBetween(1, 4)) {
             case 1 -> generateRandomStringArray(3, 8, false, false);
             case 2 -> {
                 String[] parameters = generateRandomStringArray(3, 8, false, false);

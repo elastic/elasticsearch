@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureType;
@@ -19,14 +22,17 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class Grok extends RegexExtract {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Grok", Grok::readFrom);
 
     public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
 
@@ -86,6 +92,31 @@ public class Grok extends RegexExtract {
         super(source, child, inputExpr, extracted);
         this.parser = parser;
 
+    }
+
+    private static Grok readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        return new Grok(
+            source,
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteable(Expression.class),
+            Grok.pattern(source, in.readString()),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(input());
+        out.writeString(parser().pattern());
+        out.writeNamedWriteableCollection(extractedFields());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

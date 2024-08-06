@@ -109,6 +109,16 @@ setup:
                 ids:
                   - 'id7'
                   - 'id8'
+            - rule_id: query-rule-id5
+              type: exclude
+              criteria:
+                - type: fuzzy
+                  metadata: query_string
+                  values: [ inference ]
+              actions:
+                ids:
+                  - 'id9'
+                  - 'id10'
 ---
 teardown:
   - do:
@@ -144,8 +154,8 @@ teardown:
   - match: { results.0.rule_criteria_types_counts: { exact: 3 } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.1.rule_total_count: 4 }
-  - match: { results.1.rule_criteria_types_counts: { exact: 4 } }
+  - match: { results.1.rule_total_count: 5 }
+  - match: { results.1.rule_criteria_types_counts: { exact: 4, fuzzy: 1 } }
 
   - match: { results.2.ruleset_id: "test-query-ruleset-3" }
   - match: { results.2.rule_total_count: 2 }
@@ -161,8 +171,8 @@ teardown:
 
   # Alphabetical order by ruleset_id for results
   - match: { results.0.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.0.rule_total_count: 4 }
-  - match: { results.0.rule_criteria_types_counts: { exact: 4 } }
+  - match: { results.0.rule_total_count: 5 }
+  - match: { results.0.rule_criteria_types_counts: { exact: 4, fuzzy: 1 } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-3" }
   - match: { results.1.rule_total_count: 2 }
@@ -182,8 +192,8 @@ teardown:
   - match: { results.0.rule_criteria_types_counts: { exact: 3 } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.1.rule_total_count: 4 }
-  - match: { results.1.rule_criteria_types_counts: { exact: 4 } }
+  - match: { results.1.rule_total_count: 5 }
+  - match: { results.1.rule_criteria_types_counts: { exact: 4, fuzzy: 1 } }
 
 ---
 "List Query Rulesets - empty":

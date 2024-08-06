@@ -37,8 +37,9 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the P series function.
@@ -89,14 +90,18 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             return resolution;
         }
 
-        resolution = TypeResolutions.isType(p, dt -> dt == DOUBLE, sourceText(), SECOND, "double")
-            .and(isNotNullAndFoldable(p, sourceText(), SECOND));
-
+        resolution = TypeResolutions.isType(p, dt -> dt == DOUBLE, sourceText(), SECOND, "double");
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return resolution;
+        if (p.dataType() == NULL) {
+            // If the type is `null` this parameter doesn't have to be foldable. It's effectively foldable anyway.
+            // TODO figure out if the tests are wrong here, or if null is really different from foldable null
+            return resolution;
+        }
+
+        return isFoldable(p, sourceText(), SECOND);
     }
 
     @Override
@@ -130,10 +135,13 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
 
     @Override
     public DataType dataType() {
+        if (p.dataType() == NULL) {
+            return NULL;
+        }
         return field.dataType();
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static void process(
         DoubleBlock.Builder builder,
         int position,
@@ -149,7 +157,11 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             double current_score = block.getDouble(i) / Math.pow(i - start + 1, p);
             sum.add(current_score);
         }
-        builder.appendDouble(sum.value());
+        if (Double.isFinite(sum.value())) {
+            builder.appendDouble(sum.value());
+        } else {
+            throw new ArithmeticException("double overflow");
+        }
     }
 
     @Override

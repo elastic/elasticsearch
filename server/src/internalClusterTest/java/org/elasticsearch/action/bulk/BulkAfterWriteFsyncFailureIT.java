@@ -10,7 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -59,13 +58,7 @@ public class BulkAfterWriteFsyncFailureIT extends ESSingleNodeTestCase {
         client().admin()
             .indices()
             .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build()
-            )
+            .setSettings(indexSettings(1, 0).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
             .setMapping("key", "type=keyword", "val", "type=long")
             .get();
         ensureGreen(indexName);

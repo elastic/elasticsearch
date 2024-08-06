@@ -1788,9 +1788,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final String index = "test-idx";
         final String snapshot = "test-snap";
 
-        assertAcked(
-            prepareCreate(index, 1, Settings.builder().put("number_of_shards", numPrimaries).put("number_of_replicas", numReplicas))
-        );
+        assertAcked(prepareCreate(index, 1, indexSettings(numPrimaries, numReplicas)));
 
         indexRandomDocs(index, 100);
 

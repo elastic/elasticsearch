@@ -410,4 +410,28 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }
+
+    /**
+     * Create a new builder with the same clauses but modification of
+     * the builder won't modify the original. Modifications of any
+     * of the copy's clauses will modify the original. Don't so that.
+     */
+    public BoolQueryBuilder shallowCopy() {
+        BoolQueryBuilder copy = new BoolQueryBuilder();
+        copy.adjustPureNegative = adjustPureNegative;
+        copy.minimumShouldMatch = minimumShouldMatch;
+        for (QueryBuilder q : mustClauses) {
+            copy.must(q);
+        }
+        for (QueryBuilder q : mustNotClauses) {
+            copy.mustNot(q);
+        }
+        for (QueryBuilder q : filterClauses) {
+            copy.filter(q);
+        }
+        for (QueryBuilder q : shouldClauses) {
+            copy.should(q);
+        }
+        return copy;
+    }
 }

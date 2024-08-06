@@ -914,10 +914,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             prepareCreate(
                 name,
                 nodeCount,
-                Settings.builder()
-                    .put("number_of_shards", shardCount)
-                    .put("number_of_replicas", replicaCount)
-                    .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
+                indexSettings(shardCount, replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
             )
         );
         ensureGreen();

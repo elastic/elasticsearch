@@ -138,8 +138,8 @@ public class PlanStreamInputTests extends ESTestCase {
             LogicalPlan planIn = analyze(query);
             LogicalPlan planOut = serializeDeserialize(
                 planIn,
-                PlanStreamOutput::writeLogicalPlanNode,
-                PlanStreamInput::readLogicalPlanNode,
+                PlanStreamOutput::writeNamedWriteable,
+                in -> in.readNamedWriteable(LogicalPlan.class),
                 config
             );
             assertThat(planIn, equalTo(planOut));

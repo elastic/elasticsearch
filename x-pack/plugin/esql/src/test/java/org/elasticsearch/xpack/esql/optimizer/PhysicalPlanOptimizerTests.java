@@ -45,8 +45,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -70,6 +68,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;

@@ -14,9 +14,11 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,16 +37,21 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final String name;
         private final long startTime;
 
-        public Request(String name) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.startTime = System.currentTimeMillis();
         }
 
-        public Request(String name, long startTime) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name, long startTime) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.startTime = startTime;
+        }
+
+        @Deprecated(forRemoval = true) // temporary compatibility shim
+        public Request(String name) {
+            this(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, name);
         }
 
         public String getName() {

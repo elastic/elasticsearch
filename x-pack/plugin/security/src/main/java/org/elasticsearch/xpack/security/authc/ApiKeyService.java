@@ -1315,7 +1315,18 @@ public class ApiKeyService implements Closeable {
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
                             );
                         }
-                    }, listener::onFailure));
+                    }, exception -> {
+                        // Crypto threadpool queue is full, invalidate this cache entry and make sure nothing is going to wait on it
+                        logger.warn(
+                            Strings.format(
+                                "rejecting possibly valid API key authentication because the [%s] threadpool is full",
+                                SECURITY_CRYPTO_THREAD_POOL_NAME
+                            )
+                        );
+                        apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
+                        listenableCacheEntry.onFailure(exception);
+                        listener.onFailure(exception);
+                    }));
                 }
             } else {
                 verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {

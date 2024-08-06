@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -92,13 +93,27 @@ public class QueriesTests extends ESTestCase {
 
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
+        assertBoolQueryMerge(queries, bool, clause);
+    }
+
+    private void assertBoolQueryMerge(QueryBuilder[] queries, BoolQueryBuilder bool, Queries.Clause clause) {
+        BoolQueryBuilder first = (BoolQueryBuilder) queries[0];
+        for (QueryBuilder b : first.must()) {
+            assertThat(bool.must(), hasItem(b));
+        }
+        for (QueryBuilder b : first.mustNot()) {
+            assertThat(bool.mustNot(), hasItem(b));
+        }
+        for (QueryBuilder b : first.should()) {
+            assertThat(bool.should(), hasItem(b));
+        }
+        for (QueryBuilder b : first.filter()) {
+            assertThat(bool.filter(), hasItem(b));
+        }
 
         var clauseList = clause.innerQueries.apply(bool);
-
-        for (QueryBuilder query : queries) {
-            if (query != bool) {
-                assertThat(query, in(clauseList));
-            }
+        for (int i = 1; i < queries.length; i++) {
+            assertThat(queries[i], in(clauseList));
         }
     }
 
@@ -118,10 +133,11 @@ public class QueriesTests extends ESTestCase {
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
 
-        var clauseList = clause.innerQueries.apply(bool);
-
-        for (QueryBuilder query : queries) {
-            if (query != bool) {
+        if (queries[0] instanceof BoolQueryBuilder) {
+            assertBoolQueryMerge(queries, bool, clause);
+        } else {
+            var clauseList = clause.innerQueries.apply(bool);
+            for (QueryBuilder query : queries) {
                 assertThat(query, in(clauseList));
             }
         }

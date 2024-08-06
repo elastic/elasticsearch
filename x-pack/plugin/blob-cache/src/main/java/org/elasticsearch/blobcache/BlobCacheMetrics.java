@@ -31,8 +31,8 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerLongHistogram(
                 "es.blob_cache.cache_miss_load_times.histogram",
-                "The time in microseconds for populating entries in the blob store resulting from a cache miss, expressed as a histogram.",
-                "micros"
+                "The time in milliseconds for populating entries in the blob store resulting from a cache miss, expressed as a histogram.",
+                "ms"
             )
         );
     }

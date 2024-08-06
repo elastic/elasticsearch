@@ -25,7 +25,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6)));
+        return new Request(TEST_REQUEST_TIMEOUT, randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6)));
     }
 
     @Override
@@ -34,13 +34,13 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     }
 
     public void testValidateRequest() {
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "my-data-stream" });
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "my-data-stream" });
         ActionRequestValidationException e = req.validate();
         assertNull(e);
     }
 
     public void testValidateRequestWithoutName() {
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[0]);
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[0]);
         ActionRequestValidationException e = req.validate();
         assertNotNull(e);
         assertThat(e.validationErrors().size(), equalTo(1));

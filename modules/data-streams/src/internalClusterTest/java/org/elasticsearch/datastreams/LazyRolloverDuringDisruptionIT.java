@@ -95,11 +95,10 @@ public class LazyRolloverDuringDisruptionIT extends ESIntegTestCase {
     }
 
     private DataStream getDataStream(String dataStreamName) {
-        return client().execute(GetDataStreamAction.INSTANCE, new GetDataStreamAction.Request(new String[] { dataStreamName }))
-            .actionGet()
-            .getDataStreams()
-            .get(0)
-            .getDataStream();
+        return client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+        ).actionGet().getDataStreams().get(0).getDataStream();
     }
 
     private void createDataStream(String dataStreamName) throws InterruptedException, ExecutionException {
@@ -117,7 +116,11 @@ public class LazyRolloverDuringDisruptionIT extends ESIntegTestCase {
         ).actionGet();
         assertThat(putComposableTemplateResponse.isAcknowledged(), is(true));
 
-        final CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        final CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         final AcknowledgedResponse createDataStreamResponse = client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest)
             .get();
         assertThat(createDataStreamResponse.isAcknowledged(), is(true));

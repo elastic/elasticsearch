@@ -10,20 +10,22 @@ package org.elasticsearch.logsdb.datageneration.fields.leaf;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.arbitrary.Arbitrary;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.logsdb.datageneration.fields.FieldValues.injectNulls;
-import static org.elasticsearch.logsdb.datageneration.fields.FieldValues.wrappedInArray;
-
 public class LongFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
-    public LongFieldDataGenerator(Arbitrary arbitrary) {
-        this.valueGenerator = injectNulls(arbitrary).andThen(wrappedInArray(arbitrary)).apply(arbitrary::longValue);
+    public LongFieldDataGenerator(DataSource dataSource) {
+        var longs = dataSource.get(new DataSourceRequest.LongGenerator());
+        var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
+        var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
+
+        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> longs.generator().get());
     }
 
     @Override

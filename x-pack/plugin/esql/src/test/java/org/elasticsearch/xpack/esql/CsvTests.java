@@ -55,11 +55,11 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.CsvSpecReader;
 import org.elasticsearch.xpack.esql.core.SpecReader;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -246,16 +246,20 @@ public class CsvTests extends ESTestCase {
                 "multiple indices aren't supported",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
             );
+            assumeFalse(
+                "can't use match command in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_COMMAND.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
-                    "nonexistent capabilities declared as required",
+                    "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.CAPABILITIES))
                 );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
-                    if (c.snapshotOnly()) {
+                    if (false == c.isEnabled()) {
                         assumeFalse(
                             c.capabilityName() + " is not supported in non-snapshot releases",
                             testCase.requiredCapabilities.contains(c.capabilityName())

@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
@@ -31,12 +32,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 
 public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
@@ -110,13 +113,17 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
     }
 
     public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
-        IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
-        ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
-        IndexSettings indexSettings = new IndexSettings(
+        return dummyContext(snapshotId, startTime, randomIdentifier(), 1);
+    }
+
+    public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime, String indexName, int shardIndex) {
+        final var indexId = new IndexId(indexName, UUIDs.randomBase64UUID());
+        final var shardId = new ShardId(indexId.getName(), UUIDs.randomBase64UUID(), shardIndex);
+        final var indexSettings = new IndexSettings(
             IndexMetadata.builder(indexId.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
             Settings.EMPTY
         );
-        Store dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
+        final var dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
         return new SnapshotShardContext(
             dummyStore,
             null,
@@ -151,43 +158,78 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
     }
 
     public void testCompareToShardSnapshotTask() {
-        ShardSnapshotTaskRunner workers = new ShardSnapshotTaskRunner(1, executor, context -> {}, (context, fileInfo) -> {});
-        SnapshotId s1 = new SnapshotId("s1", "s1-uuid");
-        SnapshotId s2 = new SnapshotId("s2", "s2-uuid");
-        SnapshotId s3 = new SnapshotId("s3", "s3-uuid");
-        ActionListener<Void> listener = ActionListener.noop();
-        final long s1StartTime = threadPool.absoluteTimeInMillis();
-        final long s2StartTime = s1StartTime + randomLongBetween(1, 1000);
-        SnapshotShardContext s1Context = dummyContext(s1, s1StartTime);
-        SnapshotShardContext s2Context = dummyContext(s2, s2StartTime);
-        SnapshotShardContext s3Context = dummyContext(s3, s2StartTime);
-        // Shard snapshot and file snapshot tasks for earlier snapshots have higher priority
-        assertThat(
-            workers.new ShardSnapshotTask(s1Context).compareTo(
-                workers.new FileSnapshotTask(s2Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
-            ),
-            lessThan(0)
-        );
-        assertThat(
-            workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener).compareTo(
-                workers.new ShardSnapshotTask(s2Context)
-            ),
-            lessThan(0)
-        );
-        // Two tasks with the same start time and of the same type are ordered by snapshot UUID
-        assertThat(workers.new ShardSnapshotTask(s2Context).compareTo(workers.new ShardSnapshotTask(s3Context)), lessThan(0));
-        assertThat(
-            workers.new FileSnapshotTask(s2Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener).compareTo(
-                workers.new ShardSnapshotTask(s3Context)
-            ),
-            lessThan(0)
-        );
-        // Shard snapshot task has a higher priority over file snapshot within the same snapshot
-        assertThat(
-            workers.new ShardSnapshotTask(s1Context).compareTo(
-                workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
-            ),
-            lessThan(0)
-        );
+
+        record CapturedTask(SnapshotShardContext context, @Nullable BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
+            CapturedTask(SnapshotShardContext context) {
+                this(context, null);
+            }
+        }
+
+        final List<CapturedTask> tasksInExpectedOrder = new ArrayList<>();
+
+        // first snapshot, one shard, one file, but should execute the shard-level task before the file task
+        final var earlyStartTime = randomLongBetween(1L, Long.MAX_VALUE - 1000);
+        final var s1Context = dummyContext(new SnapshotId(randomIdentifier(), randomUUID()), earlyStartTime);
+        tasksInExpectedOrder.add(new CapturedTask(s1Context));
+        tasksInExpectedOrder.add(new CapturedTask(s1Context, dummyFileInfo()));
+
+        // second snapshot, also one shard and one file, starts later than the first
+        final var laterStartTime = randomLongBetween(earlyStartTime + 1, Long.MAX_VALUE);
+        final var s2Context = dummyContext(new SnapshotId(randomIdentifier(), "early-uuid"), laterStartTime);
+        tasksInExpectedOrder.add(new CapturedTask(s2Context));
+        tasksInExpectedOrder.add(new CapturedTask(s2Context, dummyFileInfo()));
+
+        // third snapshot, starts at the same time as the second but has a later UUID
+        final var snapshotId3 = new SnapshotId(randomIdentifier(), "later-uuid");
+
+        // the third snapshot has three shards, and their respective tasks should execute in shard-id then index-name order:
+        final var s3ContextShard1 = dummyContext(snapshotId3, laterStartTime, "early-index-name", 0);
+        final var s3ContextShard2 = dummyContext(snapshotId3, laterStartTime, "later-index-name", 0);
+        final var s3ContextShard3 = dummyContext(snapshotId3, laterStartTime, randomIdentifier(), 1);
+
+        tasksInExpectedOrder.add(new CapturedTask(s3ContextShard1));
+        tasksInExpectedOrder.add(new CapturedTask(s3ContextShard2));
+        tasksInExpectedOrder.add(new CapturedTask(s3ContextShard3));
+
+        tasksInExpectedOrder.add(new CapturedTask(s3ContextShard1, dummyFileInfo()));
+        tasksInExpectedOrder.add(new CapturedTask(s3ContextShard2, dummyFileInfo()));
+        tasksInExpectedOrder.add(new CapturedTask(s3ContextShard3, dummyFileInfo()));
+
+        final var readyLatch = new CountDownLatch(1);
+        final var startLatch = new CountDownLatch(1);
+        final var doneLatch = new CountDownLatch(tasksInExpectedOrder.size() + 1);
+
+        final List<CapturedTask> tasksInExecutionOrder = new ArrayList<>();
+        final var runner = new ShardSnapshotTaskRunner(1, executor, context -> {
+            tasksInExecutionOrder.add(new CapturedTask(context, null));
+            readyLatch.countDown();
+            safeAwait(startLatch);
+            doneLatch.countDown();
+        }, (context, fileInfo) -> {
+            tasksInExecutionOrder.add(new CapturedTask(context, fileInfo));
+            doneLatch.countDown();
+        });
+
+        // prime the pipeline by executing a dummy task and waiting for it to block the executor, so that the rest of the tasks are sorted
+        // by the underlying PriorityQueue before any of them start to execute
+        runner.enqueueShardSnapshot(dummyContext(new SnapshotId(randomIdentifier(), UUIDs.randomBase64UUID()), randomNonNegativeLong()));
+        safeAwait(readyLatch);
+        tasksInExecutionOrder.clear(); // remove the dummy task
+
+        // submit the tasks in random order
+        for (final var task : shuffledList(tasksInExpectedOrder)) {
+            if (task.fileInfo() == null) {
+                runner.enqueueShardSnapshot(task.context());
+            } else {
+                runner.enqueueFileSnapshot(task.context(), task::fileInfo, ActionListener.noop());
+            }
+        }
+
+        // allow the tasks to execute
+        startLatch.countDown();
+        safeAwait(doneLatch);
+
+        // finally verify that they executed in the order we expected
+        assertEquals(tasksInExpectedOrder, tasksInExecutionOrder);
     }
 }

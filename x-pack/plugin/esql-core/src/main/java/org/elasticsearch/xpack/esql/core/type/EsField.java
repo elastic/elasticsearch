@@ -74,14 +74,7 @@ public class EsField implements NamedWriteable {
              */
             return DataType.UNSUPPORTED;
         }
-        if (name.equalsIgnoreCase(DataType.DOC_DATA_TYPE.nameUpper())) {
-            return DataType.DOC_DATA_TYPE;
-        }
-        DataType dataType = DataType.fromTypeName(name);
-        if (dataType == null) {
-            throw new IOException("Unknown DataType for type name: " + name);
-        }
-        return dataType;
+        return DataType.readFrom(name);
     }
 
     @Override

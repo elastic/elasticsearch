@@ -226,6 +226,11 @@ public enum DataType {
         return TYPES;
     }
 
+    /**
+     * Resolve a type from a name. This name is sometimes user supplied,
+     * like in the case of {@code ::<typename>} and is sometimes the name
+     * used over the wire, like in {@link #readFrom(String)}.
+     */
     public static DataType fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
@@ -440,8 +445,20 @@ public enum DataType {
 
     public static DataType readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
-        String name = in.readString();
+        return readFrom(in.readString());
+    }
+
+    /**
+     * Resolve a {@link DataType} from a name read from a {@link StreamInput}.
+     * @throws IOException on an unknown dataType
+     */
+    public static DataType readFrom(String name) throws IOException {
         if (name.equalsIgnoreCase(DataType.DOC_DATA_TYPE.nameUpper())) {
+            /*
+             * DOC is not declared in fromTypeName because fromTypeName is
+             * exposed to users for things like `::<typename>` and we don't
+             * want folks to be able to convert to `DOC`.
+             */
             return DataType.DOC_DATA_TYPE;
         }
         DataType dataType = DataType.fromTypeName(name);

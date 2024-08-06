@@ -51,11 +51,7 @@ public class PlanStreamOutputTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         TransportVersion v1 = TransportVersionUtils.randomCompatibleVersion(random());
         out.setTransportVersion(v1);
-        PlanStreamOutput planOut = new PlanStreamOutput(
-            out,
-            PlanNameRegistry.INSTANCE,
-            randomBoolean() ? null : randomConfiguration()
-        );
+        PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, randomBoolean() ? null : randomConfiguration());
         assertThat(planOut.getTransportVersion(), equalTo(v1));
         TransportVersion v2 = TransportVersionUtils.randomCompatibleVersion(random());
         planOut.setTransportVersion(v2);

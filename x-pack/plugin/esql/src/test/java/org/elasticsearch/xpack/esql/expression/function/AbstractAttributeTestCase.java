@@ -71,12 +71,7 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
         }
 
         ExtraAttribute(StreamInput in) throws IOException {
-            PlanStreamInput ps = new PlanStreamInput(
-                in,
-                PlanNameRegistry.INSTANCE,
-                in.namedWriteableRegistry(),
-                randomConfiguration()
-            );
+            PlanStreamInput ps = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), randomConfiguration());
             ps.setTransportVersion(in.getTransportVersion());
             a = ps.readNamedWriteable(Attribute.class);
         }

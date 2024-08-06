@@ -71,8 +71,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     private int maxSerializedAttributes;
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable Configuration configuration)
-        throws IOException {
+    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable Configuration configuration) throws IOException {
         this(delegate, registry, configuration, PlanNamedTypes::name, MAX_SERIALIZED_ATTRIBUTES);
     }
 

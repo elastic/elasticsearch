@@ -381,13 +381,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      * me{f}#6, long_noidx{f}#11, salary{f}#7]]
      *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3]
      *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"\"last_name: Smith\""
-     *
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
-     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
-     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen][]
-     *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"last_name: Smith","fields":[]}}]
      */
     public void testMatchCommand() {
         var plan = plannerOptimizer.plan("""

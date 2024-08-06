@@ -107,7 +107,7 @@ A `skip` section, on the other hand, defines certain conditions that, if met, wi
 - `features`: Only kept for a transition period, please use <<requires_test_runner_features, `test_runner_features`>>
   in the `requires` section instead.
 
-Note that `capabilities` and `cluster_features` will skip the test if *any* node in the cluster
+Note that `skip` with `capabilities` or `cluster_features` will skip the test if *any* node in the cluster
 has the feature or capability. `requires` will only run the test if *all* of the nodes in the cluster
 have the feature or capability.
 

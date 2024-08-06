@@ -940,6 +940,7 @@ public class MachineLearning extends Plugin
         }
 
         machineLearningExtension.get().configure(environment.settings());
+        machineLearningExtension.get().overrideDefaultAllocatedProcessorsScaleForServerless(client);
 
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 

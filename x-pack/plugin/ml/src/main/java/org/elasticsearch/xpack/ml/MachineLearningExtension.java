@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
@@ -36,4 +37,6 @@ public interface MachineLearningExtension {
     String[] getAnalyticsDestIndexAllowedSettings();
 
     AbstractNodeAvailabilityZoneMapper getNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings);
+
+    default void overrideDefaultAllocatedProcessorsScaleForServerless(Client client) {};
 }

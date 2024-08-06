@@ -253,13 +253,13 @@ public class CsvTests extends ESTestCase {
 
             if (Build.current().isSnapshot()) {
                 assertThat(
-                    "nonexistent capabilities declared as required",
+                    "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.CAPABILITIES))
                 );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
-                    if (c.snapshotOnly()) {
+                    if (false == c.isEnabled()) {
                         assumeFalse(
                             c.capabilityName() + " is not supported in non-snapshot releases",
                             testCase.requiredCapabilities.contains(c.capabilityName())

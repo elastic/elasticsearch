@@ -99,7 +99,7 @@ public class XContentParserTests extends ESTestCase {
             builder.field("maxNegativeExp", "1e-2147483647");
 
             builder.field("tooNegativeExp", "1e-2147483648");
-            
+
             builder.endObject();
 
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {

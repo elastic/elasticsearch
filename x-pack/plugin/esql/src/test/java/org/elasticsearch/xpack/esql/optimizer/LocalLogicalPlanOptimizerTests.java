@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -226,6 +227,16 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         public MockFieldAttributeCommand(Source source, LogicalPlan child, FieldAttribute field) {
             super(source, child);
             this.field = field;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException("not serialized");
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException("not serialized");
         }
 
         @Override

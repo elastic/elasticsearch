@@ -7,18 +7,14 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -26,11 +22,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect.Parser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -140,22 +134,22 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, ShowExec.class, PlanNamedTypes::writeShowExec, PlanNamedTypes::readShowExec),
             of(PhysicalPlan.class, TopNExec.class, PlanNamedTypes::writeTopNExec, PlanNamedTypes::readTopNExec),
             // Logical Plan Nodes - a subset of plans that end up being actually serialized
-            of(LogicalPlan.class, Aggregate.class, Aggregate::writeAggregate, Aggregate::new),
-            of(LogicalPlan.class, Dissect.class, PlanNamedTypes::writeDissect, PlanNamedTypes::readDissect),
-            of(LogicalPlan.class, EsRelation.class, PlanNamedTypes::writeEsRelation, PlanNamedTypes::readEsRelation),
-            of(LogicalPlan.class, Eval.class, PlanNamedTypes::writeEval, PlanNamedTypes::readEval),
-            of(LogicalPlan.class, Enrich.class, PlanNamedTypes::writeEnrich, PlanNamedTypes::readEnrich),
-            of(LogicalPlan.class, EsqlProject.class, PlanNamedTypes::writeEsqlProject, PlanNamedTypes::readEsqlProject),
-            of(LogicalPlan.class, Filter.class, PlanNamedTypes::writeFilter, PlanNamedTypes::readFilter),
-            of(LogicalPlan.class, Grok.class, PlanNamedTypes::writeGrok, PlanNamedTypes::readGrok),
-            of(LogicalPlan.class, InlineStats.class, (PlanStreamOutput out, InlineStats v) -> v.writeTo(out), InlineStats::new),
+            of(LogicalPlan.class, Aggregate.ENTRY),
+            of(LogicalPlan.class, Dissect.ENTRY),
+            of(LogicalPlan.class, EsRelation.ENTRY),
+            of(LogicalPlan.class, Eval.ENTRY),
+            of(LogicalPlan.class, Enrich.ENTRY),
+            of(LogicalPlan.class, EsqlProject.ENTRY),
+            of(LogicalPlan.class, Filter.ENTRY),
+            of(LogicalPlan.class, Grok.ENTRY),
+            of(LogicalPlan.class, InlineStats.ENTRY),
             of(LogicalPlan.class, Join.ENTRY),
-            of(LogicalPlan.class, Limit.class, PlanNamedTypes::writeLimit, PlanNamedTypes::readLimit),
+            of(LogicalPlan.class, Limit.ENTRY),
             of(LogicalPlan.class, LocalRelation.ENTRY),
             of(LogicalPlan.class, Lookup.ENTRY),
-            of(LogicalPlan.class, MvExpand.class, PlanNamedTypes::writeMvExpand, PlanNamedTypes::readMvExpand),
-            of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
-            of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
+            of(LogicalPlan.class, MvExpand.ENTRY),
+            of(LogicalPlan.class, OrderBy.ENTRY),
+            of(LogicalPlan.class, Project.ENTRY),
             of(LogicalPlan.class, TopN.ENTRY)
         );
         return declared;
@@ -187,7 +181,7 @@ public final class PlanNamedTypes {
             Source.readFrom(in),
             in.readPhysicalPlanNode(),
             in.readNamedWriteable(Expression.class),
-            readDissectParser(in),
+            Dissect.Parser.readFrom(in),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
@@ -196,14 +190,14 @@ public final class PlanNamedTypes {
         Source.EMPTY.writeTo(out);
         out.writePhysicalPlanNode(dissectExec.child());
         out.writeNamedWriteable(dissectExec.inputExpression());
-        writeDissectParser(out, dissectExec.parser());
+        dissectExec.parser().writeTo(out);
         out.writeNamedWriteableCollection(dissectExec.extractedFields());
     }
 
     static EsQueryExec readEsQueryExec(PlanStreamInput in) throws IOException {
         return new EsQueryExec(
             Source.readFrom(in),
-            readEsIndex(in),
+            new EsIndex(in),
             readIndexMode(in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
@@ -216,7 +210,7 @@ public final class PlanNamedTypes {
     static void writeEsQueryExec(PlanStreamOutput out, EsQueryExec esQueryExec) throws IOException {
         assert esQueryExec.children().size() == 0;
         Source.EMPTY.writeTo(out);
-        writeEsIndex(out, esQueryExec.index());
+        esQueryExec.index().writeTo(out);
         writeIndexMode(out, esQueryExec.indexMode());
         out.writeNamedWriteableCollection(esQueryExec.output());
         out.writeOptionalNamedWriteable(esQueryExec.query());
@@ -228,7 +222,7 @@ public final class PlanNamedTypes {
     static EsSourceExec readEsSourceExec(PlanStreamInput in) throws IOException {
         return new EsSourceExec(
             Source.readFrom(in),
-            readEsIndex(in),
+            new EsIndex(in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             readIndexMode(in)
@@ -237,13 +231,13 @@ public final class PlanNamedTypes {
 
     static void writeEsSourceExec(PlanStreamOutput out, EsSourceExec esSourceExec) throws IOException {
         Source.EMPTY.writeTo(out);
-        writeEsIndex(out, esSourceExec.index());
+        esSourceExec.index().writeTo(out);
         out.writeNamedWriteableCollection(esSourceExec.output());
         out.writeOptionalNamedWriteable(esSourceExec.query());
         writeIndexMode(out, esSourceExec.indexMode());
     }
 
-    static IndexMode readIndexMode(StreamInput in) throws IOException {
+    public static IndexMode readIndexMode(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
             return IndexMode.fromString(in.readString());
         } else {
@@ -251,7 +245,7 @@ public final class PlanNamedTypes {
         }
     }
 
-    static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
+    public static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
             out.writeString(indexMode.getName());
         } else if (indexMode != IndexMode.STANDARD) {
@@ -283,7 +277,7 @@ public final class PlanNamedTypes {
             concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
             mode = Enrich.Mode.ANY;
-            EsIndex esIndex = readEsIndex(in);
+            EsIndex esIndex = new EsIndex(in);
             if (esIndex.concreteIndices().size() != 1) {
                 throw new IllegalStateException("expected a single concrete enrich index; got " + esIndex.concreteIndices());
             }
@@ -317,7 +311,7 @@ public final class PlanNamedTypes {
         } else {
             if (enrich.concreteIndices().keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
                 String concreteIndex = enrich.concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                writeEsIndex(out, new EsIndex(concreteIndex, Map.of(), Set.of(concreteIndex)));
+                new EsIndex(concreteIndex, Map.of(), Set.of(concreteIndex)).writeTo(out);
             } else {
                 throw new IllegalStateException("expected a single concrete enrich index; got " + enrich.concreteIndices());
             }
@@ -389,7 +383,7 @@ public final class PlanNamedTypes {
     static FragmentExec readFragmentExec(PlanStreamInput in) throws IOException {
         return new FragmentExec(
             Source.readFrom(in),
-            in.readLogicalPlanNode(),
+            in.readNamedWriteable(LogicalPlan.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalVInt(),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readOptionalPhysicalPlanNode() : null
@@ -398,7 +392,7 @@ public final class PlanNamedTypes {
 
     static void writeFragmentExec(PlanStreamOutput out, FragmentExec fragmentExec) throws IOException {
         Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(fragmentExec.fragment());
+        out.writeNamedWriteable(fragmentExec.fragment());
         out.writeOptionalNamedWriteable(fragmentExec.esFilter());
         out.writeOptionalVInt(fragmentExec.estimatedRowSize());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
@@ -522,232 +516,6 @@ public final class PlanNamedTypes {
         out.writeOptionalVInt(topNExec.estimatedRowSize());
     }
 
-    static Dissect readDissect(PlanStreamInput in) throws IOException {
-        return new Dissect(
-            Source.readFrom(in),
-            in.readLogicalPlanNode(),
-            in.readNamedWriteable(Expression.class),
-            readDissectParser(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
-        );
-    }
-
-    static void writeDissect(PlanStreamOutput out, Dissect dissect) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(dissect.child());
-        out.writeNamedWriteable(dissect.input());
-        writeDissectParser(out, dissect.parser());
-        out.writeNamedWriteableCollection(dissect.extractedFields());
-    }
-
-    static EsRelation readEsRelation(PlanStreamInput in) throws IOException {
-        Source source = Source.readFrom(in);
-        EsIndex esIndex = readEsIndex(in);
-        List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
-        if (supportingEsSourceOptions(in.getTransportVersion())) {
-            readEsSourceOptions(in); // consume optional strings sent by remote
-        }
-        final IndexMode indexMode = readIndexMode(in);
-        boolean frozen = in.readBoolean();
-        return new EsRelation(source, esIndex, attributes, indexMode, frozen);
-    }
-
-    static void writeEsRelation(PlanStreamOutput out, EsRelation relation) throws IOException {
-        assert relation.children().size() == 0;
-        Source.EMPTY.writeTo(out);
-        writeEsIndex(out, relation.index());
-        out.writeNamedWriteableCollection(relation.output());
-        if (supportingEsSourceOptions(out.getTransportVersion())) {
-            writeEsSourceOptions(out); // write (null) string fillers expected by remote
-        }
-        writeIndexMode(out, relation.indexMode());
-        out.writeBoolean(relation.frozen());
-    }
-
-    private static boolean supportingEsSourceOptions(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_14_0) && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS);
-    }
-
-    private static void readEsSourceOptions(PlanStreamInput in) throws IOException {
-        // allowNoIndices
-        in.readOptionalString();
-        // ignoreUnavailable
-        in.readOptionalString();
-        // preference
-        in.readOptionalString();
-    }
-
-    private static void writeEsSourceOptions(PlanStreamOutput out) throws IOException {
-        // allowNoIndices
-        out.writeOptionalString(null);
-        // ignoreUnavailable
-        out.writeOptionalString(null);
-        // preference
-        out.writeOptionalString(null);
-    }
-
-    static Eval readEval(PlanStreamInput in) throws IOException {
-        return new Eval(Source.readFrom(in), in.readLogicalPlanNode(), in.readCollectionAsList(Alias::new));
-    }
-
-    static void writeEval(PlanStreamOutput out, Eval eval) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(eval.child());
-        out.writeCollection(eval.fields());
-    }
-
-    static Enrich readEnrich(PlanStreamInput in) throws IOException {
-        Enrich.Mode mode = Enrich.Mode.ANY;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            mode = in.readEnum(Enrich.Mode.class);
-        }
-        final Source source = Source.readFrom(in);
-        final LogicalPlan child = in.readLogicalPlanNode();
-        final Expression policyName = in.readNamedWriteable(Expression.class);
-        final NamedExpression matchField = in.readNamedWriteable(NamedExpression.class);
-        if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            in.readString(); // discard the old policy name
-        }
-        final EnrichPolicy policy = new EnrichPolicy(in);
-        final Map<String, String> concreteIndices;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            EsIndex esIndex = readEsIndex(in);
-            if (esIndex.concreteIndices().size() > 1) {
-                throw new IllegalStateException("expected a single enrich index; got " + esIndex);
-            }
-            concreteIndices = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
-        }
-        return new Enrich(
-            source,
-            child,
-            mode,
-            policyName,
-            matchField,
-            policy,
-            concreteIndices,
-            in.readNamedWriteableCollectionAsList(NamedExpression.class)
-        );
-    }
-
-    static void writeEnrich(PlanStreamOutput out, Enrich enrich) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeEnum(enrich.mode());
-        }
-
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(enrich.child());
-        out.writeNamedWriteable(enrich.policyName());
-        out.writeNamedWriteable(enrich.matchField());
-        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeString(BytesRefs.toString(enrich.policyName().fold())); // old policy name
-        }
-        enrich.policy().writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeMap(enrich.concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
-        } else {
-            Map<String, String> concreteIndices = enrich.concreteIndices();
-            if (concreteIndices.keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
-                String enrichIndex = concreteIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                EsIndex esIndex = new EsIndex(enrichIndex, Map.of(), Set.of(enrichIndex));
-                writeEsIndex(out, esIndex);
-            } else {
-                throw new IllegalStateException("expected a single enrich index; got " + concreteIndices);
-            }
-        }
-        out.writeNamedWriteableCollection(enrich.enrichFields());
-    }
-
-    static EsqlProject readEsqlProject(PlanStreamInput in) throws IOException {
-        return new EsqlProject(Source.readFrom(in), in.readLogicalPlanNode(), in.readNamedWriteableCollectionAsList(NamedExpression.class));
-    }
-
-    static void writeEsqlProject(PlanStreamOutput out, EsqlProject project) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(project.child());
-        out.writeNamedWriteableCollection(project.projections());
-    }
-
-    static Filter readFilter(PlanStreamInput in) throws IOException {
-        return new Filter(Source.readFrom(in), in.readLogicalPlanNode(), in.readNamedWriteable(Expression.class));
-    }
-
-    static void writeFilter(PlanStreamOutput out, Filter filter) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(filter.child());
-        out.writeNamedWriteable(filter.condition());
-    }
-
-    static Grok readGrok(PlanStreamInput in) throws IOException {
-        Source source;
-        return new Grok(
-            source = Source.readFrom(in),
-            in.readLogicalPlanNode(),
-            in.readNamedWriteable(Expression.class),
-            Grok.pattern(source, in.readString()),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
-        );
-    }
-
-    static void writeGrok(PlanStreamOutput out, Grok grok) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(grok.child());
-        out.writeNamedWriteable(grok.input());
-        out.writeString(grok.parser().pattern());
-        out.writeNamedWriteableCollection(grok.extractedFields());
-    }
-
-    static Limit readLimit(PlanStreamInput in) throws IOException {
-        return new Limit(Source.readFrom(in), in.readNamedWriteable(Expression.class), in.readLogicalPlanNode());
-    }
-
-    static void writeLimit(PlanStreamOutput out, Limit limit) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(limit.limit());
-        out.writeLogicalPlanNode(limit.child());
-    }
-
-    static MvExpand readMvExpand(PlanStreamInput in) throws IOException {
-        return new MvExpand(
-            Source.readFrom(in),
-            in.readLogicalPlanNode(),
-            in.readNamedWriteable(NamedExpression.class),
-            in.readNamedWriteable(Attribute.class)
-        );
-    }
-
-    static void writeMvExpand(PlanStreamOutput out, MvExpand mvExpand) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(mvExpand.child());
-        out.writeNamedWriteable(mvExpand.target());
-        out.writeNamedWriteable(mvExpand.expanded());
-    }
-
-    static OrderBy readOrderBy(PlanStreamInput in) throws IOException {
-        return new OrderBy(
-            Source.readFrom(in),
-            in.readLogicalPlanNode(),
-            in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new)
-        );
-    }
-
-    static void writeOrderBy(PlanStreamOutput out, OrderBy order) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(order.child());
-        out.writeCollection(order.order());
-    }
-
-    static Project readProject(PlanStreamInput in) throws IOException {
-        return new Project(Source.readFrom(in), in.readLogicalPlanNode(), in.readNamedWriteableCollectionAsList(NamedExpression.class));
-    }
-
-    static void writeProject(PlanStreamOutput out, Project project) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeLogicalPlanNode(project.child());
-        out.writeNamedWriteableCollection(project.projections());
-    }
-
     // -- ancillary supporting classes of plan nodes, etc
 
     static EsQueryExec.FieldSort readFieldSort(PlanStreamInput in) throws IOException {
@@ -762,31 +530,5 @@ public final class PlanNamedTypes {
         fieldSort.field().writeTo(out);
         out.writeEnum(fieldSort.direction());
         out.writeEnum(fieldSort.nulls());
-    }
-
-    @SuppressWarnings("unchecked")
-    static EsIndex readEsIndex(PlanStreamInput in) throws IOException {
-        return new EsIndex(
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)),
-            (Set<String>) in.readGenericValue()
-        );
-    }
-
-    static void writeEsIndex(PlanStreamOutput out, EsIndex esIndex) throws IOException {
-        out.writeString(esIndex.name());
-        out.writeMap(esIndex.mapping(), StreamOutput::writeNamedWriteable);
-        out.writeGenericValue(esIndex.concreteIndices());
-    }
-
-    static Parser readDissectParser(PlanStreamInput in) throws IOException {
-        String pattern = in.readString();
-        String appendSeparator = in.readString();
-        return new Parser(pattern, appendSeparator, new DissectParser(pattern, appendSeparator));
-    }
-
-    static void writeDissectParser(PlanStreamOutput out, Parser dissectParser) throws IOException {
-        out.writeString(dissectParser.pattern());
-        out.writeString(dissectParser.appendSeparator());
     }
 }

@@ -16,29 +16,14 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import java.io.IOException;
 import java.util.HashSet;
 
+import static org.elasticsearch.xpack.inference.services.elser.ElserModelsTests.randomElserModel;
+
 public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTestCase<ElserInternalServiceSettings> {
 
     public static ElserInternalServiceSettings createRandom() {
         return new ElserInternalServiceSettings(
-            ElasticsearchInternalServiceSettingsTests.validInstance(randomFrom(ElserInternalService.VALID_ELSER_MODEL_IDS))
+            ElasticsearchInternalServiceSettingsTests.validInstance(randomElserModel())
         );
-        assertThat(e.getMessage(), containsString("unknown ELSER model id [.elser_model_27]"));
-    }
-
-    public void testFromMapMissingOptions() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> ElserInternalServiceSettings.fromMap(new HashMap<>(Map.of(ElserInternalServiceSettings.NUM_ALLOCATIONS, 1)))
-        );
-
-        assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_threads]"));
-
-        e = expectThrows(
-            ValidationException.class,
-            () -> ElserInternalServiceSettings.fromMap(new HashMap<>(Map.of(ElserInternalServiceSettings.NUM_THREADS, 1)))
-        );
-
-        assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
     }
 
     public void testBwcWrite() throws IOException {

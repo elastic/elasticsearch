@@ -27,10 +27,10 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
         var baseSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
 
         String modelId = baseSettings.getModelId();
-        if (modelId != null && VALID_ELSER_MODEL_IDS.contains(modelId) == false) {
+        if (modelId != null && ElserModels.isValidModel(modelId) == false) {
             var ve = new ValidationException();
             ve.addValidationError(
-                "Unknown ELSER model ID [" + modelId + "]. Valid models are " + Arrays.toString(VALID_ELSER_MODEL_IDS.toArray())
+                "Unknown ELSER model ID [" + modelId + "]. Valid models are " + Arrays.toString(ElserModels.VALID_ELSER_MODEL_IDS.toArray())
             );
             throw ve;
         }

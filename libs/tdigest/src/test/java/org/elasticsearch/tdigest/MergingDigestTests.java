@@ -153,9 +153,12 @@ public class MergingDigestTests extends TDigestTests {
     }
 
     public void testLargeInputSmallCompression() {
-        TDigest td = TDigest.createMergingDigest(10);
+        MergingDigest td = new MergingDigest(10);
         for (int i = 0; i < 10_000_000; i++) {
             td.add(between(0, 3_600_000));
         }
+        assertTrue(td.centroidCount() < 100);
+        assertTrue(td.quantile(0.00001) < 100_000);
+        assertTrue(td.quantile(0.99999) > 3_000_000);
     }
 }

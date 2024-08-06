@@ -159,12 +159,6 @@ public class AutodetectBuilder {
         buildQuantiles(command);
 
         processPipes.addArgs(command);
-
-        // log the command
-        if (job.keepJobData()) {
-            // log the command to reproduce the autodetect run
-            logger.info("Autodetect process command: " + command);
-        }
         controller.startProcess(command);
     }
 

@@ -76,7 +76,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(supportedTypes()));
+        return isType(field(), factories()::containsKey, sourceText(), null, true, supportedTypesNames(supportedTypes()));
     }
 
     public Set<DataType> supportedTypes() {

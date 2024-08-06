@@ -456,14 +456,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            // Attempt to resolve the aggregates only if we managed to resolve the groupings.
-            // Not being able to resolve the groupings immediately can happen in case of union types,
-            // e.g. `... BY client_ip = TO_IP(client_ip)` where the ES field `client_ip` has multiple types.
-            if (Resolvables.resolved(stats.groupings()) && (Resolvables.resolved(stats.aggregates()) == false)) {
+            if (Resolvables.resolved(stats.groupings()) == false || (Resolvables.resolved(stats.aggregates()) == false)) {
                 ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
-                    // In case of union types, the expression may contain yet-to-be resolved conversion functions, so do not perform a
-                    // type check here.
                     Attribute attr = Expressions.attribute(e);
                     if (attr != null && attr.resolved()) {
                         resolved.add(attr);
@@ -1102,7 +1097,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             });
 
-            return plan.transformUp(LogicalPlan.class, p -> p.resolved() || p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
         }
 
         private LogicalPlan doRule(LogicalPlan plan) {
@@ -1143,8 +1138,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
-                imf.getTypesToIndices().keySet().forEach(typeName -> {
-                    DataType type = DataType.fromTypeName(typeName);
+                imf.types().forEach(type -> {
+                    // TODO: Shouldn't we perform widening of small numerical types here?
                     if (supportedTypes.contains(type)) {
                         TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                         var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);

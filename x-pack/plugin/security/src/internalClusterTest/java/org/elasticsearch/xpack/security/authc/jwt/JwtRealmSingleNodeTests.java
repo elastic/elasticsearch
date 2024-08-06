@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.jose.JoseWrapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -710,7 +711,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.HS256).build();
         OctetSequenceKey.Builder jwt0signer = new OctetSequenceKey.Builder(hmacKeyBytes);
         jwt0signer.algorithm(JWSAlgorithm.HS256);
-        SignedJWT jwt = new SignedJWT(jwtHeader, claimsSet);
+        SignedJWT jwt = JoseWrapper.newSignedJwt(jwtHeader, claimsSet);
         jwt.sign(new MACSigner(jwt0signer.build()));
         return jwt;
     }
@@ -764,11 +765,8 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         claimsMap.put("exp", now.plus(randomIntBetween(-1, 1), ChronoUnit.DAYS).getEpochSecond());
 
         final JWTClaimsSet claimsSet = JWTClaimsSet.parse(claimsMap);
-        final SignedJWT signedJWT = new SignedJWT(
-            JWSHeader.parse(Map.of("alg", randomAlphaOfLengthBetween(5, 10))).toBase64URL(),
-            claimsSet.toPayload().toBase64URL(),
-            Base64URL.encode("signature")
-        );
+        final SignedJWT signedJWT = JoseWrapper.newSignedJWT(Map.of("alg", randomAlphaOfLengthBetween(5, 10)), claimsSet, "signature");
+
         return signedJWT;
     }
 

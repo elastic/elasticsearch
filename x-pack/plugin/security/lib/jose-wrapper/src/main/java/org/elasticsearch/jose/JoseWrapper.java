@@ -7,6 +7,8 @@
 
 package org.elasticsearch.jose;
 
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -14,6 +16,10 @@ import org.elasticsearch.SpecialPermission;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.text.ParseException;
+import java.util.Map;
 
 /**
  * This class wraps the operations requiring access in {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
@@ -34,5 +40,28 @@ public class JoseWrapper {
     public static String getClaimsSetAsString(JWTClaimsSet jwtClaimsSet) {
         SpecialPermission.check();
         return AccessController.doPrivileged((PrivilegedAction<String>) jwtClaimsSet::toString);
+    }
+
+    // only used in tests
+    public static SignedJWT newSignedJwt(JWSHeader header, JWTClaimsSet claimsSet) {
+        SpecialPermission.check();
+        return AccessController.doPrivileged((PrivilegedAction<SignedJWT>) () -> new SignedJWT(header, claimsSet));
+    }
+
+    // only used in tests
+    public static SignedJWT newSignedJWT(Map<String, Object> header, JWTClaimsSet claimsSet, String signatureUrl) throws ParseException {
+        SpecialPermission.check();
+        try {
+            return AccessController.doPrivileged(
+                (PrivilegedExceptionAction<SignedJWT>) () -> new SignedJWT(
+                    JWSHeader.parse(header).toBase64URL(),
+                    claimsSet.toPayload().toBase64URL(),
+                    Base64URL.encode(signatureUrl)
+                )
+            );
+        } catch (PrivilegedActionException ex) {
+            throw (ParseException) ex.getException();
+        }
+
     }
 }

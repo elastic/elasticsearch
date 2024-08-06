@@ -10,16 +10,20 @@ package org.elasticsearch.rest;
 
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpResponse;
+import org.apache.http.MalformedChunkCodingException;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.protocol.HttpContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -57,6 +61,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -66,7 +71,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.rest.ChunkedZipResponse.ZIP_CONTENT_TYPE;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
@@ -88,6 +96,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
         public static final String RESPONSE_FILENAME = "test-response";
 
         public static final String INFINITE_ROUTE = "/_infinite_zip_response";
+        public static final String GET_NEXT_PART_COUNT_DOWN_PARAM = "getNextPartCountDown";
 
         public final AtomicReference<Response> responseRef = new AtomicReference<>();
 
@@ -132,7 +141,13 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                         response.entries().put(randomIdentifier(), randomContent(maxSize));
                     }
                     assertTrue(responseRef.compareAndSet(null, response));
-                    handleZipRestRequest(channel, client.threadPool(), response.completedLatch(), response.entries().entrySet().iterator());
+                    handleZipRestRequest(
+                        channel,
+                        client.threadPool(),
+                        response.completedLatch(),
+                        () -> {},
+                        response.entries().entrySet().iterator()
+                    );
                 }
             }, new RestHandler() {
 
@@ -145,7 +160,29 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     final var response = new Response(null, new CountDownLatch(1));
                     assertTrue(responseRef.compareAndSet(null, response));
-                    handleZipRestRequest(channel, client.threadPool(), response.completedLatch(), new Iterator<>() {
+                    final var getNextPartCountDown = request.paramAsInt(GET_NEXT_PART_COUNT_DOWN_PARAM, -1);
+                    final Runnable onGetNextPart;
+                    if (getNextPartCountDown <= 1) {
+                        onGetNextPart = () -> {};
+                    } else {
+                        final AtomicInteger remaining = new AtomicInteger(getNextPartCountDown);
+                        if (randomBoolean()) {
+                            onGetNextPart = () -> {
+                                final var newRemaining = remaining.decrementAndGet();
+                                assertThat(newRemaining, greaterThanOrEqualTo(0));
+                                if (newRemaining <= 0) {
+                                    throw new ElasticsearchException("simulated failure");
+                                }
+                            };
+                        } else {
+                            onGetNextPart = () -> {
+                                if (remaining.decrementAndGet() == 0) {
+                                    request.getHttpChannel().close();
+                                }
+                            };
+                        }
+                    }
+                    handleZipRestRequest(channel, client.threadPool(), response.completedLatch(), onGetNextPart, new Iterator<>() {
 
                         private long id;
 
@@ -207,6 +244,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
             RestChannel channel,
             ThreadPool threadPool,
             CountDownLatch completionLatch,
+            Runnable onGetNextPart,
             Iterator<Map.Entry<String, EntryBody>> entryIterator
         ) {
             try (var refs = new RefCountingRunnable(completionLatch::countDown)) {
@@ -218,7 +256,13 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                             chunkedZipResponse.newEntryListener(entry.getKey(), Releasables.wrap(ref, refs.acquire())),
                             () -> entry.getValue() == null && randomBoolean() // randomBoolean() to allow some null entries to fail with NPE
                                 ? null
-                                : new TestBytesReferenceBodyPart(entry.getKey(), threadPool, entry.getValue().parts().iterator(), refs)
+                                : new TestBytesReferenceBodyPart(
+                                    entry.getKey(),
+                                    threadPool,
+                                    entry.getValue().parts().iterator(),
+                                    refs,
+                                    onGetNextPart
+                                )
                         )
                     ),
                     between(1, 10),
@@ -236,13 +280,16 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
         private final Iterator<BytesReference> chunksIterator;
         private final Iterator<RandomZipResponsePlugin.EntryPart> partsIterator;
         private final RefCountingRunnable refs;
+        private final Runnable onGetNextPart;
 
         TestBytesReferenceBodyPart(
             String name,
             ThreadPool threadPool,
             Iterator<RandomZipResponsePlugin.EntryPart> partsIterator,
-            RefCountingRunnable refs
+            RefCountingRunnable refs,
+            Runnable onGetNextPart
         ) {
+            this.onGetNextPart = onGetNextPart;
             assert partsIterator.hasNext();
             this.name = name;
             this.threadPool = threadPool;
@@ -263,8 +310,10 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
 
         @Override
         public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
-            threadPool.generic()
-                .execute(ActionRunnable.supply(listener, () -> new TestBytesReferenceBodyPart(name, threadPool, partsIterator, refs)));
+            threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
+                onGetNextPart.run();
+                return new TestBytesReferenceBodyPart(name, threadPool, partsIterator, refs, onGetNextPart);
+            }));
         }
 
         @Override
@@ -391,6 +440,23 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
         }
         safeAwait(responseStarted);
         safeAwait(bodyConsumed);
+        assertNull(getExpectedEntries()); // mainly just checking that all refs are released
+    }
+
+    public void testGetNextPartFailure() throws IOException {
+        final var request = new Request("GET", RandomZipResponsePlugin.INFINITE_ROUTE);
+        request.addParameter(RandomZipResponsePlugin.GET_NEXT_PART_COUNT_DOWN_PARAM, Integer.toString(between(1, 100)));
+
+        try (var restClient = createRestClient(internalCluster().getRandomNodeName())) {
+            // one-node REST client to avoid retries
+            assertThat(
+                safeAwaitFailure(
+                    Response.class,
+                    l -> restClient.performRequestAsync(request, ActionTestUtils.wrapAsRestResponseListener(l))
+                ),
+                anyOf(instanceOf(ConnectionClosedException.class), instanceOf(MalformedChunkCodingException.class))
+            );
+        }
         assertNull(getExpectedEntries()); // mainly just checking that all refs are released
     }
 

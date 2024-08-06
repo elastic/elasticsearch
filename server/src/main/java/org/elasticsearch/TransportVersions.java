@@ -184,6 +184,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN = def(8_714_00_0);
     public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION = def(8_715_00_0);
     public static final TransportVersion REGISTER_SLM_STATS = def(8_716_00_0);
+    public static final TransportVersion ESQL_SINGLE_VALUE_QUERY_SOURCE = def(8_717_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

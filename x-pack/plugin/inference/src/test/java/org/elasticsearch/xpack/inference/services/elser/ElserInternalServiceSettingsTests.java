@@ -21,9 +21,7 @@ import static org.elasticsearch.xpack.inference.services.elser.ElserModelsTests.
 public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTestCase<ElserInternalServiceSettings> {
 
     public static ElserInternalServiceSettings createRandom() {
-        return new ElserInternalServiceSettings(
-            ElasticsearchInternalServiceSettingsTests.validInstance(randomElserModel())
-        );
+        return new ElserInternalServiceSettings(ElasticsearchInternalServiceSettingsTests.validInstance(randomElserModel()));
     }
 
     public void testBwcWrite() throws IOException {

@@ -72,7 +72,6 @@ class ModelImporter {
         int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
 
         for (int part = 0; part < totalParts - 1; ++part) {
-            logger.info("put part " + part);
             task.setProgress(totalParts, part);
             BytesArray definition = chunkIterator.next();
 
@@ -85,7 +84,9 @@ class ModelImporter {
                 true
             );
 
+            logger.info("put part " + part);
             executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
+            logger.info("part " + part + " put");
         }
 
         logger.info("checksum");

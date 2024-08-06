@@ -217,7 +217,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                         ActionRunnable.supply(
                             chunkedZipResponse.newEntryListener(
                                 entry.getKey(),
-                                ActionListener.releasing(Releasables.wrap(ref, refs.acquire()))
+                                Releasables.wrap(ref, refs.acquire())
                             ),
                             () -> entry.getValue() == null && randomBoolean() // randomBoolean() to allow some null entries to fail with NPE
                                 ? null

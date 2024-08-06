@@ -167,10 +167,9 @@ and specify that client by name when registering a repository.
 .Obtaining credentials from the environment
 ======================================================
 If you specify neither the `key` nor the `sas_token` settings for a client then
-{es} will use the Azure SDK's
-https://learn.microsoft.com/en-us/java/api/com.azure.identity.defaultazurecredential?view=azure-java-stable[`DefaultAzureCredential`]
-to attempt to obtain credentials from the environment in which it is running.
-This is ideal for when running {es} on the Azure platform.
+{es} will attempt to automatically obtain credentials from the environment in
+which it is running using mechanisms built into the Azure SDK. This is ideal
+for when running {es} on the Azure platform.
 
 When running {es} on an
 https://azure.microsoft.com/en-gb/products/virtual-machines[Azure Virtual
@@ -190,9 +189,9 @@ Identity, mount the `azure-identity-token` volume as a subdirectory of the
 `AZURE_FEDERATED_TOKEN_FILE` environment variable to point to a file called
 `azure-identity-token` within the mounted volume.
 
-The `DefaultAzureCredential` mechanism supports several other ways for {es} to
-obtain credentials from its environment, but we recommend using only one of the
-methods mentioned above.
+The Azure SDK has several other mechanisms to automatically obtain credentials
+from its environment, but the two methods described above are the only ones
+that are tested and supported for use in {es}.
 ======================================================
 
 

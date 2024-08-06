@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -24,52 +28,62 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineOr;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitOr;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 
 /**
- * Combine disjunctions on the same field into an In expression.
+ * Combine disjunctive Equals or In expression on the same field into an In expression.
  * This rule looks for both simple equalities:
  * 1. a == 1 OR a == 2 becomes a IN (1, 2)
  * and combinations of In
  * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
  * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
+ * Combine disjunctive Equals, In or CIDRMatch expressions on the same field into a CIDRMatch expression.
+ * 4. CIDRMatch(a, ip1) OR CIDRMatch(a, ip2) OR a = ip3 or a IN (ip4, ip5) becomes CIDRMatch(a, ip1, ip2, ip3, ip4, ip5)
  * <p>
  * This rule does NOT check for type compatibility as that phase has been
  * already be verified in the analyzer.
  */
-public final class CombineDisjunctionsToIn extends OptimizerRules.OptimizerExpressionRule<Or> {
-    public CombineDisjunctionsToIn() {
+public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressionRule<Or> {
+    public CombineDisjunctions() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
-    protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
+    protected static In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
         return new In(key.source(), key, values);
     }
 
-    protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+    protected static Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
         return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
     }
 
-    protected CIDRMatch createCIDRMatch(Expression k, List<Expression> v) {
+    protected static CIDRMatch createCIDRMatch(Expression k, List<Expression> v) {
         return new CIDRMatch(k.source(), k, v);
     }
 
     @Override
     public Expression rule(Or or) {
         Expression e = or;
-        // look only at equals and In
+        // look only at equals, In and CIDRMatch
         List<Expression> exps = splitOr(e);
 
-        Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
-        Map<Expression, Set<Expression>> cIDRMatch = new LinkedHashMap<>();
+        Map<Expression, Set<Expression>> ins = new LinkedHashMap<>();
+        Map<Expression, Set<Expression>> cidrs = new LinkedHashMap<>();
+        Map<Expression, Set<Expression>> ips = new LinkedHashMap<>();
         ZoneId zoneId = null;
         List<Expression> ors = new LinkedList<>();
         boolean changed = false;
-
         for (Expression exp : exps) {
             if (exp instanceof Equals eq) {
                 // consider only equals against foldables
                 if (eq.right().foldable()) {
-                    found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
+                    ins.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
+                    if (eq.left().dataType() == DataType.IP) {
+                        Object value = eq.right().fold();
+                        if (value instanceof BytesRef bytesRef) {
+                            value = ipToString(bytesRef);
+                        }
+                        ips.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(new Literal(Source.EMPTY, value, DataType.IP));
+                    }
                 } else {
                     ors.add(exp);
                 }
@@ -77,26 +91,44 @@ public final class CombineDisjunctionsToIn extends OptimizerRules.OptimizerExpre
                     zoneId = eq.zoneId();
                 }
             } else if (exp instanceof In in) {
-                found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
+                ins.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
+                if (in.value().dataType() == DataType.IP) {
+                    List<Expression> values = new ArrayList<>(in.list().size());
+                    for (Expression i : in.list()) {
+                        Object value = i.fold();
+                        if (value instanceof BytesRef bytesRef) {
+                            value = ipToString(bytesRef);
+                        }
+                        values.add(new Literal(Source.EMPTY, value, DataType.IP));
+                    }
+                    ips.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(values);
+                }
             } else if (exp instanceof CIDRMatch cm) {
-                cIDRMatch.computeIfAbsent(cm.ipField(), k -> new LinkedHashSet<>()).addAll(cm.matches());
+                cidrs.computeIfAbsent(cm.ipField(), k -> new LinkedHashSet<>()).addAll(cm.matches());
             } else {
                 ors.add(exp);
             }
         }
 
-        if (found.isEmpty() == false) {
+        if (cidrs.isEmpty() == false) {
+            for (Expression f : ips.keySet()) {
+                cidrs.computeIfAbsent(f, k -> new LinkedHashSet<>()).addAll(ips.get(f));
+                ins.remove(f);
+            }
+        }
+
+        if (ins.isEmpty() == false) {
             // combine equals alongside the existing ors
             final ZoneId finalZoneId = zoneId;
-            found.forEach(
+            ins.forEach(
                 (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
             );
 
             changed = true;
         }
 
-        if (cIDRMatch.isEmpty() == false) {
-            cIDRMatch.forEach((k, v) -> { ors.add(createCIDRMatch(k, new ArrayList<>(v))); });
+        if (cidrs.isEmpty() == false) {
+            cidrs.forEach((k, v) -> { ors.add(createCIDRMatch(k, new ArrayList<>(v))); });
             changed = true;
         }
 

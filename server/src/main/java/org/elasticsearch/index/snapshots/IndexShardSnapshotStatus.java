@@ -183,6 +183,10 @@ public class IndexShardSnapshotStatus {
         }
     }
 
+    public Stage getStage() {
+        return stage.get();
+    }
+
     public void addAbortListener(ActionListener<AbortStatus> listener) {
         abortListeners.addListener(listener);
     }

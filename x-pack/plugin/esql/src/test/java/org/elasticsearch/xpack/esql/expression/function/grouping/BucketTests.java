@@ -218,9 +218,4 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
         }
         return new Bucket(source, args.get(0), args.get(1), from, to);
     }
-
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("we test nulls in parameters", true);
-    }
 }

@@ -26,6 +26,42 @@
       "params" : [
         {
           "name" : "str",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "String expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "suffix",
+          "type" : "text",
+          "optional" : false,
+          "description" : "String expression. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "str",
+          "type" : "text",
+          "optional" : false,
+          "description" : "String expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "suffix",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "String expression. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "str",
           "type" : "text",
           "optional" : false,
           "description" : "String expression. If `null`, the function returns `null`."

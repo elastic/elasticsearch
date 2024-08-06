@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.oneOf;
 
 /**
@@ -308,9 +309,9 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         // The test ensures that the force time shift action works as expected.
 
         long timeShiftAmount = 3600L;
-        long timestampStartMillis= 1491004800000L;
+        long timestampStartMillis = 1491004800000L;
         long bucketSpanMillis = 3600000L;
-        long timeShiftTimestamp = (timestampStart + bucketSpanMillis) / 1000;
+        long timeShiftTimestamp = (timestampStartMillis + bucketSpanMillis) / 1000;
 
         int totalBuckets = 2 * 24;
 
@@ -333,7 +334,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         // post some data
         int normalValue = 400;
         List<String> data = new ArrayList<>();
-        long timestamp = timestampStart;
+        long timestamp = timestampStartMillis;
         for (int bucket = 0; bucket < totalBuckets; bucket++) {
             Map<String, Object> record = new HashMap<>();
             record.put("time", timestamp);
@@ -347,17 +348,22 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         List<Annotation> annotations = getAnnotations();
         assertThat(annotations.size(), greaterThanOrEqualTo(1));
+        assertThat(annotations.size(), lessThanOrEqualTo(3));
 
         // Check that annotation contain the expected time shift
-        boolean annotationFound = false;
+        boolean countingModelAnnotationFound = false;
+        boolean individualModelAnnotationFound = false;
         for (Annotation annotation : annotations) {
-            if (annotation.getAnnotation().contains("Shifted time by")) {
-                annotationFound = true;
+            if (annotation.getAnnotation().contains("Counting model shifted time by")) {
+                countingModelAnnotationFound = true;
                 assertThat(annotation.getAnnotation(), containsString(timeShiftAmount + " seconds"));
-                break;
+            } else if (annotation.getAnnotation().contains("Model shifted time by")) {
+                individualModelAnnotationFound = true;
+                assertThat(annotation.getAnnotation(), containsString(timeShiftAmount + " seconds"));
             }
         }
-        assertThat("Annotation with time shift not found", annotationFound, equalTo(true));
+        assertThat("Counting model annotation with time shift not found", countingModelAnnotationFound, equalTo(true));
+        assertThat("Individual model annotation with time shift not found", individualModelAnnotationFound, equalTo(true));
     }
 
     private String createIpRecord(long timestamp, String ip) throws IOException {

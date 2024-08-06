@@ -12,7 +12,11 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator(
-    value = { @IntermediateState(name = "sum", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") },
+    value = {
+        @IntermediateState(name = "sum", type = "LONG"),
+        @IntermediateState(name = "seen", type = "BOOLEAN"),
+        @IntermediateState(name = "failed", type = "BOOLEAN")
+    },
     warnExceptions = ArithmeticException.class
 )
 @GroupingAggregator

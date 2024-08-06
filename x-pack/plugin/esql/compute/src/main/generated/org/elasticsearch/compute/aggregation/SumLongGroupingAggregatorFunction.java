@@ -27,7 +27,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class SumLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("sum", ElementType.LONG),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN),
+      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
 
   private final LongArrayState state;
 
@@ -160,7 +161,12 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert sum.getPositionCount() == seen.getPositionCount();
+    Block failedUncast = page.getBlock(channels.get(2));
+    if (failedUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+    assert sum.getPositionCount() == seen.getPositionCount() && sum.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
       if (seen.getBoolean(groupPosition + positionOffset)) {

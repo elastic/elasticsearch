@@ -97,7 +97,8 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             assertThat(((List<String>) fields.get("message")).get(0), is("Non-zero metrics in the last 30s"));
 
             Map<String, Object> properties = getMappingProperties(client, backingIndex);
-            assertThat(getValueFromPath(properties, List.of("@timestamp", "type")), is("date"));
+            // The @timestamp field mapping should be "date_nano"s, as its ECS mapping is overridden by logs@mappings
+            assertThat(getValueFromPath(properties, List.of("@timestamp", "type")), is("date_nanos"));
             assertThat(getValueFromPath(properties, List.of("message", "type")), is("match_only_text"));
             assertThat(
                 getValueFromPath(properties, List.of("kubernetes", "properties", "pod", "properties", "name", "type")),

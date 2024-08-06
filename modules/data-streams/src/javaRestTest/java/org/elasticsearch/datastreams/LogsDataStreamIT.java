@@ -37,6 +37,7 @@ public class LogsDataStreamIT extends AbstractDataStreamIT {
         // Extend the mapping and verify
         putMapping(client, backingIndex);
         Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
+        assertThat(getValueFromPath(mappingProperties, List.of("@timestamp", "type")), equalTo("date_nanos"));
         assertThat(getValueFromPath(mappingProperties, List.of("@timestamp", "ignore_malformed")), equalTo(false));
         assertThat(getValueFromPath(mappingProperties, List.of("numeric_field", "type")), equalTo("integer"));
 
@@ -210,7 +211,7 @@ public class LogsDataStreamIT extends AbstractDataStreamIT {
 
         // Verify mapping from custom logs
         Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
-        assertThat(getValueFromPath(mappingProperties, List.of("@timestamp", "type")), equalTo("date"));
+        assertThat(getValueFromPath(mappingProperties, List.of("@timestamp", "type")), equalTo("date_nanos"));
 
         // no timestamp - testing default pipeline's @timestamp set processor
         {
@@ -228,18 +229,26 @@ public class LogsDataStreamIT extends AbstractDataStreamIT {
                       }
                     }
                   },
-                  "fields": ["@timestamp", "custom_timestamp"]
+                  "fields": [
+                    {
+                      "field": "@timestamp",
+                      "format": "strict_date_optional_time"
+                    },
+                    {
+                      "field": "custom_timestamp"
+                    }
+                  ]
                 }
                 """);
             Map<String, Object> source = ((Map<String, Map<String, Object>>) results.get(0)).get("_source");
-            String timestamp = (String) source.get("@timestamp");
-            assertThat(timestamp, matchesRegex("[0-9-]+T[0-9:.]+Z"));
-            assertThat(source.get("custom_timestamp"), is(timestamp));
+            String timestampInMillis = (String) source.get("@timestamp");
+            assertThat(timestampInMillis, matchesRegex("[0-9-]+T[0-9:.]+Z"));
+            assertThat(source.get("custom_timestamp"), is(timestampInMillis));
 
             Map<String, Object> fields = ((Map<String, Map<String, Object>>) results.get(0)).get("fields");
-            timestamp = ((List<String>) fields.get("@timestamp")).get(0);
-            assertThat(timestamp, matchesRegex("[0-9-]+T[0-9:.]+Z"));
-            assertThat(((List<Object>) fields.get("custom_timestamp")).get(0), is(timestamp));
+            timestampInMillis = ((List<String>) fields.get("@timestamp")).get(0);
+            assertThat(timestampInMillis, matchesRegex("[0-9-]+T[0-9:.]+Z"));
+            assertThat(((List<Object>) fields.get("custom_timestamp")).get(0), is(timestampInMillis));
         }
 
         // verify that when a document is ingested with a timestamp, it does not get overridden

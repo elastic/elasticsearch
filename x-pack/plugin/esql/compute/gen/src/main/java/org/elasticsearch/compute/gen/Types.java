@@ -135,7 +135,6 @@ public class Types {
      */
     static final ClassName COMPUTE_WARNINGS = ClassName.get("org.elasticsearch.compute.aggregation", "Warnings");
 
-
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");

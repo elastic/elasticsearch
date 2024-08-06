@@ -262,8 +262,12 @@ public class AggregatorImplementer {
             builder.addParameter(p.type(), p.name());
         }
         if (createParameters.isEmpty()) {
-            builder.addStatement("return new $T($LdriverContext, channels, $L)", implementation,
-                warnExceptions.isEmpty() ? "" : "warnings, ", callInit());
+            builder.addStatement(
+                "return new $T($LdriverContext, channels, $L)",
+                implementation,
+                warnExceptions.isEmpty() ? "" : "warnings, ",
+                callInit()
+            );
         } else {
             builder.addStatement(
                 "return new $T($LdriverContext, channels, $L, $L)",
@@ -416,9 +420,7 @@ public class AggregatorImplementer {
             throw new IllegalArgumentException("combine must return void or a primitive");
         }
         if (warnExceptions.isEmpty() == false) {
-            String catchPattern = "catch ("
-                + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
-                + " e)";
+            String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
             builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
             builder.addStatement("warnings.registerException(e)");
             builder.addStatement("state.failed(true)");
@@ -544,10 +546,7 @@ public class AggregatorImplementer {
             .addParameter(TypeName.INT, "offset")
             .addParameter(DRIVER_CONTEXT, "driverContext");
         if (stateTypeHasSeen || stateTypeHasFailed) {
-            var condition = Stream.of(
-                stateTypeHasSeen ? "state.seen() == false" : null,
-                stateTypeHasFailed ? "state.failed()" : null
-            )
+            var condition = Stream.of(stateTypeHasSeen ? "state.seen() == false" : null, stateTypeHasFailed ? "state.failed()" : null)
                 .filter(Objects::nonNull)
                 .collect(joining(" || "));
             builder.beginControlFlow("if ($L)", condition);
@@ -606,6 +605,7 @@ public class AggregatorImplementer {
     private static final Pattern PRIMITIVE_STATE_PATTERN = Pattern.compile(
         "org.elasticsearch.compute.aggregation.(Boolean|Int|Long|Double|Float)(Fallible)?State"
     );
+
     private boolean hasPrimitiveState() {
         return PRIMITIVE_STATE_PATTERN.matcher(stateType.toString()).matches();
     }

@@ -10,11 +10,8 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.JavaFile;
 
 import org.elasticsearch.compute.ann.Aggregator;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
-import org.elasticsearch.compute.ann.MvEvaluator;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -117,8 +114,7 @@ public class AggregatorProcessor implements Processor {
                         implementer,
                         groupingAggregatorImplementer,
                         warnExceptionsTypes.isEmpty() == false
-                    )
-                        .sourceFile(),
+                    ).sourceFile(),
                     env
                 );
             }
@@ -151,8 +147,7 @@ public class AggregatorProcessor implements Processor {
         List<TypeMirror> result = new ArrayList<>();
         for (var mirror : aggregatorMethod.getAnnotationMirrors()) {
             String annotationType = mirror.getAnnotationType().toString();
-            if (annotationType.equals(Aggregator.class.getName())
-                || annotationType.equals(GroupingAggregator.class.getName())) {
+            if (annotationType.equals(Aggregator.class.getName()) || annotationType.equals(GroupingAggregator.class.getName())) {
 
                 for (var e : mirror.getElementValues().entrySet()) {
                     if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {

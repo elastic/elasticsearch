@@ -138,21 +138,19 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(aggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement("var warnings = Warnings.createWarnings(driverContext.warningsMode(), " +
-                "warningsLineNumber, warningsColumnNumber, warningsSourceText)");
+            builder.addStatement(
+                "var warnings = Warnings.createWarnings(driverContext.warningsMode(), "
+                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)"
+            );
         }
 
         builder.addStatement(
             "return $T.create($L)",
             aggregatorImplementer.implementation(),
             Stream.concat(
-                Stream.concat(
-                    hasWarnings ? Stream.of("warnings") : Stream.of(),
-                    Stream.of("driverContext, channels")
-                ),
+                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("driverContext, channels")),
                 aggregatorImplementer.createParameters().stream().map(Parameter::name)
-            )
-                .collect(Collectors.joining(", "))
+            ).collect(Collectors.joining(", "))
         );
 
         return builder.build();

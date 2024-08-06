@@ -8,9 +8,9 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.operator.DriverContext;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  * Utilities to collect warnings for running an executor.

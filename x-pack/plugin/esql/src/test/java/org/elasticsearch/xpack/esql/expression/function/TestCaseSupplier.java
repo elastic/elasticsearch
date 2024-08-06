@@ -1418,6 +1418,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
+        public TestCase withWarnings(List<String> warnings) {
+            String[] newWarnings;
+            if (expectedWarnings != null) {
+                newWarnings = Arrays.copyOf(expectedWarnings, expectedWarnings.length + warnings.size());
+                for (int i = 0; i < warnings.size(); i++) {
+                    newWarnings[expectedWarnings.length + i] = warnings.get(i);
+                }
+            } else {
+                newWarnings = warnings.toArray(String[]::new);
+            }
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                newWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage
+            );
+        }
+
         public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
             return new TestCase(data, evaluatorToString, expectedType, matcher, expectedWarnings, expectedTypeError, clazz, message);
         }

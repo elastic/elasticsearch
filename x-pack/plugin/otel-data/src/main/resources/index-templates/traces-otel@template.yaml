@@ -8,6 +8,8 @@ _meta:
   description: default OpenTelemetry traces template installed by x-pack
   managed: true
 composed_of:
+  - traces@mappings
+  - traces@settings
   - otel@mappings
   - traces-otel@mappings
   - semconv-resource-to-ecs@mappings

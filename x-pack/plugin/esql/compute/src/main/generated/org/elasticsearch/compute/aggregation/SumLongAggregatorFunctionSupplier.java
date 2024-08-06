@@ -15,15 +15,26 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Do not edit it.
  */
 public final class SumLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  int warningsLineNumber;
+
+  int warningsColumnNumber;
+
+  String warningsSourceText;
+
   private final List<Integer> channels;
 
-  public SumLongAggregatorFunctionSupplier(List<Integer> channels) {
+  public SumLongAggregatorFunctionSupplier(int warningsLineNumber, int warningsColumnNumber,
+      String warningsSourceText, List<Integer> channels) {
+    this.warningsLineNumber = warningsLineNumber;
+    this.warningsColumnNumber = warningsColumnNumber;
+    this.warningsSourceText = warningsSourceText;
     this.channels = channels;
   }
 
   @Override
   public SumLongAggregatorFunction aggregator(DriverContext driverContext) {
-    return SumLongAggregatorFunction.create(driverContext, channels);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsLineNumber, warningsColumnNumber, warningsSourceText);
+    return SumLongAggregatorFunction.create(warnings, driverContext, channels);
   }
 
   @Override

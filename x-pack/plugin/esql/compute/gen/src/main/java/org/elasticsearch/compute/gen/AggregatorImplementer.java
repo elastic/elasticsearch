@@ -25,6 +25,7 @@ import java.util.Locale;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
@@ -40,6 +41,7 @@ import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
+import static org.elasticsearch.compute.gen.Types.COMPUTE_WARNINGS;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -68,6 +70,7 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
  */
 public class AggregatorImplementer {
     private final TypeElement declarationType;
+    private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
     private final ExecutableElement combineValueCount;
@@ -80,8 +83,14 @@ public class AggregatorImplementer {
     private final List<IntermediateStateDesc> intermediateState;
     private final List<Parameter> createParameters;
 
-    public AggregatorImplementer(Elements elements, TypeElement declarationType, IntermediateState[] interStateAnno) {
+    public AggregatorImplementer(
+        Elements elements,
+        TypeElement declarationType,
+        IntermediateState[] interStateAnno,
+        List<TypeMirror> warnExceptions
+    ) {
         this.declarationType = declarationType;
+        this.warnExceptions = warnExceptions;
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initSingle" }, e -> true);
         this.stateType = choseStateType();
@@ -202,6 +211,11 @@ public class AggregatorImplementer {
                 .initializer(initInterState())
                 .build()
         );
+
+        if (warnExceptions.isEmpty() == false) {
+            builder.addField(COMPUTE_WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+        }
+
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
@@ -228,17 +242,22 @@ public class AggregatorImplementer {
     private MethodSpec create() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
+        if (warnExceptions.isEmpty() == false) {
+            builder.addParameter(COMPUTE_WARNINGS, "warnings");
+        }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
         }
         if (createParameters.isEmpty()) {
-            builder.addStatement("return new $T(driverContext, channels, $L)", implementation, callInit());
+            builder.addStatement("return new $T($LdriverContext, channels, $L)", implementation,
+                warnExceptions.isEmpty() ? "" : "warnings, ", callInit());
         } else {
             builder.addStatement(
-                "return new $T(driverContext, channels, $L, $L)",
+                "return new $T($LdriverContext, channels, $L, $L)",
                 implementation,
+                warnExceptions.isEmpty() ? "" : "warnings, ",
                 callInit(),
                 createParameters.stream().map(p -> p.name()).collect(joining(", "))
             );
@@ -275,16 +294,22 @@ public class AggregatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (warnExceptions.isEmpty() == false) {
+            builder.addParameter(COMPUTE_WARNINGS, "warnings");
+        }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(stateType, "state");
+
         builder.addStatement("this.driverContext = driverContext");
+        if (warnExceptions.isEmpty() == false) {
+            builder.addStatement("this.warnings = warnings");
+        }
         builder.addStatement("this.channels = channels");
         builder.addStatement("this.state = state");
 
         for (Parameter p : createParameters()) {
-            builder.addParameter(p.type(), p.name());
-            builder.addStatement("this.$N = $N", p.name(), p.name());
+            p.buildCtor(builder);
         }
         return builder.build();
     }

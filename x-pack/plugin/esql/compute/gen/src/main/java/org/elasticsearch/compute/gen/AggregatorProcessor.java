@@ -10,11 +10,15 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.JavaFile;
 
 import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.ann.MvEvaluator;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -27,9 +31,11 @@ import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 
@@ -80,9 +86,10 @@ public class AggregatorProcessor implements Processor {
         }
         for (TypeElement aggClass : annotatedClasses) {
             AggregatorImplementer implementer = null;
+            var warnExceptionsTypes = warnExceptions(aggClass);
             if (aggClass.getAnnotation(Aggregator.class) != null) {
                 IntermediateState[] intermediateState = aggClass.getAnnotation(Aggregator.class).value();
-                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass, intermediateState);
+                implementer = new AggregatorImplementer(env.getElementUtils(), aggClass, intermediateState, warnExceptionsTypes);
                 write(aggClass, "aggregator", implementer.sourceFile(), env);
             }
             GroupingAggregatorImplementer groupingAggregatorImplementer = null;
@@ -104,7 +111,13 @@ public class AggregatorProcessor implements Processor {
                 write(
                     aggClass,
                     "aggregator function supplier",
-                    new AggregatorFunctionSupplierImplementer(env.getElementUtils(), aggClass, implementer, groupingAggregatorImplementer)
+                    new AggregatorFunctionSupplierImplementer(
+                        env.getElementUtils(),
+                        aggClass,
+                        implementer,
+                        groupingAggregatorImplementer,
+                        warnExceptionsTypes.isEmpty() == false
+                    )
                         .sourceFile(),
                     env
                 );
@@ -132,5 +145,25 @@ public class AggregatorProcessor implements Processor {
             env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating " + what + " for " + origination);
             throw new RuntimeException(e);
         }
+    }
+
+    private static List<TypeMirror> warnExceptions(Element aggregatorMethod) {
+        List<TypeMirror> result = new ArrayList<>();
+        for (var mirror : aggregatorMethod.getAnnotationMirrors()) {
+            String annotationType = mirror.getAnnotationType().toString();
+            if (annotationType.equals(Aggregator.class.getName())
+                || annotationType.equals(GroupingAggregator.class.getName())) {
+
+                for (var e : mirror.getElementValues().entrySet()) {
+                    if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
+                        continue;
+                    }
+                    for (var v : (List<?>) e.getValue().getValue()) {
+                        result.add((TypeMirror) ((AnnotationValue) v).getValue());
+                    }
+                }
+            }
+        }
+        return result;
     }
 }

@@ -620,8 +620,7 @@ public class JobConfigProvider {
 
     /**
      * Expands the list of job group Ids to the set of jobs which are members of the groups.
-     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksExtensionMetadata, boolean, TaskId, ActionListener)} it is not an
-     * error if a group Id does not exist.
+     * Unlike {@link #expandJobsIds} it is not an error if a group Id does not exist.
      * Wildcard expansion of group Ids is not supported.
      *
      * @param groupIds Group Ids to expand

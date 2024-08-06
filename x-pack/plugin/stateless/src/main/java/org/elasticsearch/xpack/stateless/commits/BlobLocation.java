@@ -53,7 +53,8 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
         assert fileLength > 0 : "fileLength " + fileLength + " <= 0";
     }
 
-    public BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
+    // private access only for deserialization
+    private BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
         this(
             new BlobFile(
                 blobName,

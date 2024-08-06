@@ -70,6 +70,19 @@ Use `?timeout=0` to force relevant operations to time out immediately
 instead of `?timeout=-1`
 ====
 
+[[replace_model_id_with_inference_id]]
+.Replace `model_id` with `inference_id` in GET inference API
+[%collapsible]
+====
+*Details* +
+From 8.15 onwards the <<get-inference-api>> response will return an
+`inference_id` field instead of a `model_id`.
+
+*Impact* +
+If your application uses the `model_id` in a GET inference API response,
+switch it to use `inference_id` instead.
+====
+
 
 [discrete]
 [[deprecated-8.15]]

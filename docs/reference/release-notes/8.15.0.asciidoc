@@ -12,6 +12,9 @@ Also see <<breaking-changes-8.15,Breaking changes in 8.15>>.
 Cluster Coordination::
 * Interpret `?timeout=-1` as infinite ack timeout {es-pull}107675[#107675]
 
+Inference API::
+* Replace `model_id` with `inference_id` in GET inference API {es-pull}111366[#111366]
+
 Rollup::
 * Disallow new rollup jobs in clusters with no rollup usage {es-pull}108624[#108624] (issue: {es-issue}108381[#108381])
 

@@ -63,7 +63,7 @@ public class SerializationTestUtils {
     }
 
     public static void assertSerialization(LogicalPlan plan) {
-        var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writeLogicalPlanNode, PlanStreamInput::readLogicalPlanNode);
+        var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writeNamedWriteable, in -> in.readNamedWriteable(LogicalPlan.class));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
     }
 
@@ -128,6 +128,7 @@ public class SerializationTestUtils {
         entries.addAll(EsqlScalarFunction.getNamedWriteables());
         entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(Block.getNamedWriteables());
+        entries.addAll(LogicalPlan.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 }

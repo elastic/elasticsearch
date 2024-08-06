@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarF
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -386,6 +387,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
             } else if (exp instanceof MatchQueryPredicate mqp) {
                 return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
+            } else if (exp instanceof StringQueryPredicate) {
+                return true;
             }
             return false;
         }

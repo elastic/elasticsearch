@@ -1549,8 +1549,7 @@ public class DateHistogramIT extends ESIntegTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").setMapping("d", "type=date")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+            prepareCreate("cache_test_idx").setMapping("d", "type=date").setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(1, 1));
         String date2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(2, 1));

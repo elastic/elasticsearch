@@ -33,7 +33,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumLongAggregatorFunctionSupplier(inputChannels);
+        return new SumLongAggregatorFunctionSupplier(-1, -2, "", inputChannels);
     }
 
     @Override

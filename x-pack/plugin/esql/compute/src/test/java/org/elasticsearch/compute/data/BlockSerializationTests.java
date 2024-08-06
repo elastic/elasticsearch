@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
+import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -238,7 +238,7 @@ public class BlockSerializationTests extends SerializationTestCase {
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
         var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         var params = new Object[] {};
-        var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
+        var function = MaxLongAggregatorFunction.create(driverCtx, List.of(0));
         function.addRawInput(page);
         Block[] blocks = new Block[function.intermediateBlockCount()];
         try {
@@ -249,13 +249,13 @@ public class BlockSerializationTests extends SerializationTestCase {
                 IntStream.range(0, blocks.length)
                     .forEach(i -> EqualsHashCodeTestUtils.checkEqualsAndHashCode(blocks[i], unused -> deserBlocks[i]));
 
-                var inputChannels = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
-                try (var finalAggregator = SumLongAggregatorFunction.create(driverCtx, inputChannels)) {
+                var inputChannels = IntStream.range(0, MaxLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
+                try (var finalAggregator = MaxLongAggregatorFunction.create(driverCtx, inputChannels)) {
                     finalAggregator.addIntermediateInput(new Page(deserBlocks));
                     Block[] finalBlocks = new Block[1];
                     finalAggregator.evaluateFinal(finalBlocks, 0, driverCtx);
                     try (var finalBlock = (LongBlock) finalBlocks[0]) {
-                        assertThat(finalBlock.getLong(0), is(55L));
+                        assertThat(finalBlock.getLong(0), is(10L));
                     }
                 }
             } finally {

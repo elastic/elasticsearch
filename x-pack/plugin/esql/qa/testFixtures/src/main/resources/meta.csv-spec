@@ -1,4 +1,5 @@
 metaFunctionsSynopsis#[skip:-8.15.99]
+required_capability: date_nanos_type
 meta functions | keep synopsis;
 
 synopsis:keyword
@@ -119,6 +120,7 @@ double tau()
 ;
 
 metaFunctionsArgs#[skip:-8.15.99]
+required_capability: date_nanos_type
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, argNames, argTypes, argDescriptions;
@@ -364,6 +366,7 @@ weighted_avg  |The weighted average of a numeric expression.
 ;
 
 metaFunctionsRemaining#[skip:-8.15.99]
+required_capability: date_nanos_type
   META functions
 | EVAL name = SUBSTRING(name, 0, 14)
 | KEEP name, *

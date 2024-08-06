@@ -66,8 +66,7 @@ class SourceTransforms {
         if (currentField instanceof Map<?, ?> map) {
             descend(pathToCurrentField, (Map<String, Object>) map, flattened);
         } else {
-            flattened.putIfAbsent(pathToCurrentField, new ArrayList<>());
-            flattened.get(pathToCurrentField).add(currentField);
+            flattened.computeIfAbsent(pathToCurrentField, k -> new ArrayList<>()).add(currentField);
         }
     }
 }

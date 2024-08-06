@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.datastreams.logsdb.qa.matchers.EqualMatcher;
+import org.elasticsearch.datastreams.logsdb.qa.matchers.GenericEqualsMatcher;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.ListEqualMatcher;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,7 +24,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-public class SourceMatcher extends EqualMatcher<List<Map<String, Object>>> {
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintCollections;
+
+public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>>> {
     private final Map<String, Map<String, Object>> actualNormalizedMapping;
     private final Map<String, Map<String, Object>> expectedNormalizedMapping;
 
@@ -49,9 +52,13 @@ public class SourceMatcher extends EqualMatcher<List<Map<String, Object>>> {
             .v2();
         this.expectedNormalizedMapping = MappingTransforms.normalizeMapping(expectedMappingAsMap);
 
-        this.fieldSpecificMatchers = Map.of("half_float", new FieldSpecificMatcher.HalfFloatMatcher());
+        this.fieldSpecificMatchers = Map.of(
+            "half_float",
+            new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+        );
     }
 
+    @Override
     public MatchResult match() {
         if (actual.size() != expected.size()) {
             return MatchResult.noMatch(
@@ -60,7 +67,7 @@ public class SourceMatcher extends EqualMatcher<List<Map<String, Object>>> {
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "Number of documents does not match, " + prettyPrintLists(actual, expected)
+                    "Number of documents does not match, " + prettyPrintCollections(actual, expected)
                 )
             );
         }
@@ -110,18 +117,27 @@ public class SourceMatcher extends EqualMatcher<List<Map<String, Object>>> {
     private Optional<MatchResult> matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
         var actualFieldMapping = actualNormalizedMapping.get(fieldName);
         if (actualFieldMapping == null) {
+            if (expectedNormalizedMapping.get(fieldName) != null
+                // Special cases due to fields being defined in default mapping for logsdb index mode
+                && fieldName.equals("@timestamp") == false
+                && fieldName.equals("host.name") == false) {
+                throw new IllegalStateException(
+                    "Leaf field [" + fieldName + "] is present in expected mapping but absent in actual mapping"
+                );
+            }
+
             // Dynamic mapping, nothing to do
             return Optional.empty();
         }
 
         var actualFieldType = (String) actualFieldMapping.get("type");
         if (actualFieldType == null) {
-            throw new IllegalStateException("Field type is missing from leaf field mapping parameters");
+            throw new IllegalStateException("Field type is missing from leaf field Leaf field [" + fieldName + "] mapping parameters");
         }
 
         var expectedFieldMapping = expectedNormalizedMapping.get(fieldName);
         if (expectedFieldMapping == null || Objects.equals(actualFieldType, expectedFieldMapping.get("type")) == false) {
-            throw new IllegalStateException("Field type of a leaf field differs between expected and actual mapping");
+            throw new IllegalStateException("Field type of a leaf field [" + fieldName + "] differs between expected and actual mapping");
         }
 
         var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
@@ -129,25 +145,8 @@ public class SourceMatcher extends EqualMatcher<List<Map<String, Object>>> {
             return Optional.empty();
         }
 
-        boolean matched = fieldSpecificMatcher.match(actualValues, expectedValues);
-        return Optional.of(
-            matched
-                ? MatchResult.match()
-                : MatchResult.noMatch(
-                    formatErrorMessage(
-                        actualMappings,
-                        actualSettings,
-                        expectedMappings,
-                        expectedSettings,
-                        "Source documents don't match for field ["
-                            + fieldName
-                            + "], of type ["
-                            + actualFieldType
-                            + "], "
-                            + prettyPrintLists(actualValues, expectedValues)
-                    )
-                )
-        );
+        MatchResult matched = fieldSpecificMatcher.match(actualValues, expectedValues);
+        return Optional.of(matched);
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {

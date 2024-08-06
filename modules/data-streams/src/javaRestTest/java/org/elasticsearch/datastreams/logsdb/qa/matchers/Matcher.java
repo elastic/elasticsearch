@@ -8,15 +8,12 @@
 
 package org.elasticsearch.datastreams.logsdb.qa.matchers;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.logsdb.qa.matchers.source.SourceMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * A base class to be used for the matching logic when comparing query results.
@@ -76,8 +73,15 @@ public abstract class Matcher {
 
         @Override
         public MatchResult isEqualTo(T actual) {
-            return new EqualMatcher<>(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected, ignoringSort)
-                .match();
+            return new GenericEqualsMatcher<>(
+                actualMappings,
+                actualSettings,
+                expectedMappings,
+                expectedSettings,
+                actual,
+                expected,
+                ignoringSort
+            ).match();
         }
 
         @Override
@@ -142,41 +146,5 @@ public abstract class Matcher {
             this.expected = expected;
             return this;
         }
-    }
-
-    protected static String formatErrorMessage(
-        final XContentBuilder actualMappings,
-        final Settings.Builder actualSettings,
-        final XContentBuilder expectedMappings,
-        final Settings.Builder expectedSettings,
-        final String errorMessage
-    ) {
-        return "Error ["
-            + errorMessage
-            + "] "
-            + "actual mappings ["
-            + Strings.toString(actualMappings)
-            + "] "
-            + "actual settings ["
-            + Strings.toString(actualSettings.build())
-            + "] "
-            + "expected mappings ["
-            + Strings.toString(expectedMappings)
-            + "] "
-            + "expected settings ["
-            + Strings.toString(expectedSettings.build())
-            + "] ";
-    }
-
-    protected static String prettyPrintArrays(final Object[] actualArray, final Object[] expectedArray) {
-        return "actual: " + prettyPrintList(Arrays.asList(actualArray)) + ", expected: " + prettyPrintList(Arrays.asList(expectedArray));
-    }
-
-    protected static <T> String prettyPrintLists(final List<T> actualList, final List<T> expectedList) {
-        return "actual: " + prettyPrintList(actualList) + ", expected: " + prettyPrintList(expectedList);
-    }
-
-    private static <T> String prettyPrintList(final List<T> list) {
-        return "[" + list.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
     }
 }

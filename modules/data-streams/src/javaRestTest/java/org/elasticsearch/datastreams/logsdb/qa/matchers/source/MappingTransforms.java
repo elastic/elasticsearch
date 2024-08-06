@@ -17,8 +17,8 @@ class MappingTransforms {
      * Similar to {@link SourceTransforms#normalize(Map)} but needs to get rid of intermediate nodes
      * and collect results into a different data structure.
      *
-     * @param map
-     * @return
+     * @param map raw mapping document converted to map
+     * @return map from normalized field name (like a.b.c) to a map of mapping parameters (like type)
      */
     public static Map<String, Map<String, Object>> normalizeMapping(Map<String, Object> map) {
         var flattened = new HashMap<String, Map<String, Object>>();
@@ -43,8 +43,7 @@ class MappingTransforms {
                         continue;
                     }
 
-                    flattened.putIfAbsent(pathFromRoot, new HashMap<>());
-                    flattened.get(pathFromRoot).put(entry.getKey(), entry.getValue());
+                    flattened.computeIfAbsent(pathFromRoot, k -> new HashMap<>()).put(entry.getKey(), entry.getValue());
                 }
             }
         }

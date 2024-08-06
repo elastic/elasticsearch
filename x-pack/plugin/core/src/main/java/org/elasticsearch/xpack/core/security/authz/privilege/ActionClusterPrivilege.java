@@ -43,7 +43,7 @@ public final class ActionClusterPrivilege implements NamedClusterPrivilege {
         this.name = name;
         this.allowedActionPatterns = allowedActionPatterns;
         this.excludedActionPatterns = excludedActionPatterns;
-        this.permission = buildPermission(ClusterPermission.builder()).build();
+        this.permission = buildPermission(new ClusterPermission.Builder()).build();
     }
 
     @Override

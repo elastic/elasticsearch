@@ -489,7 +489,7 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
-            return builder.add(this, Set.of("cluster:admin/xpack/security/role/put"), requestPredicate);
+            return builder.add(this, Set.of("cluster:admin/xpack/security/role/put"), requestPredicate, indices);
         }
 
         private interface Fields {

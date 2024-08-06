@@ -172,7 +172,7 @@ public class SimpleRole implements Role {
 
     @Override
     public boolean grants(ClusterPrivilege clusterPrivilege) {
-        return cluster.implies(clusterPrivilege.buildPermission(ClusterPermission.builder()).build());
+        return cluster.implies(clusterPrivilege.buildPermission(new ClusterPermission.Builder()).build());
     }
 
     @Override

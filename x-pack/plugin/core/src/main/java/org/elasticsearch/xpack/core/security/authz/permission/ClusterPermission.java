@@ -10,6 +10,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -75,14 +76,20 @@ public class ClusterPermission {
         return clusterPrivileges;
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     public static class Builder {
         private final Set<ClusterPrivilege> clusterPrivileges = new HashSet<>();
         private final List<Automaton> actionAutomatons = new ArrayList<>();
         private final List<PermissionCheck> permissionChecks = new ArrayList<>();
+
+        private final RestrictedIndices restrictedIndices;
+
+        public Builder(RestrictedIndices restrictedIndices) {
+            this.restrictedIndices = restrictedIndices;
+        }
+
+        public Builder() {
+            this.restrictedIndices = null;
+        }
 
         public Builder add(
             final ClusterPrivilege clusterPrivilege,
@@ -100,8 +107,25 @@ public class ClusterPermission {
             final Set<String> allowedActionPatterns,
             final Predicate<TransportRequest> requestPredicate
         ) {
+            return add(clusterPrivilege, allowedActionPatterns, requestPredicate, Set.of());
+        }
+
+        public Builder add(
+            final ClusterPrivilege clusterPrivilege,
+            final Set<String> allowedActionPatterns,
+            final Predicate<TransportRequest> requestPredicate,
+            final Set<String> indexPatterns
+        ) {
             final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, Set.of());
-            return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(clusterPrivilege, actionAutomaton, requestPredicate));
+            return add(
+                clusterPrivilege,
+                new ActionRequestBasedPermissionCheck(
+                    clusterPrivilege,
+                    actionAutomaton,
+                    request -> (restrictedIndices == null || indexPatterns.stream().anyMatch(restrictedIndices::isRestricted) == false)
+                        && requestPredicate.test(request)
+                )
+            );
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final PermissionCheck permissionCheck) {

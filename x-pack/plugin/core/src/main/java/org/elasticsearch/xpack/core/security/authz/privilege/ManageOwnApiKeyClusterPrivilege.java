@@ -34,7 +34,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     private final ClusterPermission permission;
 
     private ManageOwnApiKeyClusterPrivilege() {
-        permission = this.buildPermission(ClusterPermission.builder()).build();
+        permission = this.buildPermission(new ClusterPermission.Builder()).build();
     }
 
     @Override

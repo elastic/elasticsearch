@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ManageApplicationPrivilegesTests extends ESTestCase {
+public class ManageRolesPrivilegesTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         final ManageApplicationPrivileges original = buildPrivileges();

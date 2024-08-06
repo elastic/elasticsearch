@@ -100,7 +100,7 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
         }
         final ConfigurableClusterPrivileges.WriteProfileDataPrivileges writeProfileDataPrivileges =
             new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Sets.newHashSet(prefix + "*", name));
-        final ClusterPermission writeProfileDataPermission = writeProfileDataPrivileges.buildPermission(ClusterPermission.builder())
+        final ClusterPermission writeProfileDataPermission = writeProfileDataPrivileges.buildPermission(new ClusterPermission.Builder())
             .build();
         assertThat(writeProfileDataPermission, notNullValue());
 
@@ -180,7 +180,7 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
             UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
                 ? newUpdateProfileDataRequest(Set.of(randomAlphaOfLengthBetween(0, 2)), Set.of())
                 : newUpdateProfileDataRequest(Set.of(), Set.of(randomAlphaOfLengthBetween(0, 2)));
-            ClusterPermission perm = priv.buildPermission(ClusterPermission.builder()).build();
+            ClusterPermission perm = priv.buildPermission(new ClusterPermission.Builder()).build();
             assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, AuthenticationTestHelper.builder().build()));
         }
         final String aNullApplication = "{\"write\":{\"applications\":[null]}}";
@@ -217,12 +217,12 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
             UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
                 ? newUpdateProfileDataRequest(Set.of(randomAlphaOfLengthBetween(1, 2)), Set.of())
                 : newUpdateProfileDataRequest(Set.of(), Set.of(randomAlphaOfLengthBetween(1, 2)));
-            ClusterPermission perm = priv.buildPermission(ClusterPermission.builder()).build();
+            ClusterPermission perm = priv.buildPermission(new ClusterPermission.Builder()).build();
             assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, AuthenticationTestHelper.builder().build()));
             updateProfileDataRequest = randomBoolean()
                 ? newUpdateProfileDataRequest(Set.of(""), Set.of())
                 : newUpdateProfileDataRequest(Set.of(), Set.of(""));
-            perm = priv.buildPermission(ClusterPermission.builder()).build();
+            perm = priv.buildPermission(new ClusterPermission.Builder()).build();
             assertTrue(
                 perm.check(
                     "cluster:admin/xpack/security/profile/put/data",

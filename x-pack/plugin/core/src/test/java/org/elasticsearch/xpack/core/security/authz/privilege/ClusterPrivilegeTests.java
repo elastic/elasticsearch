@@ -34,7 +34,7 @@ public class ClusterPrivilegeTests extends ESTestCase {
     }
 
     public static void assertGranted(ClusterPrivilege clusterPrivilege, ActionType<?> actionType) {
-        assertTrue(clusterPrivilege.buildPermission(ClusterPermission.builder()).build().check(actionType.name(), null, null));
+        assertTrue(clusterPrivilege.buildPermission(new ClusterPermission.Builder()).build().check(actionType.name(), null, null));
     }
 
 }

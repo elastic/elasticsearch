@@ -47,7 +47,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionBuilder() {
-        ClusterPermission.Builder builder = ClusterPermission.builder();
+        ClusterPermission.Builder builder = new ClusterPermission.Builder();
         assertNotNull(builder);
         assertThat(builder.build(), is(ClusterPermission.NONE));
 
@@ -78,7 +78,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionCheck() {
-        ClusterPermission.Builder builder = ClusterPermission.builder();
+        ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
 
@@ -103,7 +103,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionCheckWithEmptyActionPatterns() {
-        final ClusterPermission.Builder builder = ClusterPermission.builder();
+        final ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder.add(cpThatDoesNothing, Set.of(), Set.of());
         final ClusterPermission clusterPermission = builder.build();
 
@@ -115,7 +115,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionCheckWithExcludeOnlyActionPatterns() {
-        final ClusterPermission.Builder builder = ClusterPermission.builder();
+        final ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder.add(cpThatDoesNothing, Set.of(), Set.of("cluster:some/thing/to/exclude"));
         final ClusterPermission clusterPermission = builder.build();
 
@@ -127,7 +127,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionCheckWithActionPatterns() {
-        final ClusterPermission.Builder builder = ClusterPermission.builder();
+        final ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder.add(cpThatDoesNothing, Set.of("cluster:admin/*"), Set.of("cluster:admin/ilm/*"));
         final ClusterPermission clusterPermission = builder.build();
 
@@ -139,7 +139,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionCheckWithActionPatternsAndNoExludePatterns() {
-        final ClusterPermission.Builder builder = ClusterPermission.builder();
+        final ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder.add(cpThatDoesNothing, Set.of("cluster:admin/*"), Set.of());
         final ClusterPermission clusterPermission = builder.build();
 
@@ -155,7 +155,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testNoneClusterPermissionIsImpliedByAny() {
-        ClusterPermission.Builder builder = ClusterPermission.builder();
+        ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder = ClusterPrivilegeResolver.READ_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
         final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
@@ -170,7 +170,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionSubsetWithConfigurableClusterPrivilegeIsImpliedByClusterPermission() {
-        ClusterPermission.Builder builder = ClusterPermission.builder();
+        ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
         final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
@@ -179,7 +179,7 @@ public class ClusterPermissionTests extends ESTestCase {
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
-        ClusterPermission.Builder builder1 = ClusterPermission.builder();
+        ClusterPermission.Builder builder1 = new ClusterPermission.Builder();
         builder1 = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder1);
         builder1 = mockConfigurableClusterPrivilege1.buildPermission(builder1);
         final ClusterPermission otherClusterPermission = builder1.build();
@@ -188,7 +188,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionNonSubsetWithConfigurableClusterPrivilegeIsImpliedByClusterPermission() {
-        ClusterPermission.Builder builder = ClusterPermission.builder();
+        ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
         final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
@@ -197,7 +197,7 @@ public class ClusterPermissionTests extends ESTestCase {
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
-        ClusterPermission.Builder builder1 = ClusterPermission.builder();
+        ClusterPermission.Builder builder1 = new ClusterPermission.Builder();
         builder1 = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder1);
         builder1 = mockConfigurableClusterPrivilege1.buildPermission(builder1);
         final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 = new MockConfigurableClusterPrivilege(r -> false);
@@ -208,12 +208,12 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionNonSubsetIsNotImpliedByClusterPermission() {
-        ClusterPermission.Builder builder = ClusterPermission.builder();
+        ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
-        ClusterPermission.Builder builder1 = ClusterPermission.builder();
+        ClusterPermission.Builder builder1 = new ClusterPermission.Builder();
         builder1 = ClusterPrivilegeResolver.MANAGE_API_KEY.buildPermission(builder1);
         final ClusterPermission otherClusterPermission = builder1.build();
 
@@ -221,12 +221,12 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionSubsetIsImpliedByClusterPermission() {
-        ClusterPermission.Builder builder = ClusterPermission.builder();
+        ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
-        ClusterPermission.Builder builder1 = ClusterPermission.builder();
+        ClusterPermission.Builder builder1 = new ClusterPermission.Builder();
         builder1 = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder1);
         final ClusterPermission otherClusterPermission = builder1.build();
 
@@ -234,7 +234,7 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionIsImpliedBySameClusterPermission() {
-        ClusterPermission.Builder builder = ClusterPermission.builder();
+        ClusterPermission.Builder builder = new ClusterPermission.Builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
         final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
@@ -247,8 +247,10 @@ public class ClusterPermissionTests extends ESTestCase {
     }
 
     public void testClusterPermissionSubsetIsImpliedByAllClusterPermission() {
-        final ClusterPermission allClusterPermission = ClusterPrivilegeResolver.ALL.buildPermission(ClusterPermission.builder()).build();
-        ClusterPermission otherClusterPermission = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(ClusterPermission.builder()).build();
+        final ClusterPermission allClusterPermission = ClusterPrivilegeResolver.ALL.buildPermission(new ClusterPermission.Builder())
+            .build();
+        ClusterPermission otherClusterPermission = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(new ClusterPermission.Builder())
+            .build();
 
         assertThat(allClusterPermission.implies(otherClusterPermission), is(true));
     }

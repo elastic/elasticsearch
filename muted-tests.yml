@@ -119,8 +119,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
-- class: org.elasticsearch.xpack.esql.CsvTests
-  issue: https://github.com/elastic/elasticsearch/issues/111612
 
 # Examples:
 #

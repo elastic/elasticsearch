@@ -225,7 +225,7 @@ public class EsqlCapabilities {
             this.featureFlag = featureFlag;
         }
 
-        private boolean isEnabled() {
+        public boolean isEnabled() {
             if (featureFlag == null) {
                 return Build.current().isSnapshot() || this.snapshotOnly == false;
             }
@@ -234,10 +234,6 @@ public class EsqlCapabilities {
 
         public String capabilityName() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        public boolean snapshotOnly() {
-            return snapshotOnly;
         }
     }
 

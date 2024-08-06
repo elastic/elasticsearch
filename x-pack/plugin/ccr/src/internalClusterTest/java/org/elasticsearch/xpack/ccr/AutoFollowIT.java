@@ -628,7 +628,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
         );
         assertAcked(leaderClient().execute(TransportPutComposableIndexTemplateAction.TYPE, request).get());
 
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(datastream);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            datastream
+        );
         assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
         leaderClient().prepareIndex(datastream)
             .setCreate(true)
@@ -674,7 +678,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .get();
         leaderClient().execute(
             ModifyDataStreamsAction.INSTANCE,
-            new ModifyDataStreamsAction.Request(List.of(DataStreamAction.addBackingIndex(datastream, indexInDatastream)))
+            new ModifyDataStreamsAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                List.of(DataStreamAction.addBackingIndex(datastream, indexInDatastream))
+            )
         ).get();
 
         assertLongBusy(() -> {

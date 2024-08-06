@@ -82,13 +82,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP)
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
@@ -160,13 +154,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP)
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(2, cacheService.freeRegionCount());
@@ -204,13 +192,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP)
         ) {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
@@ -238,13 +220,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP)
         ) {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
@@ -272,13 +248,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP)
         ) {
             assertEquals(4, cacheService.freeRegionCount());
 
@@ -380,13 +350,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP)
         ) {
             Runnable decay = () -> {
                 assertThat(taskQueue.hasRunnableTasks(), is(true));
@@ -455,13 +419,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         Set<String> files = randomSet(1, 10, () -> randomAlphaOfLength(5));
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<String>(
-                environment,
-                settings,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<String>(environment, settings, threadPool, BlobCacheMetrics.NOOP)
         ) {
             CyclicBarrier ready = new CyclicBarrier(threads);
             List<Thread> threadList = IntStream.range(0, threads).mapToObj(no -> {
@@ -535,13 +493,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, threadPool, BlobCacheMetrics.NOOP)
         ) {
             {
                 final var cacheKey = generateCacheKey();
@@ -594,13 +546,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, threadPool, BlobCacheMetrics.NOOP)
         ) {
 
             final long size = size(randomIntBetween(1, 100));
@@ -801,7 +747,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -819,7 +764,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -840,13 +784,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP)
         ) {
             final Map<Object, SharedBlobCacheService<Object>.CacheFileRegion> cacheEntries = new HashMap<>();
 
@@ -935,13 +873,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, threadPool, BlobCacheMetrics.NOOP)
         ) {
             {
                 // fetch a single region
@@ -1073,13 +1005,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, threadPool, BlobCacheMetrics.NOOP)
         ) {
             {
                 // fetch a random range in a random region of the blob
@@ -1222,13 +1148,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP)
         ) {
             final var cacheKey = generateCacheKey();
             final var blobLength = size(12L);
@@ -1314,13 +1234,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            ) {
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), BlobCacheMetrics.NOOP) {
                 @Override
                 protected int computeCacheFileRegionSize(long fileLength, int region) {
                     // use full region
@@ -1355,13 +1269,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                threadPool,
-                ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP
-            )
+            var cacheService = new SharedBlobCacheService<>(environment, settings, threadPool, BlobCacheMetrics.NOOP)
         ) {
             final var cacheKey = generateCacheKey();
             assertEquals(2, cacheService.freeRegionCount());

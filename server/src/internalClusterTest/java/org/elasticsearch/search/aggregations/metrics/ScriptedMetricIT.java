@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
@@ -27,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -42,6 +39,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -300,21 +298,21 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // When using the MockScriptPlugin we can map Stored scripts to inline scripts:
         // the id of the stored script is used in test method while the source of the stored script
         // must match a predefined script from CustomScriptPlugin.pluginScripts() method
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("initScript_stored").setContent(new BytesArray(Strings.format("""
+        putJsonStoredScript("initScript_stored", Strings.format("""
             {"script": {"lang": "%s", "source": "vars.multiplier = 3"} }
-            """, MockScriptPlugin.NAME)), XContentType.JSON));
+            """, MockScriptPlugin.NAME));
 
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("mapScript_stored").setContent(new BytesArray(Strings.format("""
+        putJsonStoredScript("mapScript_stored", Strings.format("""
             {"script": {"lang": "%s", "source": "state.list.add(vars.multiplier)"} }
-            """, MockScriptPlugin.NAME)), XContentType.JSON));
+            """, MockScriptPlugin.NAME));
 
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("combineScript_stored").setContent(new BytesArray(Strings.format("""
+        putJsonStoredScript("combineScript_stored", Strings.format("""
             {"script": {"lang": "%s", "source": "sum state values as a new aggregation"} }
-            """, MockScriptPlugin.NAME)), XContentType.JSON));
+            """, MockScriptPlugin.NAME));
 
-        assertAcked(clusterAdmin().preparePutStoredScript().setId("reduceScript_stored").setContent(new BytesArray(Strings.format("""
+        putJsonStoredScript("reduceScript_stored", Strings.format("""
             {"script": {"lang": "%s", "source": "sum all states (lists) values as a new aggregation"} }
-            """, MockScriptPlugin.NAME)), XContentType.JSON));
+            """, MockScriptPlugin.NAME));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -1139,8 +1137,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Script ndRandom = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return Math.random()", Collections.emptyMap());
 
         assertAcked(
-            prepareCreate("cache_test_idx").setMapping("d", "type=long")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+            prepareCreate("cache_test_idx").setMapping("d", "type=long").setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         indexRandom(
             true,

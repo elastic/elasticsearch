@@ -13,5 +13,13 @@ package org.elasticsearch.logsdb.datageneration;
  */
 public enum FieldType {
     KEYWORD,
-    LONG
+    LONG,
+    UNSIGNED_LONG,
+    INTEGER,
+    SHORT,
+    BYTE,
+    DOUBLE,
+    FLOAT,
+    HALF_FLOAT,
+    SCALED_FLOAT
 }

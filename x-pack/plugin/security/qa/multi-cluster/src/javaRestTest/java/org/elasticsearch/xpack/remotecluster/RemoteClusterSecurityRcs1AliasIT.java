@@ -171,6 +171,7 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
 
         searchAndAssertFooValues("index-alias", true, "1", "2");
         esqlSearchAndAssertResults("index-alias", List.of("1", "1", "2", "2"));
+        // this is a bug and we should fix it
         expectThrows403(() -> search("index-alias", false));
     }
 
@@ -275,11 +276,11 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
               "indices": [
                 {
                   "names": ["index-alias"],
-                  "privileges": ["read"]
+                  "privileges": ["read_cross_cluster"]
                 },
                 {
                   "names": ["index-000001"],
-                  "privileges": ["view_index_metadata"]
+                  "privileges": ["read"]
                 }
               ]
             }""");
@@ -314,14 +315,13 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
             }""");
         assertOK(performRequestAgainstFulfillingCluster(aliasRequest));
 
-        // searchAndAssertFooValues("index-*", true, "1", "2");
-        // searchAndAssertFooValues("index-*", false, "1", "2");
+        searchAndAssertFooValues("index-*", true, "1", "2");
+        expectThrows403(() -> search("index-*", false));
         esqlSearchAndAssertResults("index-*", List.of("1", "1", "2", "2"));
 
-        // expectThrows403(() -> search("index-alias", true));
-        // expectThrows403(() -> search("index-alias", false));
-        // TODO this does not look right, maybe
-        esqlSearchAndAssertResults("index-alias", List.of("1", "1"));
+        expectThrows403(() -> search("index-alias", true));
+        expectThrows403(() -> search("index-alias", false));
+        expectThrows400(() -> esqlSearchAndAssertResults("index-alias", List.of()));
     }
 
     public void testAliasUnderRcs1WithMixedPrivilegesWithRealFilterV2() throws Exception {
@@ -372,11 +372,10 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
 
         searchAndAssertFooValues("index-*", true, "1");
         expectThrows403(() -> search("index-*", false));
-        // TODO this does not look right
-        esqlSearchAndAssertResults("index-*", List.of("1", "1", "2", "2"));
+        esqlSearchAndAssertResults("index-*", List.of("1", "1"));
 
         searchAndAssertFooValues("index-alias", true, "1");
-        searchAndAssertFooValues("index-alias", false, "1");
+        expectThrows403(() -> search("index-alias", false));
         esqlSearchAndAssertResults("index-alias", List.of("1", "1"));
     }
 
@@ -422,6 +421,10 @@ public class RemoteClusterSecurityRcs1AliasIT extends AbstractRemoteClusterSecur
 
     private static void expectThrows403(ThrowingRunnable runnable) {
         assertThat(expectThrows(ResponseException.class, runnable).getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    private static void expectThrows400(ThrowingRunnable runnable) {
+        assertThat(expectThrows(ResponseException.class, runnable).getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

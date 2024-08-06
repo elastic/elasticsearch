@@ -202,7 +202,12 @@ public class EsqlCapabilities {
         /**
          * Add CombineBinaryComparisons rule.
          */
-        COMBINE_BINARY_COMPARISONS;
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
+         * MATCH command support
+         */
+        MATCH_COMMAND(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

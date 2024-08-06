@@ -12,12 +12,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
 
 import java.io.IOException;
@@ -82,7 +84,7 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(a);
+            new PlanStreamOutput(out, new PlanNameRegistry(), EsqlTestUtils.TEST_CFG).writeNamedWriteable(a);
         }
 
         @Override

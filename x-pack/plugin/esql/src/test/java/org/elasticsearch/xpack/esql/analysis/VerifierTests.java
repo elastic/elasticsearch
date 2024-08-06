@@ -494,7 +494,7 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:20: argument of [min(network.bytes_in)] must be"
                     + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
-                    + " found value [min(network.bytes_in)] type [counter_long]"
+                    + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
@@ -503,7 +503,7 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:20: argument of [max(network.bytes_in)] must be"
                     + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
-                    + " found value [max(network.bytes_in)] type [counter_long]"
+                    + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
@@ -628,10 +628,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchInsideEval() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
         assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
     }
 
     public void testMatchFilter() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
         assertEquals(
             "1:63: MATCH requires a mapped index field, found [name]",
             error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")

@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
@@ -1138,8 +1137,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Script ndRandom = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return Math.random()", Collections.emptyMap());
 
         assertAcked(
-            prepareCreate("cache_test_idx").setMapping("d", "type=long")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+            prepareCreate("cache_test_idx").setMapping("d", "type=long").setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         indexRandom(
             true,

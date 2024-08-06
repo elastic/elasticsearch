@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -457,19 +456,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (stats.expressionsResolved() == false) {
-                AttributeMap<Expression> resolved = new AttributeMap<>();
+            // Attempt to resolve the aggregates only if we managed to resolve the groupings.
+            // Not being able to resolve the groupings immediately can happen in case of union types,
+            // e.g. `... BY client_ip = TO_IP(client_ip)` where the ES field `client_ip` has multiple types.
+            if (Resolvables.resolved(stats.groupings()) && (Resolvables.resolved(stats.aggregates()) == false)) {
+                ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
                     // In case of union types, the expression may contain yet-to-be resolved conversion functions, so do not perform a
                     // type check here.
                     Attribute attr = Expressions.attributeUnchecked(e);
                     if (attr != null && attr.resolved()) {
-                        resolved.put(attr, attr);
+                        resolved.add(attr);
                     }
                 }
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
-                List<NamedExpression> newAggregates = new ArrayList<>();
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolved, childrenOutput);
 
+                List<NamedExpression> newAggregates = new ArrayList<>();
                 for (NamedExpression aggregate : stats.aggregates()) {
                     var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
                         Expression ne = ua;

@@ -131,11 +131,6 @@ public final class Alias extends NamedExpression {
     }
 
     @Override
-    public Attribute toAttributeUnchecked() {
-        return new ReferenceAttribute(source(), name(), dataType(), qualifier, nullable(), id(), synthetic());
-    }
-
-    @Override
     public String toString() {
         return child + " AS " + name() + "#" + id();
     }

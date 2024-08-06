@@ -152,13 +152,6 @@ public final class Expressions {
         return null;
     }
 
-    public static Attribute attributeUnchecked(Expression e) {
-        if (e instanceof NamedExpression ne) {
-            return ne.toAttributeUnchecked();
-        }
-        return null;
-    }
-
     public static boolean isPresent(NamedExpression e) {
         return e instanceof EmptyAttribute == false;
     }

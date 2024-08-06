@@ -464,7 +464,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 for (Expression e : groupings) {
                     // In case of union types, the expression may contain yet-to-be resolved conversion functions, so do not perform a
                     // type check here.
-                    Attribute attr = Expressions.attributeUnchecked(e);
+                    Attribute attr = Expressions.attribute(e);
                     if (attr != null && attr.resolved()) {
                         resolved.add(attr);
                     }

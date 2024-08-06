@@ -92,12 +92,6 @@ If `true` ignores errors while parsing the synonym rules.
 It is important to note that only those synonym rules which cannot get parsed are ignored.
 See <<synonym-graph-tokenizer-stop-token-filter,synonyms and stop token filters>> for an example of `lenient` behaviour for invalid synonym rules.
 
-[INFO]
-====
-As of {es} 8.16.0, the default `lenient` value is derived from the `updateable` value.
-In previous {es} versions, the default `lenient` value was always `false`.
-====
-
 [discrete]
 [[synonym-graph-tokenizer-expand-equivalent-synonyms]]
 ===== `expand` equivalent synonym rules

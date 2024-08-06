@@ -76,7 +76,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
-            this,
+            field(),
             e -> e == DataType.BOOLEAN || e == DataType.DATETIME || e == DataType.IP || (e.isNumeric() && e != DataType.UNSIGNED_LONG),
             sourceText(),
             DEFAULT,

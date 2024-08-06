@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -494,8 +493,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").setMapping("d", "type=long")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+            prepareCreate("cache_test_idx").setMapping("d", "type=long").setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
 
         indexRandom(

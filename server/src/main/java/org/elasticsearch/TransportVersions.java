@@ -181,6 +181,9 @@ public class TransportVersions {
     public static final TransportVersion SEGMENT_LEVEL_FIELDS_STATS = def(8_711_00_0);
     public static final TransportVersion ML_ADD_DETECTION_RULE_PARAMS = def(8_712_00_0);
     public static final TransportVersion FIX_VECTOR_SIMILARITY_INNER_HITS = def(8_713_00_0);
+    public static final TransportVersion INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN = def(8_714_00_0);
+    public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION = def(8_715_00_0);
+    public static final TransportVersion REGISTER_SLM_STATS = def(8_716_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

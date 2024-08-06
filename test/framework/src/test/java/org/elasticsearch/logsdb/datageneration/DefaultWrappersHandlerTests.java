@@ -8,21 +8,23 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
-import org.elasticsearch.logsdb.datageneration.arbitrary.RandomBasedArbitrary;
-import org.elasticsearch.logsdb.datageneration.fields.FieldValues;
+import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.logsdb.datageneration.datasource.DefaultWrappersHandler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-public class FieldValuesTests extends ESTestCase {
+public class DefaultWrappersHandlerTests extends ESTestCase {
     public void testSanity() {
-        Supplier<Object> values = () -> 100;
-        var arbitrary = new RandomBasedArbitrary();
+        var sut = new DefaultWrappersHandler();
 
-        var valuesWithNullsAndWrappedInArray = FieldValues.injectNulls(arbitrary)
-            .andThen(FieldValues.wrappedInArray(arbitrary))
-            .apply(values);
+        Supplier<Object> values = () -> 100;
+        var nulls = sut.handle(new DataSourceRequest.NullWrapper());
+        var arrays = sut.handle(new DataSourceRequest.ArrayWrapper());
+
+        var valuesWithNullsAndWrappedInArray = arrays.wrapper().compose(nulls.wrapper()).apply(values);
+
         var value = valuesWithNullsAndWrappedInArray.get();
 
         if (value instanceof List<?> list) {

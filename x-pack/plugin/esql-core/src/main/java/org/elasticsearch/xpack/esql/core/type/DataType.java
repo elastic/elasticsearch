@@ -109,7 +109,6 @@ public enum DataType {
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
     VERSION(builder().esType("version").estimatedSize(15).docValues()),
     OBJECT(builder().esType("object").unknownSize()),
-    NESTED(builder().esType("nested").unknownSize()),
     SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES)),
     TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES)),
@@ -231,6 +230,11 @@ public enum DataType {
         return TYPES;
     }
 
+    /**
+     * Resolve a type from a name. This name is sometimes user supplied,
+     * like in the case of {@code ::<typename>} and is sometimes the name
+     * used over the wire, like in {@link #readFrom(String)}.
+     */
     public static DataType fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
@@ -294,11 +298,7 @@ public enum DataType {
     }
 
     public static boolean isPrimitive(DataType t) {
-        if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled()) {
-            return t != OBJECT && t != NESTED;
-        } else {
-            return t != OBJECT && t != NESTED && t != DATE_NANOS;
-        }
+        return t != OBJECT;
     }
 
     public static boolean isNull(DataType t) {
@@ -347,7 +347,6 @@ public enum DataType {
     public static boolean isRepresentable(DataType t) {
         if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled()) {
             return t != OBJECT
-                && t != NESTED
                 && t != UNSUPPORTED
                 && t != DATE_PERIOD
                 && t != TIME_DURATION
@@ -361,8 +360,7 @@ public enum DataType {
                 && t.isCounter() == false;
         } else {
             return t != OBJECT
-                && t != NESTED
-                && t != UNSUPPORTED
+                && t !=  UNSUPPORTED
                 && t != DATE_PERIOD
                 && t != DATE_NANOS
                 && t != TIME_DURATION
@@ -470,8 +468,20 @@ public enum DataType {
 
     public static DataType readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
-        String name = in.readString();
+        return readFrom(in.readString());
+    }
+
+    /**
+     * Resolve a {@link DataType} from a name read from a {@link StreamInput}.
+     * @throws IOException on an unknown dataType
+     */
+    public static DataType readFrom(String name) throws IOException {
         if (name.equalsIgnoreCase(DataType.DOC_DATA_TYPE.nameUpper())) {
+            /*
+             * DOC is not declared in fromTypeName because fromTypeName is
+             * exposed to users for things like `::<typename>` and we don't
+             * want folks to be able to convert to `DOC`.
+             */
             return DataType.DOC_DATA_TYPE;
         }
         DataType dataType = DataType.fromTypeName(name);

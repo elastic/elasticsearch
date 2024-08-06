@@ -17,8 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -26,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.util.ArrayList;
@@ -81,6 +81,7 @@ public class IndexResolver {
         );
     }
 
+    // public for testing only
     public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
@@ -93,8 +94,9 @@ public class IndexResolver {
         // TODO flattened is simpler - could we get away with that?
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
+        Set<String> forbiddenFields = new HashSet<>();
         Map<String, EsField> rootFields = new HashMap<>();
-        for (String name : names) {
+        name: for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
             boolean isAlias = false;
@@ -105,6 +107,9 @@ public class IndexResolver {
                     break;
                 }
                 String parent = name.substring(0, nextDot);
+                if (forbiddenFields.contains(parent)) {
+                    continue name;
+                }
                 EsField obj = fields.get(parent);
                 if (obj == null) {
                     obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
@@ -116,9 +121,16 @@ public class IndexResolver {
                 fields = obj.getProperties();
                 name = name.substring(nextDot + 1);
             }
+
+            List<IndexFieldCapabilities> caps = fieldsCaps.get(fullName);
+            if (allNested(caps)) {
+                forbiddenFields.add(name);
+                continue;
+            }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
+
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, fieldsCaps.get(fullName), isAlias)
+                ? createField(fieldCapsResponse, name, fullName, caps, isAlias)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalType(),
@@ -142,6 +154,15 @@ public class IndexResolver {
             concreteIndices.add(ir.getIndexName());
         }
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
+    }
+
+    private boolean allNested(List<IndexFieldCapabilities> caps) {
+        for (IndexFieldCapabilities cap : caps) {
+            if (false == cap.type().equalsIgnoreCase("nested")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {

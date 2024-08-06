@@ -104,7 +104,6 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "monitor",
     "monitor_connector",
     "monitor_data_frame_transforms",
-    "monitor_data_stream_global_retention",
     "monitor_enrich",
     "monitor_inference",
     "monitor_ml",

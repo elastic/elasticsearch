@@ -416,10 +416,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             "id1",
             null,
             List.of(dataStreamName + "*"),
-            Settings.builder()
-                .put("index.number_of_replicas", 1)
-                .put("index.number_of_shards", 1)
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .build(),
             null,

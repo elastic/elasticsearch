@@ -146,6 +146,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
@@ -230,6 +231,9 @@ public class ApiKeyServiceTests extends ESTestCase {
           "search": [ {"names": ["logs"]} ],
           "replication": [ {"names": ["archive"]} ]
         }""");
+
+    private static final int TEST_THREADPOOL_QUEUE_SIZE = 1000;
+
     private ThreadPool threadPool;
     private Client client;
     private SecurityIndexManager securityIndex;
@@ -245,7 +249,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     Settings.EMPTY,
                     SECURITY_CRYPTO_THREAD_POOL_NAME,
                     1,
-                    1000,
+                    TEST_THREADPOOL_QUEUE_SIZE,
                     "xpack.security.crypto.thread_pool",
                     EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 )
@@ -266,6 +270,90 @@ public class ApiKeyServiceTests extends ESTestCase {
         // Mock a clock that returns real clock time by default
         clock = mock(Clock.class);
         doAnswer(invocation -> Instant.now()).when(clock).instant();
+    }
+
+    public void testFloodThreadpool() throws Exception {
+        // We're going to be blocking the security-crypto threadpool so we need a new one for the client
+        ThreadPool clientThreadpool = new TestThreadPool(
+            this.getTestName(),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                this.getTestName(),
+                1,
+                100,
+                "no_settings_used",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
+        );
+        try {
+            when(client.threadPool()).thenReturn(clientThreadpool);
+
+            // setup copied from testAuthenticateWithApiKey
+            final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+            final ApiKeyService service = createApiKeyService(settings);
+
+            final String id = randomAlphaOfLength(12);
+            final String key = randomAlphaOfLength(16);
+
+            final User user, authUser;
+            if (randomBoolean()) {
+                user = new User("hulk", new String[] { "superuser" }, "Bruce Banner", "hulk@test.com", Map.of(), true);
+                authUser = new User("authenticated_user", "other");
+            } else {
+                user = new User("hulk", new String[] { "superuser" }, "Bruce Banner", "hulk@test.com", Map.of(), true);
+                authUser = null;
+            }
+            final ApiKey.Type type = randomFrom(ApiKey.Type.values());
+            final Map<String, Object> metadata = mockKeyDocument(id, key, user, authUser, false, Duration.ofSeconds(3600), null, type);
+
+            // Block the security crypto threadpool
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(() -> safeAwait(barrier));
+            // Now fill it up while the one thread is blocked
+            for (int i = 0; i < TEST_THREADPOOL_QUEUE_SIZE; i++) {
+                threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(() -> {});
+            }
+
+            // Check that it's full
+            for (var stat : threadPool.stats().stats()) {
+                if (stat.name().equals(SECURITY_CRYPTO_THREAD_POOL_NAME)) {
+                    assertThat(stat.queue(), equalTo(TEST_THREADPOOL_QUEUE_SIZE));
+                    assertThat(stat.rejected(), equalTo(0L));
+                }
+            }
+
+            // now try to auth with an API key
+            final AuthenticationResult<User> auth = tryAuthenticate(service, id, key, type);
+            assertThat(auth.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+
+            // Make sure one was rejected and the queue is still full
+            for (var stat : threadPool.stats().stats()) {
+                if (stat.name().equals(SECURITY_CRYPTO_THREAD_POOL_NAME)) {
+                    assertThat(stat.queue(), equalTo(TEST_THREADPOOL_QUEUE_SIZE));
+                    assertThat(stat.rejected(), equalTo(1L));
+                }
+            }
+            ListenableFuture<CachedApiKeyHashResult> cachedValue = service.getApiKeyAuthCache().get(id);
+            assertThat("since the request was rejected, there should be no cache entry for this key", cachedValue, nullValue());
+
+            // unblock the threadpool
+            safeAwait(barrier);
+
+            // wait for the threadpool queue to drain & check that the stats as as expected
+            flushThreadPoolExecutor(threadPool, SECURITY_CRYPTO_THREAD_POOL_NAME);
+            for (var stat : threadPool.stats().stats()) {
+                if (stat.name().equals(SECURITY_CRYPTO_THREAD_POOL_NAME)) {
+                    assertThat(stat.rejected(), equalTo(1L));
+                    assertThat(stat.queue(), equalTo(0));
+                }
+            }
+
+            // try to authenticate again with the same key - if this hangs, check the future caching
+            final AuthenticationResult<User> shouldSucceed = tryAuthenticate(service, id, key, type);
+            assertThat(shouldSucceed.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        } finally {
+            terminate(clientThreadpool);
+        }
     }
 
     public void testCreateApiKeyUsesBulkIndexAction() throws Exception {

@@ -202,6 +202,8 @@ public class TrainedModelProvider {
         }
         assert trainedModelConfig.getModelDefinition() == null;
 
+        logger.info("storeTrainedModelConfig");
+
         IndexRequest request = createRequest(
             trainedModelConfig.getModelId(),
             InferenceIndexConstants.LATEST_INDEX_NAME,
@@ -1387,10 +1389,12 @@ public class TrainedModelProvider {
     }
 
     private void refreshCacheVersion(ActionListener<Boolean> listener) {
+        logger.info("refreshCacheVersion");
         modelCacheMetadataService.updateCacheVersion(ActionListener.wrap(resp -> {
             // Checking the response is always AcknowledgedResponse.TRUE because AcknowledgedResponse.FALSE does not make sense.
             // Errors should be reported through the onFailure method of the listener.
             assert resp.equals(AcknowledgedResponse.TRUE);
+            logger.info("done");
             listener.onResponse(true);
         }, listener::onFailure));
     }

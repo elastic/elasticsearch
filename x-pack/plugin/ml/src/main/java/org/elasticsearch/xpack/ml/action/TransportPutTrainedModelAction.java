@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -86,6 +88,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT;
 
 public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Request, Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutTrainedModelAction.class);
 
     private static final ByteSizeValue MAX_NATIVE_DEFINITION_INDEX_SIZE = ByteSizeValue.ofGb(50);
 
@@ -190,6 +194,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ActionListener<Void> checkStorageIndexSizeListener = finalResponseListener.<Boolean>delegateFailureAndWrap((delegate, bool) -> {
             TrainedModelConfig configToReturn = trainedModelConfig.clearDefinition().build();
             if (modelPackageConfigHolder.get() != null) {
+                logger.info("triggerModelFetchIfNecessary");
                 triggerModelFetchIfNecessary(
                     configToReturn.getModelId(),
                     modelPackageConfigHolder.get(),
@@ -203,10 +208,15 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             } else {
                 delegate.onResponse(new PutTrainedModelAction.Response(configToReturn));
             }
-        }).delegateFailureAndWrap((l, r) -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), l, isPackageModel));
+        }).delegateFailureAndWrap((l, r) -> {
+            logger.info("storing trained model");
+            trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), l, isPackageModel);
+        });
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(r -> {
+
             if (TrainedModelType.PYTORCH.equals(trainedModelConfig.getModelType())) {
+                logger.info("get index stats");
                 client.admin()
                     .indices()
                     .prepareStats(InferenceIndexConstants.nativeDefinitionStore())
@@ -247,13 +257,14 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             checkStorageIndexSizeListener.onResponse(null);
         }, finalResponseListener::onFailure);
 
-        ActionListener<Void> modelIdTagCheckListener = ActionListener.wrap(
-            r -> checkTagsAgainstModelIds(request.getTrainedModelConfig().getTags(), tagsModelIdCheckListener),
-            finalResponseListener::onFailure
-        );
+        ActionListener<Void> modelIdTagCheckListener = ActionListener.wrap(r -> {
+            logger.info("checkTagsAgainstModelIds");
+            checkTagsAgainstModelIds(request.getTrainedModelConfig().getTags(), tagsModelIdCheckListener);
+        }, finalResponseListener::onFailure);
 
         ActionListener<Void> handlePackageAndTagsListener = ActionListener.wrap(r -> {
             if (isPackageModel) {
+                logger.info("resolve package");
                 resolvePackageConfig(trainedModelConfig.getModelId(), ActionListener.wrap(resolvedModelPackageConfig -> {
                     try {
                         TrainedModelValidator.validatePackage(trainedModelConfig, resolvedModelPackageConfig, state);
@@ -271,6 +282,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }, finalResponseListener::onFailure);
 
+        logger.info("check for download");
         checkForExistingModelDownloadTask(
             client,
             trainedModelConfig.getModelId(),
@@ -389,6 +401,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         boolean waitForCompletion,
         ActionListener<Void> listener
     ) {
+        logger.info("triggerModelFetchIfNecessary");
         client.execute(
             LoadTrainedModelPackageAction.INSTANCE,
             new LoadTrainedModelPackageAction.Request(modelId, modelPackageConfig, waitForCompletion),
@@ -405,6 +418,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     }
 
     private void checkModelIdAgainstTags(String modelId, ActionListener<Void> listener) {
+        logger.info("checkModelIdAgainstTags");
         QueryBuilder builder = QueryBuilders.constantScoreQuery(
             QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), modelId))
         );

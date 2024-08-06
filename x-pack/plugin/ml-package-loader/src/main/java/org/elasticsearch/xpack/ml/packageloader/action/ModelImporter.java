@@ -56,7 +56,7 @@ class ModelImporter {
         if (Strings.isNullOrEmpty(config.getVocabularyFile()) == false) {
             uploadVocabulary();
 
-            logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
+            logger.info(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
         }
 
         URI uri = ModelLoaderUtils.resolvePackageLocation(
@@ -72,6 +72,7 @@ class ModelImporter {
         int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
 
         for (int part = 0; part < totalParts - 1; ++part) {
+            logger.info("put part " + part);
             task.setProgress(totalParts, part);
             BytesArray definition = chunkIterator.next();
 
@@ -86,6 +87,8 @@ class ModelImporter {
 
             executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
         }
+
+        logger.info("checksum");
 
         // get the last part, this time verify the checksum and size
         BytesArray definition = chunkIterator.next();
@@ -110,6 +113,7 @@ class ModelImporter {
             throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
         }
 
+        logger.info("put last part");
         PutTrainedModelDefinitionPartAction.Request finalModelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
             modelId,
             definition,
@@ -120,10 +124,11 @@ class ModelImporter {
         );
 
         executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest);
-        logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
+        logger.info(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
     }
 
     private void uploadVocabulary() throws URISyntaxException {
+        logger.info("uploadVocabulary");
         ModelLoaderUtils.VocabularyParts vocabularyParts = ModelLoaderUtils.loadVocabulary(
             ModelLoaderUtils.resolvePackageLocation(config.getModelRepository(), config.getVocabularyFile())
         );

@@ -93,7 +93,14 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public void putModel(Model model, ActionListener<Boolean> listener) {
+    public void putModel(Model model, ActionListener<Boolean> finalListener) {
+        logger.info("PUT model " + model.getConfigurations().getInferenceEntityId());
+
+        var listener = ActionListener.runAfter(
+            finalListener,
+            () -> logger.info("Model PUT " + model.getConfigurations().getInferenceEntityId())
+        );
+
         if (model instanceof ElasticsearchInternalModel == false) {
             listener.onFailure(notElasticsearchModelException(model));
             return;

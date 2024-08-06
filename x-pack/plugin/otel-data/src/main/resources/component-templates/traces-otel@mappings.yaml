@@ -7,9 +7,6 @@ template:
   mappings:
     date_detection: false
     properties:
-      data_stream.namespace:
-        type: constant_keyword
-        value: traces
       trace_id:
         type: keyword
       trace.id:

@@ -206,6 +206,11 @@ public class EsqlCapabilities {
         COMBINE_BINARY_COMPARISONS,
 
         /**
+         * MATCH command support
+         */
+        MATCH_COMMAND(true),
+
+        /**
          * Support for nanosecond dates as a data type
          */
         DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG);
@@ -231,7 +236,7 @@ public class EsqlCapabilities {
             this.featureFlag = featureFlag;
         }
 
-        private boolean isEnabled() {
+        public boolean isEnabled() {
             if (featureFlag == null) {
                 return Build.current().isSnapshot() || this.snapshotOnly == false;
             }
@@ -240,10 +245,6 @@ public class EsqlCapabilities {
 
         public String capabilityName() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        public boolean snapshotOnly() {
-            return snapshotOnly;
         }
     }
 

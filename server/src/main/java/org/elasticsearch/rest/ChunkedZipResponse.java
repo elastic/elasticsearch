@@ -273,7 +273,7 @@ public final class ChunkedZipResponse implements Releasable {
     /**
      * A {@link ChunkedRestResponseBodyPart} which will yield all currently-available chunks by consuming entries from {@link #entryQueue}.
      * There is only ever at most one active instance of this class at any time, in the sense that one such instance becoming inactive
-     * <i>happens-before</i> the creation of the next instance.
+     * <i>happens-before</i> the creation of the next instance. One of these parts may send chunks for more than one entry.
      */
     private final class AvailableChunksZipResponseBodyPart implements ChunkedRestResponseBodyPart {
 
@@ -288,8 +288,16 @@ public final class ChunkedZipResponse implements Releasable {
          */
         private ChunkedRestResponseBodyPart bodyPart;
 
-        private boolean isPartComplete;
-        private boolean isLastPart;
+        /**
+         * True when we have run out of compressed chunks ready for immediate transmission, so the response is paused, but we expect to send
+         * more data later.
+         */
+        private boolean isResponsePaused;
+
+        /**
+         * True when we have sent the zip file footer, or the response was cancelled.
+         */
+        private boolean isResponseComplete;
 
         /**
          * A listener which is created when there are no more available chunks, so transmission is paused, subscribed to in
@@ -311,14 +319,17 @@ public final class ChunkedZipResponse implements Releasable {
             this.bodyPart = bodyPart;
         }
 
+        /**
+         * @return whether this part of the compressed response is complete
+         */
         @Override
         public boolean isPartComplete() {
-            return isPartComplete;
+            return isResponsePaused || isResponseComplete;
         }
 
         @Override
         public boolean isLastPart() {
-            return isLastPart;
+            return isResponseComplete;
         }
 
         @Override
@@ -369,7 +380,7 @@ public final class ChunkedZipResponse implements Releasable {
 
                         do {
                             writeNextBytes(sizeHint, recycler, releasables);
-                        } while (isPartComplete == false && chunkStream.size() < sizeHint);
+                        } while (isResponseComplete == false && isResponsePaused == false && chunkStream.size() < sizeHint);
 
                         assert (releasables == nextReleasablesCache) == releasables.isEmpty();
                         assert nextReleasablesCache.isEmpty();
@@ -389,8 +400,7 @@ public final class ChunkedZipResponse implements Releasable {
                     }
                 } else {
                     // request aborted, nothing more to send (queue is being cleared by queueRefs#closeInternal)
-                    isPartComplete = true;
-                    isLastPart = true;
+                    isResponseComplete = true;
                     return new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
                 }
             } catch (Exception e) {
@@ -450,7 +460,7 @@ public final class ChunkedZipResponse implements Releasable {
                     // The current entry is complete, but the next entry isn't available yet, so we pause transmission. This means we are no
                     // longer an active AvailableChunksZipResponseBodyPart, so any concurrent calls to enqueueEntry() at this point will now
                     // spawn a new AvailableChunksZipResponseBodyPart to take our place.
-                    isPartComplete = true;
+                    isResponsePaused = true;
                     assert getNextPartListener == null;
                     assert nextAvailableChunksListener != null;
                     // Calling our getNextPart() will eventually yield the next body part supplied to enqueueEntry():
@@ -475,7 +485,7 @@ public final class ChunkedZipResponse implements Releasable {
                 // available. It doesn't affect correctness if the next part is already available, it's just a little less efficient to make
                 // a new AvailableChunksZipResponseBodyPart in that case. That's ok, entries can coalesce all the available parts together
                 // themselves if efficiency really matters.
-                isPartComplete = true;
+                isResponsePaused = true;
                 assert getNextPartListener == null;
                 // Calling our getNextPart() will eventually yield the next body part from the current entry:
                 getNextPartListener = SubscribableListener.newForked(
@@ -488,8 +498,7 @@ public final class ChunkedZipResponse implements Releasable {
             assert zipEntry == null;
             assert entryQueue.isEmpty() : entryQueue.size();
             zipOutputStream.finish();
-            isPartComplete = true;
-            isLastPart = true;
+            isResponseComplete = true;
             transferCurrentEntryReleasable(releasables);
             assert getNextPartListener == null;
         }

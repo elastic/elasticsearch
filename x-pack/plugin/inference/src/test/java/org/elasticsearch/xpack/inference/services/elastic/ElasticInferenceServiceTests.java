@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -37,12 +38,10 @@ import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elser.ElserModels;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -449,8 +448,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    @Ignore // TODO: fix
-    public void testChunkedInfer_BatchesCalls() throws IOException {
+    public void testChunkedInfer_PassesThrough() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
 
@@ -461,50 +459,44 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 new ElasticInferenceServiceComponents(eisGatewayUrl)
             )
         ) {
-            // Batching will call the service with 2 inputs
             String responseJson = """
                 {
                     "data": [
                         {
                             "hello": 2.1259406,
                             "greet": 1.7073475
-                        },
-                        {
-                            "goodbye": 0.1331559
                         }
                     ]
                 }
                 """;
+
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl);
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            // 2 inputs
             service.chunkedInfer(
                 model,
-                List.of("hello world", "goodbye Earth"),
+                List.of("input text"),
                 new HashMap<>(),
-                InputType.UNSPECIFIED,
+                InputType.INGEST,
                 new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
             var results = listener.actionGet(TIMEOUT);
-            assertThat(results, hasSize(2));
-            {
-                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-                var sparseEmbeddingResult = (InferenceChunkedSparseEmbeddingResults) results.get(0);
-                assertThat(sparseEmbeddingResult.getChunkedResults(), hasSize(1));
-                assertEquals("hello world", sparseEmbeddingResult.getChunkedResults().get(0).matchedText());
-            }
-            {
-                assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-                var sparseEmbeddingResult = (InferenceChunkedSparseEmbeddingResults) results.get(1);
-                assertThat(sparseEmbeddingResult.getChunkedResults(), hasSize(1));
-                assertEquals("goodbye Earth", sparseEmbeddingResult.getChunkedResults().get(0).matchedText());
-            }
-
+            MatcherAssert.assertThat(
+                results.get(0).asMap(),
+                Matchers.is(
+                    Map.of(
+                        InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
+                        List.of(
+                            Map.of(ChunkedNlpInferenceResults.TEXT, "input text", ChunkedNlpInferenceResults.INFERENCE,
+                                Map.of("hello", 2.1259406f, "greet", 1.7073475f))
+                        )
+                    )
+                )
+            );
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
@@ -513,7 +505,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("input", List.of("hello world", "goodbye Earth"))));
+            assertThat(requestMap, is(Map.of("input", List.of("input text"))));
         }
     }
 

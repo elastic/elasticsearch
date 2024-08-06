@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -22,7 +23,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -32,16 +36,15 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
-//TODO: test
 public class ElasticInferenceService extends SenderService {
 
     public static final String NAME = "elastic";
@@ -104,27 +107,13 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        if (model instanceof ElasticInferenceServiceModel == false) {
-            listener.onFailure(createInvalidModelException(model));
-            return;
-        }
+        // Pass-through without actually performing chunking (result will have a single chunk per input)
+        // TODO: discuss chunking strategy and implement it
+        ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
+            (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
+        );
 
-        ElasticInferenceServiceModel elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
-        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents());
-
-        // TODO: should we get maxInputTokens from the model's config and fall back to a default if it's not specified?
-        Integer maxInputTokens = Optional.of(model)
-            .map(m -> model instanceof ElasticInferenceServiceSparseEmbeddingsModel sparseEmbeddingsModel ? sparseEmbeddingsModel : null)
-            .map(m -> m.getServiceSettings().maxInputTokens())
-            .orElse(EMBEDDING_MAX_BATCH_SIZE);
-
-        // TODO: what can we use here instead of float embeddings?
-        var batchedRequests = new EmbeddingRequestChunker(input, maxInputTokens, EmbeddingRequestChunker.EmbeddingType.FLOAT)
-            .batchRequestsWithListeners(listener);
-        for (var request : batchedRequests) {
-            var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
-        }
+        doInfer(model, input, taskSettings, inputType, timeout, inferListener);
     }
 
     @Override
@@ -257,6 +246,20 @@ public class ElasticInferenceService extends SenderService {
             listener.onResponse(updateModelWithEmbeddingDetails(embeddingsModel));
         } else {
             listener.onResponse(model);
+        }
+    }
+
+    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
+        List<String> inputs,
+        InferenceServiceResults inferenceResults
+    ) {
+        if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
+            return InferenceChunkedSparseEmbeddingResults.listOf(inputs, sparseEmbeddingResults);
+        } else if (inferenceResults instanceof ErrorInferenceResults error) {
+            return List.of(new ErrorChunkedInferenceResults(error.getException()));
+        } else {
+            String expectedClass = Strings.format("%s", SparseEmbeddingResults.class.getSimpleName());
+            throw createInvalidChunkedResultException(expectedClass, inferenceResults.getWriteableName());
         }
     }
 

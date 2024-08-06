@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestCase {
 
-    public void testCreateRequest() throws IOException {
+    public void testCreateHttpRequest() throws IOException {
         var url = "http://eis-gateway.com";
         var input = "input";
 

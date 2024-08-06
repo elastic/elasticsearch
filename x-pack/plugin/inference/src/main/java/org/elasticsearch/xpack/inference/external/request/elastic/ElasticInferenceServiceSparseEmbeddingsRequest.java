@@ -22,7 +22,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-//TODO: test
 public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticInferenceServiceRequest {
 
     private final URI uri;

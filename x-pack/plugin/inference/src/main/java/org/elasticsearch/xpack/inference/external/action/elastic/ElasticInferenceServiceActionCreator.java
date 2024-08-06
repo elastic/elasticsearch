@@ -18,7 +18,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
-//TODO: test
 public class ElasticInferenceServiceActionCreator implements ElasticInferenceServiceActionVisitor {
 
     private final Sender sender;

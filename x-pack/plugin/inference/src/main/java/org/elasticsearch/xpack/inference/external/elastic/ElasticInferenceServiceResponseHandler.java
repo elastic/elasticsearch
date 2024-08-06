@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
-//TODO: test
 public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler {
 
     public ElasticInferenceServiceResponseHandler(String requestType, ResponseParser parseFunction) {

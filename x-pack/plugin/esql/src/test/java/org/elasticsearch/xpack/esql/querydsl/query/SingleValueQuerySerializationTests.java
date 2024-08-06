@@ -9,12 +9,9 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.AbstractWireTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -25,9 +22,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class SingleValueQuerySerializationTests extends AbstractWireTestCase<SingleValueQuery.Builder> {
     /**

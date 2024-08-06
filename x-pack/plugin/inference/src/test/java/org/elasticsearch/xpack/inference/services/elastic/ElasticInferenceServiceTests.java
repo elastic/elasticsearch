@@ -491,8 +491,12 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     Map.of(
                         InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
                         List.of(
-                            Map.of(ChunkedNlpInferenceResults.TEXT, "input text", ChunkedNlpInferenceResults.INFERENCE,
-                                Map.of("hello", 2.1259406f, "greet", 1.7073475f))
+                            Map.of(
+                                ChunkedNlpInferenceResults.TEXT,
+                                "input text",
+                                ChunkedNlpInferenceResults.INFERENCE,
+                                Map.of("hello", 2.1259406f, "greet", 1.7073475f)
+                            )
                         )
                     )
                 )

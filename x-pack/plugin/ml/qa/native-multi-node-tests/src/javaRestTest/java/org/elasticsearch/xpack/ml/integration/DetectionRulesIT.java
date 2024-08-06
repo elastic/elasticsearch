@@ -326,7 +326,6 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = new Job.Builder("detection-rules-it-test-force-time-shift");
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
-        // job.setCustomSettings(Collections.singletonMap("keep_job_data", "true"));
 
         putJob(job);
         openJob(job.getId());

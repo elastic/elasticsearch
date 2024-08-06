@@ -431,7 +431,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                  */
                 return false;
             }
-            if (t == DataType.OBJECT || t == DataType.NESTED) {
+            if (t == DataType.OBJECT) {
                 // Object and nested fields aren't supported by any functions yet
                 return false;
             }

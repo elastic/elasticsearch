@@ -1054,6 +1054,21 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
+multiIndexUseOfUnionTypesInRename
+// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
+// make the csv tests work with multiple indices.
+required_capability: union_types
+required_capability: union_types_fix_rename_resolution
+FROM sample_data, sample_data_ts_long
+| RENAME @timestamp AS ts
+| LIMIT 1
+;
+
+@ts:null
+null
+;
+
+
 @timestamp:null | client_ip:ip | event_duration:long | event_message:keyword
            null | 172.21.0.5   |             1232382 | Disconnected
 ;

@@ -308,7 +308,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         // The test ensures that the force time shift action works as expected.
 
         long timeShiftAmount = 3600L;
-        long timestampStart = 1491004800000L;
+        long timestampStartMillis= 1491004800000L;
         long bucketSpanMillis = 3600000L;
         long timeShiftTimestamp = (timestampStart + bucketSpanMillis) / 1000;
 

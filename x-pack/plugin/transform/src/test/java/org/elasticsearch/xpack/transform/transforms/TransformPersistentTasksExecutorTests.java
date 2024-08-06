@@ -31,8 +31,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.Assignment;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -513,28 +513,28 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metadata, routingTable);
-        PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder()
+        PersistentTasksExtensionMetadata.Builder pTasksBuilder = PersistentTasksExtensionMetadata.builder()
             .addTask(
                 "transform-task-1",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
+                new PersistentTasksExtensionMetadata.Assignment("current-data-node-with-1-tasks", "")
             )
             .addTask(
                 "transform-task-2",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-2", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+                new PersistentTasksExtensionMetadata.Assignment("current-data-node-with-2-tasks", "")
             )
             .addTask(
                 "transform-task-3",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-3", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+                new PersistentTasksExtensionMetadata.Assignment("current-data-node-with-2-tasks", "")
             );
 
-        PersistentTasksCustomMetadata pTasks = pTasksBuilder.build();
-        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, pTasks);
+        PersistentTasksExtensionMetadata pTasks = pTasksBuilder.build();
+        metadata.putCustom(PersistentTasksExtensionMetadata.TYPE, pTasks);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).nodes(nodes);
         csBuilder.routingTable(routingTable.build());

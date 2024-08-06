@@ -40,7 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1224,7 +1224,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String mlNodeId = "ml-node-1";
         DiscoveryNode mlNode = buildNode(mlNodeId, true, ByteSizeValue.ofGb(4).getBytes(), 8);
 
-        PersistentTasksCustomMetadata.Builder tasksWithJobBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksWithJobBuilder = PersistentTasksExtensionMetadata.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask(
             "anomaly-detection-job",
             mlNodeId,
@@ -1236,7 +1236,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasksWithJobBuilder.build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, tasksWithJobBuilder.build())
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
@@ -1251,7 +1251,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata.builder().build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, PersistentTasksExtensionMetadata.builder().build())
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
@@ -1307,7 +1307,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String mlNodeId = "ml-node-1";
         DiscoveryNode mlNode = buildNode(mlNodeId, true, ByteSizeValue.ofGb(4).getBytes(), 8);
 
-        PersistentTasksCustomMetadata.Builder previousTasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder previousTasksBuilder = PersistentTasksExtensionMetadata.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask(
             "anomaly-detection-job1",
             mlNodeId,
@@ -1330,10 +1330,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment(mlNodeId, "test assignment")
         );
 
-        PersistentTasksCustomMetadata.Builder currentTasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder currentTasksBuilder = PersistentTasksExtensionMetadata.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask(
             "anomaly-detection-job2",
             mlNodeId,
@@ -1351,7 +1351,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, previousTasksBuilder.build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, previousTasksBuilder.build())
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
@@ -1366,7 +1366,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, currentTasksBuilder.build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, currentTasksBuilder.build())
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
@@ -1390,7 +1390,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String mlNodeId = "ml-node-1";
         DiscoveryNode mlNode = buildNode(mlNodeId, true, ByteSizeValue.ofGb(4).getBytes(), 8);
 
-        PersistentTasksCustomMetadata.Builder previousTasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder previousTasksBuilder = PersistentTasksExtensionMetadata.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask(
             "anomaly-detection-job1",
             mlNodeId,
@@ -1401,10 +1401,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment(mlNodeId, "test assignment")
         );
 
-        PersistentTasksCustomMetadata.Builder currentTasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder currentTasksBuilder = PersistentTasksExtensionMetadata.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask(
             "anomaly-detection-job1",
             mlNodeId,
@@ -1421,14 +1421,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment(mlNodeId, "test assignment")
         );
 
         ClusterState previousState = ClusterState.builder(new ClusterName("test_cluster"))
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, previousTasksBuilder.build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, previousTasksBuilder.build())
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()
@@ -1443,7 +1443,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, currentTasksBuilder.build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, currentTasksBuilder.build())
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()

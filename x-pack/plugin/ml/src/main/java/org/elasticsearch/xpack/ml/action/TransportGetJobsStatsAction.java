@@ -20,7 +20,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -96,7 +96,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         ClusterState state = clusterService.state();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = state.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         // If there are deleted configs, but the task is still around, we probably want to return the tasks in the stats call
         jobConfigProvider.expandJobsIds(
             request.getJobId(),
@@ -144,13 +144,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), actionTask.getId());
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = state.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = processManager.getStatistics(task);
         if (stats.isPresent()) {
             DataCounts dataCounts = stats.get().v1();
             ModelSizeStats modelSizeStats = stats.get().v2().v1();
             TimingStats timingStats = stats.get().v2().v2();
-            PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
+            PersistentTasksExtensionMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
             DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
             JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
@@ -201,7 +201,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             }
         };
 
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             for (int i = 0; i < closedJobIds.size(); i++) {
                 int slot = i;
@@ -216,7 +216,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
                                 parentTaskId,
                                 (dataCounts, modelSizeStats, timingStats) -> {
                                     JobState jobState = MlTasks.getJobState(jobId, tasks);
-                                    PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
+                                    PersistentTasksExtensionMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
                                     String assignmentExplanation = null;
                                     if (pTask != null) {
                                         assignmentExplanation = pTask.getAssignment().getExplanation();

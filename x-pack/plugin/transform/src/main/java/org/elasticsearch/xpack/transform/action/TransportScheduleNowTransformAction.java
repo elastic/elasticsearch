@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
@@ -74,7 +74,10 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(unusedConfig -> {
-            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(request.getId(), clusterState);
+            PersistentTasksExtensionMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                request.getId(),
+                clusterState
+            );
 
             // to send a request to schedule now the transform at runtime, several requirements must be met:
             // - transform must be running, meaning a task exists

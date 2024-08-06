@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.ClusterChangedEventUtils;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -25,7 +26,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestExtensionMetadata;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -225,7 +226,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         final int numNodesInCluster = 3;
 
         final ClusterState originalState = createState(numNodesInCluster, randomBoolean(), initialIndices);
-        CustomMetadata1 customMetadata1 = new CustomMetadata1("data");
+        ExtensionMetadata1 customMetadata1 = new ExtensionMetadata1("data");
         final ClusterState stateWithCustomMetadata = nextState(originalState, Collections.singletonList(customMetadata1));
 
         // no custom metadata present in any state
@@ -247,7 +248,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertTrue(changedCustomMetadataTypeSet.isEmpty());
 
         // next state has equivalent custom metadata
-        nextState = nextState(originalState, Collections.singletonList(new CustomMetadata1("data")));
+        nextState = nextState(originalState, Collections.singletonList(new ExtensionMetadata1("data")));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
         changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.isEmpty());
@@ -260,14 +261,14 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
 
         // next state updates custom metadata
-        nextState = nextState(stateWithCustomMetadata, Collections.singletonList(new CustomMetadata1("data1")));
+        nextState = nextState(stateWithCustomMetadata, Collections.singletonList(new ExtensionMetadata1("data1")));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
         changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
         assertTrue(changedCustomMetadataTypeSet.size() == 1);
         assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
 
         // next state adds new custom metadata type
-        CustomMetadata2 customMetadata2 = new CustomMetadata2("data2");
+        ExtensionMetadata2 customMetadata2 = new ExtensionMetadata2("data2");
         nextState = nextState(stateWithCustomMetadata, Arrays.asList(customMetadata1, customMetadata2));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetadata, nextState);
         changedCustomMetadataTypeSet = event.changedCustomMetadataSet();
@@ -291,8 +292,8 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
     }
 
-    private static class CustomMetadata2 extends TestCustomMetadata {
-        protected CustomMetadata2(String data) {
+    private static class ExtensionMetadata2 extends TestExtensionMetadata {
+        protected ExtensionMetadata2(String data) {
             super(data);
         }
 
@@ -312,8 +313,8 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
     }
 
-    private static class CustomMetadata1 extends TestCustomMetadata {
-        protected CustomMetadata1(String data) {
+    private static class ExtensionMetadata1 extends TestExtensionMetadata {
+        protected ExtensionMetadata1(String data) {
             super(data);
         }
 
@@ -355,16 +356,16 @@ public class ClusterChangedEventTests extends ESTestCase {
             .build();
     }
 
-    private static ClusterState nextState(final ClusterState previousState, List<TestCustomMetadata> customMetadataList) {
+    private static ClusterState nextState(final ClusterState previousState, List<TestExtensionMetadata> customMetadataList) {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
-        for (Map.Entry<String, Metadata.Custom> customMetadata : previousState.metadata().customs().entrySet()) {
-            if (customMetadata.getValue() instanceof TestCustomMetadata) {
+        for (Map.Entry<String, MetadataExtension> customMetadata : previousState.metadata().customs().entrySet()) {
+            if (customMetadata.getValue() instanceof TestExtensionMetadata) {
                 metadataBuilder.removeCustom(customMetadata.getKey());
             }
         }
-        for (TestCustomMetadata testCustomMetadata : customMetadataList) {
+        for (TestExtensionMetadata testCustomMetadata : customMetadataList) {
             metadataBuilder.putCustom(testCustomMetadata.getWriteableName(), testCustomMetadata);
         }
         builder.metadata(metadataBuilder);

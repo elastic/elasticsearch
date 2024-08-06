@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -99,10 +99,10 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterState clusterState,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(clusterState);
+        Collection<PersistentTasksExtensionMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(clusterState);
         final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
-        for (PersistentTasksCustomMetadata.PersistentTask<?> transformTask : transformTasks) {
+        for (PersistentTasksExtensionMetadata.PersistentTask<?> transformTask : transformTasks) {
             TransformState transformState = (TransformState) transformTask.getState();
             Optional.ofNullable(transformState)
                 .map(TransformState::getTaskState)

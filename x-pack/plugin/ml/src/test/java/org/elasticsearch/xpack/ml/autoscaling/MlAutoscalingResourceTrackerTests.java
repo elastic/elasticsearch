@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -313,7 +313,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         String jobId = "lazy-job";
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
             List.of(
-                new PersistentTasksCustomMetadata.PersistentTask<>(
+                new PersistentTasksExtensionMetadata.PersistentTask<>(
                     MlTasks.jobTaskId(jobId),
                     MlTasks.JOB_TASK_NAME,
                     new OpenJobAction.JobParams(jobId),
@@ -338,7 +338,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
                     .build()
             ),
-            PersistentTasksCustomMetadata.builder().build()
+            PersistentTasksExtensionMetadata.builder().build()
         );
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
         when(mockTracker.getAnomalyDetectorJobMemoryRequirement(jobId)).thenReturn(memory / 4);
@@ -436,8 +436,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         String jobId = "lazy-job";
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
             List.of(
-                new PersistentTasksCustomMetadata.PersistentTask<>(
-                    new PersistentTasksCustomMetadata.PersistentTask<>(
+                new PersistentTasksExtensionMetadata.PersistentTask<>(
+                    new PersistentTasksExtensionMetadata.PersistentTask<>(
                         MlTasks.jobTaskId(jobId),
                         MlTasks.JOB_TASK_NAME,
                         new OpenJobAction.JobParams(jobId),
@@ -464,7 +464,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
                     .build()
             ),
-            PersistentTasksCustomMetadata.builder().build()
+            PersistentTasksExtensionMetadata.builder().build()
         );
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
         when(mockTracker.getAnomalyDetectorJobMemoryRequirement(jobId)).thenReturn(memory / 4);
@@ -1365,7 +1365,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
                     .build()
             ),
-            PersistentTasksCustomMetadata.builder().build()
+            PersistentTasksExtensionMetadata.builder().build()
         );
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
 
@@ -1471,7 +1471,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
                     .build()
             ),
-            PersistentTasksCustomMetadata.builder().build()
+            PersistentTasksExtensionMetadata.builder().build()
         );
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
 
@@ -1564,7 +1564,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
                     .build()
             ),
-            PersistentTasksCustomMetadata.builder().build()
+            PersistentTasksExtensionMetadata.builder().build()
         );
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
 
@@ -1668,7 +1668,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
                     .build()
             ),
-            PersistentTasksCustomMetadata.builder().build()
+            PersistentTasksExtensionMetadata.builder().build()
         );
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
 
@@ -1766,7 +1766,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
                     .build()
             ),
-            PersistentTasksCustomMetadata.builder().build()
+            PersistentTasksExtensionMetadata.builder().build()
         );
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
 

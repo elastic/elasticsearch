@@ -25,7 +25,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -131,7 +131,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
     }
 
     private void ensureTaskStopped() {
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
+        ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener = ActionListener.wrap(
             r -> logger.debug("Stopped enterprise geoip downloader task"),
             e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;

@@ -23,7 +23,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.geoip.Database.Property;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -457,12 +457,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testDefaultDatabaseWithTaskPresent() throws Exception {
-        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.builder()
+        PersistentTasksExtensionMetadata tasks = PersistentTasksExtensionMetadata.builder()
             .addTask(GeoIpDownloader.GEOIP_DOWNLOADER, GeoIpDownloader.GEOIP_DOWNLOADER, null, null)
             .updateTaskState(GeoIpDownloader.GEOIP_DOWNLOADER, GeoIpTaskState.EMPTY)
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks))
+            .metadata(Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasks))
             .build();
         when(clusterService.state()).thenReturn(clusterState);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,7 +69,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         @Override
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
             // Currently, two unknown top-level objects are present
-            if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
+            if (MetadataExtension.class.isAssignableFrom(categoryClass)) {
                 if (DataStreamMetadata.TYPE.equals(name)
                     || ComposableIndexTemplateMetadata.TYPE.equals(name)
                     || ComponentTemplateMetadata.TYPE.equals(name)) {
@@ -78,7 +79,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                     // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
                     // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.
                 } else {
-                    return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+                    return (T) new UnknownMetadataExtension(name, parser.mapOrdered());
                 }
             }
             if (Condition.class.isAssignableFrom(categoryClass)) {
@@ -201,7 +202,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
-    public record UnknownMetadataCustom(String name, Map<String, Object> contents) implements Metadata.Custom {
+    public record UnknownMetadataExtension(String name, Map<String, Object> contents) implements MetadataExtension {
 
         @Override
         public EnumSet<Metadata.XContentContext> context() {
@@ -209,7 +210,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         @Override
-        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+        public Diff<MetadataExtension> diff(MetadataExtension previousState) {
             assert false;
             throw new UnsupportedOperationException();
         }

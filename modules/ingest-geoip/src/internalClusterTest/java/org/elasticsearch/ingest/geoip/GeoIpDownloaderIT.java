@@ -32,7 +32,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -114,7 +114,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 .putNull("ingest.geoip.database_validity")
         );
         assertBusy(() -> {
-            PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
+            PersistentTasksExtensionMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             if (task != null) {
                 GeoIpTaskState state = (GeoIpTaskState) task.getState();
                 assertThat(state.getDatabases(), anEmptyMap());
@@ -293,7 +293,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         putGeoIpPipeline(pipelineId);
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
-            PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
+            PersistentTasksExtensionMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             assertNotNull(task);
             assertNotNull(task.getState());
         });
@@ -466,7 +466,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     private GeoIpTaskState getGeoIpTaskState() {
-        PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
+        PersistentTasksExtensionMetadata.PersistentTask<PersistentTaskParams> task = getTask();
         assertNotNull(task);
         GeoIpTaskState state = (GeoIpTaskState) task.getState();
         assertNotNull(state);
@@ -760,8 +760,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
     }
 
-    private PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> getTask() {
-        return PersistentTasksCustomMetadata.getTaskWithId(clusterService().state(), GeoIpDownloader.GEOIP_DOWNLOADER);
+    private PersistentTasksExtensionMetadata.PersistentTask<PersistentTaskParams> getTask() {
+        return PersistentTasksExtensionMetadata.getTaskWithId(clusterService().state(), GeoIpDownloader.GEOIP_DOWNLOADER);
     }
 
     private static class MultiByteArrayInputStream extends InputStream {

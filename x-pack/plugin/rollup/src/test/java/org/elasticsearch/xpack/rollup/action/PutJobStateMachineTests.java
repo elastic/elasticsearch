@@ -20,7 +20,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
@@ -356,12 +356,12 @@ public class PutJobStateMachineTests extends ESTestCase {
 
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
-            PersistentTasksCustomMetadata.PersistentTask<RollupJob> response = new PersistentTasksCustomMetadata.PersistentTask<>(
+            PersistentTasksExtensionMetadata.PersistentTask<RollupJob> response = new PersistentTasksExtensionMetadata.PersistentTask<>(
                 job.getConfig().getId(),
                 RollupField.TASK_NAME,
                 job,
                 123,
-                mock(PersistentTasksCustomMetadata.Assignment.class)
+                mock(PersistentTasksExtensionMetadata.Assignment.class)
             );
             requestCaptor.getValue().onResponse(response);
             return null;

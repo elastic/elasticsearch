@@ -40,7 +40,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -346,7 +346,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             job.getConfig().getTimeout(),
             new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<RollupJob> task) {
+                public void onResponse(PersistentTasksExtensionMetadata.PersistentTask<RollupJob> task) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
 

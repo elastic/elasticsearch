@@ -38,7 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.RemovedTaskListener;
@@ -722,12 +722,12 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testTasksWaitForAllTask() throws Exception {
         // Find tasks that are not expected to complete and identify the nodes running them
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> alwaysRunningTasks = findTasks(
+        List<PersistentTasksExtensionMetadata.PersistentTask<?>> alwaysRunningTasks = findTasks(
             clusterService().state(),
             HealthNode.TASK_NAME
         );
         Set<String> nodesRunningTasks = alwaysRunningTasks.stream()
-            .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
+            .map(PersistentTasksExtensionMetadata.PersistentTask::getExecutorNode)
             .collect(Collectors.toSet());
         // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
         ListTasksResponse response = clusterAdmin().prepareListTasks().setWaitForCompletion(true).setTimeout(timeValueSeconds(1)).get();

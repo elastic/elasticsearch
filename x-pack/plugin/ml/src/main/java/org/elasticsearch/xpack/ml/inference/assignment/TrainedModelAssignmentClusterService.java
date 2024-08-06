@@ -34,7 +34,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -1113,26 +1113,26 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     static Optional<String> detectReasonIfMlJobsStopped(ClusterChangedEvent event) {
-        if (event.changedCustomMetadataSet().contains(PersistentTasksCustomMetadata.TYPE) == false) {
+        if (event.changedCustomMetadataSet().contains(PersistentTasksExtensionMetadata.TYPE) == false) {
             return Optional.empty();
         }
 
-        PersistentTasksCustomMetadata previousPersistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+        PersistentTasksExtensionMetadata previousPersistentTasks = PersistentTasksExtensionMetadata.getPersistentTasksCustomMetadata(
             event.previousState()
         );
         if (previousPersistentTasks == null) { // no previous jobs so nothing has stopped
             return Optional.empty();
         }
 
-        PersistentTasksCustomMetadata currentPersistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+        PersistentTasksExtensionMetadata currentPersistentTasks = PersistentTasksExtensionMetadata.getPersistentTasksCustomMetadata(
             event.state()
         );
         Set<String> currentMlTaskIds = findMlProcessTaskIds(currentPersistentTasks);
 
-        Set<PersistentTasksCustomMetadata.PersistentTask<?>> previousMlTasks = MlTasks.findMlProcessTasks(previousPersistentTasks);
+        Set<PersistentTasksExtensionMetadata.PersistentTask<?>> previousMlTasks = MlTasks.findMlProcessTasks(previousPersistentTasks);
         Set<String> stoppedTaskTypes = previousMlTasks.stream()
             .filter(task -> currentMlTaskIds.contains(task.getId()) == false) // remove the tasks that are still present. Stopped Ids only.
-            .map(PersistentTasksCustomMetadata.PersistentTask::getTaskName)
+            .map(PersistentTasksExtensionMetadata.PersistentTask::getTaskName)
             .map(MlTasks::prettyPrintTaskName)
             .collect(Collectors.toSet());
         if (stoppedTaskTypes.size() == 1) {
@@ -1143,12 +1143,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return Optional.empty();
     }
 
-    private static Set<String> findMlProcessTaskIds(@Nullable PersistentTasksCustomMetadata metadata) {
+    private static Set<String> findMlProcessTaskIds(@Nullable PersistentTasksExtensionMetadata metadata) {
         return metadata == null
             ? Set.of()
             : MlTasks.findMlProcessTasks(metadata)
                 .stream()
-                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                .map(PersistentTasksExtensionMetadata.PersistentTask::getId)
                 .collect(Collectors.toSet());
     }
 

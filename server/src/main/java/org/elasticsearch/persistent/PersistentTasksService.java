@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -192,7 +192,7 @@ public class PersistentTasksService {
         ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(state, taskId));
+                listener.onResponse(PersistentTasksExtensionMetadata.getTaskWithId(state, taskId));
             }
 
             @Override
@@ -204,7 +204,7 @@ public class PersistentTasksService {
             public void onTimeout(TimeValue timeout) {
                 listener.onTimeout(timeout);
             }
-        }, clusterState -> predicate.test(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId)), timeout, logger);
+        }, clusterState -> predicate.test(PersistentTasksExtensionMetadata.getTaskWithId(clusterState, taskId)), timeout, logger);
     }
 
     /**
@@ -215,7 +215,7 @@ public class PersistentTasksService {
      * @param listener the callback listener
      */
     public void waitForPersistentTasksCondition(
-        final Predicate<PersistentTasksCustomMetadata> predicate,
+        final Predicate<PersistentTasksExtensionMetadata> predicate,
         final @Nullable TimeValue timeout,
         final ActionListener<Boolean> listener
     ) {
@@ -234,7 +234,7 @@ public class PersistentTasksService {
             public void onTimeout(TimeValue timeout) {
                 listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
             }
-        }, clusterState -> predicate.test(clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)), timeout, logger);
+        }, clusterState -> predicate.test(clusterState.metadata().custom(PersistentTasksExtensionMetadata.TYPE)), timeout, logger);
     }
 
     public interface WaitForPersistentTaskListener<P extends PersistentTaskParams> extends ActionListener<PersistentTask<P>> {

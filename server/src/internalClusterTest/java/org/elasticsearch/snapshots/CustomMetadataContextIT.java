@@ -11,12 +11,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestExtensionMetadata;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -155,19 +156,19 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             registerBuiltinWritables();
         }
 
-        private <T extends Metadata.Custom> void registerMetadataCustom(
+        private <T extends MetadataExtension> void registerMetadataCustom(
             String name,
             Writeable.Reader<T> reader,
             Writeable.Reader<NamedDiff<?>> diffReader,
             CheckedFunction<XContentParser, T, IOException> parser
         ) {
-            namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));
+            namedWritables.add(new NamedWriteableRegistry.Entry(MetadataExtension.class, name, reader));
             namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
-            namedXContents.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(name), parser));
+            namedXContents.add(new NamedXContentRegistry.Entry(MetadataExtension.class, new ParseField(name), parser));
         }
 
         private void registerBuiltinWritables() {
-            Map.<String, Function<String, TestCustomMetadata>>of(
+            Map.<String, Function<String, TestExtensionMetadata>>of(
                 SnapshotMetadata.TYPE,
                 SnapshotMetadata::new,
                 GatewayMetadata.TYPE,
@@ -180,9 +181,9 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
                 .forEach(
                     (type, constructor) -> registerMetadataCustom(
                         type,
-                        in -> TestCustomMetadata.readFrom(constructor, in),
-                        in -> TestCustomMetadata.readDiffFrom(type, in),
-                        parser -> TestCustomMetadata.fromXContent(constructor, parser)
+                        in -> TestExtensionMetadata.readFrom(constructor, in),
+                        in -> TestExtensionMetadata.readDiffFrom(type, in),
+                        parser -> TestExtensionMetadata.fromXContent(constructor, parser)
                     )
                 );
         }
@@ -198,11 +199,11 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private abstract static class ThisTestCustomMetadata extends TestCustomMetadata {
+    private abstract static class ThisTestExtensionMetadata extends TestExtensionMetadata {
         private final String type;
         private final EnumSet<Metadata.XContentContext> context;
 
-        ThisTestCustomMetadata(String data, String type, EnumSet<Metadata.XContentContext> context) {
+        ThisTestExtensionMetadata(String data, String type, EnumSet<Metadata.XContentContext> context) {
             super(data);
             this.type = type;
             this.context = context;
@@ -224,7 +225,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private static class SnapshotMetadata extends ThisTestCustomMetadata {
+    private static class SnapshotMetadata extends ThisTestExtensionMetadata {
         public static final String TYPE = "test_metadata_scope_snapshot";
 
         SnapshotMetadata(String data) {
@@ -232,7 +233,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private static class GatewayMetadata extends ThisTestCustomMetadata {
+    private static class GatewayMetadata extends ThisTestExtensionMetadata {
         public static final String TYPE = "test_metadata_scope_gateway";
 
         GatewayMetadata(String data) {
@@ -240,7 +241,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private static class ApiMetadata extends ThisTestCustomMetadata {
+    private static class ApiMetadata extends ThisTestExtensionMetadata {
         public static final String TYPE = "test_metadata_scope_api";
 
         ApiMetadata(String data) {
@@ -248,7 +249,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private static class NonApiMetadata extends ThisTestCustomMetadata {
+    private static class NonApiMetadata extends ThisTestExtensionMetadata {
         public static final String TYPE = "test_metadata_scope_non_api";
 
         NonApiMetadata(String data) {

@@ -30,7 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -335,7 +335,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             .build();
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();
-        tmpState = PersistentTasksCustomMetadata.disassociateDeadNodes(tmpState);
+        tmpState = PersistentTasksExtensionMetadata.disassociateDeadNodes(tmpState);
         tmpState = maybeReconfigureAfterMasterElection.apply(tmpState);
         return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }

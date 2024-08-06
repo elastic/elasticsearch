@@ -15,9 +15,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.PersistentTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -103,8 +103,8 @@ public class MlAssignmentNotifier implements ClusterStateListener {
 
     private void auditChangesToMlTasks(ClusterChangedEvent event) {
 
-        PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
+        PersistentTasksExtensionMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
 
         if (Objects.equals(previousTasks, currentTasks)) {
             return;
@@ -118,15 +118,15 @@ public class MlAssignmentNotifier implements ClusterStateListener {
      * tasks, even if a previous audit warning has been created.
      * Care must be taken not to call this method frequently.
      */
-    public void auditUnassignedMlTasks(DiscoveryNodes nodes, PersistentTasksCustomMetadata tasks) {
+    public void auditUnassignedMlTasks(DiscoveryNodes nodes, PersistentTasksExtensionMetadata tasks) {
         auditMlTasks(nodes, nodes, tasks, tasks, true);
     }
 
     private void auditMlTasks(
         DiscoveryNodes previousNodes,
         DiscoveryNodes currentNodes,
-        PersistentTasksCustomMetadata previousTasks,
-        PersistentTasksCustomMetadata currentTasks,
+        PersistentTasksExtensionMetadata previousTasks,
+        PersistentTasksExtensionMetadata currentTasks,
         boolean alwaysAuditUnassigned
     ) {
         if (currentTasks == null) {
@@ -262,7 +262,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     }
 
     private void logLongTimeUnassigned(Instant now, ClusterState state) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = state.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         if (tasks == null) {
             return;
         }
@@ -287,7 +287,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
      * the data structure used to record the information is in memory on the current master node,
      * not in cluster state.
      */
-    synchronized List<String> findLongTimeUnassignedTasks(Instant now, PersistentTasksCustomMetadata tasks) {
+    synchronized List<String> findLongTimeUnassignedTasks(Instant now, PersistentTasksExtensionMetadata tasks) {
 
         assert tasks != null;
 

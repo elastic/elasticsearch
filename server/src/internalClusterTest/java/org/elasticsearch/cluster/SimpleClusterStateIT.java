@@ -334,15 +334,15 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertFalse(clusterStateResponse.getState().customs().containsKey("test"));
     }
 
-    private static class TestCustom extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class TestExtension extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
         private final int value;
 
-        TestCustom(int value) {
+        TestExtension(int value) {
             this.value = value;
         }
 
-        TestCustom(StreamInput in) throws IOException {
+        TestExtension(StreamInput in) throws IOException {
             this.value = in.readInt();
         }
 
@@ -383,8 +383,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-            entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, "test", TestCustom::new));
-            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "test", TestCustom::readDiffFrom));
+            entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, "test", TestExtension::new));
+            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "test", TestExtension::readDiffFrom));
             return entries;
         }
 
@@ -411,7 +411,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                                     public ClusterState execute(ClusterState currentState) {
                                         if (currentState.custom("test") == null) {
                                             final ClusterState.Builder builder = ClusterState.builder(currentState);
-                                            builder.putCustom("test", new TestCustom(42));
+                                            builder.putCustom("test", new TestExtension(42));
                                             return builder.build();
                                         } else {
                                             return currentState;

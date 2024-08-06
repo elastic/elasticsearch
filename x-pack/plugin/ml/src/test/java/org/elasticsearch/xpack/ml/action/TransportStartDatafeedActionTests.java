@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
+import static org.elasticsearch.persistent.PersistentTasksExtensionMetadata.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,7 +52,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
     public void testValidate_jobClosed() {
         Job job1 = DatafeedRunnerTests.createDatafeedJob().build(new Date());
-        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.builder().build();
+        PersistentTasksExtensionMetadata tasks = PersistentTasksExtensionMetadata.builder().build();
         DatafeedConfig datafeedConfig1 = DatafeedRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         Exception e = expectThrows(
             ElasticsearchStatusException.class,
@@ -63,9 +63,9 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
     public void testValidate_jobOpening() {
         Job job1 = DatafeedRunnerTests.createDatafeedJob().build(new Date());
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id", INITIAL_ASSIGNMENT.getExecutorNode(), null, tasksBuilder);
-        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+        PersistentTasksExtensionMetadata tasks = tasksBuilder.build();
         DatafeedConfig datafeedConfig1 = DatafeedRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
 
         TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks, xContentRegistry());
@@ -73,9 +73,9 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
     public void testValidate_jobOpened() {
         Job job1 = DatafeedRunnerTests.createDatafeedJob().build(new Date());
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id", INITIAL_ASSIGNMENT.getExecutorNode(), JobState.OPENED, tasksBuilder);
-        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+        PersistentTasksExtensionMetadata tasks = tasksBuilder.build();
         DatafeedConfig datafeedConfig1 = DatafeedRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
 
         TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks, xContentRegistry());

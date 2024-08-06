@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -38,19 +38,15 @@ public class DatafeedNodeSelector {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedNodeSelector.class);
 
-    public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_ASSIGNMENT = new PersistentTasksCustomMetadata.Assignment(
-        null,
-        "datafeed awaiting job assignment."
-    );
-    public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_RELOCATION = new PersistentTasksCustomMetadata.Assignment(
-        null,
-        "datafeed awaiting job relocation."
-    );
+    public static final PersistentTasksExtensionMetadata.Assignment AWAITING_JOB_ASSIGNMENT =
+        new PersistentTasksExtensionMetadata.Assignment(null, "datafeed awaiting job assignment.");
+    public static final PersistentTasksExtensionMetadata.Assignment AWAITING_JOB_RELOCATION =
+        new PersistentTasksExtensionMetadata.Assignment(null, "datafeed awaiting job relocation.");
 
     private final String datafeedId;
     private final String jobId;
     private final List<String> datafeedIndices;
-    private final PersistentTasksCustomMetadata.PersistentTask<?> jobTask;
+    private final PersistentTasksExtensionMetadata.PersistentTask<?> jobTask;
     private final ClusterState clusterState;
     private final IndexNameExpressionResolver resolver;
     private final IndicesOptions indicesOptions;
@@ -63,7 +59,7 @@ public class DatafeedNodeSelector {
         List<String> datafeedIndices,
         IndicesOptions indicesOptions
     ) {
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = clusterState.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         this.datafeedId = datafeedId;
         this.jobId = jobId;
         this.datafeedIndices = datafeedIndices;
@@ -105,7 +101,7 @@ public class DatafeedNodeSelector {
      * @return The assignment for the datafeed, containing either an executor node or a reason why an
      *         executor node was not returned.
      */
-    public PersistentTasksCustomMetadata.Assignment selectNode(Collection<DiscoveryNode> candidateNodes) {
+    public PersistentTasksExtensionMetadata.Assignment selectNode(Collection<DiscoveryNode> candidateNodes) {
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return AWAITING_UPGRADE;
         }
@@ -126,11 +122,11 @@ public class DatafeedNodeSelector {
             if (candidateNodes.stream().anyMatch(candidateNode -> candidateNode.getId().equals(jobNode)) == false) {
                 return AWAITING_JOB_RELOCATION;
             }
-            return new PersistentTasksCustomMetadata.Assignment(jobNode, "");
+            return new PersistentTasksExtensionMetadata.Assignment(jobNode, "");
         }
         LOGGER.debug(assignmentFailure.reason);
         assert assignmentFailure.reason.isEmpty() == false;
-        return new PersistentTasksCustomMetadata.Assignment(null, assignmentFailure.reason);
+        return new PersistentTasksExtensionMetadata.Assignment(null, assignmentFailure.reason);
     }
 
     @Nullable

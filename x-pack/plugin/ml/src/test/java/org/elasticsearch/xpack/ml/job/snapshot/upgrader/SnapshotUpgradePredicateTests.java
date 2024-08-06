@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.PersistentTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
@@ -27,7 +27,7 @@ public class SnapshotUpgradePredicateTests extends ESTestCase {
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job", "snapshot"),
             1,
-            new PersistentTasksCustomMetadata.Assignment("test-node", "")
+            new PersistentTasksExtensionMetadata.Assignment("test-node", "")
         );
         {
             SnapshotUpgradePredicate snapshotUpgradePredicate = new SnapshotUpgradePredicate(true, logger);
@@ -65,7 +65,7 @@ public class SnapshotUpgradePredicateTests extends ESTestCase {
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job", "snapshot"),
             1,
-            new PersistentTasksCustomMetadata.Assignment("test-node", "")
+            new PersistentTasksExtensionMetadata.Assignment("test-node", "")
         );
         {
             SnapshotUpgradePredicate snapshotUpgradePredicate = new SnapshotUpgradePredicate(false, logger);

@@ -31,8 +31,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -142,7 +142,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             isRunning.set(false);
             listener.onFailure(e);
         });
-        final PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksExtensionMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksExtensionMetadata.TYPE);
 
         // <4> We have unassigned the tasks, respond to the listener.
         ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(unassignedPersistentTasks -> {
@@ -282,7 +282,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
      * @param listener            Alerted when tasks are unassignd
      */
     private void unassignPersistentTasks(
-        PersistentTasksCustomMetadata tasksCustomMetadata,
+        PersistentTasksExtensionMetadata tasksCustomMetadata,
         ActionListener<List<PersistentTask<?>>> listener
     ) {
         List<PersistentTask<?>> mlTasks = tasksCustomMetadata.tasks()
@@ -321,7 +321,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
     }
 
     private void isolateDatafeeds(
-        PersistentTasksCustomMetadata tasksCustomMetadata,
+        PersistentTasksExtensionMetadata tasksCustomMetadata,
         ActionListener<List<IsolateDatafeedAction.Response>> listener
     ) {
         Set<String> datafeedsToIsolate = MlTasks.startedDatafeedIds(tasksCustomMetadata);

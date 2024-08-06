@@ -27,8 +27,8 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -131,7 +131,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<HealthNodeTaskParams> taskInProgress,
+        PersistentTasksExtensionMetadata.PersistentTask<HealthNodeTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
         return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
@@ -141,7 +141,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
      * Returns the node id from the eligible health nodes
      */
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    public PersistentTasksExtensionMetadata.Assignment getAssignment(
         HealthNodeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState
@@ -150,7 +150,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
-            return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
+            return new PersistentTasksExtensionMetadata.Assignment(discoveryNode.getId(), "");
         }
     }
 

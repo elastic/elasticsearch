@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -78,34 +78,34 @@ public class MlLifeCycleServiceTests extends ESTestCase {
     }
 
     public void testIsNodeSafeToShutdown() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
 
         tasksBuilder.addTask(
             MlTasks.jobTaskId("job-1"),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams("job-1"),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-1", "test assignment")
         );
         tasksBuilder.addTask(
             MlTasks.datafeedTaskId("df1"),
             MlTasks.DATAFEED_TASK_NAME,
             new StartDatafeedAction.DatafeedParams("df1", 0L),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-1", "test assignment")
         );
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.addTask(
             MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job-3", "snapshot-3"),
-            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-3", "test assignment")
         );
 
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
         Instant shutdownStartTime = Instant.now();
@@ -139,20 +139,20 @@ public class MlLifeCycleServiceTests extends ESTestCase {
     }
 
     public void testIsNodeSafeToShutdownGivenFailedTasks() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
 
         tasksBuilder.addTask(
             MlTasks.jobTaskId("job-1"),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams("job-1"),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-1", "test assignment")
         );
         tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing", Instant.now()));
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
@@ -162,14 +162,14 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job-3", "snapshot-3"),
-            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-3", "test assignment")
         );
         tasksBuilder.updateTaskState(
             MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
             new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 3, "testing")
         );
 
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
         // For these tests it shouldn't matter when shutdown started or what the time is now, because it's always safe to shut down

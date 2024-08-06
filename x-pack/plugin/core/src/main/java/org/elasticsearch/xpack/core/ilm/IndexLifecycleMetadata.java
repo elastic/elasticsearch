@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +34,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class IndexLifecycleMetadata implements Metadata.Custom {
+public class IndexLifecycleMetadata implements MetadataExtension {
     public static final String TYPE = "index_lifecycle";
     public static final ParseField OPERATION_MODE_FIELD = new ParseField("operation_mode");
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
@@ -100,7 +100,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Custom> diff(Custom previousState) {
+    public Diff<MetadataExtension> diff(MetadataExtension previousState) {
         return new IndexLifecycleMetadataDiff((IndexLifecycleMetadata) previousState, this);
     }
 
@@ -149,7 +149,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         return Strings.toString(this, false, true);
     }
 
-    public static class IndexLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class IndexLifecycleMetadataDiff implements NamedDiff<MetadataExtension> {
 
         final Diff<Map<String, LifecyclePolicyMetadata>> policies;
         final OperationMode operationMode;
@@ -170,7 +170,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataExtension apply(MetadataExtension part) {
             TreeMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(
                 policies.apply(((IndexLifecycleMetadata) part).policyMetadatas)
             );

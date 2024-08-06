@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -75,8 +75,10 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
         logger.debug(() -> format("[%s] get stats for model snapshot [%s] upgrades", request.getJobId(), request.getSnapshotId()));
-        final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgrades = MlTasks.snapshotUpgradeTasks(tasksInProgress);
+        final PersistentTasksExtensionMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
+        final Collection<PersistentTasksExtensionMetadata.PersistentTask<?>> snapshotUpgrades = MlTasks.snapshotUpgradeTasks(
+            tasksInProgress
+        );
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         // 2. Now that we have the job IDs, find the relevant model snapshot upgrades

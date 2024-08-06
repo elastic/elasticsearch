@@ -46,7 +46,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -84,8 +84,8 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.ingest.geoip.GeoIpProcessorFactoryTests.copyDatabaseFiles;
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
+import static org.elasticsearch.persistent.PersistentTasksExtensionMetadata.PersistentTask;
+import static org.elasticsearch.persistent.PersistentTasksExtensionMetadata.TYPE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -147,7 +147,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10, 5, 14, md5, 10))));
-        PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
+        PersistentTasksExtensionMetadata tasksCustomMetadata = new PersistentTasksExtensionMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = createClusterState(tasksCustomMetadata);
 
@@ -170,7 +170,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             task,
             new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())))
         );
-        tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
+        tasksCustomMetadata = new PersistentTasksExtensionMetadata(1L, Map.of(taskId, task));
 
         state = createClusterState(tasksCustomMetadata);
 
@@ -193,7 +193,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10))));
-        PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
+        PersistentTasksExtensionMetadata tasksCustomMetadata = new PersistentTasksExtensionMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
@@ -216,7 +216,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10))));
-        PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
+        PersistentTasksExtensionMetadata tasksCustomMetadata = new PersistentTasksExtensionMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
@@ -232,7 +232,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     }
 
     public void testCheckDatabases_dontCheckDatabaseWhenGeoIpDownloadTask() throws Exception {
-        PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(0L, Map.of());
+        PersistentTasksExtensionMetadata tasksCustomMetadata = new PersistentTasksExtensionMetadata(0L, Map.of());
 
         ClusterState state = createClusterState(tasksCustomMetadata);
 
@@ -350,11 +350,11 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         return MessageDigests.toHexString(md.digest());
     }
 
-    static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
+    static ClusterState createClusterState(PersistentTasksExtensionMetadata tasksCustomMetadata) {
         return createClusterState(tasksCustomMetadata, false);
     }
 
-    static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata, boolean noStartedShards) {
+    static ClusterState createClusterState(PersistentTasksExtensionMetadata tasksCustomMetadata, boolean noStartedShards) {
         boolean aliasGeoipDatabase = randomBoolean();
         String indexName = aliasGeoipDatabase
             ? GeoIpDownloader.DATABASES_INDEX + "-" + randomAlphaOfLength(5)

@@ -20,8 +20,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -634,7 +634,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ClusterState clusterState) {
-        Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> taskMatcher = transformIdPattern == null
+        Predicate<PersistentTasksExtensionMetadata.PersistentTask<?>> taskMatcher = transformIdPattern == null
             || Strings.isAllOrWildcard(transformIdPattern) ? Predicates.always() : t -> {
                 TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
                 return Regex.simpleMatch(transformIdPattern, transformParams.getId());
@@ -648,7 +648,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {
-        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+        PersistentTasksExtensionMetadata pTasksMeta = PersistentTasksExtensionMetadata.getPersistentTasksCustomMetadata(clusterState);
         if (pTasksMeta == null) {
             return Collections.emptyList();
         }

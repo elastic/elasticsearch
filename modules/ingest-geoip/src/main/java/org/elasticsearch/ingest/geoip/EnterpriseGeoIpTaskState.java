@@ -19,7 +19,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
+import static org.elasticsearch.persistent.PersistentTasksExtensionMetadata.getTaskWithId;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
@@ -146,7 +146,7 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
      */
     @Nullable
     static EnterpriseGeoIpTaskState getEnterpriseGeoIpTaskState(ClusterState state) {
-        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state, EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER);
+        PersistentTasksExtensionMetadata.PersistentTask<?> task = getTaskWithId(state, EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER);
         return (task == null) ? null : (EnterpriseGeoIpTaskState) task.getState();
     }
 

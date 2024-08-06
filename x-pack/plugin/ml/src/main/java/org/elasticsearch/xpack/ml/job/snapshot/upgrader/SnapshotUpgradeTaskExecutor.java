@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -88,13 +88,13 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    public PersistentTasksExtensionMetadata.Assignment getAssignment(
         SnapshotUpgradeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState
     ) {
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-        Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(
+        Optional<PersistentTasksExtensionMetadata.Assignment> optionalAssignment = getPotentialAssignment(
             params,
             clusterState,
             isMemoryTrackerRecentlyRefreshed
@@ -232,7 +232,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<SnapshotUpgradeTaskParams> persistentTask,
+        PersistentTasksExtensionMetadata.PersistentTask<SnapshotUpgradeTaskParams> persistentTask,
         Map<String, String> headers
     ) {
         return new SnapshotUpgradeTask(

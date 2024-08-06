@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -660,15 +661,15 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      * Randomly adds, deletes or updates repositories in the metadata
      */
     private Metadata randomMetadataCustoms(final Metadata metadata) {
-        return randomParts(metadata, "custom", new RandomPart<Metadata.Custom>() {
+        return randomParts(metadata, "custom", new RandomPart<MetadataExtension>() {
 
             @Override
-            public Map<String, Metadata.Custom> parts(Metadata metadata) {
+            public Map<String, MetadataExtension> parts(Metadata metadata) {
                 return metadata.customs();
             }
 
             @Override
-            public Metadata.Builder put(Metadata.Builder builder, Metadata.Custom part) {
+            public Metadata.Builder put(Metadata.Builder builder, MetadataExtension part) {
                 return builder.putCustom(part.getWriteableName(), part);
             }
 
@@ -683,7 +684,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             }
 
             @Override
-            public Metadata.Custom randomCreate(String name) {
+            public MetadataExtension randomCreate(String name) {
                 if (randomBoolean()) {
                     return new RepositoriesMetadata(Collections.emptyList());
                 } else {
@@ -692,7 +693,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             }
 
             @Override
-            public Metadata.Custom randomChange(Metadata.Custom part) {
+            public MetadataExtension randomChange(MetadataExtension part) {
                 return part;
             }
         });

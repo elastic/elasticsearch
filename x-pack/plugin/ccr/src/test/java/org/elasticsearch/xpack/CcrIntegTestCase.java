@@ -61,7 +61,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.monitor.jvm.HotThreads;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -503,8 +503,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             );
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
+            PersistentTasksExtensionMetadata tasks = clusterState.metadata().custom(PersistentTasksExtensionMetadata.TYPE);
+            Collection<PersistentTasksExtensionMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
                 .stream()
                 .filter(t -> t.getTaskName().equals(ShardFollowTask.NAME))
                 .toList();
@@ -864,7 +864,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 newState.metadata(
                     Metadata.builder(currentState.getMetadata())
                         .putCustom(AutoFollowMetadata.TYPE, empty)
-                        .removeCustom(PersistentTasksCustomMetadata.TYPE)
+                        .removeCustom(PersistentTasksExtensionMetadata.TYPE)
                         .build()
                 );
                 return newState.build();

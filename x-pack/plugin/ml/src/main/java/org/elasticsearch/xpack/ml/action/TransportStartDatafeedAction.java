@@ -35,8 +35,8 @@ import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -144,7 +144,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     static void validate(
         Job job,
         DatafeedConfig datafeedConfig,
-        PersistentTasksCustomMetadata tasks,
+        PersistentTasksExtensionMetadata tasks,
         NamedXContentRegistry xContentRegistry
     ) {
         DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
@@ -199,12 +199,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         );
 
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = state.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
 
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
+        ActionListener<PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
             new ActionListener<>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
+                public void onResponse(PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     waitForDatafeedStarted(persistentTask.getId(), params, responseHeaderPreservingListener);
                 }
 
@@ -331,7 +331,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Job job,
         DatafeedConfig datafeed,
         StartDatafeedAction.DatafeedParams params,
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
+        ActionListener<PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
@@ -373,7 +373,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             params.getTimeout(),
             new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
+                public void onResponse(PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     if (predicate.exception != null) {
                         // We want to return to the caller without leaving an unassigned persistent task, to match
                         // what would have happened if the error had been detected in the "fast fail" validation
@@ -404,13 +404,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     private void cancelDatafeedStart(
-        PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
+        PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(), null, new ActionListener<>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+            public void onResponse(PersistentTasksExtensionMetadata.PersistentTask<?> task) {
                 // We succeeded in cancelling the persistent task, but the
                 // problem that caused us to cancel it is the overall result
                 listener.onFailure(exception);
@@ -485,7 +485,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        public PersistentTasksExtensionMetadata.Assignment getAssignment(
             StartDatafeedAction.DatafeedParams params,
             Collection<DiscoveryNode> candidateNodes,
             ClusterState clusterState
@@ -547,7 +547,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             String type,
             String action,
             TaskId parentTaskId,
-            PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
+            PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
             Map<String, String> headers
         ) {
             return new DatafeedTask(id, type, action, parentTaskId, persistentTask.getParams(), headers);
@@ -709,17 +709,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class DatafeedPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+    private static class DatafeedPredicate implements Predicate<PersistentTasksExtensionMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
         private volatile String node = "";
 
         @Override
-        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksExtensionMetadata.PersistentTask<?> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }
-            PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
+            PersistentTasksExtensionMetadata.Assignment assignment = persistentTask.getAssignment();
             if (assignment != null) {
                 // This means we are awaiting the datafeed's job to be assigned to a node
                 if (assignment.equals(DatafeedNodeSelector.AWAITING_JOB_ASSIGNMENT)) {
@@ -729,7 +729,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 if (assignment.equals(DatafeedNodeSelector.AWAITING_JOB_RELOCATION)) {
                     return true;
                 }
-                if (assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false && assignment.isAssigned() == false) {
+                if (assignment.equals(PersistentTasksExtensionMetadata.INITIAL_ASSIGNMENT) == false && assignment.isAssigned() == false) {
                     // Assignment has failed despite passing our "fast fail" validation
                     exception = new ElasticsearchStatusException(
                         "Could not start datafeed, allocation explanation [" + assignment.getExplanation() + "]",

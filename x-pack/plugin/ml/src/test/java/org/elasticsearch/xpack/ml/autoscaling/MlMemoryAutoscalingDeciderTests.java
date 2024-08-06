@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -1274,11 +1274,11 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
         final String analyticsId = "waiting-analytics";
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addAnalyticsTask(analyticsId, null, DataFrameAnalyticsState.STARTING, tasksBuilder);
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build());
+        metadata.putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build());
         clusterStateBuilder.metadata(metadata);
         ClusterState clusterState = clusterStateBuilder.build();
 
@@ -1324,7 +1324,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         for (DiscoveryNode node : nodeList) {
             nodesBuilder.add(node);
         }
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         for (String jobId : ongoingAnomalyTasks) {
             OpenJobPersistentTasksExecutorTests.addJobTask(
                 jobId,
@@ -1347,7 +1347,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                 MlTasks.datafeedTaskId(jobId + "-datafeed"),
                 MlTasks.DATAFEED_TASK_NAME,
                 dfParams,
-                new PersistentTasksCustomMetadata.Assignment(nodeAssignment, "test")
+                new PersistentTasksExtensionMetadata.Assignment(nodeAssignment, "test")
             );
         }
         for (String analyticsId : analyticsTasks) {
@@ -1370,11 +1370,11 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         for (String job : waitingAnomalyTasks) {
             addJobTask(job, null, null, tasksBuilder);
         }
-        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+        PersistentTasksExtensionMetadata tasks = tasksBuilder.build();
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         cs.nodes(nodesBuilder);
         Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
+        metadata.putCustom(PersistentTasksExtensionMetadata.TYPE, tasks);
         cs.metadata(metadata);
         return cs.build();
     }
@@ -1403,13 +1403,13 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         String jobId,
         String nodeId,
         DataFrameAnalyticsState jobState,
-        PersistentTasksCustomMetadata.Builder builder
+        PersistentTasksExtensionMetadata.Builder builder
     ) {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(jobId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams(jobId, MlConfigVersion.CURRENT, true),
-            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksExtensionMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
             builder.updateTaskState(
@@ -1419,12 +1419,12 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         }
     }
 
-    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetadata.Builder builder) {
+    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksExtensionMetadata.Builder builder) {
         builder.addTask(
             MlTasks.jobTaskId(jobId),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams(jobId),
-            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksExtensionMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
             builder.updateTaskState(

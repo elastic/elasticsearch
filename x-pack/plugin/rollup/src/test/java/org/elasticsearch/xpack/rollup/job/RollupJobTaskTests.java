@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.tasks.TaskId;
@@ -312,7 +312,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 @Override
                 public void updatePersistentTaskState(
                     PersistentTaskState taskState,
-                    ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+                    ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
                 ) {
                     assertThat(taskState, instanceOf(RollupJobStatus.class));
                     int c = counter.get();
@@ -326,12 +326,12 @@ public class RollupJobTaskTests extends ESTestCase {
                         fail("Should not have updated persistent statuses > 3 times");
                     }
                     listener.onResponse(
-                        new PersistentTasksCustomMetadata.PersistentTask<>(
+                        new PersistentTasksExtensionMetadata.PersistentTask<>(
                             "foo",
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksExtensionMetadata.Assignment("foo", "foo")
                         )
                     );
                     counter.incrementAndGet();
@@ -423,17 +423,17 @@ public class RollupJobTaskTests extends ESTestCase {
             @Override
             public void updatePersistentTaskState(
                 PersistentTaskState taskState,
-                ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+                ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
             ) {
                 assertThat(taskState, instanceOf(RollupJobStatus.class));
                 assertThat(((RollupJobStatus) taskState).getIndexerState(), equalTo(IndexerState.STARTED));
                 listener.onResponse(
-                    new PersistentTasksCustomMetadata.PersistentTask<>(
+                    new PersistentTasksExtensionMetadata.PersistentTask<>(
                         "foo",
                         RollupField.TASK_NAME,
                         job,
                         1,
-                        new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                        new PersistentTasksExtensionMetadata.Assignment("foo", "foo")
                     )
                 );
             }
@@ -482,17 +482,17 @@ public class RollupJobTaskTests extends ESTestCase {
             @Override
             public void updatePersistentTaskState(
                 PersistentTaskState taskState,
-                ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+                ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
             ) {
                 assertThat(taskState, instanceOf(RollupJobStatus.class));
                 assertThat(((RollupJobStatus) taskState).getIndexerState(), equalTo(IndexerState.STARTED));
                 listener.onResponse(
-                    new PersistentTasksCustomMetadata.PersistentTask<>(
+                    new PersistentTasksExtensionMetadata.PersistentTask<>(
                         "foo",
                         RollupField.TASK_NAME,
                         job,
                         1,
-                        new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                        new PersistentTasksExtensionMetadata.Assignment("foo", "foo")
                     )
                 );
             }
@@ -544,17 +544,17 @@ public class RollupJobTaskTests extends ESTestCase {
             @Override
             public void updatePersistentTaskState(
                 PersistentTaskState taskState,
-                ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+                ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
             ) {
                 assertThat(taskState, instanceOf(RollupJobStatus.class));
                 assertThat(((RollupJobStatus) taskState).getIndexerState(), equalTo(IndexerState.STARTED));
                 listener.onResponse(
-                    new PersistentTasksCustomMetadata.PersistentTask<>(
+                    new PersistentTasksExtensionMetadata.PersistentTask<>(
                         "foo",
                         RollupField.TASK_NAME,
                         job,
                         1,
-                        new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                        new PersistentTasksExtensionMetadata.Assignment("foo", "foo")
                     )
                 );
             }
@@ -638,19 +638,19 @@ public class RollupJobTaskTests extends ESTestCase {
             @Override
             public void updatePersistentTaskState(
                 PersistentTaskState taskState,
-                ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+                ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
             ) {
                 Integer counterValue = counter.getAndIncrement();
                 if (counterValue == 0) {
                     assertThat(taskState, instanceOf(RollupJobStatus.class));
                     assertThat(((RollupJobStatus) taskState).getIndexerState(), equalTo(IndexerState.STARTED));
                     listener.onResponse(
-                        new PersistentTasksCustomMetadata.PersistentTask<>(
+                        new PersistentTasksExtensionMetadata.PersistentTask<>(
                             "foo",
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksExtensionMetadata.Assignment("foo", "foo")
                         )
                     );
                 } else if (counterValue == 1) {
@@ -747,19 +747,19 @@ public class RollupJobTaskTests extends ESTestCase {
             @Override
             public void updatePersistentTaskState(
                 PersistentTaskState taskState,
-                ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+                ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
             ) {
                 Integer counterValue = counter.getAndIncrement();
                 if (counterValue == 0) {
                     assertThat(taskState, instanceOf(RollupJobStatus.class));
                     assertThat(((RollupJobStatus) taskState).getIndexerState(), equalTo(IndexerState.STARTED));
                     listener.onResponse(
-                        new PersistentTasksCustomMetadata.PersistentTask<>(
+                        new PersistentTasksExtensionMetadata.PersistentTask<>(
                             "foo",
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksExtensionMetadata.Assignment("foo", "foo")
                         )
                     );
                 } else if (counterValue == 1) {
@@ -858,19 +858,19 @@ public class RollupJobTaskTests extends ESTestCase {
             @Override
             public void updatePersistentTaskState(
                 PersistentTaskState taskState,
-                ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+                ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
             ) {
                 Integer counterValue = counter.getAndIncrement();
                 if (counterValue == 0) {
                     assertThat(taskState, instanceOf(RollupJobStatus.class));
                     assertThat(((RollupJobStatus) taskState).getIndexerState(), equalTo(IndexerState.STARTED));
                     listener.onResponse(
-                        new PersistentTasksCustomMetadata.PersistentTask<>(
+                        new PersistentTasksExtensionMetadata.PersistentTask<>(
                             "foo",
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksExtensionMetadata.Assignment("foo", "foo")
                         )
                     );
                 } else if (counterValue == 1) {
@@ -971,7 +971,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 @Override
                 public void updatePersistentTaskState(
                     PersistentTaskState taskState,
-                    ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+                    ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
                 ) {
                     assertThat(taskState, instanceOf(RollupJobStatus.class));
                     int c = counter.get();
@@ -987,12 +987,12 @@ public class RollupJobTaskTests extends ESTestCase {
                         fail("Should not have updated persistent statuses > 4 times");
                     }
                     listener.onResponse(
-                        new PersistentTasksCustomMetadata.PersistentTask<>(
+                        new PersistentTasksExtensionMetadata.PersistentTask<>(
                             "foo",
                             RollupField.TASK_NAME,
                             job,
                             1,
-                            new PersistentTasksCustomMetadata.Assignment("foo", "foo")
+                            new PersistentTasksExtensionMetadata.Assignment("foo", "foo")
                         )
                     );
                     counter.incrementAndGet();

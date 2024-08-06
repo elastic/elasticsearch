@@ -22,7 +22,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestExtensionMetadata;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,7 +55,7 @@ public class GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testNoMetadataUpgrade() {
-        Metadata metadata = randomMetadata(new CustomMetadata1("data"));
+        Metadata metadata = randomMetadata(new ExtensionMetadata1("data"));
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList());
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertSame(upgrade, metadata);
@@ -66,7 +66,7 @@ public class GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testCustomMetadataValidation() {
-        Metadata metadata = randomMetadata(new CustomMetadata1("data"));
+        Metadata metadata = randomMetadata(new ExtensionMetadata1("data"));
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList());
         try {
             GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
@@ -87,7 +87,7 @@ public class GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testCustomMetadataNoChange() {
-        Metadata metadata = randomMetadata(new CustomMetadata1("data"));
+        Metadata metadata = randomMetadata(new ExtensionMetadata1("data"));
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(HashMap::new));
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertSame(upgrade, metadata);
@@ -204,10 +204,10 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
-    private static class CustomMetadata1 extends TestCustomMetadata {
+    private static class ExtensionMetadata1 extends TestExtensionMetadata {
         public static final String TYPE = "custom_md_1";
 
-        CustomMetadata1(String data) {
+        ExtensionMetadata1(String data) {
             super(data);
         }
 
@@ -227,9 +227,9 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
-    private static Metadata randomMetadata(TestCustomMetadata... customMetadatas) {
+    private static Metadata randomMetadata(TestExtensionMetadata... customMetadatas) {
         Metadata.Builder builder = Metadata.builder();
-        for (TestCustomMetadata customMetadata : customMetadatas) {
+        for (TestExtensionMetadata customMetadata : customMetadatas) {
             builder.putCustom(customMetadata.getWriteableName(), customMetadata);
         }
         for (int i = 0; i < randomIntBetween(1, 5); i++) {

@@ -12,7 +12,7 @@ IMPORTANT: Elastic does not endorse, promote or provide support for this applica
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 Note::
-Pre 13.0 versions of DbVisualizer can still connect to {es} by having the <<sql-jdbc, JDBC driver>> set up from the generic *Custom* template.
+Pre 13.0 versions of DbVisualizer can still connect to {es} by having the <<sql-jdbc, JDBC driver>> set up from the generic *MetadataExtension* template.
 
 ==== Setup the {es} JDBC driver
 

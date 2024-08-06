@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
@@ -40,7 +40,7 @@ public class TransportFollowStatsActionTests extends ESTestCase {
         IndexMetadata index2 = IndexMetadata.builder("index2").settings(indexSettings).build();
         IndexMetadata index3 = IndexMetadata.builder("index3").settings(indexSettings).build();
 
-        PersistentTasksCustomMetadata.Builder persistentTasks = PersistentTasksCustomMetadata.builder()
+        PersistentTasksExtensionMetadata.Builder persistentTasks = PersistentTasksExtensionMetadata.builder()
             .addTask("1", ShardFollowTask.NAME, createShardFollowTask(index1.getIndex()), null)
             .addTask("2", ShardFollowTask.NAME, createShardFollowTask(index2.getIndex()), null)
             .addTask("3", ShardFollowTask.NAME, createShardFollowTask(index3.getIndex()), null);
@@ -48,7 +48,7 @@ public class TransportFollowStatsActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, persistentTasks.build())
                     // only add index1 and index2
                     .put(index1, false)
                     .put(index2, false)

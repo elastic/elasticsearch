@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -97,12 +97,12 @@ public class MlMemoryTrackerTests extends ESTestCase {
             memoryTracker.offMaster();
         }
 
-        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = new HashMap<>();
+        Map<String, PersistentTasksExtensionMetadata.PersistentTask<?>> tasks = new HashMap<>();
 
         int numAnomalyDetectorJobTasks = randomIntBetween(2, 5);
         for (int i = 1; i <= numAnomalyDetectorJobTasks; ++i) {
             String jobId = "job" + i;
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
             tasks.put(task.getId(), task);
         }
 
@@ -111,7 +111,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         for (int i = numAnomalyDetectorJobTasks; i < numAnomalyDetectorJobTasks + numSnapshotUpgradeTasks; ++i) {
             String jobId = "job" + i;
             String snapshotId = Long.toString(randomLongBetween(1000000000L, 9999999999L));
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestSnapshotUpgradeTask(jobId, snapshotId);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestSnapshotUpgradeTask(jobId, snapshotId);
             tasks.put(task.getId(), task);
         }
 
@@ -120,11 +120,11 @@ public class MlMemoryTrackerTests extends ESTestCase {
         for (int i = 1; i <= numDataFrameAnalyticsTasks; ++i) {
             String id = "analytics" + i;
             allIds.add(id);
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
             tasks.put(task.getId(), task);
         }
 
-        PersistentTasksCustomMetadata persistentTasks = new PersistentTasksCustomMetadata(
+        PersistentTasksExtensionMetadata persistentTasks = new PersistentTasksExtensionMetadata(
             numAnomalyDetectorJobTasks + numSnapshotUpgradeTasks + numDataFrameAnalyticsTasks,
             tasks
         );
@@ -165,7 +165,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             memoryTracker.offMaster();
         }
 
-        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = new HashMap<>();
+        Map<String, PersistentTasksExtensionMetadata.PersistentTask<?>> tasks = new HashMap<>();
 
         Set<String> toSkip = new HashSet<>();
 
@@ -175,7 +175,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             if (randomBoolean()) {
                 toSkip.add(jobId);
             }
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
             tasks.put(task.getId(), task);
         }
 
@@ -184,7 +184,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         for (int i = numAnomalyDetectorJobTasks; i < numAnomalyDetectorJobTasks + numSnapshotUpgradeTasks; ++i) {
             String jobId = "job" + i;
             String snapshotId = Long.toString(randomLongBetween(1000000000L, 9999999999L));
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestSnapshotUpgradeTask(jobId, snapshotId);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestSnapshotUpgradeTask(jobId, snapshotId);
             tasks.put(task.getId(), task);
         }
 
@@ -193,11 +193,11 @@ public class MlMemoryTrackerTests extends ESTestCase {
         for (int i = 1; i <= numDataFrameAnalyticsTasks; ++i) {
             String id = "analytics" + i;
             allIds.add(id);
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
             tasks.put(task.getId(), task);
         }
 
-        PersistentTasksCustomMetadata persistentTasks = new PersistentTasksCustomMetadata(
+        PersistentTasksExtensionMetadata persistentTasks = new PersistentTasksExtensionMetadata(
             numAnomalyDetectorJobTasks + numSnapshotUpgradeTasks + numDataFrameAnalyticsTasks,
             tasks
         );
@@ -235,30 +235,30 @@ public class MlMemoryTrackerTests extends ESTestCase {
 
     public void testRefreshAllFailure() {
 
-        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = new HashMap<>();
+        Map<String, PersistentTasksExtensionMetadata.PersistentTask<?>> tasks = new HashMap<>();
 
         int numAnomalyDetectorJobTasks = randomIntBetween(2, 5);
         for (int i = 1; i <= numAnomalyDetectorJobTasks; ++i) {
             String jobId = "job" + i;
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
             tasks.put(task.getId(), task);
         }
 
         int numSnapshotUpgradeTasks = randomIntBetween(1, 3);
         for (int i = numAnomalyDetectorJobTasks; i < numAnomalyDetectorJobTasks + numSnapshotUpgradeTasks; ++i) {
             String jobId = "job" + i;
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
             tasks.put(task.getId(), task);
         }
 
         int numDataFrameAnalyticsTasks = randomIntBetween(2, 5);
         for (int i = 1; i <= numDataFrameAnalyticsTasks; ++i) {
             String id = "analytics" + i;
-            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
             tasks.put(task.getId(), task);
         }
 
-        PersistentTasksCustomMetadata persistentTasks = new PersistentTasksCustomMetadata(
+        PersistentTasksExtensionMetadata persistentTasks = new PersistentTasksExtensionMetadata(
             numAnomalyDetectorJobTasks + numSnapshotUpgradeTasks + numDataFrameAnalyticsTasks,
             tasks
         );
@@ -385,39 +385,39 @@ public class MlMemoryTrackerTests extends ESTestCase {
         assertThat(MlMemoryTracker.max(Duration.ofMinutes(5), Duration.ofMinutes(5)), equalTo(Duration.ofMinutes(5)));
     }
 
-    private PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> makeTestAnomalyDetectorTask(String jobId) {
-        return new PersistentTasksCustomMetadata.PersistentTask<>(
+    private PersistentTasksExtensionMetadata.PersistentTask<OpenJobAction.JobParams> makeTestAnomalyDetectorTask(String jobId) {
+        return new PersistentTasksExtensionMetadata.PersistentTask<>(
             MlTasks.jobTaskId(jobId),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams(jobId),
             0,
-            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+            PersistentTasksExtensionMetadata.INITIAL_ASSIGNMENT
         );
     }
 
-    private PersistentTasksCustomMetadata.PersistentTask<SnapshotUpgradeTaskParams> makeTestSnapshotUpgradeTask(
+    private PersistentTasksExtensionMetadata.PersistentTask<SnapshotUpgradeTaskParams> makeTestSnapshotUpgradeTask(
         String jobId,
         String snapshotId
     ) {
-        return new PersistentTasksCustomMetadata.PersistentTask<>(
+        return new PersistentTasksExtensionMetadata.PersistentTask<>(
             MlTasks.snapshotUpgradeTaskId(jobId, snapshotId),
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams(jobId, snapshotId),
             0,
-            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+            PersistentTasksExtensionMetadata.INITIAL_ASSIGNMENT
         );
     }
 
-    private PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> makeTestDataFrameAnalyticsTask(
+    private PersistentTasksExtensionMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> makeTestDataFrameAnalyticsTask(
         String id,
         boolean allowLazyStart
     ) {
-        return new PersistentTasksCustomMetadata.PersistentTask<>(
+        return new PersistentTasksExtensionMetadata.PersistentTask<>(
             MlTasks.dataFrameAnalyticsTaskId(id),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams(id, MlConfigVersion.CURRENT, allowLazyStart),
             0,
-            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+            PersistentTasksExtensionMetadata.INITIAL_ASSIGNMENT
         );
     }
 

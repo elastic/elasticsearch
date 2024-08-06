@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
@@ -34,7 +34,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.TRANSFORM_ROLE;
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
+import static org.elasticsearch.persistent.PersistentTasksExtensionMetadata.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -51,18 +51,18 @@ public class TransformNodesTests extends ESTestCase {
         String transformIdOther = "df-id-other";
         String transformIdStopped = "df-id-stopped";
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         tasksBuilder.addTask(
             transformIdFoo,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdFoo, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-1", "test assignment")
         );
         tasksBuilder.addTask(
             transformIdBar,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdBar, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.addTask("test-task1", "testTasks", new PersistentTaskParams() {
             @Override
@@ -84,28 +84,28 @@ public class TransformNodesTests extends ESTestCase {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) {
                 return null;
             }
-        }, new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment"));
+        }, new PersistentTasksExtensionMetadata.Assignment("node-3", "test assignment"));
         tasksBuilder.addTask(
             transformIdFailed,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdFailed, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment(null, "awaiting reassignment after node loss")
+            new PersistentTasksExtensionMetadata.Assignment(null, "awaiting reassignment after node loss")
         );
         tasksBuilder.addTask(
             transformIdBaz,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdBaz, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.addTask(
             transformIdOther,
             TransformField.TASK_NAME,
             new TransformTaskParams(transformIdOther, TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node-3", "test assignment")
         );
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()))
             .build();
 
         // don't ask for transformIdOther
@@ -282,7 +282,7 @@ public class TransformNodesTests extends ESTestCase {
             TimeValue.timeValueSeconds(10),
             false
         );
-        PersistentTasksCustomMetadata.Assignment assignment2 = new PersistentTasksCustomMetadata.Assignment(
+        PersistentTasksExtensionMetadata.Assignment assignment2 = new PersistentTasksExtensionMetadata.Assignment(
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
@@ -290,8 +290,8 @@ public class TransformNodesTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        PersistentTasksCustomMetadata.builder()
+                        PersistentTasksExtensionMetadata.TYPE,
+                        PersistentTasksExtensionMetadata.builder()
                             .addTask("transform-1", TransformTaskParams.NAME, transformTaskParams1, null)
                             .addTask("transform-2", TransformTaskParams.NAME, transformTaskParams2, assignment2)
                             .build()

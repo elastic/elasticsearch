@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -35,7 +36,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class AutoscalingMetadata implements Metadata.Custom {
+public class AutoscalingMetadata implements MetadataExtension {
 
     public static final String NAME = "autoscaling";
 
@@ -103,7 +104,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(final Metadata.Custom previousState) {
+    public Diff<MetadataExtension> diff(final MetadataExtension previousState) {
         return new AutoscalingMetadataDiff((AutoscalingMetadata) previousState, this);
     }
 
@@ -135,7 +136,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
         return Objects.hash(policies);
     }
 
-    public static class AutoscalingMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class AutoscalingMetadataDiff implements NamedDiff<MetadataExtension> {
 
         final Diff<Map<String, AutoscalingPolicyMetadata>> policies;
 
@@ -153,7 +154,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(final Metadata.Custom part) {
+        public MetadataExtension apply(final MetadataExtension part) {
             return new AutoscalingMetadata(new TreeMap<>(policies.apply(((AutoscalingMetadata) part).policies)));
         }
 

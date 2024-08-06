@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
+public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<MetadataExtension> {
 
     public void testInsertNewNodeShutdownMetadata() {
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
@@ -122,7 +122,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<MetadataExtension>> diffReader() {
         return NodesShutdownMetadata.NodeShutdownMetadataDiff::new;
     }
 
@@ -132,7 +132,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<MetadataExtension> instanceReader() {
         return NodesShutdownMetadata::new;
     }
 
@@ -161,12 +161,12 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     }
 
     @Override
-    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+    protected MetadataExtension makeTestChanges(MetadataExtension testInstance) {
         return randomValueOtherThan(testInstance, this::createTestInstance);
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
+    protected MetadataExtension mutateInstance(MetadataExtension instance) {
         return makeTestChanges(instance);
     }
 }

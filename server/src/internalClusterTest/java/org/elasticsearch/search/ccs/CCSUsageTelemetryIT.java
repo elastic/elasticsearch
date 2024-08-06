@@ -11,6 +11,7 @@ package org.elasticsearch.search.ccs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
+import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -50,8 +51,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
-import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result.REMOTES_UNAVAILABLE;
-import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result.UNKNOWN;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -342,8 +341,8 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(telemetry.getTook().count(), equalTo(0L));
         assertThat(telemetry.getTookMrtTrue().count(), equalTo(0L));
         assertThat(telemetry.getTookMrtFalse().count(), equalTo(0L));
-        assertThat(telemetry.getFailureReasons().size(), equalTo(1));
-        assertThat(telemetry.getFailureReasons().get(UNKNOWN.getName()), equalTo(1L));
+        Map<String, Long> expectedFailures = Map.of(Result.UNKNOWN.getName(), 1L);
+        assertThat(telemetry.getFailureReasons(), equalTo(expectedFailures));
     }
 
     /**
@@ -509,8 +508,8 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         // Still count the remote that failed
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(1L));
         assertThat(telemetry.getTook().count(), equalTo(0L));
-        assertThat(telemetry.getFailureReasons().size(), equalTo(1));
-        assertThat(telemetry.getFailureReasons().get(REMOTES_UNAVAILABLE.getName()), equalTo(1L));
+        Map<String, Long> expectedFailure = Map.of(Result.TIMEOUT.getName(), 1L);
+        assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
         // No per-cluster data on total failure
         assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
     }
@@ -541,8 +540,8 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         // Still count the remote that failed
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
         assertThat(telemetry.getTook().count(), equalTo(0L));
-        assertThat(telemetry.getFailureReasons().size(), equalTo(1));
-        assertThat(telemetry.getFailureReasons().get(REMOTES_UNAVAILABLE.getName()), equalTo(1L));
+        Map<String, Long> expectedFailure = Map.of(Result.REMOTES_UNAVAILABLE.getName(), 1L);
+        assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
         // No per-cluster data on total failure
         assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
     }
@@ -562,6 +561,21 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(perCluster.get(REMOTE1).getCount(), equalTo(1L));
         assertThat(perCluster.get(REMOTE1).getTook().count(), equalTo(1L));
         assertThat(perCluster.get(REMOTE2), equalTo(null));
+    }
+
+    /**
+     * Test that we're still counting remote search even if remote cluster has no such index
+     */
+    @SkipOverride(aliases = { REMOTE1 })
+    public void testRemoteHasNoIndexFailure() throws Exception {
+        SearchRequest searchRequest = makeSearchRequest(REMOTE1 + ":no_such_index");
+        CCSTelemetrySnapshot telemetry = getTelemetryFromFailedSearch(searchRequest);
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(0L));
+        var perCluster = telemetry.getByRemoteCluster();
+        assertThat(perCluster.size(), equalTo(0));
+        Map<String, Long> expectedFailure = Map.of(Result.NOT_FOUND.getName(), 1L);
+        assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
     }
 
     private CCSTelemetrySnapshot getTelemetrySnapshot(String nodeName) {

@@ -10,7 +10,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -79,6 +81,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -86,6 +89,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
@@ -1926,21 +1930,33 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         /**
-         * Determine the failure type for telemetry from the exception.
+         * Determine the failure type for telemetry from the exception and its underlying causes.
          */
         private Result getFailureType(Exception e) {
-            // TODO: better failure recognition
             var unwrapped = ExceptionsHelper.unwrapCause(e);
             if (unwrapped instanceof Exception) {
                 e = (Exception) unwrapped;
             }
-            if (e instanceof RemoteTransportException) {
-                return Result.REMOTES_UNAVAILABLE;
+            if (ExceptionsHelper.unwrapCorruption(e) != null) {
+                return Result.CORRUPTION;
+            }
+            if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
+                return Result.NOT_FOUND;
+            }
+            if (ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class) != null) {
+                return Result.SECURITY;
+            }
+            if (ExceptionsHelper.unwrap(e, SearchTimeoutException.class) != null) {
+                return Result.TIMEOUT;
             }
             if (e instanceof TaskCancelledException || (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null)) {
                 return Result.CANCELED;
             }
+            if (ExceptionsHelper.unwrap(e, TransportException.class) != null) {
+                return Result.REMOTES_UNAVAILABLE;
+            }
             if (e instanceof SearchPhaseExecutionException spe) {
+                // If this is a failure that happened because of remote failures only
                 var groupedFails = ExceptionsHelper.groupBy(spe.shardFailures());
                 if (Arrays.stream(groupedFails).allMatch(SearchResponseActionListener::isRemoteFailure)) {
                     return Result.REMOTES_UNAVAILABLE;

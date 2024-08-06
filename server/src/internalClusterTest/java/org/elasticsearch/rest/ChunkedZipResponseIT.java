@@ -215,10 +215,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                     entryIterator,
                     (ref, entry) -> randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic()).execute(
                         ActionRunnable.supply(
-                            chunkedZipResponse.newEntryListener(
-                                entry.getKey(),
-                                Releasables.wrap(ref, refs.acquire())
-                            ),
+                            chunkedZipResponse.newEntryListener(entry.getKey(), Releasables.wrap(ref, refs.acquire())),
                             () -> entry.getValue() == null && randomBoolean() // randomBoolean() to allow some null entries to fail with NPE
                                 ? null
                                 : new TestBytesReferenceBodyPart(entry.getKey(), threadPool, entry.getValue().parts().iterator(), refs)

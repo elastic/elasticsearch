@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -798,6 +799,24 @@ public final class ThreadContext implements Writeable, TraceContext {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
 
+        private void logWarningHeaderThresholdExceeded(long threshold, Setting<?> thresholdSetting) {
+            // If available, log some selected headers to help identifying the source of the request.
+            // Note: Only Task.HEADERS_TO_COPY are guaranteed to be preserved at this point.
+            Map<String, String> selectedHeaders = new HashMap<>(requestHeaders);
+            selectedHeaders.keySet().retainAll(List.of(Task.X_OPAQUE_ID_HTTP_HEADER, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
+
+            String messagePattern = HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.equals(thresholdSetting)
+                ? "Dropping a warning header{}, as their total size reached the maximum allowed of [{}] bytes set in [{}]!"
+                : "Dropping a warning header{}, as their total count reached the maximum allowed of [{}] set in [{}]!";
+
+            logger.warn(
+                messagePattern,
+                selectedHeaders.isEmpty() ? "" : Strings.format(" for request [%s]", selectedHeaders),
+                threshold,
+                thresholdSetting.getKey()
+            );
+        }
+
         private ThreadContextStruct putResponse(
             final String key,
             final String value,
@@ -810,24 +829,12 @@ public final class ThreadContext implements Writeable, TraceContext {
             // check if we can add another warning header - if max size within limits
             if (key.equals("Warning") && (maxWarningHeaderSize != -1)) { // if size is NOT unbounded, check its limits
                 if (warningHeadersSize > maxWarningHeaderSize) { // if max size has already been reached before
-                    logger.warn(
-                        "Dropping a warning header, as their total size reached the maximum allowed of ["
-                            + maxWarningHeaderSize
-                            + "] bytes set in ["
-                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey()
-                            + "]!"
-                    );
+                    logWarningHeaderThresholdExceeded(maxWarningHeaderSize, HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE);
                     return this;
                 }
                 newWarningHeaderSize += "Warning".getBytes(StandardCharsets.UTF_8).length + value.getBytes(StandardCharsets.UTF_8).length;
                 if (newWarningHeaderSize > maxWarningHeaderSize) {
-                    logger.warn(
-                        "Dropping a warning header, as their total size reached the maximum allowed of ["
-                            + maxWarningHeaderSize
-                            + "] bytes set in ["
-                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey()
-                            + "]!"
-                    );
+                    logWarningHeaderThresholdExceeded(maxWarningHeaderSize, HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE);
                     return new ThreadContextStruct(
                         requestHeaders,
                         responseHeaders,
@@ -857,13 +864,7 @@ public final class ThreadContext implements Writeable, TraceContext {
             if ((key.equals("Warning")) && (maxWarningHeaderCount != -1)) { // if count is NOT unbounded, check its limits
                 final int warningHeaderCount = newResponseHeaders.containsKey("Warning") ? newResponseHeaders.get("Warning").size() : 0;
                 if (warningHeaderCount > maxWarningHeaderCount) {
-                    logger.warn(
-                        "Dropping a warning header, as their total count reached the maximum allowed of ["
-                            + maxWarningHeaderCount
-                            + "] set in ["
-                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey()
-                            + "]!"
-                    );
+                    logWarningHeaderThresholdExceeded(maxWarningHeaderCount, HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT);
                     return this;
                 }
             }

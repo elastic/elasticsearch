@@ -23,6 +23,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
+
 public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobLocation> {
 
     @Override
@@ -32,42 +34,38 @@ public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobL
 
     @Override
     protected BlobLocation createTestInstance() {
-        return blobLocation(
+        return createBlobLocation(
             randomLongBetween(1, 10),
-            StatelessCompoundCommit.PREFIX + randomLongBetween(1, 1000),
+            randomLongBetween(1, 1000),
             randomLongBetween(0, 100),
             randomLongBetween(100, 1000)
         );
     }
 
-    private static BlobLocation blobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
-        return new BlobLocation(primaryTerm, blobName, offset, fileLength);
-    }
-
     @Override
     protected BlobLocation mutateInstance(BlobLocation instance) throws IOException {
         return switch (randomIntBetween(0, 3)) {
-            case 0 -> new BlobLocation(
+            case 0 -> createBlobLocation(
                 randomValueOtherThan(instance.primaryTerm(), () -> randomLongBetween(1, 10)),
-                instance.blobName(),
+                instance.compoundFileGeneration(),
                 instance.offset(),
                 instance.fileLength()
             );
-            case 1 -> new BlobLocation(
+            case 1 -> createBlobLocation(
                 instance.primaryTerm(),
-                randomValueOtherThan(instance.blobName(), () -> StatelessCompoundCommit.PREFIX + randomLongBetween(1, 1000)),
+                randomValueOtherThan(instance.compoundFileGeneration(), () -> randomLongBetween(1, 1000)),
                 instance.offset(),
                 instance.fileLength()
             );
-            case 2 -> blobLocation(
+            case 2 -> createBlobLocation(
                 instance.primaryTerm(),
-                instance.blobName(),
+                instance.compoundFileGeneration(),
                 randomValueOtherThan(instance.offset(), () -> randomLongBetween(0, 100)),
                 instance.fileLength()
             );
-            case 3 -> blobLocation(
+            case 3 -> createBlobLocation(
                 instance.primaryTerm(),
-                instance.blobName(),
+                instance.compoundFileGeneration(),
                 instance.offset(),
                 randomValueOtherThan(instance.fileLength(), () -> randomLongBetween(100, 1000))
             );

@@ -60,6 +60,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -238,7 +239,7 @@ public class SearchDirectoryTests extends ESTestCase {
                             .collect(
                                 Collectors.toUnmodifiableMap(
                                     ChecksummedFile::fileName,
-                                    f -> new BlobLocation(primaryTerm, blobName, f.fileOffset, f.fileLength)
+                                    f -> createBlobLocation(primaryTerm, 1L, f.fileOffset, f.fileLength)
                                 )
                             ),
                         blobLength,

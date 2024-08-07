@@ -20,10 +20,8 @@ PUT _ingest/geoip/database/my-database-id
     "account_id": "1025402"
   }
 }
-// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
-
 ----
-
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
 [[put-geoip-database-api-request]]
 ==== {api-request-title}
@@ -44,9 +42,6 @@ PUT _ingest/geoip/database/my-database-id
 +
 __
 (Required, string) ID of the database configuration to create or update.
-
---
-
 
 [[put-geoip-database-api-query-params]]
 ==== {api-query-parms-title}

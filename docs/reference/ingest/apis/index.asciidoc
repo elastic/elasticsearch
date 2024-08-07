@@ -25,8 +25,8 @@ Use the following APIs to get statistics about ingest processing:
 the <<geoip-processor,`geoip` processor>>.
 
 include::put-pipeline.asciidoc[]
-include::delete-pipeline.asciidoc[]
-include::geoip-stats-api.asciidoc[]
 include::get-pipeline.asciidoc[]
+include::delete-pipeline.asciidoc[]
 include::simulate-pipeline.asciidoc[]
 include::simulate-ingest.asciidoc[]
+include::geoip-stats-api.asciidoc[]

@@ -14,7 +14,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
-import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -58,6 +57,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -559,7 +559,7 @@ public class ComputeService {
         );
         transportService.sendChildRequest(
             transportService.getLocalNode(),
-            TransportSearchShardsAction.TYPE.name(),
+            EsqlSearchShardsAction.TYPE.name(),
             searchShardsRequest,
             parentTask,
             TransportRequestOptions.EMPTY,

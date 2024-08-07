@@ -300,7 +300,7 @@ public class ClientYamlTestExecutionContext {
         }
         params.put("error_trace", "false"); // disable error trace
 
-        if (clusterHasFeature(RestNodesCapabilitiesAction.LOCAL_ONLY_CAPABILITIES.id()) == false) {
+        if (clusterHasFeature(RestNodesCapabilitiesAction.LOCAL_ONLY_CAPABILITIES.id(), false) == false) {
             // can only check the whole cluster
             if (any) {
                 logger.warn(

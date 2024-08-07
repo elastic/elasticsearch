@@ -626,7 +626,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             numericValue = null;
         } else {
             try {
-                if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                if (parser.currentToken().isValue() == false) {
+                    if (ignoreMalformed.value()) {
+                        context.addIgnoredField(mappedFieldType.name());
+                        if (isSourceSynthetic) {
+                            context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                        }
+                        // NOTE: make sure we parse till the end to avoid the parser ends up in an illegal state
+                        parser.skipChildren();
+                        return;
+                    }
+                    numericValue = parseUnsignedLong(parser.text());
+                } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                     numericValue = parseUnsignedLong(parser.numberValue());
                 } else {
                     numericValue = parseUnsignedLong(parser.text());
@@ -635,7 +646,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
-                        // Save a copy of the field so synthetic source can load it
                         context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                     }
                     return;

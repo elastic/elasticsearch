@@ -1,0 +1,262 @@
+---
+"unsigned_long with ignore_malformed in synthetic source":
+  - do:
+      indices.create:
+        index: test-synthetic
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              ul_ignored:
+                type: unsigned_long
+                ignore_malformed: true
+              ul_not_ignored:
+                type: unsigned_long
+                ignore_malformed: false
+
+  - do:
+      catch: bad_request
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "1"
+        body: { "ul_ignored": 2000, "ul_not_ignored": { "key": "bar", value: 200 } }
+
+  - match: { error.root_cause.0.type: "document_parsing_exception" }
+
+  - do:
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "2"
+        body: { "ul_ignored": { "key": "foo", "value": 100 }, "ul_not_ignored": 1000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "3"
+        body: { "ul_ignored": [ 100, 200, 300 ], "ul_not_ignored": 3000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "4"
+        body: { "ul_ignored": [ { "key": "a", "value": 100 }, { "key": "b", "value": 200 } ], "ul_not_ignored": 4000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "5"
+        body: { "ul_ignored": [1, { "key": "foo", "value": "bar" }, 3], "ul_not_ignored": 4000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "6"
+        body: { "ul_ignored": [ 1, "foo", 3, "bar" ], "ul_not_ignored": 4000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "7"
+        body: { "ul_not_ignored": 7000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "8"
+        body: { "ul_ignored": "", "ul_not_ignored": 8000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-synthetic
+        id: "9"
+        body: { "ul_ignored": "    ", "ul_not_ignored": 9000 }
+
+  - do:
+      search:
+        index: test-synthetic
+        body:
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 8 }
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._source.ul_ignored: { "key": "foo", "value": 100 } }
+  - match: { hits.hits.0._source.ul_not_ignored: 1000 }
+  - match: { hits.hits.0._ignored.0: "ul_ignored" }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1._source.ul_ignored: [ 100, 200, 300 ] }
+  - match: { hits.hits.1._source.ul_not_ignored: 3000 }
+  - match: { hits.hits.1._ignored: null }
+
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2._source.ul_ignored: [ { "key": "a", "value": 100 }, { "key": "b", "value": 200 } ] }
+  - match: { hits.hits.2._source.ul_not_ignored: 4000 }
+  - match: { hits.hits.2._ignored.0: "ul_ignored" }
+
+  - match: { hits.hits.3._id: "5" }
+  # NOTE: values sorting is different due to synthetic source using doc values
+  - match: { hits.hits.3._source.ul_ignored: [ 1, 3, { "key": "foo", "value": "bar" } ] }
+  - match: { hits.hits.3._source.ul_not_ignored: 4000 }
+  - match: { hits.hits.3._ignored.0: "ul_ignored" }
+
+  - match: { hits.hits.4._id: "6" }
+  # NOTE: values sorting is different due to synthetic source using doc values
+  - match: { hits.hits.4._source.ul_ignored: [ 1, 3, "foo", "bar" ] }
+  - match: { hits.hits.4._source.ul_not_ignored: 4000 }
+  - match: { hits.hits.4._ignored.0: "ul_ignored" }
+
+  - match: { hits.hits.5._id: "7" }
+  - match: { hits.hits.5._source.ul_ignored: null }
+  - match: { hits.hits.5._source.ul_not_ignored: 7000 }
+
+  - match: { hits.hits.6._id: "8" }
+  # NOTE: empty string treated as null value
+  - match: { hits.hits.6._source.ul_ignored: null }
+  - match: { hits.hits.6._source.ul_not_ignored: 8000 }
+
+  - match: { hits.hits.7._id: "9" }
+  - match: { hits.hits.7._source.ul_ignored: "    " }
+  - match: { hits.hits.7._source.ul_not_ignored: 9000 }
+  - match: { hits.hits.7._ignored.0: "ul_ignored" }
+
+---
+"unsigned_long with ignore_malformed with stored source":
+  - do:
+      indices.create:
+        index: test-stored
+        body:
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              ul_ignored:
+                type: unsigned_long
+                ignore_malformed: true
+              ul_not_ignored:
+                type: unsigned_long
+                ignore_malformed: false
+
+  - do:
+      catch: bad_request
+      index:
+        refresh: true
+        index: test-stored
+        id: "1"
+        body: { "ul_ignored": 2000, "ul_not_ignored": { "key": "bar", value: 200 } }
+
+  - match: { error.root_cause.0.type: "document_parsing_exception" }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "2"
+        body: { "ul_ignored": { "key": "foo", "value": 100 }, "ul_not_ignored": 1000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "3"
+        body: { "ul_ignored": [ 100, 200, 300 ], "ul_not_ignored": 3000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "4"
+        body: { "ul_ignored": [ { "key": "a", "value": 100 }, { "key": "b", "value": 200 } ], "ul_not_ignored": 4000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "5"
+        body: { "ul_ignored": [1, { "key": "foo", "value": "bar" }, 3], "ul_not_ignored": 4000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "6"
+        body: { "ul_ignored": [ 1, "foo", 3, "bar" ], "ul_not_ignored": 4000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "7"
+        body: { "ul_not_ignored": 7000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "8"
+        body: { "ul_ignored": "", "ul_not_ignored": 8000 }
+
+  - do:
+      index:
+        refresh: true
+        index: test-stored
+        id: "9"
+        body: { "ul_ignored": "    ", "ul_not_ignored": 9000 }
+
+  - do:
+      search:
+        index: test-stored
+        body:
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 8 }
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._source.ul_ignored: { "key": "foo", "value": 100 } }
+  - match: { hits.hits.0._source.ul_not_ignored: 1000 }
+  - match: { hits.hits.0._ignored.0: "ul_ignored" }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1._source.ul_ignored: [ 100, 200, 300 ] }
+  - match: { hits.hits.1._source.ul_not_ignored: 3000 }
+  - match: { hits.hits.1._ignored: null }
+
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2._source.ul_ignored: [ { "key": "a", "value": 100 }, { "key": "b", "value": 200 } ] }
+  - match: { hits.hits.2._source.ul_not_ignored: 4000 }
+  - match: { hits.hits.2._ignored.0: "ul_ignored" }
+
+  - match: { hits.hits.3._id: "5" }
+  - match: { hits.hits.3._source.ul_ignored: [ 1, { "key": "foo", "value": "bar" }, 3 ] }
+  - match: { hits.hits.3._source.ul_not_ignored: 4000 }
+  - match: { hits.hits.3._ignored.0: "ul_ignored" }
+
+  - match: { hits.hits.4._id: "6" }
+  - match: { hits.hits.4._source.ul_ignored: [ 1, "foo", 3, "bar" ] }
+  - match: { hits.hits.4._source.ul_not_ignored: 4000 }
+  - match: { hits.hits.4._ignored.0: "ul_ignored" }
+
+  - match: { hits.hits.5._id: "7" }
+  - match: { hits.hits.5._source.ul_ignored: null }
+  - match: { hits.hits.5._source.ul_not_ignored: 7000 }
+
+  - match: { hits.hits.6._id: "8" }
+  - match: { hits.hits.6._source.ul_ignored: "" }
+  - match: { hits.hits.6._source.ul_not_ignored: 8000 }
+
+  - match: { hits.hits.7._id: "9" }
+  - match: { hits.hits.7._source.ul_ignored: "    " }
+  - match: { hits.hits.7._source.ul_not_ignored: 9000 }
+  - match: { hits.hits.7._ignored.0: "ul_ignored" }

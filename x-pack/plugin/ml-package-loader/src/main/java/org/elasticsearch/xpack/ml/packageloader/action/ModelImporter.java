@@ -85,7 +85,7 @@ class ModelImporter {
             );
 
             logger.info("put part " + part);
-            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
+//            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
             logger.info("part " + part + " put");
         }
 

@@ -479,13 +479,6 @@ public class AggregatorImplementer {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");
                 builder.beginControlFlow("if (seen.getBoolean(0))");
-                {
-                    var state = intermediateState.get(0);
-                    var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
-                    builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
-                    builder.addStatement("state.seen(true)");
-                    builder.endControlFlow();
-                }
             } else {
                 assert intermediateState.size() == 3;
                 assert intermediateState.get(1).name().equals("seen");
@@ -496,15 +489,23 @@ public class AggregatorImplementer {
                     builder.addStatement("state.seen(true)");
                 }
                 builder.nextControlFlow("else if (seen.getBoolean(0))");
-                {
-                    var state = intermediateState.get(0);
-                    // TODO: Add try-catch of warnExceptions here!
-                    var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
-                    builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
-                    builder.addStatement("state.seen(true)");
-                    builder.endControlFlow();
-                }
             }
+
+            if (warnExceptions.isEmpty() == false) {
+                builder.beginControlFlow("try");
+            }
+            var state = intermediateState.get(0);
+            var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
+            builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
+            builder.addStatement("state.seen(true)");
+            if (warnExceptions.isEmpty() == false) {
+                String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
+                builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
+                builder.addStatement("warnings.registerException(e)");
+                builder.addStatement("state.failed(true)");
+                builder.endControlFlow();
+            }
+            builder.endControlFlow();
         } else {
             throw new IllegalArgumentException("Don't know how to combine intermediate input. Define combineIntermediate");
         }

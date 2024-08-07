@@ -208,7 +208,12 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       if (failed.getBoolean(groupPosition + positionOffset)) {
         state.setFailed(groupId);
       } else if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(groupPosition + positionOffset)));
+        try {
+          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(groupPosition + positionOffset)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }

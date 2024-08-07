@@ -522,17 +522,6 @@ public class GroupingAggregatorImplementer {
                     assert intermediateState.size() == 2;
                     assert intermediateState.get(1).name().equals("seen");
                     builder.beginControlFlow("if (seen.getBoolean(groupPosition + positionOffset))");
-                    {
-                        var name = intermediateState.get(0).name();
-                        var m = vectorAccessorName(intermediateState.get(0).elementType());
-                        builder.addStatement(
-                            "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
-                            declarationType,
-                            name,
-                            m
-                        );
-                        builder.endControlFlow();
-                    }
                 } else {
                     assert intermediateState.size() == 3;
                     assert intermediateState.get(1).name().equals("seen");
@@ -542,19 +531,27 @@ public class GroupingAggregatorImplementer {
                         builder.addStatement("state.setFailed(groupId)");
                     }
                     builder.nextControlFlow("else if (seen.getBoolean(groupPosition + positionOffset))");
-                    {
-                        var name = intermediateState.get(0).name();
-                        var m = vectorAccessorName(intermediateState.get(0).elementType());
-                        // TODO: Add try-catch of warnExceptions here!
-                        builder.addStatement(
-                            "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
-                            declarationType,
-                            name,
-                            m
-                        );
-                        builder.endControlFlow();
-                    }
                 }
+
+                if (warnExceptions.isEmpty() == false) {
+                    builder.beginControlFlow("try");
+                }
+                var name = intermediateState.get(0).name();
+                var vectorAccessor = vectorAccessorName(intermediateState.get(0).elementType());
+                builder.addStatement(
+                    "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
+                    declarationType,
+                    name,
+                    vectorAccessor
+                );
+                if (warnExceptions.isEmpty() == false) {
+                    String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
+                    builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
+                    builder.addStatement("warnings.registerException(e)");
+                    builder.addStatement("state.setFailed(groupId)");
+                    builder.endControlFlow();
+                }
+                builder.endControlFlow();
             } else {
                 builder.addStatement("$T.combineIntermediate(state, groupId, " + intermediateStateRowAccess() + ")", declarationType);
             }

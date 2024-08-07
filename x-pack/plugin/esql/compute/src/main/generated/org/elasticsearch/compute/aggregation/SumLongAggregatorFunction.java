@@ -132,8 +132,13 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       state.failed(true);
       state.seen(true);
     } else if (seen.getBoolean(0)) {
-      state.longValue(SumLongAggregator.combine(state.longValue(), sum.getLong(0)));
-      state.seen(true);
+      try {
+        state.longValue(SumLongAggregator.combine(state.longValue(), sum.getLong(0)));
+        state.seen(true);
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        state.failed(true);
+      }
     }
   }
 

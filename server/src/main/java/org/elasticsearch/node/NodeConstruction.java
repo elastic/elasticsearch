@@ -840,7 +840,7 @@ class NodeConstruction {
             IndicesService indicesService,
             FeatureService featureService,
             SystemIndices systemIndices,
-            DataStreamGlobalRetentionProvider dataStreamGlobalRetentionResolver,
+            DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider,
             DocumentParsingProvider documentParsingProvider
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(

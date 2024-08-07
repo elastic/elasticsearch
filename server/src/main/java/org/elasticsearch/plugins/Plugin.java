@@ -159,7 +159,7 @@ public abstract class Plugin implements Closeable {
          * A service that resolves the data stream global retention that applies to
          * data streams managed by the data stream lifecycle.
          */
-        DataStreamGlobalRetentionProvider dataStreamGlobalRetentionResolver();
+        DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider();
 
         /**
          * A provider of utilities to observe and report parsing of documents

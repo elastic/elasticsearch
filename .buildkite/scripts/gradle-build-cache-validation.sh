@@ -12,10 +12,11 @@ curl -s -L -O https://github.com/gradle/gradle-enterprise-build-validation-scrip
 tmpOutputFile=$(mktemp)
 trap "rm $tmpOutputFile" EXIT
 
+set +e
 gradle-enterprise-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --gradle-enterprise-server https://gradle-enterprise.elastic.co -t precommit --fail-if-not-fully-cacheable | tee $tmpOutputFile
-
 # Capture the return value
 retval=$?
+set -e
 
 # Now read the content from the temporary file into a variable
 perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See https:\/\/gradle.com\/bvs\/main\/Gradle.md#performance-characteristics for details./p' | sed '$d' | sed 's/\x1b\[[0-9;]*m//g')

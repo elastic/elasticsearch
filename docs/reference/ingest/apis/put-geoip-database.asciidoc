@@ -70,7 +70,7 @@ At present, the only supported provider is `maxmind`, and the maxmind provider
 requires that an `account_id` (string) is configured.
 // end::geoip-database-object[]
 
-[[redact-licensing]]
+[[geoip-database-configuration-licensing]]
 ==== Licensing
 
 Downloading databases from third party providers is a commercial feature that requires an

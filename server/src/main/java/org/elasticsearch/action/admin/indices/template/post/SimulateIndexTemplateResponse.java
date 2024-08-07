@@ -81,7 +81,8 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         rolloverConfiguration = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(RolloverConfiguration::new)
             : null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+            && in.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
             in.readOptionalWriteable(DataStreamGlobalRetention::read);
         }
     }
@@ -103,7 +104,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             out.writeOptionalWriteable(rolloverConfiguration);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-            && out.getTransportVersion().onOrBefore(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+            && out.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
             out.writeOptionalWriteable(null);
         }
     }

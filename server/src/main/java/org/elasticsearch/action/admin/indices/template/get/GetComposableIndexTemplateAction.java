@@ -132,7 +132,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 rolloverConfiguration = null;
             }
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                && in.getTransportVersion().onOrBefore(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                && in.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
                 in.readOptionalWriteable(DataStreamGlobalRetention::read);
             }
         }
@@ -186,7 +186,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                && out.getTransportVersion().onOrAfter(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                && out.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
                 out.writeOptionalWriteable(null);
             }
         }

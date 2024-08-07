@@ -24,7 +24,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,7 +40,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String clusterAlias;
     private final String sessionId;
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
     private final RemoteClusterPlan plan;
 
     private transient String[] indices;
@@ -53,7 +53,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
      * @param configuration     the configuration for this compute
      * @param plan the physical plan to be executed
      */
-    ClusterComputeRequest(String clusterAlias, String sessionId, EsqlConfiguration configuration, RemoteClusterPlan plan) {
+    ClusterComputeRequest(String clusterAlias, String sessionId, Configuration configuration, RemoteClusterPlan plan) {
         this.clusterAlias = clusterAlias;
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -65,7 +65,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         super(in);
         this.clusterAlias = in.readString();
         this.sessionId = in.readString();
-        this.configuration = new EsqlConfiguration(
+        this.configuration = new Configuration(
             // TODO make EsqlConfiguration Releasable
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
@@ -120,7 +120,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         return sessionId;
     }
 
-    EsqlConfiguration configuration() {
+    Configuration configuration() {
         return configuration;
     }
 

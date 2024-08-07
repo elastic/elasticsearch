@@ -67,7 +67,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 
@@ -132,7 +132,7 @@ public class ComputeService {
         String sessionId,
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         ActionListener<Result> listener
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
@@ -264,7 +264,7 @@ public class ComputeService {
         String sessionId,
         String clusterAlias,
         CancellableTask parentTask,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         PhysicalPlan dataNodePlan,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
@@ -327,7 +327,7 @@ public class ComputeService {
     private void startComputeOnRemoteClusters(
         String sessionId,
         CancellableTask rootTask,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         PhysicalPlan plan,
         ExchangeSourceHandler exchangeSource,
         List<RemoteCluster> clusters,
@@ -430,7 +430,7 @@ public class ComputeService {
     private void acquireSearchContexts(
         String clusterAlias,
         List<ShardId> shardIds,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         Map<Index, AliasFilter> aliasFilters,
         ActionListener<List<SearchContext>> listener
     ) {
@@ -601,7 +601,7 @@ public class ComputeService {
         }
 
         private void runBatch(int startBatchIndex) {
-            final EsqlConfiguration configuration = request.configuration();
+            final Configuration configuration = request.configuration();
             final String clusterAlias = request.clusterAlias();
             final var sessionId = request.sessionId();
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
@@ -785,7 +785,7 @@ public class ComputeService {
         String clusterAlias,
         String globalSessionId,
         CancellableTask parentTask,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         ExchangeSinkExec plan,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
@@ -833,7 +833,7 @@ public class ComputeService {
         String sessionId,
         String clusterAlias,
         List<SearchContext> searchContexts,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         ExchangeSourceHandler exchangeSource,
         ExchangeSinkHandler exchangeSink
     ) {

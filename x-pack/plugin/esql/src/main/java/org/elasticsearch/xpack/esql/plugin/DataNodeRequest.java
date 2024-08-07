@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ import java.util.Objects;
 final class DataNodeRequest extends TransportRequest implements IndicesRequest.Replaceable {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String sessionId;
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
     private final String clusterAlias;
     private final List<ShardId> shardIds;
     private final Map<Index, AliasFilter> aliasFilters;
@@ -50,7 +50,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
 
     DataNodeRequest(
         String sessionId,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         String clusterAlias,
         List<ShardId> shardIds,
         Map<Index, AliasFilter> aliasFilters,
@@ -71,7 +71,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     DataNodeRequest(StreamInput in) throws IOException {
         super(in);
         this.sessionId = in.readString();
-        this.configuration = new EsqlConfiguration(
+        this.configuration = new Configuration(
             // TODO make EsqlConfiguration Releasable
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
@@ -143,7 +143,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         return sessionId;
     }
 
-    EsqlConfiguration configuration() {
+    Configuration configuration() {
         return configuration;
     }
 

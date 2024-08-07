@@ -113,7 +113,6 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-params]
 .Properties of `params`
 [%collapsible%open]
 =======
-[[force-time-shift-params]]
 `force_time_shift`::::
 (object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-params-force-time-shift]

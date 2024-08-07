@@ -1,0 +1,85 @@
+[[delete-geoip-database-api]]
+=== Delete geoip database configuration  API
+++++
+<titleabbrev>Delete geoip database configuration</titleabbrev>
+++++
+
+Deletes a geoip database configuration.
+
+////
+[source,console]
+----
+PUT _ingest/geoip/database/my-database-id
+{
+  "name": "GeoIP2-Connection-Type",
+  "maxmind": {
+    "account_id": "1234567"
+  }
+}
+
+PUT _ingest/geoip/database/example-database-id
+{
+  "name": "GeoIP2-Domain",
+  "maxmind": {
+    "account_id": "1234567"
+  }
+}
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+DELETE /_ingest/geoip/database/my-database-id
+----
+
+
+[[delete-geoip-database-api-request]]
+==== {api-request-title}
+
+`DELETE /_ingest/geoip/database/<database>`
+
+[[delete-geoip-database-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[delete-geoip-database-api-path-params]]
+==== {api-path-parms-title}
+
+`<database>`::
++
+--
+(Required, string) Database configuration ID used to limit the request.
+
+--
+
+
+[[delete-geoip-database-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[delete-geoip-database-api-example]]
+==== {api-examples-title}
+
+
+[[delete-geoip-database-api-specific-ex]]
+===== Delete a specific geoip database configuration
+
+[source,console]
+----
+DELETE /_ingest/geoip/database/example-database-id
+----
+
+
+////
+[source,console-result]
+----
+{
+"acknowledged": true
+}
+----
+////

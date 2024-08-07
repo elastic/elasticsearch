@@ -128,9 +128,7 @@ public final class Alias extends NamedExpression {
     @Override
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
-            // To return a ReferenceAttribute we require a resolved type.
-            // But we allow unsupported attributes by not requiring full resolution, so that fields with unsupported types can be renamed.
-            lazyAttribute = typeResolved().resolved()
+            lazyAttribute = resolved()
                 ? new ReferenceAttribute(source(), name(), dataType(), qualifier, nullable(), id(), synthetic())
                 : new UnresolvedAttribute(source(), name(), qualifier);
         }

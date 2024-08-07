@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.local;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -65,8 +66,12 @@ public class EsqlProject extends Project {
     @Override
     public boolean expressionsResolved() {
         for (NamedExpression projection : projections()) {
-            // don't call dataType() - it will fail on UnresolvedAttribute
-            if (projection.resolved() == false && projection instanceof UnsupportedAttribute == false) {
+            // Pass through for unsupported types.
+            if (projection instanceof UnsupportedAttribute
+                || (projection instanceof Alias a && a.child() instanceof UnsupportedAttribute)) {
+                continue;
+            }
+            if (projection.resolved() == false) {
                 return false;
             }
         }

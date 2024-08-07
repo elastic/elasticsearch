@@ -237,11 +237,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     // optimized doesn't know yet how to push down count over field
     public void testCountOneFieldWithFilter() {
-        var plan = plannerOptimizer.plan("""
+        String query = """
             from test
             | where salary > 1000
             | stats c = count(salary)
-            """, IS_SV_STATS);
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -255,7 +256,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         Source source = new Source(2, 8, "salary > 1000");
         var exists = QueryBuilders.existsQuery("salary");
         assertThat(stat.query(), is(exists));
-        var range = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
+        var range = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
         var expected = QueryBuilders.boolQuery().must(range).must(exists);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
@@ -346,11 +347,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testAnotherCountAllWithFilter() {
-        var plan = plannerOptimizer.plan("""
+        String query = """
             from test
             | where emp_no > 10010
             | stats c = count()
-            """, IS_SV_STATS);
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -361,7 +363,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
         var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
+        var expected = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
@@ -415,11 +417,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      */
     public void testMatchCommandWithWhereClause() {
         assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
-        var plan = plannerOptimizer.plan("""
+        String queryText = """
             from test
             | where emp_no > 10010
             | match "last_name: Smith"
-            """, IS_SV_STATS);
+            """;
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -429,7 +432,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(query.limit().fold(), is(1000));
 
         Source source = new Source(2, 8, "emp_no > 10010");
-        var range = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
+        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
         var queryString = QueryBuilders.queryStringQuery("last_name: Smith");
         var expected = QueryBuilders.boolQuery().must(range).must(queryString);
         assertThat(query.query().toString(), is(expected.toString()));
@@ -701,7 +704,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(queryExec.limit().fold(), is(1000));
 
         var expectedInnerQuery = QueryBuilders.termsQuery(fieldName, cidrBlocks);
-        var expectedQuery = wrapWithSingleQuery(expectedInnerQuery, fieldName, new Source(1, 18, cidrMatch));
+        var expectedQuery = wrapWithSingleQuery(query, expectedInnerQuery, fieldName, new Source(1, 18, cidrMatch));
         assertThat(queryExec.query().toString(), is(expectedQuery.toString()));
     }
 
@@ -891,14 +894,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testMultipleMatchFilterPushdown() {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
 
-        var plan = plannerOptimizer.plan("""
+        String query = """
             from test
             | where first_name match "Anna" OR first_name match "Anneke"
             | sort emp_no
             | where emp_no > 10000
             | eval description = concat("emp_no: ", to_str(emp_no), ", name: ", first_name, " ", last_name)
             | where last_name match "Xinglin"
-            """);
+            """;
+        var plan = plannerOptimizer.plan(query);
 
         var eval = as(plan, EvalExec.class);
         var topNExec = as(eval.child(), TopNExec.class);
@@ -911,13 +915,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var expectedLuceneQuery = new BoolQueryBuilder().must(
             new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna")).should(new MatchQueryBuilder("first_name", "Anneke"))
         )
-            .must(wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
+            .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
             .must(new MatchQueryBuilder("last_name", "Xinglin"));
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
-    private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {
-        return FilterTests.singleValueQuery(inner, fieldName, source);
+    private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
+        return FilterTests.singleValueQuery(query, inner, fieldName, source);
     }
 
     private Stat queryStatsFor(PhysicalPlan plan) {

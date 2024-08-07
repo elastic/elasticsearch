@@ -18,11 +18,9 @@
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class PublishHeapMemoryUsageRequestSerializationTests extends AbstractWireSerializingTestCase<PublishHeapMemoryMetricsRequest> {
     @Override
@@ -32,33 +30,11 @@ public class PublishHeapMemoryUsageRequestSerializationTests extends AbstractWir
 
     @Override
     protected PublishHeapMemoryMetricsRequest createTestInstance() {
-        return new PublishHeapMemoryMetricsRequest(
-            new HeapMemoryUsage(
-                randomNonNegativeLong(),
-                Map.of(
-                    new Index(randomAlphaOfLengthBetween(1, 128), randomAlphaOfLengthBetween(1, 128)),
-                    new IndexMappingSize(randomNonNegativeLong(), randomAlphaOfLength(64))
-                )
-            )
-        );
+        return new PublishHeapMemoryMetricsRequest(HeapMemoryUsageTests.randomHeapMemoryUsage());
     }
 
     @Override
     protected PublishHeapMemoryMetricsRequest mutateInstance(PublishHeapMemoryMetricsRequest instance) throws IOException {
-        return switch (randomInt(1)) {
-            case 0 -> new PublishHeapMemoryMetricsRequest(
-                new HeapMemoryUsage(randomNonNegativeLong(), instance.getHeapMemoryUsage().indicesMappingSize())
-            );
-            case 1 -> new PublishHeapMemoryMetricsRequest(
-                new HeapMemoryUsage(
-                    instance.getHeapMemoryUsage().publicationSeqNo(),
-                    Map.of(
-                        new Index(randomAlphaOfLengthBetween(1, 128), randomAlphaOfLengthBetween(1, 128)),
-                        new IndexMappingSize(randomNonNegativeLong(), randomAlphaOfLength(64))
-                    )
-                )
-            );
-            default -> throw new IllegalStateException("Unexpected value");
-        };
+        return new PublishHeapMemoryMetricsRequest(HeapMemoryUsageTests.mutate(instance.getHeapMemoryUsage()));
     }
 }

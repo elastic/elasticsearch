@@ -71,7 +71,7 @@ public class TransportPublishHeapMemoryMetrics extends TransportMasterNodeAction
         ActionListener<ActionResponse.Empty> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            memoryMetricsService.updateIndicesMappingSize(request.getHeapMemoryUsage());
+            memoryMetricsService.updateShardsMappingSize(request.getHeapMemoryUsage());
             return ActionResponse.Empty.INSTANCE;
         });
     }

@@ -29,12 +29,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -91,27 +92,48 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     public void testReduceFinalIndexMappingSize() {
         // get access to internals
-        Map<Index, MemoryMetricsService.IndexMemoryMetrics> map = service.getIndicesMemoryMetrics();
+        Map<ShardId, MemoryMetricsService.ShardMemoryMetrics> map = service.getShardMemoryMetrics();
         long expectedSizeInBytes = 0;
         int numberOfIndices = randomIntBetween(10, 1000);
         for (int nameSuffix = 1; nameSuffix <= numberOfIndices; nameSuffix++) {
-            expectedSizeInBytes += nameSuffix;
-            map.put(
-                new Index("name-" + nameSuffix, "uuid-" + nameSuffix),
-                new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.EXACT, System.nanoTime())
+            long mappingSize = randomIntBetween(0, 1000);
+            int numSegments = randomNonNegativeInt();
+            int totalFields = randomNonNegativeInt();
+            Index index = new Index("name-" + nameSuffix, "uuid-" + nameSuffix);
+            var metric = new MemoryMetricsService.ShardMemoryMetrics(
+                mappingSize,
+                numSegments,
+                totalFields,
+                randomNonNegativeLong(),
+                MetricQuality.EXACT,
+                randomIdentifier(),
+                randomNonNegativeLong()
             );
+            map.put(new ShardId(index, 0), metric);
+            expectedSizeInBytes += mappingSize;
         }
-
         var result = service.calculateTotalIndicesMappingSize();
         assertThat(result.sizeInBytes(), equalTo(expectedSizeInBytes));
         assertThat(result.metricQuality(), equalTo(MetricQuality.EXACT));
 
         // simulate MINIMUM `quality` attribute on a random metric
         int nameSuffix = randomIntBetween(1, numberOfIndices);
+        ShardId shardId = new ShardId(new Index("name-" + nameSuffix, "uuid-" + nameSuffix), 0);
+        long oldMappingSize = map.get(shardId).getMappingSizeInBytes();
+        long newMappingSize = randomNonNegativeLong();
         map.put(
-            new Index("name-" + nameSuffix, "uuid-" + nameSuffix),
-            new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.MINIMUM, System.nanoTime())
+            shardId,
+            new MemoryMetricsService.ShardMemoryMetrics(
+                newMappingSize,
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                MetricQuality.MINIMUM,
+                randomIdentifier(),
+                randomNonNegativeLong()
+            )
         );
+        expectedSizeInBytes += (newMappingSize - oldMappingSize);
         result = service.calculateTotalIndicesMappingSize();
         assertThat(result.sizeInBytes(), equalTo(expectedSizeInBytes));
         // verify that the whole batch has MISSING `quality` attribute
@@ -124,28 +146,41 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(numberOfConcurrentUpdates);
 
         // init value
-        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", 0));
+        ShardId shardId = new ShardId(INDEX, between(0, 5));
+        service.getShardMemoryMetrics()
+            .put(shardId, new MemoryMetricsService.ShardMemoryMetrics(0, 0, 0, 0L, MetricQuality.MISSING, "node-0", 0));
 
         // simulate concurrent updates
         for (int i = 0; i < numberOfConcurrentUpdates; i++) {
-            long size, seqNo;
+            long mappingSize, seqNo;
+            final int numSegments;
+            final int totalFields;
             if (randomBoolean()) {
-                size = 100;
+                mappingSize = 100;
                 seqNo = 10;
+                numSegments = 50;
+                totalFields = 100;
             } else {
-                size = 200;
+                mappingSize = 200;
                 seqNo = 1;
+                numSegments = 5;
+                totalFields = 10;
             }
             executorService.execute(() -> {
-                HeapMemoryUsage metric = new HeapMemoryUsage(seqNo, Map.of(INDEX, new IndexMappingSize(size, "node-0")));
-                service.updateIndicesMappingSize(metric);
+                HeapMemoryUsage metric = new HeapMemoryUsage(
+                    seqNo,
+                    Map.of(shardId, new ShardMappingSize(mappingSize, numSegments, totalFields, "node-0"))
+                );
+                service.updateShardsMappingSize(metric);
                 latch.countDown();
             });
         }
 
         safeAwait(latch);
-
-        assertThat(100L, equalTo(service.calculateTotalIndicesMappingSize().sizeInBytes()));
+        var metrics = service.getShardMemoryMetrics().get(shardId);
+        assertThat(metrics.getMappingSizeInBytes(), equalTo(100L));
+        assertThat(metrics.getNumSegments(), equalTo(50));
+        assertThat(metrics.getTotalFields(), equalTo(100));
     }
 
     public void testReportNonExactMetricsInTotalIndicesMappingSize() throws Exception {
@@ -154,32 +189,39 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
         long updateTime = currentTime - TimeUnit.MINUTES.toNanos(5) - TimeUnit.SECONDS.toNanos(1);
         for (int i = 0; i < 100; i++) {
-            customService.getIndicesMemoryMetrics()
+            customService.getShardMemoryMetrics()
                 .put(
-                    new Index(randomIdentifier(), randomUUID()),
-                    new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", updateTime)
+                    new ShardId(new Index(randomIdentifier(), randomUUID()), 0),
+                    new MemoryMetricsService.ShardMemoryMetrics(2, 1, 5, 0L, MetricQuality.MISSING, "node-0", updateTime)
                 );
         }
-
         int count = randomIntBetween(10, 100);
-        List<Index> indicesToSkip = randomSubsetOf(count, customService.getIndicesMemoryMetrics().keySet());
-        for (var entry : customService.getIndicesMemoryMetrics().entrySet()) {
-            if (indicesToSkip.contains(entry.getKey()) == false) {
-                entry.getValue().update(randomNonNegativeInt(), randomNonNegativeInt(), "node-0", 0);
+        List<ShardId> shardsToSkip = randomSubsetOf(count, customService.getShardMemoryMetrics().keySet());
+        for (var entry : customService.getShardMemoryMetrics().entrySet()) {
+            if (shardsToSkip.contains(entry.getKey()) == false) {
+                entry.getValue()
+                    .update(
+                        randomNonNegativeLong(),
+                        randomNonNegativeInt(),
+                        randomNonNegativeInt(),
+                        randomIntBetween(1, 100),
+                        "node-0",
+                        currentTime
+                    );
             }
         }
 
         try (var mockLog = MockLog.capture(MemoryMetricsService.class)) {
-            for (Index index : indicesToSkip) {
+            for (ShardId shard : shardsToSkip) {
                 mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "expected warn log about state index",
                         MemoryMetricsService.class.getName(),
                         Level.WARN,
                         Strings.format(
-                            "Memory metrics are stale for index %s=IndexMemoryMetrics{sizeInBytes=0, seqNo=0, metricQuality=MISSING, "
-                                + "metricShardNodeId='node-0', updateTimestampNanos='%d'}",
-                            index,
+                            "Memory metrics are stale for shard %s=ShardMemoryMetrics{mappingSizeInBytes=2, numSegments=1,"
+                                + " totalFields=5, seqNo=0, metricQuality=MISSING, metricShardNodeId='node-0', updateTimestampNanos='%d'}",
+                            shard,
                             updateTime
                         )
                     )
@@ -200,12 +242,14 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     public void testNoStaleMetricsInTotalIndicesMappingSize() throws Exception {
         for (int i = 0; i < randomIntBetween(10, 20); i++) {
-            service.getIndicesMemoryMetrics()
+            service.getShardMemoryMetrics()
                 .put(
-                    new Index(randomIdentifier(), randomUUID()),
-                    new MemoryMetricsService.IndexMemoryMetrics(
+                    new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 2)),
+                    new MemoryMetricsService.ShardMemoryMetrics(
+                        randomNonNegativeLong(),
                         randomNonNegativeInt(),
                         randomNonNegativeInt(),
+                        randomNonNegativeLong(),
                         MetricQuality.EXACT,
                         "node-0",
                         System.nanoTime()
@@ -224,10 +268,18 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     public void testDoNotReportNonExactMetricsAsStaleImmediatelyOnStartup() {
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            service.getIndicesMemoryMetrics()
+            service.getShardMemoryMetrics()
                 .put(
-                    new Index(randomIdentifier(), randomUUID()),
-                    new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", System.nanoTime())
+                    new ShardId(new Index(randomIdentifier(), randomUUID()), randomIntBetween(0, 2)),
+                    new MemoryMetricsService.ShardMemoryMetrics(
+                        randomNonNegativeLong(),
+                        randomNonNegativeInt(),
+                        randomNonNegativeInt(),
+                        0,
+                        MetricQuality.MISSING,
+                        "node-0",
+                        System.nanoTime()
+                    )
                 );
         }
 
@@ -241,44 +293,67 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testDoNotThrowMissedIndicesUpdateExceptionOnOutOfOrderMessages() {
-        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", 0));
+        ShardId shardId = new ShardId(INDEX, between(0, 2));
+        service.getShardMemoryMetrics()
+            .put(shardId, new MemoryMetricsService.ShardMemoryMetrics(0, 0, 0, 0L, MetricQuality.MISSING, "node-0", 0));
 
         int amount = randomIntBetween(50, 100);
         List<Integer> seqIds = IntStream.range(1, amount + 1).mapToObj(Integer::valueOf).collect(Collectors.toList());
         Collections.shuffle(seqIds, random());
         for (int i = 0; i < amount; i++) {
-            service.updateIndicesMappingSize(
-                new HeapMemoryUsage(seqIds.get(i), Map.of(INDEX, new IndexMappingSize(randomIntBetween(0, 100), "node-0")))
+            service.updateShardsMappingSize(
+                new HeapMemoryUsage(
+                    seqIds.get(i),
+                    Map.of(
+                        shardId,
+                        new ShardMappingSize(randomIntBetween(0, 100), randomIntBetween(0, 100), randomIntBetween(0, 100), "node-0")
+                    )
+                )
             );
         }
 
-        assertThat(service.getIndicesMemoryMetrics().get(INDEX).getMetricQuality(), equalTo(MetricQuality.EXACT));
+        assertThat(service.getShardMemoryMetrics().get(shardId).getMetricQuality(), equalTo(MetricQuality.EXACT));
     }
 
     public void testThrowMissedIndicesUpdateExceptionOnMissedIndex() {
-        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", 0));
+        ShardId shardId = new ShardId(INDEX, between(0, 2));
+        service.getShardMemoryMetrics()
+            .put(shardId, new MemoryMetricsService.ShardMemoryMetrics(0, 0, 0, 0, MetricQuality.MISSING, "node-0", 0));
 
+        ShardId otherShardId = randomValueOtherThan(shardId, () -> new ShardId(INDEX, between(0, 2)));
         expectThrows(AutoscalingMissedIndicesUpdateException.class, () -> {
-            service.updateIndicesMappingSize(
+            service.updateShardsMappingSize(
                 new HeapMemoryUsage(
                     randomIntBetween(0, 100),
-                    Map.of(
-                        randomValueOtherThan(INDEX, () -> new Index(randomIdentifier(), randomUUID())),
-                        new IndexMappingSize(randomIntBetween(0, 100), "node-0")
-                    )
+                    Map.of(otherShardId, new ShardMappingSize(randomIntBetween(0, 100), 0, 0, "node-0"))
                 )
             );
         });
     }
 
     public void testThrowMissedIndicesUpdateExceptionOnMissedNode() {
-        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", 0));
+        ShardId shardId = new ShardId(INDEX, 0);
+        String currentNode = randomIdentifier();
+        service.getShardMemoryMetrics()
+            .put(
+                shardId,
+                new MemoryMetricsService.ShardMemoryMetrics(
+                    randomNonNegativeLong(),
+                    randomNonNegativeInt(),
+                    randomNonNegativeInt(),
+                    0,
+                    MetricQuality.MISSING,
+                    currentNode,
+                    0
+                )
+            );
 
+        String newNode = randomValueOtherThan(currentNode, ESTestCase::randomIdentifier);
         expectThrows(AutoscalingMissedIndicesUpdateException.class, () -> {
-            service.updateIndicesMappingSize(
+            service.updateShardsMappingSize(
                 new HeapMemoryUsage(
                     randomIntBetween(0, 100),
-                    Map.of(INDEX, new IndexMappingSize(randomIntBetween(0, 100), randomIdentifier()))
+                    Map.of(shardId, new ShardMappingSize(randomNonNegativeLong(), randomNonNegativeInt(), randomNonNegativeInt(), newNode))
                 )
             );
         });
@@ -286,13 +361,19 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     public void testSpecificValues() {
         long size = randomBoolean() ? between(1, 1000) : randomLongBetween(ByteSizeUnit.GB.toBytes(1), ByteSizeUnit.GB.toBytes(2));
-        var clusterState = createClusterStateWithIndices(1);
+        var clusterState = createClusterStateWithIndices(1, 1);
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
         service.clusterChanged(event);
         assertEquals(1, clusterState.metadata().indices().size());
         var index = clusterState.metadata().indices().values().iterator().next().getIndex();
         var node = clusterState.nodes().getLocalNode().getId();
-        service.getIndicesMemoryMetrics().put(index, new MemoryMetricsService.IndexMemoryMetrics(size, 0, MetricQuality.EXACT, node, 0));
+        int numSegments = randomIntBetween(0, 5);
+        int numFields = randomIntBetween(0, 10);
+        service.getShardMemoryMetrics()
+            .put(
+                new ShardId(index, 0),
+                new MemoryMetricsService.ShardMemoryMetrics(size, numSegments, numFields, 0L, MetricQuality.EXACT, node, 0)
+            );
 
         MemoryMetrics memoryMetrics = service.getMemoryMetrics();
         assertThat(
@@ -307,14 +388,19 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     public void testManyShards() {
         int numberOfIndices = 300;
-        var clusterState = createClusterStateWithIndices(numberOfIndices);
+        var clusterState = createClusterStateWithIndices(numberOfIndices, 1);
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
         service.clusterChanged(event);
-        assertEquals(numberOfIndices, service.totalNumberOfShards());
+        assertThat(service.getShardMemoryMetrics().size(), equalTo(numberOfIndices));
         var node = clusterState.nodes().getLocalNode().getId();
+        int numSegments = randomIntBetween(0, 5);
+        int numFields = randomIntBetween(0, 10);
         for (var indexMetadata : clusterState.metadata().indices().values()) {
-            service.getIndicesMemoryMetrics()
-                .put(indexMetadata.getIndex(), new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.EXACT, node, 0));
+            service.getShardMemoryMetrics()
+                .put(
+                    new ShardId(indexMetadata.getIndex(), 0),
+                    new MemoryMetricsService.ShardMemoryMetrics(0, numSegments, numFields, 0, MetricQuality.EXACT, node, 0)
+                );
         }
 
         MemoryMetrics memoryMetrics = service.getMemoryMetrics();
@@ -328,12 +414,46 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertThat(memoryMetrics.totalMemoryInBytes() + memoryMetrics.nodeMemoryInBytes() * 2, lessThan(ByteSizeUnit.GB.toBytes(6)));
     }
 
+    // TODO: update this test once when switch to use
+    public void testEstimateUsingSegmentFields() {
+        int numberOfIndices = between(1, 5);
+        int numberOfShards = between(1, 2);
+        ClusterState clusterState = createClusterStateWithIndices(numberOfIndices, numberOfShards);
+        ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
+        service.clusterChanged(event);
+        var shardMetrics = service.getShardMemoryMetrics();
+        assertThat(shardMetrics.size(), equalTo(numberOfIndices * numberOfShards));
+        long expectedMappingSize = 0;
+        for (var index : clusterState.metadata().indices().values()) {
+            for (int id = 0; id < numberOfShards; id++) {
+                ShardId shardId = new ShardId(index.getIndex(), id);
+                var metrics = shardMetrics.get(shardId);
+                assertNotNull(metrics);
+                long mappingSizeInBytes = randomLongBetween(1, 1000);
+                int numSegments = randomNonNegativeInt();
+                int numFields = randomNonNegativeInt();
+                service.updateShardsMappingSize(
+                    new HeapMemoryUsage(
+                        randomNonNegativeLong(),
+                        Map.of(shardId, new ShardMappingSize(mappingSizeInBytes, numSegments, numFields, metrics.getMetricShardNodeId()))
+                    )
+                );
+                if (id == 0) {
+                    expectedMappingSize += mappingSizeInBytes;
+                }
+            }
+        }
+        assertThat(service.calculateTotalIndicesMappingSize().sizeInBytes(), equalTo(expectedMappingSize));
+    }
+
     /** Creates a cluster state for a one node cluster, having the given number of indices in its metadata. */
-    private ClusterState createClusterStateWithIndices(int numberOfIndices) {
+    private ClusterState createClusterStateWithIndices(int numberOfIndices, int numberOfShards) {
         var indices = new HashMap<String, IndexMetadata>();
         var routingTableBuilder = RoutingTable.builder();
         IntStream.range(0, numberOfIndices).forEach(i -> {
-            var indexMetadata = IndexMetadata.builder("index" + i).settings(indexSettings(1, 1).put("index.version.created", 1)).build();
+            var indexMetadata = IndexMetadata.builder("index" + i)
+                .settings(indexSettings(numberOfShards, 1).put("index.version.created", 1))
+                .build();
             indices.put("index" + i, indexMetadata);
             routingTableBuilder.add(
                 new RoutingTableGenerator().genIndexRoutingTable(indexMetadata, new RoutingTableGenerator.ShardCounter())

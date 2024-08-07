@@ -1265,7 +1265,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
     public void testLatestCommitDependenciesUsesTheRightGenerations() throws Exception {
         var maxNonUploadedCommits = randomIntBetween(4, 5);
         var nodeSettings = Settings.builder()
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
             .build();
         startMasterOnlyNode(nodeSettings);

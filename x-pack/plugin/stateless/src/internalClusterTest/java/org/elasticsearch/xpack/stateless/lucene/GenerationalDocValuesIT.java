@@ -467,7 +467,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             Settings.builder()
                 .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1))
                 // Ensure that commits are uploaded in the order that we want
-                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
                 .build()
         );

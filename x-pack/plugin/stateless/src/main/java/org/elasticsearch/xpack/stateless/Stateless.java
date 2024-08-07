@@ -863,7 +863,6 @@ public class Stateless extends Plugin
             SearchLoadProbe.SHARD_READ_LOAD_THRESHOLD_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING,
-            StatelessCommitService.STATELESS_UPLOAD_DELAYED,
             StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE,
             StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL,
             StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS,
@@ -1381,23 +1380,15 @@ public class Stateless extends Plugin
 
     private static void logSettings(final Settings settings) {
         // TODO: Move the logging back to StatelessCommitService#new once ES-8507 is resolved
-        final boolean delayedUploadEnabled = StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(settings);
+        final var bccMaxAmountOfCommits = StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
+        final var bccUploadMaxSize = StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.get(settings);
+        final var virtualBccUploadMaxAge = StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
         logger.info(
-            "delayed upload [{}] is [{}]",
-            StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(),
-            delayedUploadEnabled ? "enabled" : "disabled"
+            "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
+            bccMaxAmountOfCommits,
+            bccUploadMaxSize.getStringRep(),
+            virtualBccUploadMaxAge.getStringRep()
         );
-        if (delayedUploadEnabled) {
-            final var bccMaxAmountOfCommits = StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
-            final var bccUploadMaxSize = StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.get(settings);
-            final var virtualBccUploadMaxAge = StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
-            logger.info(
-                "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
-                bccMaxAmountOfCommits,
-                bccUploadMaxSize.getStringRep(),
-                virtualBccUploadMaxAge.getStringRep()
-            );
-        }
     }
 
     private long getTranslogRecoveryStartFile(Engine.IndexCommitRef indexCommitRef) {

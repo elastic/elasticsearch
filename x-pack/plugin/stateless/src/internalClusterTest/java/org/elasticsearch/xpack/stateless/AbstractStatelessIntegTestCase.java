@@ -286,10 +286,6 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         if (useBasePath) {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }
-        if (randomBoolean()) {
-            // Default is true and we randomly set it explicitly
-            builder.put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true);
-        }
         builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), getUploadMaxCommits());
         if (STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED) {
             builder.put(StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.getKey(), true);

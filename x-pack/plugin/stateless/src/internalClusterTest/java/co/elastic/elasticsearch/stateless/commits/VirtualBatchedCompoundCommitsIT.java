@@ -261,8 +261,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+        return super.nodeSettings().put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueDays(1))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
@@ -828,7 +827,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         // waiting for a cache chunk to force the deadlock
         int searchThreadPoolSize = nodeProcessors * 4;
         var nodeSettings = Settings.builder()
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofMb(16))
             .put(NODE_PROCESSORS_SETTING.getKey(), nodeProcessors)
@@ -1210,10 +1208,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
     public void testVirtualBatchedCompoundCommitUploadMetrics() throws Exception {
         final var indexNode = startMasterAndIndexNode(
-            Settings.builder()
-                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-                .build()
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).build()
         );
 
         final var indexName = randomIdentifier();

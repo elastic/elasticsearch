@@ -765,7 +765,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
     public void testRelocationsWithUploadDelayed() throws Exception {
         var maxNonUploadedCommits = randomIntBetween(4, 5);
         var nodeSettings = Settings.builder()
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
             .build();
         startMasterOnlyNode(nodeSettings);
@@ -831,7 +830,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
 
         int maxNonUploadedCommits = randomIntBetween(1, 4);
         var nodeSettings = Settings.builder()
-            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();

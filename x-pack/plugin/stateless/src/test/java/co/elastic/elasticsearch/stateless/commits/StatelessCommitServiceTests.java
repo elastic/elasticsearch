@@ -103,7 +103,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_DELAYED;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration.ZERO;
@@ -144,28 +143,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testStatelessUploadDelayedFlag() throws IOException {
-        final long primaryTerm = randomLongBetween(1L, 1000L);
-        final boolean statelessUploadDelayed = randomBoolean();
-        // Randomly leave the setting un-configured for its default value
-        final boolean explicitConfiguration = statelessUploadDelayed == false || randomBoolean();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            protected Settings nodeSettings() {
-                if (explicitConfiguration) {
-                    return Settings.builder()
-                        .put(super.nodeSettings())
-                        .put(STATELESS_UPLOAD_DELAYED.getKey(), statelessUploadDelayed)
-                        .build();
-                } else {
-                    return super.nodeSettings();
-                }
-            }
-        }) {
-            assertThat(testHarness.commitService.isStatelessUploadDelayed(), is(statelessUploadDelayed));
-        }
-    }
-
     public void testStatelessGenerationalFilesTrackingEnabledFlag() throws IOException {
         final long primaryTerm = randomLongBetween(1L, 1000L);
         final boolean generationalFilesTrackingEnabled = randomBoolean();
@@ -190,7 +167,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testCloseIdempotentlyChangesStateAndCompletesListeners() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), false)) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), 1)) {
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
 
@@ -232,7 +209,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testCommitUpload() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), randomBoolean())) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
 
             randomlyUseInitializingEmpty(testHarness);
 
@@ -305,7 +282,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 }
             }
 
-        }, fileCapture(uploadedBlobs), randomBoolean())) {
+        }, fileCapture(uploadedBlobs))) {
 
             randomlyUseInitializingEmpty(testHarness);
 
@@ -365,7 +342,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 assertTrue(uploadedBlobs.contains(firstCommitFile.get()));
             }
             compoundCommitFileCapture.accept(compoundCommitFile, runnable);
-        }, false)) {
+        }, 1)) {
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
             StatelessCommitRef firstCommit = commitRefs.get(0);
@@ -436,7 +413,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             safeAwait(blockUploads);
             runnable.run();
             uploadedBlobs.add(file);
-        }, false)) {
+        }, 1)) {
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
             StatelessCommitRef firstCommit = commitRefs.get(0);
@@ -527,7 +504,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 assertFalse(uploadedBlobs.contains(secondCommitFile.get()));
             }
             compoundCommitFileCapture.accept(compoundCommitFile, runnable);
-        }, false)) {
+        }, 1)) {
 
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
             StatelessCommitRef firstCommit = commitRefs.get(0);
@@ -598,7 +575,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testMapIsPrunedOnIndexDelete() throws Exception {
-        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), false)) {
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), 1)) {
             List<StatelessCommitRef> refs = testHarness.generateIndexCommits(2, true);
             StatelessCommitRef firstCommit = refs.get(0);
             StatelessCommitRef secondCommit = refs.get(1);
@@ -667,7 +644,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testRecoveredCommitIsNotUploadedAgain() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), false)) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), 1)) {
 
             StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
 
@@ -728,7 +705,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testWaitForGenerationFailsForClosedShard() throws IOException {
-        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), false)) {
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), 1)) {
             ShardId unregisteredShardId = new ShardId("index", "uuid", 0);
             expectThrows(
                 AlreadyClosedException.class,
@@ -2019,33 +1996,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testShouldUploadVirtualBccWhenNotDelayed() throws Exception {
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            protected Settings nodeSettings() {
-                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_DELAYED.getKey(), false).build();
-            }
-        }) {
-            for (StatelessCommitRef commitRef : testHarness.generateIndexCommits(randomIntBetween(1, 4))) {
-                testHarness.commitService.onCommitCreation(commitRef);
-                assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
-                assertBusy(
-                    () -> assertTrue(
-                        testHarness.getShardContainer()
-                            .blobExists(OperationPurpose.INDICES, StatelessCompoundCommit.blobNameFromGeneration(commitRef.getGeneration()))
-                    )
-                );
-            }
-        }
-    }
-
     public void testShouldUploadVirtualBccWhenDelayedUploadAreEnabledAndMaxCommitsExceeded() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put("stateless.upload.delayed", "true")
                     // todo: reevaluate this
                     .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
                     .build();
@@ -2068,11 +2024,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
-                return Settings.builder()
-                    .put(super.nodeSettings())
-                    .put("stateless.upload.delayed", "true")
-                    .put("stateless.upload.max_commits", 2)
-                    .build();
+                return Settings.builder().put(super.nodeSettings()).put("stateless.upload.max_commits", 2).build();
             }
         }) {
             List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
@@ -2100,7 +2052,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put("stateless.upload.delayed", "true")
                     .put("stateless.upload.max_commits", 100)
                     .put("stateless.upload.max_size", uploadMaxSize + "b")
                     .build();
@@ -2552,8 +2503,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     private FakeStatelessNode createNode(
         CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> commitFileConsumer,
+        CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileConsumer
+    ) throws IOException {
+        int maxCommits = randomBoolean() ? STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getDefault(Settings.EMPTY) : randomIntBetween(1, 10);
+        return createNode(commitFileConsumer, compoundCommitFileConsumer, maxCommits);
+    }
+
+    private FakeStatelessNode createNode(
+        CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> commitFileConsumer,
         CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileConsumer,
-        boolean delayed
+        int maxCommits
     ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
@@ -2615,11 +2574,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             @Override
             protected Settings nodeSettings() {
-                Settings settings = super.nodeSettings();
-                if (delayed == false) {
-                    return Settings.builder().put(STATELESS_UPLOAD_DELAYED.getKey(), false).put(super.nodeSettings()).build();
-                }
-                return settings;
+                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxCommits).build();
             }
         };
     }

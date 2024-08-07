@@ -124,12 +124,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> STATELESS_UPLOAD_DELAYED = Setting.boolSetting(
-        "stateless.upload.delayed",
-        true,
-        Setting.Property.NodeScope
-    );
-
     public static final Setting<Integer> STATELESS_UPLOAD_MAX_AMOUNT_COMMITS = Setting.intSetting(
         "stateless.upload.max_commits",
         100, // 100 means the 300s below should always kick in - this is then just a safety net.
@@ -192,7 +186,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final ShardInactivityMonitor shardInactivityMonitor;
     private final SharedBlobCacheWarmingService cacheWarmingService;
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
-    private final boolean statelessUploadDelayed;
     private final TimeValue virtualBccUploadMaxAge;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
 
@@ -249,17 +242,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
         this.cacheWarmingService = cacheWarmingService;
         this.shardInactivityMonitor = new ShardInactivityMonitor();
-        this.statelessUploadDelayed = STATELESS_UPLOAD_DELAYED.get(settings);
         this.virtualBccUploadMaxAge = STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
-        if (statelessUploadDelayed) {
-            this.scheduledUploadMonitor = new ScheduledUploadMonitor(
-                threadPool,
-                threadPool.generic(),
-                STATELESS_UPLOAD_MONITOR_INTERVAL.get(settings)
-            );
-        } else {
-            this.scheduledUploadMonitor = null;
-        }
+        this.scheduledUploadMonitor = new ScheduledUploadMonitor(
+            threadPool,
+            threadPool.generic(),
+            STATELESS_UPLOAD_MONITOR_INTERVAL.get(settings)
+        );
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
         this.generationalFilesTrackingEnabled = STATELESS_GENERATIONAL_FILES_TRACKING_ENABLED.get(settings);
@@ -291,10 +279,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {
         RoutingTable routingTable = clusterService.state().routingTable();
         return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();
-    }
-
-    public boolean isStatelessUploadDelayed() {
-        return statelessUploadDelayed;
     }
 
     public boolean isGenerationalFilesTrackingEnabled() {
@@ -359,19 +343,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             shardInactivityMonitorInterval,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
-        if (statelessUploadDelayed) {
-            scheduledUploadMonitor.rescheduleIfNecessary();
-        }
+        scheduledUploadMonitor.rescheduleIfNecessary();
     }
 
     @Override
     protected void doStop() {
         scheduledShardInactivityMonitorFuture.cancel();
-        if (statelessUploadDelayed) {
-            scheduledUploadMonitor.close();
-        } else {
-            assert scheduledUploadMonitor == null;
-        }
+        scheduledUploadMonitor.close();
     }
 
     @Override
@@ -483,39 +461,34 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             success = true;
 
-            if (statelessUploadDelayed) {
-                final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
-                // todo: ES-8431 remove commitState.isInitializingNoSearch, we only need this for relocations now.
-                // It's possible that a background merge is triggered by the relocation flushes, we do not want to notify
-                // the search nodes about this commit since the segments in that commit can overlap with some of the segments
-                // that might be created by the new primary node and can have different contents.
-                if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch() || commitAfterRelocationStarted) {
-                    // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
-                    // however, except for peer recovery, we can safely assume no search shards.
-                    commitState.notifyCommitSuccessListeners(generation);
-                } else {
-                    final var request = new NewCommitNotificationRequest(
-                        shardRoutingTable.get(),
-                        virtualBcc.lastCompoundCommit(),
-                        virtualBcc.getPrimaryTermAndGeneration().generation(),
-                        commitState.getMaxUploadedBccTermAndGen(),
-                        clusterService.state().version(),
-                        clusterService.localNode().getId()
-                    );
-                    // Another thread may freeze, upload the current VBCC and update latestUploadedBcc concurrently.
-                    // In that case, we skip the notification since it will be handled by the other thread.
-                    if (request.isUploaded() == false) {
-                        commitState.sendNewCommitNotification(request);
-                    }
+            final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
+            // todo: ES-8431 remove commitState.isInitializingNoSearch, we only need this for relocations now.
+            // It's possible that a background merge is triggered by the relocation flushes, we do not want to notify
+            // the search nodes about this commit since the segments in that commit can overlap with some of the segments
+            // that might be created by the new primary node and can have different contents.
+            if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch() || commitAfterRelocationStarted) {
+                // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
+                // however, except for peer recovery, we can safely assume no search shards.
+                commitState.notifyCommitSuccessListeners(generation);
+            } else {
+                final var request = new NewCommitNotificationRequest(
+                    shardRoutingTable.get(),
+                    virtualBcc.lastCompoundCommit(),
+                    virtualBcc.getPrimaryTermAndGeneration().generation(),
+                    commitState.getMaxUploadedBccTermAndGen(),
+                    clusterService.state().version(),
+                    clusterService.localNode().getId()
+                );
+                // Another thread may freeze, upload the current VBCC and update latestUploadedBcc concurrently.
+                // In that case, we skip the notification since it will be handled by the other thread.
+                if (request.isUploaded() == false) {
+                    commitState.sendNewCommitNotification(request);
                 }
             }
 
-            if (commitState.shouldUploadVirtualBcc(virtualBcc) == false) {
-                assert assertDelayedSetting("batched upload");
-                return;
+            if (commitState.shouldUploadVirtualBcc(virtualBcc)) {
+                commitState.maybeFreezeAndUploadCurrentVirtualBcc(virtualBcc);
             }
-
-            commitState.maybeFreezeAndUploadCurrentVirtualBcc(virtualBcc);
         } catch (Exception ex) {
             assert false : ex;
             logger.warn(Strings.format("failed to handle new commit [%s], generation [%s]", reference, reference.getGeneration()), ex);
@@ -644,7 +617,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.generation = virtualBcc.getPrimaryTermAndGeneration().generation();
             this.startNanos = threadPool.relativeTimeInNanos();
             assert virtualBcc.isFrozen();
-            assert assertBccSizeAndDelayedSettingConsistency(virtualBcc.size());
             final Map<String, Object> attributes = Map.of("index_name", shardId.getIndexName(), "shard_id", shardId.id());
             bccSizeInBytesHistogram.record(virtualBcc.getTotalSizeInBytes(), attributes);
             bccNumberCommitsHistogram.record(virtualBcc.size(), attributes);
@@ -721,7 +693,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             try (RefCountingListener refCountingListener = new RefCountingListener(listener.delegateFailureAndWrap((l, unused) -> {
                 BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
                 assert uploadedBcc.last() != null;
-                assert assertBccSizeAndDelayedSettingConsistency(uploadedBcc.size());
                 shardCommitState.markBccUploaded(uploadedBcc);
                 l.onResponse(uploadedBcc);
             }))) {
@@ -881,17 +852,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
         return commitState;
-    }
-
-    private boolean assertDelayedSetting(String behaviour) {
-        assert statelessUploadDelayed : behaviour + " requires [" + STATELESS_UPLOAD_DELAYED.getKey() + "] to be enabled";
-        return true;
-    }
-
-    private boolean assertBccSizeAndDelayedSettingConsistency(int size) {
-        assert statelessUploadDelayed || size == 1
-            : "BCC must contain a single CC unless [" + STATELESS_UPLOAD_DELAYED.getKey() + "] is enabled";
-        return true;
     }
 
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
@@ -1335,16 +1295,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         // TODO: expand for more criteria such as size, time interval
         protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
-            if (statelessUploadDelayed == false) {
-                return true;
-            }
             return virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes
                 || virtualBcc.getPendingCompoundCommits().size() >= bccMaxAmountOfCommits;
         }
 
         private BlobReference createBlobReference(VirtualBatchedCompoundCommit virtualBcc) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to add commit data";
-            assert assertBccSizeAndDelayedSettingConsistency(virtualBcc.size());
             assert commitReferencesInfos.keySet().containsAll(virtualBcc.getPendingCompoundCommitGenerations())
                 : "Commit references infos should be populated when new commits are appended";
             final var commitFiles = virtualBcc.getPendingCompoundCommits()
@@ -1513,7 +1469,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + uploadedBcc;
-            assert statelessUploadDelayed || (uploadedBcc.size() == 1 || isUpload == false);
             final long newBccGeneration = uploadedBcc.primaryTermAndGeneration().generation(); // for managing pending uploads
             final long newGeneration = uploadedBcc.last().generation(); // for notifying generation listeners
 
@@ -1724,7 +1679,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         // TODO: merge this method with sendNewCommitNotification
         private void sendNewCommitNotification(NewCommitNotificationRequest request) {
-            assert assertDelayedSetting("new commit notification for non-upload commit");
             assert request.isUploaded() == false;
             assert isRelocating() == false || request.getGeneration() <= maxGenerationToUpload
                 : "Request generation=" + request.getGeneration() + " maxGenerationToUpload=" + maxGenerationToUpload + " state=" + state;
@@ -2092,10 +2046,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     blobReference.removeSearchNodes(searchNodes, bccNotificationGeneration, notificationCommitBCCDependencies);
                 }
             }
-
-            if (statelessUploadDelayed == false) {
-                notifyCommitSuccessListeners(commitNotificationGeneration);
-            }
         }
 
         void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
@@ -2186,8 +2136,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             // search shard is on a node that does not register with a BCC generation (so it does not support recovering from a VBCC
-            // and should use the last uploaded BCC) or feature is not enabled
-            if (batchedCompoundGeneration == null || statelessUploadDelayed == false) {
+            // and should use the last uploaded BCC)
+            if (batchedCompoundGeneration == null) {
                 return registerLastUploadedBccForUnpromotableRecovery(Set.of(nodeId), availableBcc);
             }
 

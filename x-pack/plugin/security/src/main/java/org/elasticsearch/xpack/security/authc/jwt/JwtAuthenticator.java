@@ -65,8 +65,6 @@ public class JwtAuthenticator implements Releasable {
     }
 
     public void authenticate(JwtAuthenticationToken jwtAuthenticationToken, ActionListener<JWTClaimsSet> listener) {
-        // nimbus-jose-jwt uses reflection under the hood
-        // SpecialPermission.check();
         final String tokenPrincipal = jwtAuthenticationToken.principal();
         // JWT cache
         final SignedJWT signedJWT = jwtAuthenticationToken.getSignedJWT();

@@ -1,0 +1,93 @@
+[[get-geoip-database-api]]
+=== Get geoip database configuration API
+++++
+<titleabbrev>Get geoip database configuration</titleabbrev>
+++++
+
+Returns information about one or more geoip database configurations.
+
+////
+[source,console]
+----
+PUT _ingest/geoip/database/my-database-id
+{
+  "name": "GeoIP2-Domain",
+  "maxmind": {
+    "account_id": "1234567"
+  }
+}
+----
+////
+
+[source,console]
+----
+GET /_ingest/geoip/database/my-database-id
+----
+// TEST[continued]
+
+
+
+[[get-geoip-database-api-request]]
+==== {api-request-title}
+
+`GET /_ingest/geoip/database/<database>`
+
+`GET /_ingest/geoip/database`
+
+[[get-geoip-database-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+ `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[get-geoip-database-api-path-params]]
+==== {api-path-parms-title}
+
+`<database>`::
+(Optional, string)
+Comma-separated list of database configuration IDs to retrieve. Wildcard (`*`) expressions are
+supported.
++
+To get all database configurations, omit this parameter or use `*`.
+
+
+[[get-geoip-database-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[get-geoip-database-api-example]]
+==== {api-examples-title}
+
+
+[[get-geoip-database-api-specific-ex]]
+===== Get information for a specific geoip database configuration
+
+[source,console]
+----
+GET /_ingest/geoip/database/my-database-id
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "databases" : [
+    {
+      "id" : "my-database-id",
+      "version" : 1,
+      "modified_date_millis" : 1723040276114,
+      "database" : {
+        "name" : "GeoIP2-Domain",
+        "maxmind" : {
+          "account_id" : "1234567"
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"modified_date_millis": 1723040276114/"modified_date_millis": $body.databases[0].modified_date_millis/]

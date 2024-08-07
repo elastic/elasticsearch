@@ -9,6 +9,8 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,6 +27,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -48,6 +51,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.time.Instant.ofEpochSecond;
+import static java.time.ZonedDateTime.ofInstant;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -720,21 +725,54 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
     }
 
+    public void testZonedDateTimeSerialization() throws IOException {
+        checkZonedDateTimeSerialization(TransportVersions.ZDT_NANOS_SUPPORT);
+    }
+
+    public void testZonedDateTimeMillisBwcSerialization() throws IOException {
+        checkZonedDateTimeSerialization(TransportVersionUtils.getPreviousVersion(TransportVersions.ZDT_NANOS_SUPPORT));
+    }
+
+    public void checkZonedDateTimeSerialization(TransportVersion tv) throws IOException {
+        assertGenericRoundtrip(ofInstant(Instant.EPOCH, randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(1), randomZone()), tv);
+        // just want to test a large number that will use 5+ bytes
+        long maxEpochSecond = Integer.MAX_VALUE;
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(maxEpochSecond), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(0, maxEpochSecond)), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(0, maxEpochSecond), 1_000_000), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(0, maxEpochSecond), 999_000_000), randomZone()), tv);
+        if (tv.onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
+            assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(0, maxEpochSecond), 999_999_999), randomZone()), tv);
+            assertGenericRoundtrip(
+                ofInstant(ofEpochSecond(randomLongBetween(0, maxEpochSecond), randomIntBetween(0, 999_999_999)), randomZone()),
+                tv
+            );
+        }
+    }
+
     private void assertSerialization(
         CheckedConsumer<StreamOutput, IOException> outputAssertions,
-        CheckedConsumer<StreamInput, IOException> inputAssertions
+        CheckedConsumer<StreamInput, IOException> inputAssertions,
+        TransportVersion transportVersion
     ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(transportVersion);
             outputAssertions.accept(output);
             final StreamInput input = getStreamInput(output.bytes());
+            input.setTransportVersion(transportVersion);
             inputAssertions.accept(input);
         }
     }
 
     private void assertGenericRoundtrip(Object original) throws IOException {
+        assertGenericRoundtrip(original, TransportVersion.current());
+    }
+
+    private void assertGenericRoundtrip(Object original, TransportVersion transportVersion) throws IOException {
         assertSerialization(output -> { output.writeGenericValue(original); }, input -> {
             Object read = input.readGenericValue();
             assertThat(read, equalTo(original));
-        });
+        }, transportVersion);
     }
 }

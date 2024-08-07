@@ -4,15 +4,19 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.index;
+package org.elasticsearch.xpack.esql.index;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class EsIndex {
+public class EsIndex implements Writeable {
 
     private final String name;
     private final Map<String, EsField> mapping;
@@ -28,6 +32,22 @@ public class EsIndex {
         this.name = name;
         this.mapping = mapping;
         this.concreteIndices = concreteIndices;
+    }
+
+    @SuppressWarnings("unchecked")
+    public EsIndex(StreamInput in) throws IOException {
+        this(
+            in.readString(),
+            in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)),
+            (Set<String>) in.readGenericValue()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name());
+        out.writeMap(mapping(), StreamOutput::writeNamedWriteable);
+        out.writeGenericValue(concreteIndices());
     }
 
     public String name() {

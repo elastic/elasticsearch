@@ -202,7 +202,12 @@ public class EsqlCapabilities {
         /**
          * Add CombineBinaryComparisons rule.
          */
-        COMBINE_BINARY_COMPARISONS;
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
+         * MATCH command support
+         */
+        MATCH_COMMAND(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;
@@ -225,7 +230,7 @@ public class EsqlCapabilities {
             this.featureFlag = featureFlag;
         }
 
-        private boolean isEnabled() {
+        public boolean isEnabled() {
             if (featureFlag == null) {
                 return Build.current().isSnapshot() || this.snapshotOnly == false;
             }
@@ -234,10 +239,6 @@ public class EsqlCapabilities {
 
         public String capabilityName() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        public boolean snapshotOnly() {
-            return snapshotOnly;
         }
     }
 

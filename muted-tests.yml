@@ -119,12 +119,30 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
-- class: org.elasticsearch.repositories.blobstore.testkit.AzureSnapshotRepoTestKitIT
-  issue: https://github.com/elastic/elasticsearch/issues/111607
-- class: org.elasticsearch.repositories.azure.RepositoryAzureClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/111345
-- class: org.elasticsearch.xpack.esql.CsvTests
-  issue: https://github.com/elastic/elasticsearch/issues/111612
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=rollup/security_tests/Index-based access}
+  issue: https://github.com/elastic/elasticsearch/issues/111631
+- class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
+  method: testGetModel
+  issue: https://github.com/elastic/elasticsearch/issues/111570
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  method: testMatchCommandWithWhereClause {default}
+  issue: https://github.com/elastic/elasticsearch/issues/111658
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  method: testMatchCommand {default}
+  issue: https://github.com/elastic/elasticsearch/issues/111659
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  method: testMatchCommandWithMultipleMatches {default}
+  issue: https://github.com/elastic/elasticsearch/issues/111660
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testMatchCommand
+  issue: https://github.com/elastic/elasticsearch/issues/111661
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/111664
+- class: org.elasticsearch.datastreams.logsdb.qa.StandardVersusLogsIndexModeChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/111666
 
 # Examples:
 #

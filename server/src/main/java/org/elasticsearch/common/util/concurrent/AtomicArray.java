@@ -35,6 +35,22 @@ public class AtomicArray<E> {
     }
 
     /**
+     * @return true if the array contains at least a single non-null element
+     */
+    public boolean hasNonNullElement() {
+        var nonNull = nonNullList;
+        if (nonNull != null) {
+            return nonNull.isEmpty() == false;
+        }
+        for (int i = 0; i < array.length(); i++) {
+            if (array.get(i) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns the size of the expected results, excluding potential null values.
      * @return the number of non-null elements
      */

@@ -316,10 +316,10 @@ public class AggregatorImplementer {
         builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(stateType, "state");
 
-        builder.addStatement("this.driverContext = driverContext");
         if (warnExceptions.isEmpty() == false) {
             builder.addStatement("this.warnings = warnings");
         }
+        builder.addStatement("this.driverContext = driverContext");
         builder.addStatement("this.channels = channels");
         builder.addStatement("this.state = state");
 
@@ -389,6 +389,11 @@ public class AggregatorImplementer {
             builder.beginControlFlow("if (block.isNull(p))");
             builder.addStatement("continue");
             builder.endControlFlow();
+            if (stateTypeHasFailed) {
+                builder.beginControlFlow("if (state.failed())");
+                builder.addStatement("continue");
+                builder.endControlFlow();
+            }
             if (stateTypeHasSeen) {
                 builder.addStatement("state.seen(true)");
             }

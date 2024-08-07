@@ -39,7 +39,8 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return SumLongGroupingAggregatorFunction.create(channels, driverContext);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsLineNumber, warningsColumnNumber, warningsSourceText);
+    return SumLongGroupingAggregatorFunction.create(warnings, channels, driverContext);
   }
 
   @Override

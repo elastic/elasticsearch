@@ -157,15 +157,23 @@ public class AggregatorFunctionSupplierImplementer {
     }
 
     private MethodSpec groupingAggregator() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator")
-            .addParameter(DRIVER_CONTEXT, "driverContext")
-            .returns(groupingAggregatorImplementer.implementation());
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.returns(groupingAggregatorImplementer.implementation());
+
+        if (hasWarnings) {
+            builder.addStatement(
+                "var warnings = Warnings.createWarnings(driverContext.warningsMode(), "
+                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)"
+            );
+        }
+
         builder.addStatement(
             "return $T.create($L)",
             groupingAggregatorImplementer.implementation(),
             Stream.concat(
-                Stream.of("channels, driverContext"),
+                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("channels, driverContext")),
                 groupingAggregatorImplementer.createParameters().stream().map(Parameter::name)
             ).collect(Collectors.joining(", "))
         );

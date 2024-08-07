@@ -39,8 +39,8 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   public SumLongAggregatorFunction(Warnings warnings, DriverContext driverContext,
       List<Integer> channels, LongFallibleState state) {
-    this.driverContext = driverContext;
     this.warnings = warnings;
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
@@ -85,6 +85,9 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(LongBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
+        continue;
+      }
+      if (state.failed()) {
         continue;
       }
       state.seen(true);

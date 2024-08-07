@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.ArithmeticException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
@@ -30,22 +31,25 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       new IntermediateStateDesc("seen", ElementType.BOOLEAN),
       new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
 
-  private final LongArrayState state;
+  private final LongFallibleArrayState state;
+
+  private final Warnings warnings;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public SumLongGroupingAggregatorFunction(List<Integer> channels, LongArrayState state,
-      DriverContext driverContext) {
+  public SumLongGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+      LongFallibleArrayState state, DriverContext driverContext) {
+    this.warnings = warnings;
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SumLongGroupingAggregatorFunction create(List<Integer> channels,
+  public static SumLongGroupingAggregatorFunction create(Warnings warnings, List<Integer> channels,
       DriverContext driverContext) {
-    return new SumLongGroupingAggregatorFunction(channels, new LongArrayState(driverContext.bigArrays(), SumLongAggregator.init()), driverContext);
+    return new SumLongGroupingAggregatorFunction(warnings, channels, new LongFallibleArrayState(driverContext.bigArrays(), SumLongAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -94,13 +98,21 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
   private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)));
+        try {
+          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -108,7 +120,15 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
   private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
+      try {
+        state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        state.setFailed(groupId);
+      }
     }
   }
 
@@ -121,13 +141,21 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getInt(g));
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)));
+          try {
+            state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)));
+          } catch (ArithmeticException e) {
+            warnings.registerException(e);
+            state.setFailed(groupId);
+          }
         }
       }
     }
@@ -142,7 +170,15 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getInt(g));
-        state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
+        try {
+          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -169,7 +205,9 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
     assert sum.getPositionCount() == seen.getPositionCount() && sum.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      if (seen.getBoolean(groupPosition + positionOffset)) {
+      if (failed.getBoolean(groupPosition + positionOffset)) {
+        state.setFailed(groupId);
+      } else if (seen.getBoolean(groupPosition + positionOffset)) {
         state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(groupPosition + positionOffset)));
       }
     }
@@ -180,7 +218,7 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    LongArrayState inState = ((SumLongGroupingAggregatorFunction) input).state;
+    LongFallibleArrayState inState = ((SumLongGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     if (inState.hasValue(position)) {
       state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), inState.get(position)));

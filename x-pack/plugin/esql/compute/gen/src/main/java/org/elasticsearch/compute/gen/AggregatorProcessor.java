@@ -100,6 +100,7 @@ public class AggregatorProcessor implements Processor {
                     env.getElementUtils(),
                     aggClass,
                     intermediateState,
+                    warnExceptionsTypes,
                     includeTimestamps
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);

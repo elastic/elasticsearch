@@ -3,4 +3,5 @@ summary: "ESQL: Add warnings capabilities to aggregators, and prevent overflow o
   \ SUM aggregation"
 area: ES|QL
 type: bug
-issues: []
+issues:
+ - 110443

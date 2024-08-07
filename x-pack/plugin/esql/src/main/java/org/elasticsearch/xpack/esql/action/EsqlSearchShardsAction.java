@@ -21,7 +21,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * A fork of the search shards API for ES|QL. This fork allows us to gradually introduce features and optimizations to this
  * internal API without risking breaking the search-shards API, which is used by the search API. For now, this API delegates
- * to the search-shards API, but gradually, we will decouple this API completely from the search-shards.
+ * to the search-shards API, but gradually, we will decouple this API completely from the search-shards API.
  */
 public class EsqlSearchShardsAction extends HandledTransportAction<SearchShardsRequest, SearchShardsResponse> {
     public static final String NAME = "indices:data/read/esql/search_shards";

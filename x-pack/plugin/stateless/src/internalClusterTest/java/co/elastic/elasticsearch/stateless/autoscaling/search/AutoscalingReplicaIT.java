@@ -356,7 +356,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
 
         // test that data stream with non-interactive data doesn’t get promoted to 2 replicas
         final String dataStream4 = "logs-es4";
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStream4);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream4);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
         indexDocsIntoDatastream(
             dataStream4,
@@ -413,7 +413,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
     }
 
     private void setupDataStream(String dataStreamName) throws InterruptedException, ExecutionException {
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
 
         var now = System.currentTimeMillis();

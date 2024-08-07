@@ -95,11 +95,14 @@ public class StatelessNumberOfShardsIT extends AbstractStatelessIntegTestCase {
         );
         assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
 
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest));
 
         assertResponse(
-            client().execute(GetDataStreamAction.INSTANCE, new GetDataStreamAction.Request(new String[] { dataStreamName })),
+            client().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+            ),
             response -> {
                 final String backingIndexName = response.getDataStreams()
                     .iterator()

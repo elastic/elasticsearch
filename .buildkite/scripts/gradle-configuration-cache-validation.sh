@@ -3,6 +3,9 @@
 set -euo pipefail
 
 UPLOAD_ARTIFACT_BASE_NAME=${BUILDKITE_BUILD_NUMBER:-"gradle-run"}
+
+./gradlew --max-workers=8 --parallel --scan --no-daemon precommit -Dbuildkite.artifact.upload.file.name="$UPLOAD_ARTIFACT_BASE_NAME-0"
+
 ./gradlew --max-workers=8 --parallel --scan --configuration-cache precommit -Dbuildkite.artifact.upload.file.name="$UPLOAD_ARTIFACT_BASE_NAME-1"
 
 # Create a temporary file

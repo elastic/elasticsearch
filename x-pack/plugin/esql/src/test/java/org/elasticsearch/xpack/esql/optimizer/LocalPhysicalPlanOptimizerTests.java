@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -384,6 +385,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"\"last_name: Smith\""
      */
     public void testMatchCommand() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | match "last_name: Smith"
@@ -412,6 +414,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *          }]
      */
     public void testMatchCommandWithWhereClause() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | where emp_no > 10010
@@ -444,6 +447,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *          sort[[FieldSort[field=emp_no{f}#3, direction=ASC, nulls=LAST]]]
      */
     public void testMatchCommandWithMultipleMatches() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | match "last_name: Smith"

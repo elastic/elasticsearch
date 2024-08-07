@@ -606,5 +606,40 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { return visitChildren(ctx); }
+  @Override public T visitUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx) { return visitChildren(ctx); }
 }

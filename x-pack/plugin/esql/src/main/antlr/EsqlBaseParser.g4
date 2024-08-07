@@ -300,9 +300,34 @@ lookupCommand
     ;
 
 matchCommand
-    : MATCH matchQuery
+    : MATCH (unparsedMatchQuery | parsedMatchQuery)
     ;
 
-matchQuery
-    : QUOTED_STRING
+unparsedMatchQuery
+    : queryString=QUOTED_STRING
+    ;
+
+parsedMatchQuery
+    : queryStringFields
+//    | queryStringNoFields TODO Can't tell apart from queryStringFields
+//    | left=parsedMatchQuery operator=AND right=parsedMatchQuery
+//    | left=parsedMatchQuery operator=OR right=parsedMatchQuery
+    ;
+
+queryStringFields
+    : fieldName=UNQUOTED_IDENTIFIER COLON queryStringNoFields
+    ;
+
+queryStringNoFields
+    : LP queryStringNoFields RP
+    | queryStringTerm+
+    ;
+
+fieldQueryStringExpression
+    : fieldName=qualifiedNamePattern// COLON queryStringExpressionNoFields
+    ;
+
+// TODO Define a lexer rule for query terms and fields - probably we can't tell each other apart
+queryStringTerm
+    : UNQUOTED_IDENTIFIER
     ;

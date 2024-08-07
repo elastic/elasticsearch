@@ -916,13 +916,63 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#matchQuery}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#unparsedMatchQuery}.
    * @param ctx the parse tree
    */
-  void enterMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
+  void enterUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#matchQuery}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#unparsedMatchQuery}.
    * @param ctx the parse tree
    */
-  void exitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
+  void exitUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#parsedMatchQuery}.
+   * @param ctx the parse tree
+   */
+  void enterParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#parsedMatchQuery}.
+   * @param ctx the parse tree
+   */
+  void exitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#queryStringFields}.
+   * @param ctx the parse tree
+   */
+  void enterQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#queryStringFields}.
+   * @param ctx the parse tree
+   */
+  void exitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#queryStringNoFields}.
+   * @param ctx the parse tree
+   */
+  void enterQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#queryStringNoFields}.
+   * @param ctx the parse tree
+   */
+  void exitQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fieldQueryStringExpression}.
+   * @param ctx the parse tree
+   */
+  void enterFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fieldQueryStringExpression}.
+   * @param ctx the parse tree
+   */
+  void exitFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#queryStringTerm}.
+   * @param ctx the parse tree
+   */
+  void enterQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#queryStringTerm}.
+   * @param ctx the parse tree
+   */
+  void exitQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx);
 }

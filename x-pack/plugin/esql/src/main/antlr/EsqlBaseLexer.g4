@@ -104,6 +104,10 @@ fragment UNQUOTED_ID_BODY
     : (LETTER | DIGIT | UNDERSCORE)
     ;
 
+//QUERY_STRING_TERM
+//    : (ESCAPE_SEQUENCE | UNESCAPED_CHARS)+
+//    ;
+
 QUOTED_STRING
     : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
     | '"""' (~[\r\n])*? '"""' '"'? '"'?
@@ -199,6 +203,9 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
+
+EXPR_COLON : COLON -> type(COLON);
+
 //
 // FROM command
 //
@@ -537,3 +544,20 @@ CLOSING_METRICS_BY
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
     ;
+
+//mode MATCH_MODE;
+//
+//MATCH_PIPE : PIPE -> type(PIPE), popMode;
+//
+//fragment MATCH_UNQUOTED_ID_BODY_WITH_PATTERN
+//    : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
+//    ;
+//
+//fragment MATCH_UNQUOTED_ID_PATTERN
+//    : (LETTER | ASTERISK) UNQUOTED_ID_BODY_WITH_PATTERN*
+//    | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY_WITH_PATTERN+
+//    ;
+//
+//MATCH_ID_PATTERN
+//    : (MATCH_UNQUOTED_ID_PATTERN | QUOTED_ID)+
+//    ;

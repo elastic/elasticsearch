@@ -549,9 +549,39 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#matchQuery}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#unparsedMatchQuery}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx);
+  T visitUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#parsedMatchQuery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringNoFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQueryStringNoFields(EsqlBaseParser.QueryStringNoFieldsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fieldQueryStringExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFieldQueryStringExpression(EsqlBaseParser.FieldQueryStringExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#queryStringTerm}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQueryStringTerm(EsqlBaseParser.QueryStringTermContext ctx);
 }

@@ -186,8 +186,7 @@ public class TransportVersions {
     public static final TransportVersion REGISTER_SLM_STATS = def(8_716_00_0);
     public static final TransportVersion ESQL_NESTED_UNSUPPORTED = def(8_717_00_0);
     public static final TransportVersion ESQL_SINGLE_VALUE_QUERY_SOURCE = def(8_718_00_0);
-
-    public static final TransportVersion ESQL_ORIGINAL_INDICES = def(8_718_00_0);
+    public static final TransportVersion ESQL_ORIGINAL_INDICES = def(8_719_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

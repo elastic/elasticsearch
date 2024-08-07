@@ -16,6 +16,8 @@ public final class XPackField {
     public static final String WATCHER = "watcher";
     /** Name constant for the graph feature. */
     public static final String GRAPH = "graph";
+    /** Name constant for the entity analytics feature. */
+    public static final String ENTITY_ANALYTICS = "entityanalytics";
     /** Name constant for the machine learning feature. */
     public static final String MACHINE_LEARNING = "ml";
     /** Name constant for the inference feature. */

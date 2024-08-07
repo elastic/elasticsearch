@@ -148,8 +148,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         for (String user : List.of("test-admin", "user1")) {
             Response resp = runESQLCommand(user, "from index-user1 | stats sum=sum(value)");
             assertOK(resp);
-            MapMatcher matcher = responseMatcher()
-                .entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+            MapMatcher matcher = responseMatcher().entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(43.0d)));
             assertMap(entityAsMap(resp), matcher);
         }
@@ -157,8 +156,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         for (String user : List.of("test-admin", "user2")) {
             Response resp = runESQLCommand(user, "from index-user2 | stats sum=sum(value)");
             assertOK(resp);
-            MapMatcher matcher = responseMatcher()
-                .entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+            MapMatcher matcher = responseMatcher().entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(72.0d)));
             assertMap(entityAsMap(resp), matcher);
         }
@@ -178,8 +176,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 "from " + index + " METADATA _index" + "| stats sum=sum(value), index=VALUES(_index)"
             );
             assertOK(resp);
-            MapMatcher matcher = responseMatcher().entry("columns", List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword")))
-                .entry("values", List.of(List.of(72.0d, "index-user2")));
+            MapMatcher matcher = responseMatcher().entry(
+                "columns",
+                List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword"))
+            ).entry("values", List.of(List.of(72.0d, "index-user2")));
             assertMap(entityAsMap(resp), matcher);
         }
     }
@@ -188,13 +188,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
         for (var index : List.of("first-alias", "first-alias,index-user1", "first-alias,index-*", "first-*,index-*")) {
             Response resp = runESQLCommand("alias_user1", "from " + index + " METADATA _index" + "| KEEP _index, org, value | LIMIT 10");
             assertOK(resp);
-            MapMatcher matcher = responseMatcher()
-                .entry("columns", List.of(
+            MapMatcher matcher = responseMatcher().entry(
+                "columns",
+                List.of(
                     Map.of("name", "_index", "type", "keyword"),
                     Map.of("name", "org", "type", "keyword"),
                     Map.of("name", "value", "type", "double")
-                ))
-                .entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
+                )
+            ).entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
             assertMap(entityAsMap(resp), matcher);
         }
     }

@@ -51,9 +51,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
 
     @Override
     protected MapMatcher responseMatcher() {
-        return super.responseMatcher()
-            .entry("is_running", equalTo(false))
-            .entry("id", allOf(notNullValue(), instanceOf(String.class)));
+        return super.responseMatcher().entry("is_running", equalTo(false)).entry("id", allOf(notNullValue(), instanceOf(String.class)));
     }
 
     @Override

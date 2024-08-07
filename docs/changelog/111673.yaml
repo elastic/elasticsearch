@@ -1,0 +1,5 @@
+pr: 111673
+summary: Properly handle filters on `TextSimilarityRank` retriever
+area: Ranking
+type: bug
+issues: []

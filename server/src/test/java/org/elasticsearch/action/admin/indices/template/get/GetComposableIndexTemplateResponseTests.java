@@ -8,11 +8,13 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionTests;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.HashMap;
@@ -26,19 +28,24 @@ public class GetComposableIndexTemplateResponseTests extends AbstractWireSeriali
 
     @Override
     protected GetComposableIndexTemplateAction.Response createTestInstance() {
-        DataStreamGlobalRetention globalRetention = randomBoolean() ? null : DataStreamGlobalRetentionTests.randomGlobalRetention();
+        RolloverConfiguration rolloverConfiguration = randomBoolean() ? null : RolloverConfigurationTests.randomRolloverConditions();
         if (randomBoolean()) {
-            return new GetComposableIndexTemplateAction.Response(Map.of(), globalRetention);
+            return new GetComposableIndexTemplateAction.Response(Map.of(), rolloverConfiguration);
         }
         Map<String, ComposableIndexTemplate> templates = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
             templates.put(randomAlphaOfLength(4), ComposableIndexTemplateTests.randomInstance());
         }
-        return new GetComposableIndexTemplateAction.Response(templates, globalRetention);
+        return new GetComposableIndexTemplateAction.Response(templates, rolloverConfiguration);
     }
 
     @Override
     protected GetComposableIndexTemplateAction.Response mutateInstance(GetComposableIndexTemplateAction.Response instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 }

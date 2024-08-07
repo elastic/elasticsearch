@@ -5273,7 +5273,7 @@ public class EsqlBaseParser extends Parser {
         unparsedMatchQuery();
         }
         break;
-      case UNQUOTED_IDENTIFIER:
+      case ID_PATTERN:
         {
         setState(590);
         parsedMatchQuery();
@@ -5388,12 +5388,14 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class QueryStringFieldsContext extends ParserRuleContext {
-    public Token fieldName;
+    public QualifiedNamePatternContext fieldName;
     public TerminalNode COLON() { return getToken(EsqlBaseParser.COLON, 0); }
     public QueryStringNoFieldsContext queryStringNoFields() {
       return getRuleContext(QueryStringNoFieldsContext.class,0);
     }
-    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
+    public QualifiedNamePatternContext qualifiedNamePattern() {
+      return getRuleContext(QualifiedNamePatternContext.class,0);
+    }
     @SuppressWarnings("this-escape")
     public QueryStringFieldsContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -5421,7 +5423,7 @@ public class EsqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(597);
-      ((QueryStringFieldsContext)_localctx).fieldName = match(UNQUOTED_IDENTIFIER);
+      ((QueryStringFieldsContext)_localctx).fieldName = qualifiedNamePattern();
       setState(598);
       match(COLON);
       setState(599);
@@ -5491,7 +5493,7 @@ public class EsqlBaseParser extends Parser {
         match(RP);
         }
         break;
-      case UNQUOTED_IDENTIFIER:
+      case ID_PATTERN:
         enterOuterAlt(_localctx, 2);
         {
         setState(606); 
@@ -5580,7 +5582,9 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class QueryStringTermContext extends ParserRuleContext {
-    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
+    public QualifiedNamePatternContext qualifiedNamePattern() {
+      return getRuleContext(QualifiedNamePatternContext.class,0);
+    }
     @SuppressWarnings("this-escape")
     public QueryStringTermContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -5608,7 +5612,7 @@ public class EsqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(614);
-      match(UNQUOTED_IDENTIFIER);
+      qualifiedNamePattern();
       }
     }
     catch (RecognitionException re) {
@@ -6040,8 +6044,8 @@ public class EsqlBaseParser extends Parser {
     "\u0003x<\u0000\u024e\u0250\u0003z=\u0000\u024f\u024d\u0001\u0000\u0000"+
     "\u0000\u024f\u024e\u0001\u0000\u0000\u0000\u0250w\u0001\u0000\u0000\u0000"+
     "\u0251\u0252\u0005\u001f\u0000\u0000\u0252y\u0001\u0000\u0000\u0000\u0253"+
-    "\u0254\u0003|>\u0000\u0254{\u0001\u0000\u0000\u0000\u0255\u0256\u0005"+
-    "I\u0000\u0000\u0256\u0257\u0005t\u0000\u0000\u0257\u0258\u0003~?\u0000"+
+    "\u0254\u0003|>\u0000\u0254{\u0001\u0000\u0000\u0000\u0255\u0256\u0003"+
+    "8\u001c\u0000\u0256\u0257\u0005t\u0000\u0000\u0257\u0258\u0003~?\u0000"+
     "\u0258}\u0001\u0000\u0000\u0000\u0259\u025a\u00050\u0000\u0000\u025a\u025b"+
     "\u0003~?\u0000\u025b\u025c\u00058\u0000\u0000\u025c\u0263\u0001\u0000"+
     "\u0000\u0000\u025d\u025f\u0003\u0082A\u0000\u025e\u025d\u0001\u0000\u0000"+
@@ -6049,7 +6053,7 @@ public class EsqlBaseParser extends Parser {
     "\u0000\u0260\u0261\u0001\u0000\u0000\u0000\u0261\u0263\u0001\u0000\u0000"+
     "\u0000\u0262\u0259\u0001\u0000\u0000\u0000\u0262\u025e\u0001\u0000\u0000"+
     "\u0000\u0263\u007f\u0001\u0000\u0000\u0000\u0264\u0265\u00038\u001c\u0000"+
-    "\u0265\u0081\u0001\u0000\u0000\u0000\u0266\u0267\u0005I\u0000\u0000\u0267"+
+    "\u0265\u0081\u0001\u0000\u0000\u0000\u0266\u0267\u00038\u001c\u0000\u0267"+
     "\u0083\u0001\u0000\u0000\u00009\u008f\u0098\u00a9\u00b6\u00bf\u00c7\u00cb"+
     "\u00d3\u00d5\u00da\u00e1\u00e6\u00f1\u00f7\u00ff\u0101\u010c\u0113\u011e"+
     "\u0121\u012f\u0137\u013f\u0143\u014a\u0152\u015a\u0167\u016b\u016f\u0176"+

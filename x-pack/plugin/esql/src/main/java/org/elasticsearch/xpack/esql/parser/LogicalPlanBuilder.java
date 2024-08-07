@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -378,7 +379,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override public StringQueryPredicate visitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx) {
         Source source = source(ctx);
-        String fieldName = ctx.fieldName.getText();
+        // TODO HERE get qualified name and do something similar in Validator like MatchOperator
+        NamedExpression fieldName = visitQualifiedNamePattern(ctx.fieldName);
         return new StringQueryPredicate(source, ctx.queryStringNoFields().getText(), "fields=" + fieldName);
     }
 

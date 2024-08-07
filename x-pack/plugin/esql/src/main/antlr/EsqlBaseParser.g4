@@ -315,7 +315,7 @@ parsedMatchQuery
     ;
 
 queryStringFields
-    : fieldName=UNQUOTED_IDENTIFIER COLON queryStringNoFields
+    : fieldName=qualifiedNamePattern COLON queryStringNoFields
     ;
 
 queryStringNoFields
@@ -329,5 +329,5 @@ fieldQueryStringExpression
 
 // TODO Define a lexer rule for query terms and fields - probably we can't tell each other apart
 queryStringTerm
-    : UNQUOTED_IDENTIFIER
+    : qualifiedNamePattern
     ;

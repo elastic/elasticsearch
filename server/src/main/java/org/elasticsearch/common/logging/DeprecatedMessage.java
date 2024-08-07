@@ -63,7 +63,7 @@ public class DeprecatedMessage {
             .field("elasticsearch.event.category", category.name().toLowerCase(Locale.ROOT));
 
         if (Strings.isNullOrEmpty(xOpaqueId) == false) {
-            esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId)
+            esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
         }
         if (Strings.isNullOrEmpty(productOrigin) == false) {
             esLogMessage.field(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);

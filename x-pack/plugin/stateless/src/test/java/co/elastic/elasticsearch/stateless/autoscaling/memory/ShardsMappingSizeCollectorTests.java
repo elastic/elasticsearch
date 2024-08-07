@@ -37,26 +37,23 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
-import static org.mockito.ArgumentMatchers.any;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class IndicesMappingSizeCollectorTests extends ESTestCase {
+public class ShardsMappingSizeCollectorTests extends ESTestCase {
 
     private static final boolean IS_INDEX_NODE = true;
 
@@ -69,7 +66,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
         .put(RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(50))
         .build();
 
-    private final ThreadPool testThreadPool = new TestThreadPool(IndicesMappingSizeCollectorTests.class.getSimpleName());
+    private final ThreadPool testThreadPool = new TestThreadPool(ShardsMappingSizeCollectorTests.class.getSimpleName());
 
     private IndicesService indicesService;
 
@@ -97,9 +94,9 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
         testThreadPool.shutdownNow();
     }
 
-    public void testPublicationAfterIndexShardStarted() throws Exception {
+    public void testPublicationAfterIndexShardStarted() {
 
-        ShardId shardId = new ShardId(TEST_INDEX, 0);
+        ShardId shardId = new ShardId(TEST_INDEX, randomIntBetween(0, 2));
         ShardRouting shardRoutingStub = TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED);
 
         IndexShard indexShard = mock(IndexShard.class);
@@ -110,28 +107,18 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
         final long testIndexMappingSizeInBytes = 1024;
         when(indexService.getNodeMappingStats()).thenReturn(new NodeMappingStats(1, testIndexMappingSizeInBytes, 1, 1));
 
-        var publisher = mock(IndicesMappingSizePublisher.class);
-        var collector = spy(new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS));
+        var publisher = mock(HeapMemoryUsagePublisher.class);
+        var collector = spy(new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS));
 
         // simulate event
         collector.afterIndexShardStarted(indexShard);
-
-        assertBusy(() -> {
-            ArgumentCaptor<HeapMemoryUsage> captor = ArgumentCaptor.forClass(HeapMemoryUsage.class);
-            verify(publisher, times(1)).publishIndicesMappingSize(captor.capture(), any());
-            HeapMemoryUsage memoryMetrics = captor.getValue();
-            assertThat(1L, Matchers.equalTo(memoryMetrics.publicationSeqNo()));
-            assertThat(
-                new IndexMappingSize(testIndexMappingSizeInBytes, "node-0"),
-                Matchers.equalTo(memoryMetrics.indicesMappingSize().get(TEST_INDEX))
-            );
-        });
+        verify(collector).updateMappingMetricsForShard(eq(shardId));
     }
 
-    public void testIndexMappingRequestAreRetried() {
+    public void testPublishHeapMemoryUsagesAreRetried() {
         CountDownLatch published = new CountDownLatch(1);
         AtomicInteger attempts = new AtomicInteger(randomIntBetween(2, 5));
-        var publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool)) {
+        var publisher = new HeapMemoryUsagePublisher(new NoOpNodeClient(testThreadPool)) {
             @Override
             public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
                 if (attempts.decrementAndGet() == 0) {
@@ -152,14 +139,16 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
             .put(CUT_OFF_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5))
             .put(RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(50))
             .build();
-        var collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, setting);
-        collector.publishIndicesMappingSize(Map.of(TEST_INDEX, new IndexMappingSize(randomNonNegativeInt(), "newTestShardNodeId")));
+        var collector = new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, setting);
+        var shards = Map.of(new ShardId(TEST_INDEX, 0), new ShardMappingSize(randomNonNegativeInt(), 0, 0, "newTestShardNodeId"));
+        var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
+        collector.publishHeapUsage(heapUsage);
         safeAwait(published);
     }
 
     public void testIndexMappingRetryRequestAreCancelledAfterTimeout() {
         var unableToPublishMetricsLatch = new CountDownLatch(1);
-        var publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool)) {
+        var publisher = new HeapMemoryUsagePublisher(new NoOpNodeClient(testThreadPool)) {
             @Override
             public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
                 logger.info("Publishing {}", heapMemoryUsage);
@@ -171,24 +160,22 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
                 );
             }
         };
-        var collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
-        collector.publishIndicesMappingSize(
-            Map.of(TEST_INDEX, new IndexMappingSize(randomNonNegativeInt(), "newTestShardNodeId")),
-            TimeValue.timeValueMillis(500),
-            new ActionListener<ActionResponse.Empty>() {
-                @Override
-                public void onResponse(ActionResponse.Empty empty) {}
+        var collector = new ShardsMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
+        var shards = Map.of(new ShardId(TEST_INDEX, 0), new ShardMappingSize(randomNonNegativeInt(), 0, 0, "newTestShardNodeId"));
+        var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
+        collector.publishHeapUsage(heapUsage, TimeValue.timeValueMillis(500), new ActionListener<ActionResponse.Empty>() {
+            @Override
+            public void onResponse(ActionResponse.Empty empty) {}
 
-                @Override
-                public void onFailure(Exception e) {
-                    // onFailure gets called with the latest thrown exception
-                    var cause = e.getCause();
-                    assertEquals(AutoscalingMissedIndicesUpdateException.class, cause.getClass());
-                    assertEquals("Unable to publish metrics", cause.getMessage());
-                    unableToPublishMetricsLatch.countDown();
-                }
+            @Override
+            public void onFailure(Exception e) {
+                // onFailure gets called with the latest thrown exception
+                var cause = e.getCause();
+                assertEquals(AutoscalingMissedIndicesUpdateException.class, cause.getClass());
+                assertEquals("Unable to publish metrics", cause.getMessage());
+                unableToPublishMetricsLatch.countDown();
             }
-        );
+        });
 
         safeAwait(unableToPublishMetricsLatch);
     }

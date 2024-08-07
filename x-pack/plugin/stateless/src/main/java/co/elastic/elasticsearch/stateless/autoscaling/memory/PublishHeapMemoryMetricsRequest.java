@@ -41,7 +41,7 @@ public class PublishHeapMemoryMetricsRequest extends MasterNodeRequest<PublishHe
 
     public PublishHeapMemoryMetricsRequest(StreamInput in) throws IOException {
         super(in);
-        heapMemoryUsage = new HeapMemoryUsage(in);
+        heapMemoryUsage = HeapMemoryUsage.from(in);
     }
 
     @Override

@@ -25,13 +25,19 @@ import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -45,6 +51,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -53,14 +60,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_DEFAULT;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
@@ -259,10 +265,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // ensure that metric was published from the node it is allocated to
         final String initialPublicationNodeId = publicationNodeId;
         assertBusy(() -> {
-            Map<Index, MemoryMetricsService.IndexMemoryMetrics> internalMapCheck1 = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getIndicesMemoryMetrics();
-            MemoryMetricsService.IndexMemoryMetrics indexMetricCheck1 = internalMapCheck1.get(testIndex);
+            var internalMapCheck1 = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class).getShardMemoryMetrics();
+            MemoryMetricsService.ShardMemoryMetrics indexMetricCheck1 = internalMapCheck1.get(new ShardId(testIndex, 0));
             assertThat(indexMetricCheck1.getMetricShardNodeId(), equalTo(initialPublicationNodeId));
         });
 
@@ -283,10 +287,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             .get();
         assertBusy(() -> {
             // ensure that metric was published from the node where 0-shard was moved to
-            Map<Index, MemoryMetricsService.IndexMemoryMetrics> internalMapCheck2 = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getIndicesMemoryMetrics();
-            MemoryMetricsService.IndexMemoryMetrics indexMetricCheck2 = internalMapCheck2.get(testIndex);
+            var internalMapCheck2 = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class).getShardMemoryMetrics();
+            MemoryMetricsService.ShardMemoryMetrics indexMetricCheck2 = internalMapCheck2.get(new ShardId(testIndex, 0));
             assertThat(indexMetricCheck2.getMetricShardNodeId(), equalTo(newPublicationNodeId));
         });
     }
@@ -445,8 +447,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             // Make sure the index stats are assigned to node2
             assertThat(
                 internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
-                    .getIndicesMemoryMetrics()
-                    .get(resolveIndex(indexName))
+                    .getShardMemoryMetrics()
+                    .get(new ShardId(resolveIndex(indexName), 0))
                     .getMetricShardNodeId(),
                 equalTo(getNodeId(indexNode2))
             );
@@ -473,10 +475,10 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             var indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
-                .getIndicesMemoryMetrics()
-                .get(index);
+                .getShardMemoryMetrics()
+                .get(new ShardId(index, 0));
             assertThat(indexMemoryMetrics, is(notNullValue()));
-            final long sizeAfterIndexCreate = indexMemoryMetrics.getSizeInBytes();
+            final long sizeAfterIndexCreate = indexMemoryMetrics.getMappingSizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(0L));
             assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
             // We need to ensure that the seq number goes beyond 10 to guarantee that once a new node
@@ -509,8 +511,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             // Make sure the index stats are assigned to node2
             assertThat(
                 internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
-                    .getIndicesMemoryMetrics()
-                    .get(index)
+                    .getShardMemoryMetrics()
+                    .get(new ShardId(index, 0))
                     .getMetricShardNodeId(),
                 equalTo(getNodeId(indexNode2))
             );
@@ -672,11 +674,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         backgroundIndexer.start();
 
         assertBusy(() -> {
-            var indicesMetricQuality = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
-                .getIndicesMemoryMetrics()
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(e -> e.getKey().getName(), e -> e.getValue().getMetricQuality()));
+            Map<String, MetricQuality> indicesMetricQuality = new HashMap<>();
+            var metrics = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class).getShardMemoryMetrics();
+            for (var e : metrics.entrySet()) {
+                indicesMetricQuality.put(e.getKey().getIndexName(), e.getValue().getMetricQuality());
+            }
             for (String index : indices) {
                 assertEquals(
                     "Mappings for index " + index + " haven't been applied on master node",
@@ -713,9 +715,9 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         final var index = resolveIndex(indexName);
         assertBusy(() -> {
             assertThat(attempt.get(), greaterThan(failCount));
-            var indexMemoryMetrics = masterMemoryMetricService.getIndicesMemoryMetrics().get(index);
+            var indexMemoryMetrics = masterMemoryMetricService.getShardMemoryMetrics().get(new ShardId(index, 0));
             assertNotNull(indexMemoryMetrics);
-            assertThat(indexMemoryMetrics.getSizeInBytes(), greaterThan(0L));
+            assertThat(indexMemoryMetrics.getMappingSizeInBytes(), greaterThan(0L));
             assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
         });
     }
@@ -742,9 +744,9 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         var index = resolveIndex(indexName);
 
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics indexMappingSize = internalCluster().getCurrentMasterNodeInstance(
+            final MemoryMetricsService.ShardMemoryMetrics indexMappingSize = internalCluster().getCurrentMasterNodeInstance(
                 MemoryMetricsService.class
-            ).getIndicesMemoryMetrics().get(index);
+            ).getShardMemoryMetrics().get(new ShardId(index, 0));
             assertThat(indexMappingSize.getMetricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(indexMappingSize.getMetricShardNodeId(), equalTo(indexNode1Id));
         });
@@ -753,10 +755,10 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         // Make sure the index stats are eventually assigned to node2 despite the slow cluster updates
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics indexMappingSize = internalCluster().getCurrentMasterNodeInstance(
+            final MemoryMetricsService.ShardMemoryMetrics indexMappingSize = internalCluster().getCurrentMasterNodeInstance(
                 MemoryMetricsService.class
-            ).getIndicesMemoryMetrics().get(index);
-            final long sizeAfterIndexCreate = indexMappingSize.getSizeInBytes();
+            ).getShardMemoryMetrics().get(new ShardId(index, 0));
+            final long sizeAfterIndexCreate = indexMappingSize.getMappingSizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(0L));
             assertThat(indexMappingSize.getMetricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(indexMappingSize.getMetricShardNodeId(), equalTo(indexNode2Id));
@@ -784,7 +786,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         IntStream.range(0, noOfIndices).forEach(i -> bulk.add(new IndexRequest("index-" + i).source("field", randomUnicodeOfLength(10))));
         assertNoFailures(bulk.get());
         var memoryMetricService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
-        assertBusy(() -> assertThat(memoryMetricService.getIndicesMemoryMetrics().size(), equalTo(noOfIndices)));
+        assertBusy(() -> assertThat(memoryMetricService.getShardMemoryMetrics().size(), equalTo(noOfIndices * defaultNoOfShards)));
         // Shard memory overhead is only considered in the tier memory calculation
         var totalMemoryWithDefaultShardOverhead = memoryMetricService.getMemoryMetrics().totalMemoryInBytes();
         // Considering low number of fields, the memory overhead should be a factor of the shard memory overhead
@@ -820,6 +822,183 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         );
     }
 
+    public void testUpdateMetricsOnRefresh() throws Exception {
+        final int MAPPING_METADATA_FIELDS = 13;
+        final int ACTUAL_METADATA_FIELDS = 5; // _id, _version, _seq_no, _primary_term, _source
+        startMasterAndIndexNode();
+        startMasterAndIndexNode();
+        ensureStableCluster(2);
+        // started shards should publish heap memory usage
+        var memoryMetricsService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
+        final int mappingFieldsCount = randomIntBetween(10, 1000);
+        final XContentBuilder indexMapping = createIndexMapping(mappingFieldsCount);
+        int numberOfShards = between(1, 5);
+        assertAcked(
+            prepareCreate(INDEX_NAME).setMapping(indexMapping)
+                .setSettings(
+                    indexSettings(numberOfShards, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build()
+                )
+                .get()
+        );
+        Index index = resolveIndex(INDEX_NAME);
+        assertBusy(() -> {
+            for (int id = 0; id < numberOfShards; id++) {
+                ShardId shardId = new ShardId(index, id);
+                var metric = memoryMetricsService.getShardMemoryMetrics().get(shardId);
+                assertThat(metric.getMetricQuality(), equalTo(MetricQuality.EXACT));
+                assertThat(metric.getMappingSizeInBytes(), equalTo(1024L * (mappingFieldsCount + MAPPING_METADATA_FIELDS)));
+                assertThat(metric.getTotalFields(), equalTo(0));
+                assertThat(metric.getNumSegments(), equalTo(0));
+            }
+        });
+        Map<ShardId, MemoryMetricsService.ShardMemoryMetrics> previousShardMetrics = new HashMap<>();
+        snapshotMetrics(memoryMetricsService, previousShardMetrics);
+
+        // new segments publishes the estimate heap usage
+        int numDocs = randomIntBetween(1, 10);
+        ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().index(INDEX_NAME));
+        Map<ShardId, Integer> firstSegmentFields = new HashMap<>();
+        {
+            BulkRequestBuilder bulk = client().prepareBulk(INDEX_NAME).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < numDocs; i++) {
+                String docId = randomAlphaOfLength(5);
+                int shardId = indexRouting.getShard(docId, null);
+                int actualFields = randomIntBetween(1, mappingFieldsCount);
+                Map<String, Object> source = new HashMap<>();
+                for (int f = 0; f < actualFields; f++) {
+                    source.put("field-" + f, randomAlphaOfLength(5));
+                }
+                firstSegmentFields.merge(new ShardId(index, shardId), actualFields, Math::max);
+                bulk.add(new IndexRequest(INDEX_NAME).id(docId).source(source));
+            }
+            assertNoFailures(bulk.get());
+            assertBusy(() -> {
+                for (int id = 0; id < numberOfShards; id++) {
+                    ShardId shardId = new ShardId(index, id);
+                    var curr = memoryMetricsService.getShardMemoryMetrics().get(shardId);
+                    var prev = previousShardMetrics.get(shardId);
+                    assertThat(curr.getMetricQuality(), equalTo(MetricQuality.EXACT));
+                    assertThat(curr.getMappingSizeInBytes(), equalTo(1024L * (mappingFieldsCount + MAPPING_METADATA_FIELDS)));
+                    Integer firstStats = firstSegmentFields.get(shardId);
+                    if (firstStats != null) {
+                        assertThat(curr.getSeqNo(), greaterThan(prev.getSeqNo()));
+                        assertThat(curr.getNumSegments(), equalTo(1));
+                        assertThat(curr.getTotalFields(), equalTo(firstStats + ACTUAL_METADATA_FIELDS));
+                    } else {
+                        // no updates from shards which didn't receive the first bulk
+                        assertThat(curr.getSeqNo(), equalTo(prev.getSeqNo()));
+                        assertThat(curr.getNumSegments(), equalTo(0));
+                        assertThat(curr.getTotalFields(), equalTo(0));
+                    }
+                }
+            });
+        }
+        snapshotMetrics(memoryMetricsService, previousShardMetrics);
+
+        // new mapping publishes the estimate heap usage
+        client().admin().indices().preparePutMapping(INDEX_NAME).setSource("extra-field", "type=keyword").get();
+        assertBusy(() -> {
+            for (int id = 0; id < numberOfShards; id++) {
+                ShardId shardId = new ShardId(index, id);
+                var curr = memoryMetricsService.getShardMemoryMetrics().get(shardId);
+                var prev = previousShardMetrics.get(shardId);
+                assertThat(curr.getSeqNo(), greaterThan(prev.getSeqNo()));
+                assertThat(curr.getMappingSizeInBytes(), equalTo(1024L * (mappingFieldsCount + 1 + MAPPING_METADATA_FIELDS)));
+                assertThat(curr.getNumSegments(), equalTo(prev.getNumSegments()));
+                assertThat(curr.getTotalFields(), equalTo(prev.getTotalFields()));
+            }
+        });
+        snapshotMetrics(memoryMetricsService, previousShardMetrics);
+
+        // new segments publishes the estimate heap usage
+        Map<ShardId, Integer> secondSegmentFields = new HashMap<>();
+        {
+            BulkRequestBuilder bulk = client().prepareBulk(INDEX_NAME).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < numDocs; i++) {
+                String docId = randomAlphaOfLength(5);
+                int shardId = indexRouting.getShard(docId, null);
+                int actualFields = randomIntBetween(1, mappingFieldsCount);
+                Map<String, Object> source = new HashMap<>();
+                for (int f = 0; f < actualFields; f++) {
+                    source.put("field-" + f, randomAlphaOfLength(6));
+                }
+                secondSegmentFields.merge(new ShardId(index, shardId), actualFields, Math::max);
+                bulk.add(new IndexRequest(INDEX_NAME).id(docId).source(source));
+            }
+            assertNoFailures(bulk.get());
+            assertBusy(() -> {
+                for (int id = 0; id < numberOfShards; id++) {
+                    ShardId shardId = new ShardId(index, id);
+                    var curr = memoryMetricsService.getShardMemoryMetrics().get(shardId);
+                    var prev = previousShardMetrics.get(shardId);
+                    assertThat(curr.getMappingSizeInBytes(), equalTo(1024L * (mappingFieldsCount + 1 + MAPPING_METADATA_FIELDS)));
+                    Integer secondStats = secondSegmentFields.get(shardId);
+                    if (secondStats != null) {
+                        Integer firstStats = firstSegmentFields.get(shardId);
+                        int totalSegments = 1;
+                        int totalFields = secondStats + ACTUAL_METADATA_FIELDS;
+                        if (firstStats != null) {
+                            totalSegments++;
+                            totalFields += firstStats + ACTUAL_METADATA_FIELDS;
+                        }
+                        assertThat(curr.getNumSegments(), equalTo(totalSegments));
+                        assertThat(curr.getTotalFields(), equalTo(totalFields));
+                        assertThat(curr.getSeqNo(), greaterThan(prev.getSeqNo()));
+                    } else {
+                        // no updates from shards which didn't receive the second bulk
+                        assertThat(curr.getSeqNo(), equalTo(prev.getSeqNo()));
+                        assertThat(curr.getNumSegments(), equalTo(prev.getNumSegments()));
+                        assertThat(curr.getTotalFields(), equalTo(prev.getTotalFields()));
+                    }
+                }
+            });
+        }
+        snapshotMetrics(memoryMetricsService, previousShardMetrics);
+
+        // force merge will also update the estimate heap usage
+        client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).get();
+        assertBusy(() -> {
+            for (int id = 0; id < numberOfShards; id++) {
+                ShardId shardId = new ShardId(index, id);
+                var curr = memoryMetricsService.getShardMemoryMetrics().get(shardId);
+                var prev = previousShardMetrics.get(shardId);
+                assertThat(curr.getMappingSizeInBytes(), equalTo(1024L * (mappingFieldsCount + 1 + MAPPING_METADATA_FIELDS)));
+                Integer firstStats = firstSegmentFields.get(shardId);
+                Integer secondStats = secondSegmentFields.get(shardId);
+                if (firstStats != null && secondStats != null) {
+                    int totalFields = Math.max(firstStats, secondStats) + ACTUAL_METADATA_FIELDS;
+                    assertThat(curr.getNumSegments(), equalTo(1));
+                    assertThat(curr.getTotalFields(), equalTo(totalFields));
+                } else {
+                    // No updates from shards with a single segment (received zero or one bulk request) because
+                    // force-merge is a no-op for these shards.
+                    assertThat(curr.getSeqNo(), equalTo(prev.getSeqNo()));
+                    assertThat(curr.getNumSegments(), equalTo(prev.getNumSegments()));
+                    assertThat(curr.getTotalFields(), equalTo(prev.getTotalFields()));
+                }
+            }
+        });
+    }
+
+    static void snapshotMetrics(MemoryMetricsService memoryMetricsService, Map<ShardId, MemoryMetricsService.ShardMemoryMetrics> out) {
+        out.clear();
+        memoryMetricsService.getShardMemoryMetrics().forEach((shardId, m) -> {
+            out.put(
+                shardId,
+                new MemoryMetricsService.ShardMemoryMetrics(
+                    m.getMappingSizeInBytes(),
+                    m.getNumSegments(),
+                    m.getTotalFields(),
+                    m.getSeqNo(),
+                    m.getMetricQuality(),
+                    m.getMetricShardNodeId(),
+                    m.getUpdateTimestampNanos()
+                )
+            );
+        });
+    }
+
     private String startMasterNode() {
         return internalCluster().startMasterOnlyNode(
             nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
@@ -834,7 +1013,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             sourceMapping.startObject();
             sourceMapping.startObject("properties");
             for (int i = 0; i < fieldCount; i++) {
-                sourceMapping.startObject("field" + i);
+                sourceMapping.startObject("field-" + i);
                 sourceMapping.field("type", "text");
                 sourceMapping.endObject();
             }

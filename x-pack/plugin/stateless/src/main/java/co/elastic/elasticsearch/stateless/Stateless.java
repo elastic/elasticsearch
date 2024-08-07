@@ -35,9 +35,9 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublish
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.TransportPublishNodeIngestLoadMetric;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizePublisher;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.HeapMemoryUsagePublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
@@ -111,6 +111,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -147,6 +148,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -283,7 +285,7 @@ public class Stateless extends Plugin
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
     private final SetOnce<ShardSizeCollector> shardSizeCollector = new SetOnce<>();
-    private final SetOnce<IndicesMappingSizeCollector> indicesMappingSizeCollector = new SetOnce<>();
+    private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
     private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
@@ -508,19 +510,12 @@ public class Stateless extends Plugin
 
         // autoscaling
         // memory
-        var indexMappingSizePublisher = new IndicesMappingSizePublisher(client);
-        var indicesMappingSizeCollector = setAndGet(
-            this.indicesMappingSizeCollector,
-            IndicesMappingSizeCollector.create(
-                hasIndexRole,
-                clusterService,
-                indicesService,
-                indexMappingSizePublisher,
-                threadPool,
-                settings
-            )
+        var heapMemoryUsagePublisher = new HeapMemoryUsagePublisher(client);
+        var shardsMappingSizeCollector = setAndGet(
+            this.shardsMappingSizeCollector,
+            ShardsMappingSizeCollector.create(hasIndexRole, clusterService, indicesService, heapMemoryUsagePublisher, threadPool, settings)
         );
-        components.add(indicesMappingSizeCollector);
+        components.add(shardsMappingSizeCollector);
 
         var vbccChunksPressure = createVirtualBatchedCompoundCommitChunksPressure(
             settings,
@@ -838,9 +833,9 @@ public class Stateless extends Plugin
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,
             IngestLoadSampler.SAMPLING_FREQUENCY_SETTING,
-            IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
-            IndicesMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
-            IndicesMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
+            ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
+            ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
+            ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
             MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             MemoryMetricsService.SHARD_MEMORY_OVERHEAD_SETTING,
@@ -901,7 +896,7 @@ public class Stateless extends Plugin
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
 
-            indexModule.addIndexEventListener(indicesMappingSizeCollector.get());
+            indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
 
             indexModule.addIndexEventListener(new IndexEventListener() {
 
@@ -1049,6 +1044,13 @@ public class Stateless extends Plugin
                     (data, seqNo, location) -> replicator.add(translogConfig.getShardId(), data, seqNo, location),
                     false // translog is replicated to the object store, no need fsync that
                 );
+                var collectorRefreshListener = refreshListenerForShardMappingSizeCollector(config.getShardId());
+                var internalRefreshListeners = config.getInternalRefreshListener();
+                if (internalRefreshListeners == null) {
+                    internalRefreshListeners = List.of(collectorRefreshListener);
+                } else {
+                    internalRefreshListeners = CollectionUtils.appendToCopy(internalRefreshListeners, collectorRefreshListener);
+                }
                 EngineConfig newConfig = new EngineConfig(
                     config.getShardId(),
                     config.getThreadPool(),
@@ -1065,7 +1067,7 @@ public class Stateless extends Plugin
                     newTranslogConfig,
                     config.getFlushMergesAfter(),
                     config.getExternalRefreshListener(),
-                    config.getInternalRefreshListener(),
+                    internalRefreshListeners,
                     config.getIndexSort(),
                     config.getCircuitBreakerService(),
                     config.getGlobalCheckpointSupplier(),
@@ -1188,6 +1190,31 @@ public class Stateless extends Plugin
             @Override
             public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
                 statelessCommitService.markCommitDeleted(shardId, deletedCommit.getGeneration());
+            }
+        };
+    }
+
+    /**
+     * Creates a refresh listener for an indexing shard. This listener notifies the
+     * {@link ShardsMappingSizeCollector} whenever the underlying segments change,
+     * allowing it to publish the updated estimated heap memory usage to the master node.
+     */
+    protected ReferenceManager.RefreshListener refreshListenerForShardMappingSizeCollector(ShardId shardId) {
+        return new ReferenceManager.RefreshListener() {
+            final ShardsMappingSizeCollector collector = shardsMappingSizeCollector.get();
+            boolean first = true;
+
+            @Override
+            public void beforeRefresh() {
+
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                if (first || didRefresh) {
+                    collector.updateMappingMetricsForShard(shardId);
+                    first = false;
+                }
             }
         };
     }

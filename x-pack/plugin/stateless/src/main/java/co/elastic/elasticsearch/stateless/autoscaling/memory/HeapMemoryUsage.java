@@ -17,23 +17,37 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Map;
 
-public record HeapMemoryUsage(long publicationSeqNo, Map<Index, IndexMappingSize> indicesMappingSize) implements Writeable {
-
-    public HeapMemoryUsage(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readMap(Index::new, IndexMappingSize::new));
+public record HeapMemoryUsage(long publicationSeqNo, Map<ShardId, ShardMappingSize> shardMappingSizes) implements Writeable {
+    public static HeapMemoryUsage from(StreamInput in) throws IOException {
+        final Writeable.Reader<ShardId> keyReader;
+        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.SHARD_FIELD_INFOS)) {
+            keyReader = ShardId::new;
+        } else {
+            keyReader = is -> new ShardId(new Index(is), 0);
+        }
+        return new HeapMemoryUsage(in.readVLong(), in.readMap(keyReader, ShardMappingSize::from));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(publicationSeqNo);
-        out.writeMap(indicesMappingSize, (o, index) -> index.writeTo(o), (o, indexMappingSize) -> indexMappingSize.writeTo(o));
+        final Writeable.Writer<ShardId> keyWriter;
+        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.SHARD_FIELD_INFOS)) {
+            keyWriter = (o, v) -> v.writeTo(o);
+        } else {
+            keyWriter = (o, v) -> v.getIndex().writeTo(o);
+        }
+        out.writeMap(shardMappingSizes, keyWriter, (o, shard) -> shard.writeTo(o));
     }
 }

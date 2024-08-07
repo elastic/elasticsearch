@@ -22,11 +22,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 
-public class IndicesMappingSizePublisher {
+public class HeapMemoryUsagePublisher {
 
     private final NodeClient client;
 
-    public IndicesMappingSizePublisher(final Client client) {
+    public HeapMemoryUsagePublisher(final Client client) {
         this.client = (NodeClient) client;
     }
 

@@ -138,7 +138,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                     final var maxSize = between(1, ByteSizeUnit.MB.toIntBytes(1));
                     final var entryCount = between(0, ByteSizeUnit.MB.toIntBytes(10) / maxSize); // limit total size to 10MiB
                     for (int i = 0; i < entryCount; i++) {
-                        response.entries().put(randomIdentifier(), randomContent(maxSize));
+                        response.entries().put(randomIdentifier(), randomContent(between(1, 10), maxSize));
                     }
                     assertTrue(responseRef.compareAndSet(null, response));
                     handleZipRestRequest(
@@ -162,10 +162,13 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                     assertTrue(responseRef.compareAndSet(null, response));
                     final var getNextPartCountDown = request.paramAsInt(GET_NEXT_PART_COUNT_DOWN_PARAM, -1);
                     final Runnable onGetNextPart;
+                    final Supplier<EntryBody> entryBodySupplier;
                     if (getNextPartCountDown <= 1) {
                         onGetNextPart = () -> {};
+                        entryBodySupplier = () -> randomContent(between(1, 10), ByteSizeUnit.MB.toIntBytes(1));
                     } else {
                         final AtomicInteger remaining = new AtomicInteger(getNextPartCountDown);
+                        entryBodySupplier = () -> randomContent(between(2, 10), ByteSizeUnit.KB.toIntBytes(1));
                         if (randomBoolean()) {
                             onGetNextPart = () -> {
                                 final var newRemaining = remaining.decrementAndGet();
@@ -198,7 +201,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                         public Map.Entry<String, EntryBody> next() {
                             return new Map.Entry<>() {
                                 private final String key = Long.toString(id++);
-                                private final EntryBody content = randomContent(ByteSizeUnit.MB.toIntBytes(1));
+                                private final EntryBody content = entryBodySupplier.get();
 
                                 @Override
                                 public String getKey() {
@@ -221,12 +224,11 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
             });
         }
 
-        private static EntryBody randomContent(int maxSize) {
+        private static EntryBody randomContent(int partCount, int maxSize) {
             if (randomBoolean()) {
                 return null;
             }
 
-            final var partCount = between(1, 10);
             final var maxPartSize = maxSize / partCount;
             return new EntryBody(randomList(partCount, partCount, () -> {
                 final var chunkCount = between(1, 10);

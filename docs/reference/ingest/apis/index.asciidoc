@@ -13,7 +13,7 @@ Use the following APIs to create, manage, and test ingest pipelines:
 * <<put-pipeline-api>> to create or update a pipeline
 * <<get-pipeline-api>> to retrieve a pipeline configuration
 * <<delete-pipeline-api>> to delete a pipeline
-* <<simulate-pipeline-api>> to test a pipeline
+* <<simulate-pipeline-api>> and <<simulate-ingest-api>> to test ingest pipelines
 
 [discrete]
 [[ingest-stat-apis]]

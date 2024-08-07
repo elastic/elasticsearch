@@ -188,7 +188,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
 
-        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -208,7 +209,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
 
-        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -324,5 +326,4 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         var contenderResponseBody = entityAsMap(tuple.v2());
         assertThat("errors in contender bulk response:\n " + contenderResponseBody, contenderResponseBody.get("errors"), equalTo(false));
     }
-
 }

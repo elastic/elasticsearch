@@ -535,7 +535,7 @@ public class IndexEngine extends InternalEngine {
         } else {
             // Wait for upload to complete only for true flushes, i.e. _not_ converted from refreshes, which guarantee
             // a commit to be uploaded.
-            if (statelessCommitService.isStatelessUploadDelayed() == false || IS_FLUSH_BY_REFRESH.get() == false) {
+            if (IS_FLUSH_BY_REFRESH.get() == false) {
                 statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener);
             } else {
                 logger.trace(() -> Strings.format("no need to wait for non-uploaded generation [%s]", generation));

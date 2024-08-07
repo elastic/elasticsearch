@@ -188,10 +188,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         when(commitService.getCommitBCCResolverForShard(any(ShardId.class))).thenReturn(
             generation -> Set.of(new PrimaryTermAndGeneration(1, generation))
         );
-        if (StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(settings)) {
-            when(commitService.isStatelessUploadDelayed()).thenReturn(true);
-        }
-
         return commitService;
     }
 

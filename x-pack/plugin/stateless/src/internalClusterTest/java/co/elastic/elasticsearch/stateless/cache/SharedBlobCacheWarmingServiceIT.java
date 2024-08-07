@@ -519,11 +519,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .build();
         boolean indexNodeUploadDelayed = randomBoolean();
         var indexNodeSettings = indexNodeUploadDelayed
-            ? Settings.builder()
-                .put(cacheSettings)
-                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
-                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
-                .build()
+            ? Settings.builder().put(cacheSettings).put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100).build()
             : cacheSettings;
         startMasterOnlyNode();
         startIndexNode(indexNodeSettings);

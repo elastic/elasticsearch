@@ -64,7 +64,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -74,7 +76,6 @@ import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectStoreServiceTests extends ESTestCase {
 
@@ -171,10 +172,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             @Override
             protected Settings nodeSettings() {
-                // todo: the future wait below assumes every commit is released immediately, not true when delayed.
+                // the future wait below assumes every commit is released immediately, not true when delayed.
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), false)
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
                     .build();
             }
         }) {
@@ -258,7 +259,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
     public void testReadNewestCommit() throws Exception {
         final Map<String, BlobLocation> uploadedBlobLocations = ConcurrentCollections.newConcurrentMap();
-        final AtomicReference<StatelessCompoundCommit> notifiedCompoundCommit = new AtomicReference<>();
+        final var notifiedCompoundCommits = new ConcurrentLinkedQueue<StatelessCompoundCommit>();
         final long primaryTerm = randomLongBetween(1, 42);
 
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
@@ -275,12 +276,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         ActionListener<Response> listener
                     ) {
                         assert action == TransportNewCommitNotificationAction.TYPE;
-                        if (notifiedCompoundCommit.compareAndSet(
-                            null,
-                            ((NewCommitNotificationRequest) request).getCompoundCommit()
-                        ) == false) {
-                            fail("expected the notified compound commit to be null, but got " + notifiedCompoundCommit.get());
-                        }
+                        notifiedCompoundCommits.add(((NewCommitNotificationRequest) request).getCompoundCommit());
                         ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(new NewCommitNotificationResponse(Set.of()));
                     }
                 };
@@ -288,10 +284,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             @Override
             protected Settings nodeSettings() {
-                // todo: expect 1 commit per bcc below, needs fixing to support delayed too.
+                // expect 1 commit per bcc below
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), false)
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
                     .build();
             }
         }) {
@@ -301,11 +297,13 @@ public class ObjectStoreServiceTests extends ESTestCase {
             // The node may already have existing CCs
             final int ccCount = between(0, 4);
             for (var indexCommit : testHarness.generateIndexCommits(ccCount)) {
-                notifiedCompoundCommit.set(null);
                 testHarness.commitService.onCommitCreation(indexCommit);
                 assertBusy(() -> {
-                    final StatelessCompoundCommit compoundCommit = notifiedCompoundCommit.get();
-                    assertThat(compoundCommit, notNullValue());
+                    Optional<StatelessCompoundCommit> optionalCompoundCommit = notifiedCompoundCommits.stream()
+                        .filter(c -> c.primaryTerm() == indexCommit.getPrimaryTerm() && c.generation() == indexCommit.getGeneration())
+                        .findFirst();
+                    assertTrue(optionalCompoundCommit.isPresent());
+                    var compoundCommit = optionalCompoundCommit.get();
                     // Update the blobLocations so that BCCs can use them later
                     uploadedBlobLocations.putAll(compoundCommit.commitFiles());
                     expectedNewestCompoundCommit.set(compoundCommit);
@@ -314,6 +312,13 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             // Should find the latest compound commit from a list of pure CCs
             if (ccCount > 0) {
+                var waitForUploadLatch = new CountDownLatch(1);
+                testHarness.commitService.addListenerForUploadedGeneration(
+                    testHarness.shardId,
+                    expectedNewestCompoundCommit.get().generation(),
+                    ActionListener.releasing(waitForUploadLatch::countDown)
+                );
+                safeAwait(waitForUploadLatch);
                 assertThat(
                     ObjectStoreService.readNewestBcc(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
                     equalTo(

@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
@@ -96,11 +94,6 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             }
         }
         this.maxSerializedAttributes = maxSerializedAttributes;
-    }
-
-    public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
-        assert logicalPlan.children().size() <= 1 || (logicalPlan instanceof Join && logicalPlan.children().size() == 2);
-        writeNamed(LogicalPlan.class, logicalPlan);
     }
 
     public void writePhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {

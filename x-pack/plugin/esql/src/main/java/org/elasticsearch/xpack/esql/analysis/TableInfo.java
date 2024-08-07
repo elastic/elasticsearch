@@ -5,25 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.analyzer;
+package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 
 public class TableInfo {
 
     private final TableIdentifier id;
-    private final boolean isFrozen;
 
-    public TableInfo(TableIdentifier id, boolean isFrozen) {
+    public TableInfo(TableIdentifier id) {
         this.id = id;
-        this.isFrozen = isFrozen;
     }
 
     public TableIdentifier id() {
         return id;
-    }
-
-    public boolean isFrozen() {
-        return isFrozen;
     }
 }

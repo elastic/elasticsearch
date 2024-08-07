@@ -28,15 +28,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
@@ -44,15 +44,15 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
-public class IndicesMappingSizeCollector implements ClusterStateListener, IndexEventListener {
+public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEventListener {
 
-    private static final int SENDING_PRIMARY_SHARD_ID = 0;
     public static final Setting<TimeValue> PUBLISHING_FREQUENCY_SETTING = Setting.timeSetting(
         "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
         TimeValue.timeValueMinutes(5),
@@ -72,13 +72,13 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    private static final Logger logger = LogManager.getLogger(IndicesMappingSizeCollector.class);
+    private static final Logger logger = LogManager.getLogger(ShardsMappingSizeCollector.class);
     private static final org.apache.logging.log4j.Logger log4jLogger = org.apache.logging.log4j.LogManager.getLogger(
-        IndicesMappingSizeCollector.class
+        ShardsMappingSizeCollector.class
     );
     private final boolean isIndexNode;
     private final IndicesService indicesService;
-    private final IndicesMappingSizePublisher publisher;
+    private final HeapMemoryUsagePublisher publisher;
     private final ThreadPool threadPool;
     private final Executor executor;
     private final TimeValue publicationFrequency;
@@ -87,10 +87,10 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     private final AtomicLong seqNo = new AtomicLong();
     private volatile PublishTask publishTask;
 
-    public IndicesMappingSizeCollector(
+    public ShardsMappingSizeCollector(
         final boolean isIndexNode,
         final IndicesService indicesService,
-        final IndicesMappingSizePublisher publisher,
+        final HeapMemoryUsagePublisher publisher,
         final ThreadPool threadPool,
         final Settings settings
     ) {
@@ -105,10 +105,10 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         );
     }
 
-    IndicesMappingSizeCollector(
+    ShardsMappingSizeCollector(
         final boolean isIndexNode,
         final IndicesService indicesService,
-        final IndicesMappingSizePublisher publisher,
+        final HeapMemoryUsagePublisher publisher,
         final ThreadPool threadPool,
         final TimeValue publicationFrequency,
         final TimeValue cutOffTimeout,
@@ -124,15 +124,15 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         this.retryInitialDelay = retryInitialDelay;
     }
 
-    public static IndicesMappingSizeCollector create(
+    public static ShardsMappingSizeCollector create(
         final boolean isIndexNode,
         final ClusterService clusterService,
         final IndicesService indicesService,
-        final IndicesMappingSizePublisher publisher,
+        final HeapMemoryUsagePublisher publisher,
         final ThreadPool threadPool,
         final Settings settings
     ) {
-        final IndicesMappingSizeCollector instance = new IndicesMappingSizeCollector(
+        final ShardsMappingSizeCollector instance = new ShardsMappingSizeCollector(
             isIndexNode,
             indicesService,
             publisher,
@@ -154,8 +154,8 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         return instance;
     }
 
-    public void publishIndicesMappingSize(Map<Index, IndexMappingSize> indicesMappingSize) {
-        publishIndicesMappingSize(indicesMappingSize, cutOffTimeout, new ActionListener<>() {
+    public void publishHeapUsage(HeapMemoryUsage heapUsage) {
+        publishHeapUsage(heapUsage, cutOffTimeout, new ActionListener<>() {
             @Override
             public void onResponse(ActionResponse.Empty empty) {}
 
@@ -166,27 +166,21 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         });
     }
 
-    void publishIndicesMappingSize(
-        Map<Index, IndexMappingSize> indicesMappingSize,
-        TimeValue cutOffTimeout,
-        ActionListener<ActionResponse.Empty> actionListener
-    ) {
+    void publishHeapUsage(HeapMemoryUsage heapUsage, TimeValue cutOffTimeout, ActionListener<ActionResponse.Empty> actionListener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-
-        final HeapMemoryUsage heapMemoryUsage = new HeapMemoryUsage(seqNo.incrementAndGet(), indicesMappingSize);
 
         new RetryableAction<>(log4jLogger, threadPool, retryInitialDelay, cutOffTimeout, actionListener, threadPool.generic()) {
 
             @Override
             public void tryAction(ActionListener<ActionResponse.Empty> listener) {
-                publisher.publishIndicesMappingSize(heapMemoryUsage, listener);
+                publisher.publishIndicesMappingSize(heapUsage, listener);
             }
 
             @Override
             public boolean shouldRetry(Exception e) {
                 final var cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof AutoscalingMissedIndicesUpdateException) {
-                    logger.trace("Retry publishing mapping sizes: " + heapMemoryUsage, e);
+                    logger.trace("Retry publishing mapping sizes: " + heapUsage, e);
                     return true;
                 }
                 return false;
@@ -201,7 +195,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         }
         if (event.nodesDelta().masterNodeChanged()) {
             // new master does not have any mapping size estimation data
-            updateMappingSizeMetricsForAllIndices();
+            updateMappingMetricsForAllIndices();
         }
         if (event.metadataChanged()) {
             // handle index metadata mapping updates
@@ -213,7 +207,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
                     && newIndexMetadata != null
                     && ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) { // ignore all unrelated events
                     if (oldIndexMetadata.getMappingVersion() < newIndexMetadata.getMappingVersion()) {
-                        updateMappingSizeMetrics(newIndexMetadata);
+                        updateMappingMetricsForIndex(index);
                     }
                 }
             }
@@ -221,57 +215,73 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     }
 
     @Override
-    public void afterIndexShardStarted(final IndexShard indexShard) {
+    public void afterIndexShardStarted(IndexShard indexShard) {
         if (isIndexNode == false) {
             return;
         }
-        if (indexShard.shardId().id() != SENDING_PRIMARY_SHARD_ID) {
-            return;
-        }
-        IndexService indexService = indicesService.indexServiceSafe(indexShard.shardId().getIndex());
-        updateMappingSizeMetrics(indexService.getMetadata());
+        updateMappingMetricsForShard(indexShard.shardId());
     }
 
-    void updateMappingSizeMetricsForAllIndices() {
-        Map<Index, IndexMappingSize> indexMappingSizeMap = new HashMap<>();
+    private void addShardMappingSizes(long indexMappingSizeInBytes, Iterable<IndexShard> shards, Map<ShardId, ShardMappingSize> map) {
+        for (IndexShard shard : shards) {
+            final var shardState = Assertions.ENABLED ? shard.state() : null;
+            final var shardFieldStats = shard.getShardFieldStats();
+            if (shardFieldStats == null) {
+                assert shardState != IndexShardState.POST_RECOVERY && shardState != IndexShardState.STARTED
+                    : "started or post_recovery shard must have shard_field_stats ready";
+                continue;
+            }
+            final String nodeId = shard.routingEntry().currentNodeId();
+            final ShardMappingSize shardMappingSize = new ShardMappingSize(
+                indexMappingSizeInBytes,
+                shardFieldStats.numSegments(),
+                shardFieldStats.totalFields(),
+                nodeId
+            );
+            map.put(shard.shardId(), shardMappingSize);
+        }
+    }
+
+    void updateMappingMetricsForAllIndices() {
+        final long publishSeqNo = seqNo.incrementAndGet(); // generate seq_no before capturing data
+        final Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
         for (IndexService indexService : indicesService) {
-            var indexMetadata = indexService.getMetadata();
-            var indexMappingSize = indexMappingSizeMetrics(indexMetadata);
-            if (indexMappingSize != null) {
-                indexMappingSizeMap.put(indexMetadata.getIndex(), indexMappingSize);
+            var nodeMappingStats = indexService.getNodeMappingStats();
+            if (nodeMappingStats != null) {
+                addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), indexService, shardMappingSizes);
             }
         }
-        threadPool.generic().execute(() -> publishIndicesMappingSize(indexMappingSizeMap));
+        HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes);
+        threadPool.generic().execute(() -> publishHeapUsage(heapUsage));
     }
 
-    void updateMappingSizeMetrics(IndexMetadata indexMetadata) {
-        IndexMappingSize indexMappingSize = indexMappingSizeMetrics(indexMetadata);
-        if (indexMappingSize != null) {
-            Map<Index, IndexMappingSize> indexMappingSizeMap = Map.of(indexMetadata.getIndex(), indexMappingSize);
-            threadPool.generic().execute(() -> publishIndicesMappingSize(indexMappingSizeMap));
+    void updateMappingMetricsForIndex(Index index) {
+        final long publishSeqNo = seqNo.incrementAndGet(); // generate seq_no before capturing data
+        final IndexService indexService = indicesService.indexService(index);
+        if (indexService != null) {
+            final var nodeMappingStats = indexService.getNodeMappingStats();
+            if (nodeMappingStats != null) {
+                Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
+                addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), indexService, shardMappingSizes);
+                HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes);
+                threadPool.generic().execute(() -> publishHeapUsage(heapUsage));
+            }
         }
     }
 
-    @Nullable
-    IndexMappingSize indexMappingSizeMetrics(final IndexMetadata indexMetadata) {
-        if (isIndexNode == false) {
-            return null;
+    public void updateMappingMetricsForShard(ShardId shardId) {
+        final long publishSeqNo = seqNo.incrementAndGet(); // generate seq_no before capturing data
+        final IndexService indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService != null) {
+            final IndexShard shard = indexService.getShardOrNull(shardId.id());
+            final var nodeMappingStats = indexService.getNodeMappingStats();
+            if (shard != null && nodeMappingStats != null) {
+                Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
+                addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), List.of(shard), shardMappingSizes);
+                HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes);
+                threadPool.generic().execute(() -> publishHeapUsage(heapUsage));
+            }
         }
-        final Index index = indexMetadata.getIndex();
-        final IndexService indexService = indicesService.indexServiceSafe(index);
-        final IndexShard indexShard = indexService.getShardOrNull(SENDING_PRIMARY_SHARD_ID);
-        if (indexShard == null) {
-            return null;
-        }
-        final NodeMappingStats nodeMappingStats = indexService.getNodeMappingStats();
-        if (nodeMappingStats != null) {
-            final ByteSizeValue estimatedSizeInBytes = nodeMappingStats.getTotalEstimatedOverhead();
-            final long newValue = estimatedSizeInBytes.getBytes();
-            final String shardNodeId = indexShard.routingEntry().currentNodeId();
-            assert shardNodeId != null : "Publishing index mapping size metrics only from allocated shard";
-            return new IndexMappingSize(newValue, shardNodeId);
-        }
-        return null;
     }
 
     void start() {
@@ -297,7 +307,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
             if (publishTask != PublishTask.this) {
                 return;
             }
-            updateMappingSizeMetricsForAllIndices();
+            updateMappingMetricsForAllIndices();
         }
 
         @Override

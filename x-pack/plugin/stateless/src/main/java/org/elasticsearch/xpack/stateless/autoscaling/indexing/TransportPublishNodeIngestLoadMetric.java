@@ -70,7 +70,7 @@ public class TransportPublishNodeIngestLoadMetric extends TransportMasterNodeAct
         ActionListener<ActionResponse.Empty> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            ingestMetricsService.trackNodeIngestLoad(request.getNodeId(), request.getSeqNo(), request.getIngestionLoad());
+            ingestMetricsService.trackNodeIngestLoad(state, request.getNodeId(), request.getSeqNo(), request.getIngestionLoad());
             return ActionResponse.Empty.INSTANCE;
         });
     }

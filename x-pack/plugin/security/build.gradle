@@ -158,14 +158,6 @@ tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
-tasks.register('testNoSecurityManager', Test) {
-  testClassesDirs = sourceSets.test.output.classesDirs
-  classpath = sourceSets.test.runtimeClasspath
-  include noSecurityManagerClasses
-  systemProperty 'tests.security.manager', 'false'
-  systemProperty 'es.insecure_network_trace_enabled', 'true'
-}
-
 tasks.named("processInternalClusterTestResources").configure {
   from(project(xpackModule('core')).file('src/main/config'))
   from(project(xpackModule('core')).file('src/test/resources'))
@@ -464,6 +456,14 @@ String[] noSecurityManagerClasses = [
   "**/TransportOpenIdConnectLogoutActionTests.class",
   "**/OpenIdConnectRealmTests.class",
 ]
+
+tasks.register('testNoSecurityManager', Test) {
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  include noSecurityManagerClasses
+  systemProperty 'tests.security.manager', 'false'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
+}
 
 tasks.named("check").configure { dependsOn 'testNoSecurityManager' }
 

@@ -1,0 +1,6 @@
+pr: 110049
+summary: Handle malformed date when objects are supplied
+area: Logs
+type: bug
+issues:
+ - 109539

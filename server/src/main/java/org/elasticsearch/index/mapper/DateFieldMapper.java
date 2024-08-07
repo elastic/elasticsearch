@@ -55,6 +55,7 @@ import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.NumberFormat;
@@ -917,6 +918,17 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
+        if (context.parser().currentToken() == XContentParser.Token.START_OBJECT) {
+            if (ignoreMalformed) {
+                context.addIgnoredField(mappedFieldType.name());
+                if (isSourceSynthetic) {
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                }
+                return;
+            } else {
+                throw new IllegalArgumentException("Unable to parse object as a " + mappedFieldType.name() + " field");
+            }
+        }
         String dateAsString = context.parser().textOrNull();
 
         long timestamp;

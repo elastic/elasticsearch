@@ -1,0 +1,65 @@
+[[put-geoip-database-api]]
+=== Create or update geoip database configuration API
+++++
+<titleabbrev>Create or update geoip database configuration</titleabbrev>
+++++
+
+Creates or updates an ip geolocation database configuration.
+
+[source,console]
+----
+PUT _ingest/geoip/database/my-database-id
+{
+  "name": "GeoIP2-Domain",
+  "maxmind": {
+    "account_id": "1025402"
+  }
+}
+
+----
+
+
+[[put-geoip-database-api-request]]
+==== {api-request-title}
+
+`PUT /_ingest/geoip/database/<database>`
+
+[[put-geoip-database-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+
+[[put-geoip-database-api-path-params]]
+==== {api-path-parms-title}
+
+`<database>`::
++
+__
+(Required, string) ID of the database configuration to create or update.
+
+--
+
+
+[[put-geoip-database-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[put-geoip-database-api-request-body]]
+==== {api-request-body-title}
+
+// tag::geoip-database-object[]
+`name`::
+(Required, string)
+The provider-assigned name of the ip geolocation database to download.
+
+`<provider>`::
+(Required, a provider object and its associated configuration)
+The configuration necessary to identify which ip geolocation provider to use to download
+the database, as well as any provider-specific configuration necessary for such downloading.
++
+At present, the only supported provider is `maxmind`, and the maxmind provider
+requires that an `account_id` (string) is configured.
+// end::geoip-database-object[]

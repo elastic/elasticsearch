@@ -115,7 +115,9 @@ public class ZoneAwareAssignmentPlanner {
         Map<String, Integer> deploymentIdToTargetAllocationsPerZone = deploymentIdToRemainingAllocations.entrySet()
             .stream()
             .filter(e -> e.getValue() > 0)
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> 1 + remainingAllocationsPerRemainingZone(remainingZones, e.getValue())));
+            .collect(
+                Collectors.toMap(Map.Entry::getKey, e -> 1 + remainingAllocationsPerZoneAfterAssigningOne(remainingZones, e.getValue()))
+            );
         // If there was at least one allocation for a deployment, we will apply it to each zone
 
         List<AssignmentPlan.Deployment> modifiedDeployments = deployments.stream()
@@ -126,9 +128,9 @@ public class ZoneAwareAssignmentPlanner {
                     // replace each deployment with a new deployment
                     d.deploymentId(),
                     d.memoryBytes(),
-                    deploymentIdToTargetAllocationsPerZone.get(d.deploymentId()), // TODO this seems wrong?
+                    deploymentIdToTargetAllocationsPerZone.get(d.deploymentId()),
                     d.threadsPerAllocation(),
-                    d.currentAllocationsByNodeId(), // TODO why are we updating the total allocations but not the allocations per node?
+                    d.currentAllocationsByNodeId(),
                     // (below) Only force assigning at least once previously assigned models that have not had any allocation yet
                     (tryAssigningPreviouslyAssignedModels && deploymentIdToRemainingAllocations.get(d.deploymentId()) == d.allocations())
                         ? d.maxAssignedAllocations()
@@ -142,8 +144,9 @@ public class ZoneAwareAssignmentPlanner {
         return new AssignmentPlanner(nodes, modifiedDeployments).computePlan(tryAssigningPreviouslyAssignedModels);
     }
 
-    private static int remainingAllocationsPerRemainingZone(int remainingZones, Integer remainingAllocations) {
-        if (remainingAllocations == null) {
+    private static int remainingAllocationsPerZoneAfterAssigningOne(int remainingZones, Integer remainingAllocations) {
+        if (remainingAllocations == null || remainingZones == 0) {
+            // should never happen
             return 0;
         }
         return (remainingAllocations - 1) / remainingZones;

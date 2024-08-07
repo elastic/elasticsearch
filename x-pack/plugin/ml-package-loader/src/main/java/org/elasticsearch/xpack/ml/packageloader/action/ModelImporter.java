@@ -155,6 +155,6 @@ class ModelImporter {
         }
 
         client.execute(action, request, ActionListener.noop());
-        client.execute(action, request).actionGet();
+//        client.execute(action, request).actionGet();
     }
 }

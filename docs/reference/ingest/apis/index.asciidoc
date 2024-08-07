@@ -24,9 +24,24 @@ Use the following APIs to get statistics about ingest processing:
 * <<geoip-stats-api>> to get download statistics for ip geolocation databases used with
 the <<geoip-processor,`geoip` processor>>.
 
+[discrete]
+[[ingest-geoip-database-apis]]
+=== Ingest GeoIP Database APIs
+
+preview::["The commercial ip geolocation database download management APIs are in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but this feature is not subject to the support SLA of official GA features."]
+
+Use the following APIs to configure and manage commercial ip geolocation database downloads:
+
+* <<put-geoip-database-api>> to create or update a database configuration
+* <<get-geoip-database-api>> to retrieve a database configuration
+* <<delete-geoip-database-api>> to delete a database configuration
+
 include::put-pipeline.asciidoc[]
 include::get-pipeline.asciidoc[]
 include::delete-pipeline.asciidoc[]
 include::simulate-pipeline.asciidoc[]
 include::simulate-ingest.asciidoc[]
 include::geoip-stats-api.asciidoc[]
+include::put-geoip-database.asciidoc[]
+include::get-geoip-database.asciidoc[]
+include::delete-geoip-database.asciidoc[]

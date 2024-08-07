@@ -127,6 +127,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -4497,6 +4498,31 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var unwrapped = Alias.unwrap(aggregates.get(0));
         var min = as(unwrapped, Min.class);
         as(aggregate.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_InlineStats[[emp_no % 2{r}#6],[COUNT(salary{f}#12) AS c, emp_no % 2{r}#6]]
+     *   \_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no % 2]]
+     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testInlinestatsNestedExpressionsInGroups() {
+        var plan = optimizedPlan("""
+            FROM test
+            | INLINESTATS c = COUNT(salary) by emp_no % 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), InlineStats.class);
+        var groupings = agg.groupings();
+        var aggs = agg.aggregates();
+        var ref = as(groupings.get(0), ReferenceAttribute.class);
+        assertThat(aggs.get(1), is(ref));
+        var eval = as(agg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).toAttribute(), is(ref));
+        assertThat(eval.fields().get(0).name(), is("emp_no % 2"));
     }
 
     /**

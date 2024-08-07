@@ -38,8 +38,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -50,6 +49,7 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -277,7 +277,7 @@ public class FilterTests extends ESTestCase {
      */
     public static QueryBuilder singleValueQuery(String query, QueryBuilder inner, String field, Source source) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            EsqlConfiguration config = EsqlConfigurationSerializationTests.randomConfiguration(query, Map.of());
+            Configuration config = randomConfiguration(query, Map.of());
 
             // emulate SingleValueQuery writeTo
             out.writeFloat(AbstractQueryBuilder.DEFAULT_BOOST);

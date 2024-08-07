@@ -16,19 +16,20 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 
 public class SingleValueQuerySerializationTests extends AbstractWireTestCase<SingleValueQuery.Builder> {
     /**
      * We use a single random config for all serialization because it's pretty
      * heavy to build, especially in {@link #testConcurrentSerialization()}.
      */
-    private EsqlConfiguration config;
+    private Configuration config;
 
     @Override
     protected SingleValueQuery.Builder createTestInstance() {
@@ -86,6 +87,6 @@ public class SingleValueQuerySerializationTests extends AbstractWireTestCase<Sin
 
     @Before
     public void initConfig() {
-        this.config = EsqlConfigurationSerializationTests.randomConfiguration();
+        this.config = randomConfiguration();
     }
 }

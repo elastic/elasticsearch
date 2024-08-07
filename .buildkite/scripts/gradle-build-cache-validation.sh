@@ -23,7 +23,7 @@ perfOutput=$(cat $tmpOutputFile | sed -n '/Performance Characteristics/,/See htt
 investigationOutput=$(cat $tmpOutputFile | sed -n '/Investigation Quick Links/,$p' | sed 's/\x1b\[[0-9;]*m//g')
 
 # Initialize HTML output variable
-summaryHtml="<h4>Performance Characteristics</h4>"
+summaryHtml="<h4>Build Cache Performance Characteristics</h4>"
 summaryHtml+="<ul>"
 
 # Process each line of the string

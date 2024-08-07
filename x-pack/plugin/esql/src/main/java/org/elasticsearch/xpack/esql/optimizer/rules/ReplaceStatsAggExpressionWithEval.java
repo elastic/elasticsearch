@@ -34,7 +34,7 @@ import static java.util.Collections.singleton;
  * becomes
  * stats a1 = sum(a), a2 = min(b) by x | eval a = a1 + a2 | keep a, x
  * The rule also considers expressions applied over groups:
- * stats a = x + 1 by x becomes stats by x | eval a = x + 1 | keep a, x
+ * {@code STATS a = x + 1 BY x} becomes {@code STATS BY x | EVAL a = x + 1 | KEEP a, x}
  * And to combine the two:
  * stats a = x + count(*) by x
  * becomes

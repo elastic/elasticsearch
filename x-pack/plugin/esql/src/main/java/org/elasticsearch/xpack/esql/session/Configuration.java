@@ -64,7 +64,7 @@ public class Configuration implements Writeable {
         boolean profile,
         Map<String, Map<String, Column>> tables
     ) {
-        this.zoneId = zi;
+        this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
         this.username = username;
         this.clusterName = clusterName;

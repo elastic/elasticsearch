@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -129,7 +130,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(
         12,
-        "disk usage exceeded flood-stage watermark, index has read-only-allow-delete block",
+        "disk usage exceeded flood-stage watermark, index has read-only-allow-delete block; for more information, see "
+            + ReferenceDocs.FLOOD_STAGE_WATERMARK,
         false,
         false,
         true,

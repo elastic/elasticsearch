@@ -19,10 +19,10 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
@@ -84,7 +85,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
-            EsqlConfigurationSerializationTests.randomConfiguration(query, EsqlConfigurationSerializationTests.randomTables()),
+            randomConfiguration(query, randomTables()),
             randomAlphaOfLength(10),
             shardIds,
             aliasFilters,
@@ -112,7 +113,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             case 1 -> {
                 var request = new DataNodeRequest(
                     in.sessionId(),
-                    EsqlConfigurationSerializationTests.randomConfiguration(),
+                    randomConfiguration(),
                     in.clusterAlias(),
                     in.shardIds(),
                     in.aliasFilters(),

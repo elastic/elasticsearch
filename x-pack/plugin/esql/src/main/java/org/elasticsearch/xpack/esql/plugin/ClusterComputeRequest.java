@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +42,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String clusterAlias;
     private final String sessionId;
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
     private final PhysicalPlan plan;
 
     private final String[] originalIndices;
@@ -61,7 +61,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
     ClusterComputeRequest(
         String clusterAlias,
         String sessionId,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         PhysicalPlan plan,
         String[] indices,
         String[] originalIndices
@@ -78,7 +78,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         super(in);
         this.clusterAlias = in.readString();
         this.sessionId = in.readString();
-        this.configuration = new EsqlConfiguration(
+        this.configuration = new Configuration(
             // TODO make EsqlConfiguration Releasable
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
@@ -130,7 +130,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         return sessionId;
     }
 
-    EsqlConfiguration configuration() {
+    Configuration configuration() {
         return configuration;
     }
 

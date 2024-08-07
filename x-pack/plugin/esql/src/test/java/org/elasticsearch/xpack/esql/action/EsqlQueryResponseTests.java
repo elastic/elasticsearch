@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverStatus;
@@ -157,9 +156,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 );
                 case DATETIME -> ((LongBlock.Builder) builder).appendLong(randomInstant().toEpochMilli());
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
-                case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendBytesRef(
-                    new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
-                );
+                case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                 case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case GEO_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
                 case CARTESIAN_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
@@ -660,7 +657,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case KEYWORD, TEXT, UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {
                         long longVal = dateTimeToLong(value.toString());

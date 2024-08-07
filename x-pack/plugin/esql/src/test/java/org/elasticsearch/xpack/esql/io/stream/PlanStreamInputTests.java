@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -133,7 +133,7 @@ public class PlanStreamInputTests extends ESTestCase {
 
         for (var delim : new String[] { "", "\r", "\n", "\r\n" }) {
             String query = queryFn.apply(delim);
-            EsqlConfiguration config = configuration(query);
+            Configuration config = configuration(query);
 
             LogicalPlan planIn = analyze(query);
             LogicalPlan planOut = serializeDeserialize(

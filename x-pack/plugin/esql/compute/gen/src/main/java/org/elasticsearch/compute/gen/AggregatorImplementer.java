@@ -346,6 +346,11 @@ public class AggregatorImplementer {
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
+        if (stateTypeHasFailed) {
+            builder.beginControlFlow("if (state.failed())");
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
         builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector)");
@@ -389,11 +394,6 @@ public class AggregatorImplementer {
             builder.beginControlFlow("if (block.isNull(p))");
             builder.addStatement("continue");
             builder.endControlFlow();
-            if (stateTypeHasFailed) {
-                builder.beginControlFlow("if (state.failed())");
-                builder.addStatement("continue");
-                builder.endControlFlow();
-            }
             if (stateTypeHasSeen) {
                 builder.addStatement("state.seen(true)");
             }
@@ -429,6 +429,7 @@ public class AggregatorImplementer {
             builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
             builder.addStatement("warnings.registerException(e)");
             builder.addStatement("state.failed(true)");
+            builder.addStatement("return");
             builder.endControlFlow();
         }
     }
@@ -497,6 +498,7 @@ public class AggregatorImplementer {
                 builder.nextControlFlow("else if (seen.getBoolean(0))");
                 {
                     var state = intermediateState.get(0);
+                    // TODO: Add try-catch of warnExceptions here!
                     var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
                     builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
                     builder.addStatement("state.seen(true)");

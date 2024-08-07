@@ -61,6 +61,9 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page) {
+    if (state.failed()) {
+      return;
+    }
     LongBlock block = page.getBlock(channels.get(0));
     LongVector vector = block.asVector();
     if (vector != null) {
@@ -78,6 +81,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       } catch (ArithmeticException e) {
         warnings.registerException(e);
         state.failed(true);
+        return;
       }
     }
   }
@@ -85,9 +89,6 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(LongBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
-        continue;
-      }
-      if (state.failed()) {
         continue;
       }
       state.seen(true);
@@ -99,6 +100,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
         } catch (ArithmeticException e) {
           warnings.registerException(e);
           state.failed(true);
+          return;
         }
       }
     }

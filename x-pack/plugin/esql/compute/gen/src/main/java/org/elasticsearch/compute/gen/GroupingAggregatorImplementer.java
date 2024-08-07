@@ -545,6 +545,7 @@ public class GroupingAggregatorImplementer {
                     {
                         var name = intermediateState.get(0).name();
                         var m = vectorAccessorName(intermediateState.get(0).elementType());
+                        // TODO: Add try-catch of warnExceptions here!
                         builder.addStatement(
                             "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
                             declarationType,

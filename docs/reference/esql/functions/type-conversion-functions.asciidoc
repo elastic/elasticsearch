@@ -16,6 +16,7 @@
 * <<esql-to_boolean>>
 * <<esql-to_cartesianpoint>>
 * <<esql-to_cartesianshape>>
+* <<esql-to_dateperiod>>
 * <<esql-to_datetime>>
 * <<esql-to_degrees>>
 * <<esql-to_double>>
@@ -26,6 +27,7 @@
 * <<esql-to_long>>
 * <<esql-to_radians>>
 * <<esql-to_string>>
+* <<esql-to_timeduration>>
 * experimental:[] <<esql-to_unsigned_long>>
 * <<esql-to_version>>
 // end::type_list[]
@@ -33,6 +35,7 @@
 include::layout/to_boolean.asciidoc[]
 include::layout/to_cartesianpoint.asciidoc[]
 include::layout/to_cartesianshape.asciidoc[]
+include::layout/to_dateperiod.asciidoc[]
 include::layout/to_datetime.asciidoc[]
 include::layout/to_degrees.asciidoc[]
 include::layout/to_double.asciidoc[]
@@ -43,5 +46,6 @@ include::layout/to_ip.asciidoc[]
 include::layout/to_long.asciidoc[]
 include::layout/to_radians.asciidoc[]
 include::layout/to_string.asciidoc[]
+include::layout/to_timeduration.asciidoc[]
 include::layout/to_unsigned_long.asciidoc[]
 include::layout/to_version.asciidoc[]

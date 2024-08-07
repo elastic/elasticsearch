@@ -207,7 +207,12 @@ public class EsqlCapabilities {
         /**
          * MATCH command support
          */
-        MATCH_COMMAND(true);
+        MATCH_COMMAND(true),
+
+        /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

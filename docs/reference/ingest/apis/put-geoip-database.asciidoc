@@ -69,3 +69,9 @@ the database, as well as any provider-specific configuration necessary for such 
 At present, the only supported provider is `maxmind`, and the maxmind provider
 requires that an `account_id` (string) is configured.
 // end::geoip-database-object[]
+
+[[redact-licensing]]
+==== Licensing
+
+Downloading databases from third party providers is a commercial feature that requires an
+appropriate license. For more information, refer to https://www.elastic.co/subscriptions.

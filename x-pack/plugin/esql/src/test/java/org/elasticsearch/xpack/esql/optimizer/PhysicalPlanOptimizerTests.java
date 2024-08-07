@@ -139,7 +139,6 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
-import static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -522,7 +521,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit(), is(l(10)));
         assertThat(source.sorts().size(), is(1));
         FieldSort order = source.sorts().get(0);
-        assertThat(order.direction(), is(ASC));
+        assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("last_name"));
         // last name is keyword, salary, emp_no, doc id, segment, forwards and backwards doc id maps are all ints
         int estimatedSize = KEYWORD_EST + Integer.BYTES * 6;
@@ -1192,7 +1191,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit(), is(l(1)));
         assertThat(source.sorts().size(), is(1));
         FieldSort order = source.sorts().get(0);
-        assertThat(order.direction(), is(ASC));
+        assertThat(order.direction(), is(Order.OrderDirection.ASC));
         assertThat(name(order.field()), is("salary"));
         // ints for doc id, segment id, forwards and backwards mapping, languages, and salary
         assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 6));

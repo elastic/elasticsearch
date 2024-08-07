@@ -41,6 +41,11 @@
       "capabilities": {
         "type": "string",
         "description": "Comma-separated list of arbitrary API capabilities to check"
+      },
+      "local_only": {
+        "type": "boolean",
+        "description": "True if only the node being called should be considered",
+        "visibility": "private"
       }
     }
   }

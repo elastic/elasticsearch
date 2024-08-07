@@ -82,9 +82,25 @@ public class NimbusWrapper {
                     Base64URL.encode(signatureUrl)
                 )
             );
-        } catch (PrivilegedActionException ex) {
-            throw (ParseException) ex.getException();
+        } catch (PrivilegedActionException e) {
+            if (e.getException() instanceof ParseException ex) {
+                throw ex;
+            } else {
+                throw new RuntimeException(e.getException());
+            }
         }
+    }
 
+    public static Base64URL parseHeader(Map<String, Object> header) throws ParseException {
+        SpecialPermission.check();
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<Base64URL>) ()-> JWSHeader.parse(header).toBase64URL());
+        } catch (PrivilegedActionException e) {
+            if (e.getException() instanceof ParseException ex) {
+                throw ex;
+            } else {
+                throw new RuntimeException(e.getException());
+            }
+        }
     }
 }

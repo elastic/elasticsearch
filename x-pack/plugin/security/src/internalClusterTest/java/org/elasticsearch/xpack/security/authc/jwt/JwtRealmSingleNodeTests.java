@@ -455,7 +455,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
 
         // Payload is not JSON
         final SignedJWT signedJWT2 = new SignedJWT(
-            JWSHeader.parse(Map.of("alg", randomAlphaOfLengthBetween(5, 10))).toBase64URL(),
+            NimbusWrapper.parseHeader(Map.of("alg", randomAlphaOfLengthBetween(5, 10))),
             Base64URL.encode("payload"),
             Base64URL.encode("signature")
         );

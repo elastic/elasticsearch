@@ -90,7 +90,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         File uploadFile = target.file("build/" + buildNumber + ".tar.bz2");
         int artifactIndex = 1;
         while (uploadFile.exists()) {
-            uploadFile = target.file("build/targetFileName" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
+            uploadFile = target.file("build/" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
         }
         return uploadFile;
     }

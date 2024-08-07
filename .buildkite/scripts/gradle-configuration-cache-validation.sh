@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+# TODO/ FIXIT without a full resolved gradle home, we see issues configuration cache reuse
 ./gradlew --max-workers=8 --parallel --scan --no-daemon precommit
 
 ./gradlew --max-workers=8 --parallel --scan --configuration-cache precommit -Dorg.gradle.configuration-cache.inputs.unsafe.ignore.file-system-checks=build/*.tar.bz2

@@ -1,5 +1,5 @@
 pr: 111646
-summary: "[Inference API] Backport Delete...Action pipeline check to threadpool"
+summary: "[Inference API] Move Delete inference checks to threadpool worker"
 area: Machine Learning
 type: bug
 issues: []

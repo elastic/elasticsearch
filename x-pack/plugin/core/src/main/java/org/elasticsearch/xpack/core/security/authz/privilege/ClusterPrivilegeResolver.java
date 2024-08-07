@@ -397,6 +397,14 @@ public class ClusterPrivilegeResolver {
         "write_connector_secrets",
         WRITE_CONNECTOR_SECRETS_PATTERN
     );
+    public static final NamedClusterPrivilege MONITOR_GLOBAL_RETENTION = new ActionClusterPrivilege(
+        "monitor_data_stream_global_retention",
+        Set.of()
+    );
+    public static final NamedClusterPrivilege MANAGE_GLOBAL_RETENTION = new ActionClusterPrivilege(
+        "manage_data_stream_global_retention",
+        Set.of()
+    );
 
     /**
      * If you are adding a new named cluster privilege, also add it to the
@@ -462,7 +470,9 @@ public class ClusterPrivilegeResolver {
             CROSS_CLUSTER_SEARCH,
             CROSS_CLUSTER_REPLICATION,
             READ_CONNECTOR_SECRETS,
-            WRITE_CONNECTOR_SECRETS
+            WRITE_CONNECTOR_SECRETS,
+            MONITOR_GLOBAL_RETENTION,
+            MANAGE_GLOBAL_RETENTION
         ).filter(Objects::nonNull).toList()
     );
 

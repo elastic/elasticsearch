@@ -106,8 +106,8 @@ public class Configuration implements Writeable {
         var instant = now.toInstant();
         out.writeVLong(instant.getEpochSecond());
         out.writeVInt(instant.getNano());
-        out.writeOptionalString(username);
-        out.writeOptionalString(clusterName);
+        out.writeOptionalString(username);    // TODO this one is always null
+        out.writeOptionalString(clusterName); // TODO this one is never null so maybe not optional
         out.writeString(locale.toLanguageTag());
         pragmas.writeTo(out);
         out.writeVInt(resultTruncationMaxSize);

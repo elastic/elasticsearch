@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-
 import javax.inject.Inject;
 
 public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project> {
@@ -61,8 +60,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
         if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
-            String targetFileName = System.getProperty("buildkite.artifact.upload.file.name", buildNumber);
-            File targetFile = target.file("build/" + targetFileName + ".tar.bz2");
+            File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
+            int artifactIndex = 1;
+            while (targetFile.exists()) {
+                targetFile = target.file("build/targetFileName" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
+            }
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
             DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);

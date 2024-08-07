@@ -278,8 +278,8 @@ public class ClientYamlTestExecutionContext {
         return clientYamlTestCandidate;
     }
 
-    public boolean clusterHasFeature(String featureId) {
-        return testFeatureService.clusterHasFeature(featureId);
+    public boolean clusterHasFeature(String featureId, boolean any) {
+        return testFeatureService.clusterHasFeature(featureId, any);
     }
 
     public Optional<Boolean> clusterHasCapabilities(

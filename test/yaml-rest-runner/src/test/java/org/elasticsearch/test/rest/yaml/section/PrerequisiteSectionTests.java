@@ -458,8 +458,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
-        when(mockContext.clusterHasFeature("required-feature-1")).thenReturn(true);
-        when(mockContext.clusterHasFeature("required-feature-2")).thenReturn(true);
+        when(mockContext.clusterHasFeature("required-feature-1", false)).thenReturn(true);
+        when(mockContext.clusterHasFeature("required-feature-2", false)).thenReturn(true);
 
         assertFalse(section.skipCriteriaMet(mockContext));
         assertTrue(section.requiresCriteriaMet(mockContext));
@@ -475,8 +475,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
-        when(mockContext.clusterHasFeature("required-feature-1")).thenReturn(true);
-        when(mockContext.clusterHasFeature("required-feature-2")).thenReturn(false);
+        when(mockContext.clusterHasFeature("required-feature-1", false)).thenReturn(true);
+        when(mockContext.clusterHasFeature("required-feature-2", false)).thenReturn(false);
 
         assertFalse(section.skipCriteriaMet(mockContext));
         assertFalse(section.requiresCriteriaMet(mockContext));
@@ -492,7 +492,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
-        when(mockContext.clusterHasFeature("undesired-feature-1")).thenReturn(true);
+        when(mockContext.clusterHasFeature("undesired-feature-1", true)).thenReturn(true);
 
         assertTrue(section.skipCriteriaMet(mockContext));
     }
@@ -522,9 +522,9 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertFalse(section.hasCapabilitiesCheck());
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
-        when(mockContext.clusterHasFeature("required-feature-1")).thenReturn(true);
-        when(mockContext.clusterHasFeature("required-feature-2")).thenReturn(true);
-        when(mockContext.clusterHasFeature("undesired-feature-1")).thenReturn(true);
+        when(mockContext.clusterHasFeature("required-feature-1", false)).thenReturn(true);
+        when(mockContext.clusterHasFeature("required-feature-2", false)).thenReturn(true);
+        when(mockContext.clusterHasFeature("undesired-feature-1", true)).thenReturn(true);
 
         assertTrue(section.skipCriteriaMet(mockContext));
         assertTrue(section.requiresCriteriaMet(mockContext));
@@ -541,8 +541,8 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertFalse(section.hasCapabilitiesCheck());
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
-        when(mockContext.clusterHasFeature("required-feature-1")).thenReturn(true);
-        when(mockContext.clusterHasFeature("required-feature-2")).thenReturn(true);
+        when(mockContext.clusterHasFeature("required-feature-1", false)).thenReturn(true);
+        when(mockContext.clusterHasFeature("required-feature-2", false)).thenReturn(true);
 
         assertFalse(section.skipCriteriaMet(mockContext));
         assertTrue(section.requiresCriteriaMet(mockContext));
@@ -561,16 +561,16 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         assertFalse(section.skipCriteriaMet(mockContext));
 
-        when(mockContext.clusterHasFeature("bug1")).thenReturn(true);
+        when(mockContext.clusterHasFeature("bug1", true)).thenReturn(true);
         assertTrue(section.skipCriteriaMet(mockContext));
 
-        when(mockContext.clusterHasFeature("fix1")).thenReturn(true);
+        when(mockContext.clusterHasFeature("fix1", false)).thenReturn(true);
         assertFalse(section.skipCriteriaMet(mockContext));
 
-        when(mockContext.clusterHasFeature("bug2")).thenReturn(true);
+        when(mockContext.clusterHasFeature("bug2", true)).thenReturn(true);
         assertTrue(section.skipCriteriaMet(mockContext));
 
-        when(mockContext.clusterHasFeature("fix2")).thenReturn(true);
+        when(mockContext.clusterHasFeature("fix2", false)).thenReturn(true);
         assertFalse(section.skipCriteriaMet(mockContext));
     }
 

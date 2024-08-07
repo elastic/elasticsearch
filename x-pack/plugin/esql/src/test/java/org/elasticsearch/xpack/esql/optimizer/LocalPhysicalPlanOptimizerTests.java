@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
@@ -97,7 +97,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
     private TestPlannerOptimizer plannerOptimizer;
-    private final EsqlConfiguration config;
+    private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
         public boolean isSingleValue(String field) {
@@ -117,7 +117,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return asList(new Tuple<>("default", Map.of()));
     }
 
-    public LocalPhysicalPlanOptimizerTests(String name, EsqlConfiguration config) {
+    public LocalPhysicalPlanOptimizerTests(String name, Configuration config) {
         this.config = config;
     }
 

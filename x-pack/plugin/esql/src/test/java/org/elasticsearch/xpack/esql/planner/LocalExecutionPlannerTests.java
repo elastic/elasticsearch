@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -135,8 +135,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
-    private EsqlConfiguration config() {
-        return new EsqlConfiguration(
+    private Configuration config() {
+        return new Configuration(
             randomZone(),
             randomLocale(random()),
             "test_user",

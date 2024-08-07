@@ -88,7 +88,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -120,7 +120,7 @@ public class LocalExecutionPlanner {
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final Settings settings;
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
     private final EnrichLookupService enrichLookupService;
@@ -133,7 +133,7 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         Settings settings,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,

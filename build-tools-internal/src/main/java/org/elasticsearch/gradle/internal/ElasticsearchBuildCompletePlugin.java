@@ -61,7 +61,8 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
         if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
-            File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
+            String targetFileName = System.getProperty("buildkite.artifact.upload.file.name", buildNumber);
+            File targetFile = target.file("build/" + targetFileName + ".tar.bz2");
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
             DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);
@@ -89,6 +90,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
     private List<File> resolveProjectLogs(File projectDir) {
         var projectDirFiles = getFileOperations().fileTree(projectDir);
         projectDirFiles.include("**/*.hprof");
+        projectDirFiles.include("build/reports/configuration-cache/**");
         projectDirFiles.include("**/build/test-results/**/*.xml");
         projectDirFiles.include("**/build/testclusters/**");
         projectDirFiles.include("**/build/testrun/*/temp/**");

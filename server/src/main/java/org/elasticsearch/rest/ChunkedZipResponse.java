@@ -93,7 +93,9 @@ public final class ChunkedZipResponse implements Releasable {
     private SubscribableListener<ChunkedRestResponseBodyPart> nextAvailableChunksListener;
 
     /**
-     * A resource to be released when the transmission of the current entry is complete.
+     * A resource to be released when the transmission of the current entry is complete. Note that we may complete the transmission of
+     * multiple entries at the same time, if they are all processed by one call to {@link AvailableChunksZipResponseBodyPart#encodeChunk}
+     * and transmitted together.
      */
     @Nullable // if not currently sending an entry
     private Releasable currentEntryReleasable;
@@ -123,16 +125,21 @@ public final class ChunkedZipResponse implements Releasable {
     }
 
     /**
-     * Create a listener which, when completed, will write the result {@link ChunkedRestResponseBodyPart} as an entry in the response stream
-     * with the given name. If the listener is completed successfully with {@code null}, or exceptionally, then no entry is sent. When all
-     * listeners created by this method have been completed, the zip file footer is sent.
+     * Create a listener which, when completed, will write the result {@link ChunkedRestResponseBodyPart}, and any following parts, as an
+     * entry in the response stream with the given name. If the listener is completed successfully with {@code null}, or exceptionally, then
+     * no entry is sent. When all listeners created by this method have been completed, the zip file footer is sent.
      * <p>
      * This method may be called as long as this {@link ChunkedZipResponse} is not closed, or there is at least one other incomplete entry
      * listener.
      *
      * @param entryName  The name of the entry in the response zip file.
-     * @param releasable A resource which is released when the entry has been completely processed: either fully sent, or else the request
-     *                   was cancelled and the response will not be used any further.
+     * @param releasable A resource which is released when the entry has been completely processed, i.e. when
+     *                   <ul>
+     *                   <li>the sequence of {@link ChunkedRestResponseBodyPart} instances have been fully sent, or</li>
+     *                   <li>the listener was completed with {@code null}, or an exception, indicating that no entry is to be sent, or</li>
+     *                   <li>the overall response was cancelled before completion and all resources related to the partial transmission of
+     *                   this entry have been released.</li>
+     *                   </ul>
      */
     public ActionListener<ChunkedRestResponseBodyPart> newEntryListener(String entryName, Releasable releasable) {
         if (listenersRefs.tryIncRef()) {

@@ -94,7 +94,7 @@ public class NimbusWrapper {
     public static Base64URL parseHeader(Map<String, Object> header) throws ParseException {
         SpecialPermission.check();
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<Base64URL>) ()-> JWSHeader.parse(header).toBase64URL());
+            return AccessController.doPrivileged((PrivilegedExceptionAction<Base64URL>) () -> JWSHeader.parse(header).toBase64URL());
         } catch (PrivilegedActionException e) {
             if (e.getException() instanceof ParseException ex) {
                 throw ex;

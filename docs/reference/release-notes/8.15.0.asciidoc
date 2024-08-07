@@ -138,7 +138,9 @@ Machine Learning::
 * Do not use global ordinals strategy if the leaf reader context cannot be obtained {es-pull}108459[#108459]
 * Fix NPE in trained model assignment updater {es-pull}108942[#108942]
 * Fix serialising inference delete response {es-pull}109384[#109384]
+* Fix "stack use after scope" memory error {ml-pull}2673[#2673]
 * Fix trailing slash in `ml.get_categories` specification {es-pull}110146[#110146]
+* Handle any exception thrown by inference {ml-pull}2680[#2680]
 * Increase response size limit for batched requests {es-pull}110112[#110112]
 * Offload request to generic threadpool {es-pull}109104[#109104] (issue: {es-issue}109100[#109100])
 * Propagate accurate deployment timeout {es-pull}109534[#109534] (issue: {es-issue}109407[#109407])
@@ -349,6 +351,7 @@ Machine Learning::
 * GA the update trained model action {es-pull}108868[#108868]
 * Handle the "JSON memory allocator bytes" field {es-pull}109653[#109653]
 * Inference Processor: skip inference when all fields are missing {es-pull}108131[#108131]
+* Log 'No statistics at.. ' message as a warning {ml-pull}2684[#2684]
 * Optimise frequent item sets aggregation for single value fields {es-pull}108130[#108130]
 * Sentence Chunker {es-pull}110334[#110334]
 * [Inference API] Add Amazon Bedrock Support to Inference API {es-pull}110248[#110248]

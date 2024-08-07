@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 public record AnalyzerContext(

@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -128,7 +127,7 @@ public final class ResponseValueUtils {
             case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> spatialToString(
                 ((BytesRefBlock) block).getBytesRef(offset, scratch)
             );
-            case UNSUPPORTED -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
+            case UNSUPPORTED -> (String) null;
             case SOURCE -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
                 try {
@@ -140,8 +139,8 @@ public final class ResponseValueUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, NESTED, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE,
-                NULL, PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, NULL,
+                PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 }

@@ -207,7 +207,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
             if (g instanceof Attribute a) {
                 groupingAttributes.add(a);
             } else {
-                throw new UnsupportedOperationException("INLINESTATS doesn't support expressions in grouping position yet");
+                throw new IllegalStateException("optimized plans should only have attributes in groups, but got [" + g + "]");
             }
         }
         List<Attribute> leftFields = new ArrayList<>(groupingAttributes.size());

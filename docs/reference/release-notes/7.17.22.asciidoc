@@ -40,11 +40,21 @@ to revert to the previous behavior.
 Infra/CLI::
 * Workaround G1 bug for JDK 22 and 22.0.1 {es-pull}108571[#108571]
 
+Infra/Plugins::
+* Guard bootstrap plugins loading from detecting plugins cache {es-pull}109116[#109116] (issue: {es-issue}97702[#97702])
+
 Mapping::
 * Disable `index.mapper.dynamic` index setting validation {es-pull}109160[#109160]
 
 Security::
 * Block specific config files from being read after startup {es-pull}107481[#107481]
+
+[[enhancement-7.17.22]]
+[float]
+=== Enhancements
+
+Infra/Settings::
+* Add remove index setting command {es-pull}109276[#109276]
 
 [[upgrade-7.17.22]]
 [float]

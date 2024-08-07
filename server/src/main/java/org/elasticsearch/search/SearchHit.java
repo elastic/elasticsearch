@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -210,9 +211,13 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         final long version = in.readLong();
         final long seqNo = in.readZLong();
         final long primaryTerm = in.readVLong();
-        BytesReference source = pooled ? in.readReleasableBytesReference() : in.readBytesReference();
+        ReleasableBytesReference source = in.readReleasableBytesReference();
         if (source.length() == 0) {
             source = null;
+        } else {
+            if (pooled == false) {
+                source = source.releaseEventually();
+            }
         }
         Explanation explanation = null;
         if (in.readBoolean()) {

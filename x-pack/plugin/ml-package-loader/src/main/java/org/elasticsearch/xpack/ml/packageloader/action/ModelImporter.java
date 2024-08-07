@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.packageloader.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -85,7 +86,7 @@ class ModelImporter {
             );
 
             logger.info("put part " + part);
-//            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
+            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
             logger.info("part " + part + " put");
         }
 
@@ -153,6 +154,7 @@ class ModelImporter {
             throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
         }
 
+        client.execute(action, request, ActionListener.noop());
         client.execute(action, request).actionGet();
     }
 }

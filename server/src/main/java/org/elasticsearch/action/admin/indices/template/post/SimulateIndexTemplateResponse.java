@@ -48,7 +48,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
     private final RolloverConfiguration rolloverConfiguration;
 
     public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingTemplates) {
-        this(resolvedTemplate, overlappingTemplates, (RolloverConfiguration) null);
+        this(resolvedTemplate, overlappingTemplates, null);
     }
 
     public SimulateIndexTemplateResponse(

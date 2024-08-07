@@ -21,7 +21,7 @@ Use the following APIs to create, manage, and test ingest pipelines:
 
 Use the following APIs to get statistics about ingest processing:
 
-* <<geoip-stats-api>> to get download statistics for GeoIP2 databases used with
+* <<geoip-stats-api>> to get download statistics for ip geolocation databases used with
 the <<geoip-processor,`geoip` processor>>.
 
 include::put-pipeline.asciidoc[]

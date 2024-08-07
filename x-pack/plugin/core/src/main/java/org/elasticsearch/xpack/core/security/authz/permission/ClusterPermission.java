@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -107,14 +108,14 @@ public class ClusterPermission {
             final Set<String> allowedActionPatterns,
             final Predicate<TransportRequest> requestPredicate
         ) {
-            return add(clusterPrivilege, allowedActionPatterns, requestPredicate, Set.of());
+            final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, Set.of());
+            return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(clusterPrivilege, actionAutomaton, requestPredicate));
         }
 
         public Builder add(
             final ClusterPrivilege clusterPrivilege,
             final Set<String> allowedActionPatterns,
-            final Predicate<TransportRequest> requestPredicate,
-            final Set<String> indexPatterns
+            final BiPredicate<TransportRequest, RestrictedIndices> requestPredicate
         ) {
             final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, Set.of());
             return add(
@@ -122,8 +123,7 @@ public class ClusterPermission {
                 new ActionRequestBasedPermissionCheck(
                     clusterPrivilege,
                     actionAutomaton,
-                    request -> (restrictedIndices == null || indexPatterns.stream().anyMatch(restrictedIndices::isRestricted) == false)
-                        && requestPredicate.test(request)
+                    request -> requestPredicate.test(request, restrictedIndices)
                 )
             );
         }

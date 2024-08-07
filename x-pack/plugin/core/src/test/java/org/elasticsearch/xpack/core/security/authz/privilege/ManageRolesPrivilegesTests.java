@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,40 +17,66 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageRolesPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
 import java.io.ByteArrayOutputStream;
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsEqual.equalTo;
 
-public class ManageRolesPrivilegesTests extends ESTestCase {
+public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<ConfigurableClusterPrivilege> {
 
-    public void testSerialization() throws Exception {
-        final ManageApplicationPrivileges original = buildPrivileges();
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            original.writeTo(out);
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                final ManageApplicationPrivileges copy = ManageApplicationPrivileges.createFrom(in);
-                assertThat(copy, equalTo(original));
-                assertThat(original, equalTo(copy));
-            }
-        }
+    public void testSimplePutRoleRequest() {
+        new ReservedRolesStore();
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(Sets.newHashSet("allowed-*"));
+        final ClusterPermission permission = privilege.buildPermission(new ClusterPermission.Builder()).build();
+
+        assertAllowedIndexPatterns(permission, randomArray(10, String[]::new, () -> "allowed-" + randomAlphaOfLength(5)), true);
+        assertAllowedIndexPatterns(permission, randomArray(10, String[]::new, () -> "not-allowed-" + randomAlphaOfLength(5)), false);
+        assertAllowedIndexPatterns(
+            permission,
+            new String[] { "allowed-" + randomAlphaOfLength(5), "not-allowed-" + randomAlphaOfLength(5) },
+            false
+        );
+    }
+
+    public void testSeveralIndexGroupsPutRoleRequest() {
+        new ReservedRolesStore();
+
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(Sets.newHashSet("a*", "b*"));
+        final ClusterPermission permission = privilege.buildPermission(new ClusterPermission.Builder()).build();
+
+        assertAllowedIndexPatterns(permission, new String[] { "/[ab].*/" }, true);
+        assertAllowedIndexPatterns(permission, new String[] { "/[abc].*/" }, false);
+    }
+
+    public void testRestrictedIndexPutRoleRequest() {
+        new ReservedRolesStore();
+
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(Sets.newHashSet("*"));
+        final ClusterPermission permission = privilege.buildPermission(
+            new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
+        ).build();
+
+        assertAllowedIndexPatterns(permission, new String[] { "security" }, true);
+        assertAllowedIndexPatterns(permission, new String[] { "security", ".security" }, false);
     }
 
     public void testGenerateAndParseXContent() throws Exception {
@@ -62,7 +84,7 @@ public class ManageRolesPrivilegesTests extends ESTestCase {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             final XContentBuilder builder = new XContentBuilder(xContent, out);
 
-            final ManageApplicationPrivileges original = buildPrivileges();
+            final ManageRolesPrivilege original = buildPrivileges();
             builder.startObject();
             original.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
@@ -71,9 +93,8 @@ public class ManageRolesPrivilegesTests extends ESTestCase {
             final byte[] bytes = out.toByteArray();
             try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, bytes)) {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-                // ManageApplicationPrivileges.parse requires that the parser be positioned on the "manage" field.
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                final ManageApplicationPrivileges clone = ManageApplicationPrivileges.parse(parser);
+                final ManageRolesPrivilege clone = ManageRolesPrivilege.parse(parser);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
 
                 assertThat(clone, equalTo(original));
@@ -82,78 +103,90 @@ public class ManageRolesPrivilegesTests extends ESTestCase {
         }
     }
 
-    public void testEqualsAndHashCode() {
-        final int applicationNameLength = randomIntBetween(4, 7);
-        final ManageApplicationPrivileges privileges = buildPrivileges(applicationNameLength);
-        final EqualsHashCodeTestUtils.MutateFunction<ManageApplicationPrivileges> mutate = orig -> buildPrivileges(
-            applicationNameLength + randomIntBetween(1, 3)
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(privileges, this::clone, mutate);
-    }
-
-    public void testActionAndRequestPredicate() {
-        final ManageApplicationPrivileges kibanaAndLogstash = new ManageApplicationPrivileges(Sets.newHashSet("kibana-*", "logstash"));
-        final ManageApplicationPrivileges cloudAndSwiftype = new ManageApplicationPrivileges(Sets.newHashSet("cloud-*", "swiftype"));
-        final ClusterPermission kibanaAndLogstashPermission = kibanaAndLogstash.buildPermission(new ClusterPermission.Builder()).build();
-        final ClusterPermission cloudAndSwiftypePermission = cloudAndSwiftype.buildPermission(new ClusterPermission.Builder()).build();
-        assertThat(kibanaAndLogstashPermission, notNullValue());
-        assertThat(cloudAndSwiftypePermission, notNullValue());
-
+    private static void assertAllowedIndexPatterns(ClusterPermission permission, String[] indexPatterns, boolean expected) {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
-        final GetPrivilegesRequest getKibana1 = new GetPrivilegesRequest();
-        getKibana1.application("kibana-1");
-        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", getKibana1, authentication));
-        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", getKibana1, authentication));
 
-        final DeletePrivilegesRequest deleteLogstash = new DeletePrivilegesRequest("logstash", new String[] { "all" });
-        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", deleteLogstash, authentication));
-        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", deleteLogstash, authentication));
-
-        final PutPrivilegesRequest putKibana = new PutPrivilegesRequest();
-
-        final List<ApplicationPrivilegeDescriptor> kibanaPrivileges = new ArrayList<>();
-        for (int i = randomIntBetween(2, 6); i > 0; i--) {
-            kibanaPrivileges.add(
-                new ApplicationPrivilegeDescriptor(
-                    "kibana-" + i,
-                    randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT),
-                    Collections.emptySet(),
-                    Collections.emptyMap()
+        {
+            final PutRoleRequest putRoleRequest = new PutRoleRequest();
+            putRoleRequest.name(randomAlphaOfLength(3));
+            putRoleRequest.addIndex(indexPatterns, new String[] { "index", "write", "indices:data/read" }, null, null, null, false);
+            assertThat(putRoleRequest.validate(), nullValue());
+            assertThat(permission.check("cluster:admin/xpack/security/role/put", putRoleRequest, authentication), is(expected));
+        }
+        {
+            final BulkPutRolesRequest bulkPutRolesRequest = new BulkPutRolesRequest(
+                List.of(
+                    new RoleDescriptor(
+                        randomAlphaOfLength(3),
+                        new String[] {},
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(indexPatterns)
+                                .privileges("read", "read_cross_cluster", "view_index_metadata")
+                                .build() },
+                        new String[] {}
+                    )
                 )
             );
+            assertThat(bulkPutRolesRequest.validate(), nullValue());
+            assertThat(permission.check("cluster:admin/xpack/security/role/bulk_put", bulkPutRolesRequest, authentication), is(expected));
         }
-        putKibana.setPrivileges(kibanaPrivileges);
-        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", putKibana, authentication));
-        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", putKibana, authentication));
+        // Deletes do not contain patterns, but still need to make sure index name is within permissions
+        {
+            final BulkDeleteRolesRequest bulkDeleteRolesRequest = new BulkDeleteRolesRequest(List.of(indexPatterns));
+            assertThat(bulkDeleteRolesRequest.validate(), nullValue());
+            assertThat(
+                permission.check("cluster:admin/xpack/security/role/bulk_delete", bulkDeleteRolesRequest, authentication),
+                is(expected)
+            );
+        }
+        {
+            assertThat(Arrays.stream(indexPatterns).allMatch(pattern -> {
+                final DeleteRoleRequest deleteRolesRequest = new DeleteRoleRequest();
+                deleteRolesRequest.name(pattern);
+
+                assertThat(deleteRolesRequest.validate(), nullValue());
+                return permission.check("cluster:admin/xpack/security/role/delete", deleteRolesRequest, authentication);
+            }), is(expected));
+        }
     }
 
-    public void testSecurityForGetAllApplicationPrivileges() {
-        final Authentication authentication = AuthenticationTestHelper.builder().build();
-        final GetPrivilegesRequest getAll = new GetPrivilegesRequest();
-        getAll.application(null);
-        getAll.privileges(new String[0]);
-
-        assertThat(getAll.validate(), nullValue());
-
-        final ManageApplicationPrivileges kibanaOnly = new ManageApplicationPrivileges(Sets.newHashSet("kibana-*"));
-        final ManageApplicationPrivileges allApps = new ManageApplicationPrivileges(Sets.newHashSet("*"));
-
-        final ClusterPermission kibanaOnlyPermission = kibanaOnly.buildPermission(new ClusterPermission.Builder()).build();
-        final ClusterPermission allAppsPermission = allApps.buildPermission(new ClusterPermission.Builder()).build();
-        assertFalse(kibanaOnlyPermission.check("cluster:admin/xpack/security/privilege/get", getAll, authentication));
-        assertTrue(allAppsPermission.check("cluster:admin/xpack/security/privilege/get", getAll, authentication));
-    }
-
-    private ManageApplicationPrivileges clone(ManageApplicationPrivileges original) {
-        return new ManageApplicationPrivileges(new LinkedHashSet<>(original.getApplicationNames()));
-    }
-
-    static ManageApplicationPrivileges buildPrivileges() {
+    private static ManageRolesPrivilege buildPrivileges() {
         return buildPrivileges(randomIntBetween(4, 7));
     }
 
-    static ManageApplicationPrivileges buildPrivileges(int applicationNameLength) {
-        Set<String> applicationNames = Sets.newHashSet(Arrays.asList(generateRandomStringArray(5, applicationNameLength, false, false)));
-        return new ManageApplicationPrivileges(applicationNames);
+    private static ManageRolesPrivilege buildPrivileges(int indexNameLength) {
+        Set<String> indexNames = Sets.newHashSet(
+            Arrays.asList(Objects.requireNonNull(generateRandomStringArray(5, indexNameLength, false, false)))
+        );
+        return new ManageRolesPrivilege(indexNames);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        try (var xClientPlugin = new XPackClientPlugin()) {
+            return new NamedWriteableRegistry(xClientPlugin.getNamedWriteables());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    protected Class<ConfigurableClusterPrivilege> categoryClass() {
+        return ConfigurableClusterPrivilege.class;
+    }
+
+    @Override
+    protected ConfigurableClusterPrivilege createTestInstance() {
+        return buildPrivileges();
+    }
+
+    @Override
+    protected ConfigurableClusterPrivilege mutateInstance(ConfigurableClusterPrivilege instance) throws IOException {
+        if (instance instanceof ManageRolesPrivilege manageRolesPrivilege) {
+            return buildPrivileges(manageRolesPrivilege.getIndices().stream().findFirst().orElse("").length() + randomIntBetween(1, 3));
+        }
+        fail();
+        return null;
     }
 }

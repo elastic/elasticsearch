@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,9 +24,14 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -38,6 +45,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -378,24 +386,39 @@ public final class ConfigurableClusterPrivileges {
 
     public static class ManageRolesPrivilege implements ConfigurableClusterPrivilege {
         public static final String WRITEABLE_NAME = "manage-roles-privilege";
-        private final StringMatcher indexMatcher;
         private final Set<String> indices;
-        private final Predicate<TransportRequest> requestPredicate;
+        private final BiPredicate<TransportRequest, RestrictedIndices> requestPredicate;
 
         public ManageRolesPrivilege(Set<String> indices) {
             this.indices = indices;
-            this.indexMatcher = StringMatcher.of(indices);
-            this.requestPredicate = request -> {
+            final Automaton indexAutomatons = Automatons.patterns(indices);
+            this.requestPredicate = (request, restrictedIndices) -> {
                 if (request instanceof final PutRoleRequest putRoleRequest) {
-                    final Collection<String> requestIndexPatterns = Arrays.stream(putRoleRequest.indices())
+                    final Set<String> requestIndexPatterns = Arrays.stream(putRoleRequest.indices())
                         .flatMap(indexPrivilege -> Arrays.stream(indexPrivilege.getIndices()))
                         .collect(Collectors.toSet());
-
-                    return requestIndexPatterns.isEmpty() || requestIndexPatterns.stream().allMatch(indexMatcher);
+                    return requestIndexPatternsAllowed(indexAutomatons, requestIndexPatterns, restrictedIndices);
+                } else if (request instanceof final BulkPutRolesRequest bulkPutRoleRequest) {
+                    final Set<String> requestIndexPatterns = bulkPutRoleRequest.getRoles()
+                        .stream()
+                        .flatMap(
+                            roleDescriptor -> Arrays.stream(roleDescriptor.getIndicesPrivileges())
+                                .flatMap(indexPrivilege -> Arrays.stream(indexPrivilege.getIndices()))
+                        )
+                        .collect(Collectors.toSet());
+                    return requestIndexPatternsAllowed(indexAutomatons, requestIndexPatterns, restrictedIndices);
+                } else if (request instanceof final DeleteRoleRequest deleteRoleRequest) {
+                    return requestIndexPatternsAllowed(indexAutomatons, Set.of(deleteRoleRequest.name()), restrictedIndices);
+                } else if (request instanceof final BulkDeleteRolesRequest bulkDeleteRoleRequest) {
+                    return requestIndexPatternsAllowed(
+                        indexAutomatons,
+                        new HashSet<>(bulkDeleteRoleRequest.getRoleNames()),
+                        restrictedIndices
+                    );
                 }
+
                 return false;
             };
-
         }
 
         @Override
@@ -489,7 +512,39 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
-            return builder.add(this, Set.of("cluster:admin/xpack/security/role/put"), requestPredicate, indices);
+            return builder.add(
+                this,
+                Set.of(
+                    "cluster:admin/xpack/security/role/put",
+                    "cluster:admin/xpack/security/role/bulk_put",
+                    "cluster:admin/xpack/security/role/bulk_delete",
+                    "cluster:admin/xpack/security/role/delete"
+                ),
+                requestPredicate
+            );
+        }
+
+        private static boolean requestIndexPatternsAllowed(
+            Automaton indexAutomaton,
+            Set<String> requestIndexPatterns,
+            RestrictedIndices restrictedIndices
+        ) {
+            return requestIndexPatterns.isEmpty()
+                || (isRestrictedIndexPatterns(requestIndexPatterns, restrictedIndices) == false
+                    && isSubsetOfAllowedIndexPatterns(requestIndexPatterns, indexAutomaton));
+        }
+
+        private static boolean isRestrictedIndexPatterns(Set<String> requestIndexPatterns, RestrictedIndices restrictedIndices) {
+            return restrictedIndices != null && requestIndexPatterns.stream().anyMatch(restrictedIndices::isRestricted);
+        }
+
+        private static boolean isSubsetOfAllowedIndexPatterns(Set<String> requestIndexPatterns, Automaton indexAutomaton) {
+            return requestIndexPatterns.stream()
+                .map(Automatons::patterns)
+                .noneMatch(
+                    automatonToCheck -> false == Operations.isEmpty(automatonToCheck)
+                        && Operations.subsetOf(automatonToCheck, indexAutomaton) == false
+                );
         }
 
         private interface Fields {

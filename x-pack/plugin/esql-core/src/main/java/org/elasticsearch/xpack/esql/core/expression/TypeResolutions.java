@@ -180,6 +180,16 @@ public final class TypeResolutions {
         return isType(e, predicate, operationName, paramOrd, false, acceptedTypes);
     }
 
+    public static TypeResolution isTypeOrUnionType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String operationName,
+        ParamOrdinal paramOrd,
+        String... acceptedTypes
+    ) {
+        return isType(e, predicate, operationName, paramOrd, true, acceptedTypes);
+    }
+
     public static TypeResolution isType(
         Expression e,
         Predicate<DataType> predicate,

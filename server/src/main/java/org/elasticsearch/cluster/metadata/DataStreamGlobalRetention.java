@@ -15,8 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -26,7 +24,7 @@ import java.util.Objects;
  * - default retention, applied on any data stream managed by DSL that does not have an explicit retention defined
  * - max retention, applied on every data stream managed by DSL
  */
-public final class DataStreamGlobalRetention implements Writeable, ToXContentFragment {
+public final class DataStreamGlobalRetention implements Writeable {
 
     public static final String TYPE = "data-stream-global-retention";
 
@@ -77,17 +75,6 @@ public final class DataStreamGlobalRetention implements Writeable, ToXContentFra
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(defaultRetention);
         out.writeOptionalTimeValue(maxRetention);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (defaultRetention != null) {
-            builder.field(DEFAULT_RETENTION_FIELD.getPreferredName(), defaultRetention.getStringRep());
-        }
-        if (maxRetention != null) {
-            builder.field(MAX_RETENTION_FIELD.getPreferredName(), maxRetention.getStringRep());
-        }
-        return builder;
     }
 
     @Nullable

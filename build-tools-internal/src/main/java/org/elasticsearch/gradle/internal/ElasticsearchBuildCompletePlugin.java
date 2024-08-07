@@ -60,11 +60,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
         if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
-            File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
-            int artifactIndex = 1;
-            while (targetFile.exists()) {
-                targetFile = target.file("build/targetFileName" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
-            }
+            File targetFile = calculateTargetFile(target, buildNumber);
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
             DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);
@@ -87,6 +83,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 }));
             });
         }
+    }
+
+    private File calculateTargetFile( Project target, String buildNumber) {
+        File uploadFile = target.file("build/" + buildNumber + ".tar.bz2");
+        int artifactIndex = 1;
+        while (uploadFile.exists()) {
+            uploadFile = target.file("build/targetFileName" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
+        }
+        return uploadFile;
     }
 
     private List<File> resolveProjectLogs(File projectDir) {

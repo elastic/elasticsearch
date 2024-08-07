@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
@@ -66,7 +66,7 @@ import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.
 
 public class PlannerUtils {
 
-    public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, EsqlConfiguration config) {
+    public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
 
         // split the given plan when encountering the exchange
@@ -133,11 +133,11 @@ public class PlannerUtils {
         return indices.toArray(String[]::new);
     }
 
-    public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, EsqlConfiguration configuration, PhysicalPlan plan) {
+    public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {
         return localPlan(configuration, plan, new SearchStats(searchContexts));
     }
 
-    public static PhysicalPlan localPlan(EsqlConfiguration configuration, PhysicalPlan plan, SearchStats searchStats) {
+    public static PhysicalPlan localPlan(Configuration configuration, PhysicalPlan plan, SearchStats searchStats) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, searchStats));
 

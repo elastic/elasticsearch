@@ -13,7 +13,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
 
-class EqualMatcher<T> extends Matcher {
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+
+public class GenericEqualsMatcher<T> extends Matcher {
     protected final XContentBuilder actualMappings;
     protected final Settings.Builder actualSettings;
     protected final XContentBuilder expectedMappings;
@@ -22,7 +24,7 @@ class EqualMatcher<T> extends Matcher {
     protected final T expected;
     protected final boolean ignoringSort;
 
-    EqualMatcher(
+    protected GenericEqualsMatcher(
         XContentBuilder actualMappings,
         Settings.Builder actualSettings,
         XContentBuilder expectedMappings,

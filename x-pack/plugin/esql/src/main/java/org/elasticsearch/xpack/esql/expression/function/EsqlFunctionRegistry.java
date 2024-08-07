@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;

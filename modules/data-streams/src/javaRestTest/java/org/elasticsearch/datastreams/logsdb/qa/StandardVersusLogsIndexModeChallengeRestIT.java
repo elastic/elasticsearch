@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
     private final int numShards = randomBoolean() ? randomIntBetween(2, 5) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
+    private final boolean fullyDynamicMapping = randomBoolean();
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
         super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
@@ -57,7 +58,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        if (randomBoolean()) {
+        if (fullyDynamicMapping == false) {
             builder.startObject()
                 .startObject("properties")
 
@@ -108,7 +109,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         builder.startObject();
         builder.field("subobjects", false);
 
-        if (randomBoolean()) {
+        if (fullyDynamicMapping == false) {
             builder.startObject("properties")
 
                 .startObject("@timestamp")

@@ -64,6 +64,6 @@ public class AbstractFallibleArrayState implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(seen);
+        Releasables.close(seen, failed);
     }
 }

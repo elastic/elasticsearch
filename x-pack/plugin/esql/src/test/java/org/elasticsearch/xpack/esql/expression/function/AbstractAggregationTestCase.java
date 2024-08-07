@@ -195,9 +195,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
             assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
             assertThat(result, testCase.getMatcher());
-            if (testCase.getExpectedWarnings() != null) {
-                assertWarnings(testCase.getExpectedWarnings());
-            }
+        }
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
         }
     }
 

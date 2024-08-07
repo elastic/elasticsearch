@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-module org.elasticsearch.jose {
+module org.elasticsearch.nimbus {
     requires org.elasticsearch.server;
     requires com.nimbusds.jose.jwt;
     requires oauth2.oidc.sdk;

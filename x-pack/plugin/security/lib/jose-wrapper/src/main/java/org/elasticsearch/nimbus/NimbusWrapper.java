@@ -7,11 +7,17 @@
 
 package org.elasticsearch.nimbus;
 
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.jose.util.Base64URL;
+import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.openid.connect.sdk.Nonce;
+import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 
 import java.security.AccessController;
@@ -26,10 +32,10 @@ import java.util.Map;
  * Can't do these operations inline with giving too much access due to how the security manager calculates the stack for lambda expressions.
  * Isolating the calls here allows for least privilege access to this helper jar.
  */
-public class NimubsWrapper {
+public class NimbusWrapper {
 
     // utility class
-    private NimubsWrapper() {}
+    private NimbusWrapper() {}
 
     public static String getHeaderAsString(SignedJWT signedJWT) {
         SpecialPermission.check();
@@ -40,6 +46,23 @@ public class NimubsWrapper {
     public static String getClaimsSetAsString(JWTClaimsSet jwtClaimsSet) {
         SpecialPermission.check();
         return AccessController.doPrivileged((PrivilegedAction<String>) jwtClaimsSet::toString);
+    }
+
+    public static JWTClaimsSet verifyTokenClaims(IDTokenValidator validator, JWT idToken, Nonce nonce) throws BadJOSEException,
+        JOSEException {
+        try {
+            return AccessController.doPrivileged(
+                (PrivilegedExceptionAction<JWTClaimsSet>) () -> validator.validate(idToken, nonce).toJWTClaimsSet()
+            );
+        } catch (PrivilegedActionException exception) {
+            if (exception.getCause() instanceof BadJOSEException e) {
+                throw e;
+            } else if (exception.getCause() instanceof JOSEException e) {
+                throw e;
+            } else {
+                throw new ElasticsearchException(exception);
+            }
+        }
     }
 
     // only used in tests

@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.nimbus.NimubsWrapper;
+import org.elasticsearch.nimbus.NimbusWrapper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -264,9 +264,9 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
                     + "] JWT validation failed for token=["
                     + tokenPrincipal
                     + "] with header ["
-                    + NimubsWrapper.getHeaderAsString(jwtAuthenticationToken.getSignedJWT())
+                    + NimbusWrapper.getHeaderAsString(jwtAuthenticationToken.getSignedJWT())
                     + "] and claimSet ["
-                    + NimubsWrapper.getClaimsSetAsString(jwtAuthenticationToken.getJWTClaimsSet())
+                    + NimbusWrapper.getClaimsSetAsString(jwtAuthenticationToken.getJWTClaimsSet())
                     + "]";
 
                 if (logger.isTraceEnabled()) {

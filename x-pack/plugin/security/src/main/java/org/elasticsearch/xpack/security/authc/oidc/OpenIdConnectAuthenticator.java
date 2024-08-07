@@ -85,6 +85,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.nimbus.NimbusWrapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -279,9 +280,7 @@ public class OpenIdConnectAuthenticator {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("ID Token Header: {}", idToken.getHeader());
             }
-            JWTClaimsSet verifiedIdTokenClaims = AccessController.doPrivileged(
-                (PrivilegedExceptionAction<JWTClaimsSet>) () -> idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet()
-            );
+            JWTClaimsSet verifiedIdTokenClaims = NimbusWrapper.verifyTokenClaims(idTokenValidator.get(), idToken, expectedNonce);
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
             }
@@ -300,34 +299,24 @@ public class OpenIdConnectAuthenticator {
                 }
                 claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
             }
-        } catch (PrivilegedActionException exception) {
-            Exception innerException = exception.getException();
-            if (innerException instanceof BadJOSEException e) {
-                // We only try to update the cached JWK set once if a remote source is used and
-                // RSA or ECDSA is used for signatures
-                if (shouldRetry
-                    && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
-                    && opConfig.getJwkSetPath().startsWith("https://")) {
-                    ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                        .triggerReload(ActionListener.wrap(v -> {
-                            getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
-                        }, ex -> {
-                            LOGGER.debug("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                            claimsListener.onFailure(ex);
-                        }));
-                } else {
-                    LOGGER.debug("Failed to parse or validate the ID Token", e);
-                    claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
-                }
+        } catch (BadJOSEException e) {
+            // We only try to update the cached JWK set once if a remote source is used and
+            // RSA or ECDSA is used for signatures
+            if (shouldRetry
+                && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
+                && opConfig.getJwkSetPath().startsWith("https://")) {
+                ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
+                    .triggerReload(ActionListener.wrap(v -> {
+                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
+                    }, ex -> {
+                        LOGGER.debug("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                        claimsListener.onFailure(ex);
+                    }));
             } else {
-                LOGGER.debug(
-                    () -> format("ID Token: [%s], Nonce: [%s]", JwtUtil.toStringRedactSignature(idToken).get(), expectedNonce.toString()),
-                    innerException
-                );
-                claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", innerException));
+                LOGGER.debug("Failed to parse or validate the ID Token", e);
+                claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
-
-        } catch (ParseException e) {
+        } catch (ParseException | JOSEException e) {
             LOGGER.debug(
                 () -> format("ID Token: [%s], Nonce: [%s]", JwtUtil.toStringRedactSignature(idToken).get(), expectedNonce.toString()),
                 e

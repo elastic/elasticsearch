@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -596,17 +597,17 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertTrue(section.skipCriteriaMet(context)); // always skip if unavailable
         assertFalse(section.requiresCriteriaMet(context)); // always fail requirements / skip if unavailable
 
-        when(context.clusterHasCapabilities(anyString(), anyString(), any(), any())).thenReturn(Optional.of(FALSE));
+        when(context.clusterHasCapabilities(anyString(), anyString(), any(), any(), anyBoolean())).thenReturn(Optional.of(FALSE));
         assertFalse(section.skipCriteriaMet(context));
         assertFalse(section.requiresCriteriaMet(context));
 
-        when(context.clusterHasCapabilities("GET", "/s", null, "c1,c2")).thenReturn(Optional.of(TRUE));
+        when(context.clusterHasCapabilities("GET", "/s", null, "c1,c2", true)).thenReturn(Optional.of(TRUE));
         assertTrue(section.skipCriteriaMet(context));
 
-        when(context.clusterHasCapabilities("GET", "/r", null, null)).thenReturn(Optional.of(TRUE));
+        when(context.clusterHasCapabilities("GET", "/r", null, null, false)).thenReturn(Optional.of(TRUE));
         assertFalse(section.requiresCriteriaMet(context));
 
-        when(context.clusterHasCapabilities("GET", "/r", "p1", null)).thenReturn(Optional.of(TRUE));
+        when(context.clusterHasCapabilities("GET", "/r", "p1", null, false)).thenReturn(Optional.of(TRUE));
         assertTrue(section.requiresCriteriaMet(context));
     }
 

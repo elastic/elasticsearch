@@ -35,7 +35,7 @@ template:
               process.executable.path:
                 type: keyword
                 ignore_above: 1024
-              process.runtime.path:
+              process.runtime.name:
                 type: keyword
                 ignore_above: 1024
               process.runtime.version:
@@ -88,7 +88,7 @@ template:
         path: resource.attributes.process.executable.path
       service.runtime.name:
         type: alias
-        path: resource.attributes.process.runtime.path
+        path: resource.attributes.process.runtime.name
       service.runtime.version:
         type: alias
         path: resource.attributes.process.runtime.version

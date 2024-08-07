@@ -23,6 +23,9 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -96,6 +99,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -667,6 +671,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return client;
     }
 
+    /**
+     * Execute the given {@link ActionRequest} using the given {@link ActionType} and a default node client, wait for it to complete with
+     * a timeout of {@link #SAFE_AWAIT_TIMEOUT}, and then return the result. An exceptional response, timeout or interrupt triggers a test
+     * failure.
+     */
+    public static <T extends ActionResponse> T safeExecute(ActionType<T> action, ActionRequest request) {
+        return safeExecute(client(), action, request);
+    }
+
     public static Iterable<Client> clients() {
         return cluster().getClients();
     }
@@ -1124,12 +1137,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = SearchResponseUtils.getTotalHitsValue(
-                        prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery())
-                    );
-                    if (count == lastKnownCount) {
-                        // no progress - try to refresh for the next time
+                    long count = getTotalHitsAllIndices();
+                    if (count < lastKnownCount) {
+                        // not caught up - try to refresh
                         indicesAdmin().prepareRefresh().get();
+                        count = getTotalHitsAllIndices();
                     }
                     lastKnownCount = count;
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
@@ -1148,6 +1160,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    private static long getTotalHitsAllIndices() {
+        return SearchResponseUtils.getTotalHitsValue(prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery()));
     }
 
     public static SearchRequestBuilder prepareSearch(String... indices) {
@@ -2344,6 +2360,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    @Override
+    protected boolean enableBigArraysReleasedCheck() {
+        // checking that all big arrays have been released makes little sense for a still-running cluster, see comments in
+        // #ensureAllArraysAreReleased for details
+        return isSuiteScopedTest(getTestClass()) == false;
+    }
+
     @AfterClass
     public static void afterClass() throws Exception {
         try {
@@ -2352,6 +2375,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
+                MockBigArrays.ensureAllArraysAreReleased();
                 checkStaticState();
             }
         } finally {

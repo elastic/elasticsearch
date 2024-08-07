@@ -494,7 +494,7 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:20: argument of [min(network.bytes_in)] must be"
                     + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
-                    + " found value [min(network.bytes_in)] type [counter_long]"
+                    + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
@@ -503,7 +503,7 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:20: argument of [max(network.bytes_in)] must be"
                     + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
-                    + " found value [max(network.bytes_in)] type [counter_long]"
+                    + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
@@ -628,10 +628,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchInsideEval() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
         assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
     }
 
     public void testMatchFilter() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
         assertEquals(
             "1:63: MATCH requires a mapped index field, found [name]",
             error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
@@ -656,6 +660,20 @@ public class VerifierTests extends ESTestCase {
             "1:45: MATCH requires a mapped index field, found [fn]",
             error("from test | rename first_name as fn | where fn match \"Anna\"")
         );
+    }
+
+    public void testMatchCommand() throws Exception {
+        assertEquals("1:24: MATCH cannot be used after LIMIT", error("from test | limit 10 | match \"Anna\""));
+        assertEquals("1:13: MATCH cannot be used after SHOW", error("show info | match \"8.16.0\""));
+        assertEquals("1:17: MATCH cannot be used after ROW", error("row a= \"Anna\" | match \"Anna\""));
+        assertEquals("1:26: MATCH cannot be used after EVAL", error("from test | eval z = 2 | match \"Anna\""));
+        assertEquals("1:43: MATCH cannot be used after DISSECT", error("from test | dissect first_name \"%{foo}\" | match \"Connection\""));
+        assertEquals("1:27: MATCH cannot be used after DROP", error("from test | drop emp_no | match \"Anna\""));
+        assertEquals("1:35: MATCH cannot be used after EVAL", error("from test | eval n = emp_no * 3 | match \"Anna\""));
+        assertEquals("1:44: MATCH cannot be used after GROK", error("from test | grok last_name \"%{WORD:foo}\" | match \"Anna\""));
+        assertEquals("1:27: MATCH cannot be used after KEEP", error("from test | keep emp_no | match \"Anna\""));
+
+        // TODO Keep adding tests for all unsupported commands
     }
 
     private String error(String query) {

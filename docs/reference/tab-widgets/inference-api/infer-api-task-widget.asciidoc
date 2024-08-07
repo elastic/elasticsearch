@@ -7,7 +7,13 @@
             id="infer-api-task-cohere">
       Cohere
     </button>
-        <button role="tab"
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-task-elser-tab"
+            id="infer-api-task-elser">
+      ELSER
+    </button>
+    <button role="tab"
             aria-selected="false"
             aria-controls="infer-api-task-hf-tab"
             id="infer-api-task-hf">
@@ -51,6 +57,17 @@
 ++++
 
 include::infer-api-task.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-task-elser-tab"
+       aria-labelledby="infer-api-task-elser"
+       hidden="">
+++++
+
+include::infer-api-task.asciidoc[tag=elser]
 
 ++++
   </div>

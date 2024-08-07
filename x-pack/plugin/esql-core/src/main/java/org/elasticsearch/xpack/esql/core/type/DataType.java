@@ -30,6 +30,10 @@ import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public enum DataType {
+    /**
+     * Fields of this type are unsupported by any functions and are always
+     * rendered as {@code null} in the response.
+     */
     UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
     NULL(builder().esType("null").estimatedSize(0)),
     BOOLEAN(builder().esType("boolean").estimatedSize(1)),
@@ -45,14 +49,52 @@ public enum DataType {
     COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
     COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
 
+    /**
+     * 64-bit signed numbers loaded as a java {@code long}.
+     */
     LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
+    /**
+     * 32-bit signed numbers loaded as a java {@code int}.
+     */
     INTEGER(builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
-    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
-    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 64-bit unsigned numbers packed into a java {@code long}.
+     */
     UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues()),
+    /**
+     * 64-bit floating point number loaded as a java {@code double}.
+     */
     DOUBLE(builder().esType("double").estimatedSize(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
+
+    /**
+     * 16-bit signed numbers widened on load to {@link #INTEGER}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
+    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 8-bit signed numbers widened on load to {@link #INTEGER}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
+    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    /**
+     * 32-bit floating point numbers widened on load to {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
     FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    /**
+     * 16-bit floating point numbers widened on load to {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions,
+     * operators, and results should never encounter one.
+     */
     HALF_FLOAT(builder().esType("half_float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    /**
+     * Signed 64-bit fixed point numbers converted on load to a {@link #DOUBLE}.
+     * Values of this type never escape type resolution and functions, operators,
+     * and results should never encounter one.
+     */
     SCALED_FLOAT(builder().esType("scaled_float").estimatedSize(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
 
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
@@ -63,7 +105,6 @@ public enum DataType {
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
     VERSION(builder().esType("version").estimatedSize(15).docValues()),
     OBJECT(builder().esType("object").unknownSize()),
-    NESTED(builder().esType("nested").unknownSize()),
     SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES)),
     TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES)),
@@ -185,6 +226,11 @@ public enum DataType {
         return TYPES;
     }
 
+    /**
+     * Resolve a type from a name. This name is sometimes user supplied,
+     * like in the case of {@code ::<typename>} and is sometimes the name
+     * used over the wire, like in {@link #readFrom(String)}.
+     */
     public static DataType fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
@@ -245,7 +291,7 @@ public enum DataType {
     }
 
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED;
+        return t != OBJECT;
     }
 
     public static boolean isNull(DataType t) {
@@ -293,7 +339,6 @@ public enum DataType {
      */
     public static boolean isRepresentable(DataType t) {
         return t != OBJECT
-            && t != NESTED
             && t != UNSUPPORTED
             && t != DATE_PERIOD
             && t != TIME_DURATION
@@ -400,8 +445,20 @@ public enum DataType {
 
     public static DataType readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
-        String name = in.readString();
+        return readFrom(in.readString());
+    }
+
+    /**
+     * Resolve a {@link DataType} from a name read from a {@link StreamInput}.
+     * @throws IOException on an unknown dataType
+     */
+    public static DataType readFrom(String name) throws IOException {
         if (name.equalsIgnoreCase(DataType.DOC_DATA_TYPE.nameUpper())) {
+            /*
+             * DOC is not declared in fromTypeName because fromTypeName is
+             * exposed to users for things like `::<typename>` and we don't
+             * want folks to be able to convert to `DOC`.
+             */
             return DataType.DOC_DATA_TYPE;
         }
         DataType dataType = DataType.fromTypeName(name);
@@ -457,7 +514,8 @@ public enum DataType {
 
         /**
          * If this is a "small" numeric type this contains the type ESQL will
-         * widen it into, otherwise this is {@code null}.
+         * widen it into, otherwise this is {@code null}. "Small" numeric types
+         * aren't supported by ESQL proper and are "widened" on load.
          */
         private DataType widenSmallNumeric;
 
@@ -509,6 +567,11 @@ public enum DataType {
             return this;
         }
 
+        /**
+         * If this is a "small" numeric type this contains the type ESQL will
+         * widen it into, otherwise this is {@code null}. "Small" numeric types
+         * aren't supported by ESQL proper and are "widened" on load.
+         */
         Builder widenSmallNumeric(DataType widenSmallNumeric) {
             this.widenSmallNumeric = widenSmallNumeric;
             return this;

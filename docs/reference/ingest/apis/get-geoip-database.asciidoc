@@ -6,24 +6,11 @@
 
 Returns information about one or more geoip database configurations.
 
-////
-[source,console]
-----
-PUT _ingest/geoip/database/my-database-id
-{
-  "name": "GeoIP2-Domain",
-  "maxmind": {
-    "account_id": "1234567"
-  }
-}
-----
-////
-
 [source,console]
 ----
 GET /_ingest/geoip/database/my-database-id
 ----
-// TEST[continued]
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
 
 
@@ -68,7 +55,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ----
 GET /_ingest/geoip/database/my-database-id
 ----
-// TEST[continued]
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
 The API returns the following response:
 
@@ -90,4 +77,4 @@ The API returns the following response:
   ]
 }
 ----
-// TESTRESPONSE[s/"modified_date_millis": 1723040276114/"modified_date_millis": $body.databases[0].modified_date_millis/]
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]

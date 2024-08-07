@@ -6,32 +6,11 @@
 
 Deletes a geoip database configuration.
 
-////
-[source,console]
-----
-PUT _ingest/geoip/database/my-database-id
-{
-  "name": "GeoIP2-Connection-Type",
-  "maxmind": {
-    "account_id": "1234567"
-  }
-}
-
-PUT _ingest/geoip/database/example-database-id
-{
-  "name": "GeoIP2-Domain",
-  "maxmind": {
-    "account_id": "1234567"
-  }
-}
-----
-// TESTSETUP
-////
-
 [source,console]
 ----
 DELETE /_ingest/geoip/database/my-database-id
 ----
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
 
 [[delete-geoip-database-api-request]]
@@ -73,13 +52,4 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 ----
 DELETE /_ingest/geoip/database/example-database-id
 ----
-
-
-////
-[source,console-result]
-----
-{
-"acknowledged": true
-}
-----
-////
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]

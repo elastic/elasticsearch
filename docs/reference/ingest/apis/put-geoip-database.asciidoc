@@ -15,6 +15,7 @@ PUT _ingest/geoip/database/my-database-id
     "account_id": "1025402"
   }
 }
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
 ----
 

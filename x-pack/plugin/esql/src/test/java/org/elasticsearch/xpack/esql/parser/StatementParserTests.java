@@ -1531,6 +1531,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testMatchParsedFieldQuery() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var query = "foo: bar";
+        var plan = statement("from test | match " + query);
+        var filter = as(plan, Filter.class);
+        var queryString = as(filter.condition(), StringQueryPredicate.class);
+        assertThat(queryString.fields(), equalTo(Map.of("foo", 1.0F)));
+    }
+
     private LogicalPlan unresolvedRelation(String index) {
         return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null);
     }

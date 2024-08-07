@@ -354,15 +354,32 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "MATCH command currently requires a snapshot build");
         }
 
-        StringQueryPredicate stringQueryPredicate = visitMatchQuery(ctx.matchQuery());
-        return input -> new Filter(source(ctx), input, stringQueryPredicate);
+        EsqlBaseParser.UnparsedMatchQueryContext matchQueryContext = ctx.unparsedMatchQuery();
+        if (matchQueryContext != null) {
+            StringQueryPredicate stringQueryPredicate = visitUnparsedMatchQuery(matchQueryContext);
+            return input -> new Filter(source(ctx), input, stringQueryPredicate);
+        }
+        return input -> new Filter(source(ctx), input, visitParsedMatchQuery(ctx.parsedMatchQuery()));
+    }
+
+    @Override public StringQueryPredicate visitParsedMatchQuery(EsqlBaseParser.ParsedMatchQueryContext ctx) {
+        if (ctx.queryStringFields() != null) {
+            return visitQueryStringFields(ctx.queryStringFields());
+        }
+        return null; //visitFieldQueryStringExpression(ctx.fieldQueryStringExpression());
     }
 
     @Override
-    public StringQueryPredicate visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) {
+    public StringQueryPredicate visitUnparsedMatchQuery(EsqlBaseParser.UnparsedMatchQueryContext ctx) {
         Source source = source(ctx);
         String queryString = unquote(ctx.QUOTED_STRING().getText());
         return new StringQueryPredicate(source, queryString, null);
+    }
+
+    @Override public StringQueryPredicate visitQueryStringFields(EsqlBaseParser.QueryStringFieldsContext ctx) {
+        Source source = source(ctx);
+        String fieldName = ctx.fieldName.getText();
+        return new StringQueryPredicate(source, ctx.queryStringNoFields().getText(), "fields=" + fieldName);
     }
 
     @Override

@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,13 +52,13 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
 
     public void testRandomLocale() {
         String testString = randomAlphaOfLength(10);
-        EsqlConfiguration cfg = randomLocaleConfig();
+        Configuration cfg = randomLocaleConfig();
         ToUpper func = new ToUpper(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
         assertThat(BytesRefs.toBytesRef(testString.toUpperCase(cfg.locale())), equalTo(func.fold()));
     }
 
-    private EsqlConfiguration randomLocaleConfig() {
-        return new EsqlConfiguration(
+    private Configuration randomLocaleConfig() {
+        return new Configuration(
             DateUtils.UTC,
             randomLocale(random()),
             null,
@@ -73,7 +73,7 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
     }
 
     @Override
-    protected Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration) {
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new ToUpper(source, args.get(0), configuration);
     }
 

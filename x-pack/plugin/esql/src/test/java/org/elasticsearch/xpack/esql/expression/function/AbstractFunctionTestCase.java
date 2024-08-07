@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -66,6 +65,7 @@ import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -441,6 +441,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             if (t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION) {
                 // We don't test that functions don't take date_period or time_duration. We should.
+                return false;
+            }
+            if (t == DataType.DATE_NANOS) {
+                // Date nanos is still under construction
                 return false;
             }
             if (t.isCounter()) {

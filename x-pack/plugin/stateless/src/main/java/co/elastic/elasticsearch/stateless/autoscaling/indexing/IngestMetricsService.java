@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -119,18 +120,40 @@ public class IngestMetricsService implements ClusterStateListener {
 
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                 if (isIndexNode(removedNode)) {
-                    var removedNodeIngestLoad = nodesIngestLoad.get(removedNode.getId());
+                    var removedNodeId = removedNode.getId();
+                    var removedNodeIngestLoad = nodesIngestLoad.get(removedNodeId);
                     if (removedNodeIngestLoad != null) {
-                        removedNodeIngestLoad.setQualityToMinimum();
+                        if (isNodeMarkedForRemoval(removedNodeId, event.state().metadata().nodeShutdowns())) {
+                            // Planned node removal, no need to track the ingestion load.
+                            nodesIngestLoad.remove(removedNodeId);
+                        } else {
+                            // Potentially unexpected node removal, keep reporting the ingestion load.
+                            removedNodeIngestLoad.setQualityToMinimum();
+                        }
                     }
                 }
             }
         }
     }
 
-    void trackNodeIngestLoad(String nodeId, long metricSeqNo, double newIngestLoad) {
+    void trackNodeIngestLoad(ClusterState state, String nodeId, long metricSeqNo, double newIngestLoad) {
+        // Prevent a delayed metric publication to add back a removed node to the list of ingestion loads which would
+        // lead to continued reporting of the ingestion load until it gets stale, although we know that node removal
+        // was planned and the node does not come back.
+        // However, if the metric arrives after the node is gone and there is no shutdown metadata, we're treating it as we
+        // do for nodes that disappear w/o any shutdown marker, i.e., we assume this is a node that temporarily dropped
+        // out and to be safe, we keep reporting its ingestion load until it gets stale and removed.
+        if (state.nodes().get(nodeId) == null && isNodeMarkedForRemoval(nodeId, state.metadata().nodeShutdowns())) {
+            logger.debug("dropping ingestion load metric received from removed node {}", nodeId);
+            return;
+        }
         var nodeIngestStats = nodesIngestLoad.computeIfAbsent(nodeId, unused -> new NodeIngestLoad());
         nodeIngestStats.setLatestReadingTo(newIngestLoad, metricSeqNo);
+    }
+
+    private static boolean isNodeMarkedForRemoval(String nodeId, NodesShutdownMetadata shutdownMetadata) {
+        var nodeShutdownMetadata = shutdownMetadata.get(nodeId);
+        return nodeShutdownMetadata != null && nodeShutdownMetadata.getType().isRemovalType();
     }
 
     public IndexTierMetrics getIndexTierMetrics(ClusterState clusterState) {

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.shutdown.DeleteShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -547,7 +548,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             Math.min(between(1, 3), numNodes),
             clusterService.state().nodes().getDataNodes().values()
         );
-        putShutdownMetadataForNodes(shuttingDownNodes);
+        markNodesForShutdown(shuttingDownNodes, List.of(SingleNodeShutdownMetadata.Type.SIGTERM));
 
         // Ingest load metrics are not impacted by shutdown metadata because the setting is not enabled
         assertBusy(() -> assertThat(getIngestNodesLoad(), hasSize(numNodes)));
@@ -606,24 +607,78 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         }
     }
 
-    private static void putShutdownMetadataForNodes(List<DiscoveryNode> shuttingDownNodes) {
-        shuttingDownNodes.forEach(
-            node -> assertAcked(
+    public void testRemoveIngestionLoadWhenNodeRemoved() throws Exception {
+        final int numNodes = between(2, 5);
+        final Settings nodeSettings = Settings.builder()
+            .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        IntStream.range(0, numNodes).forEach(i -> startMasterAndIndexNode(nodeSettings));
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, numNodes, 0);
+        ensureGreen(indexName);
+
+        assertBusy(() -> {
+            final List<NodeIngestLoadSnapshot> ingestNodesLoad = getIngestNodesLoad();
+            assertThat(ingestNodesLoad, hasSize(numNodes));
+            assertTrue(ingestNodesLoad.stream().allMatch(ingestNodeLoad -> ingestNodeLoad.metricQuality() == MetricQuality.EXACT));
+        });
+
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(
+            between(1, numNodes - 1),
+            clusterService.state().nodes().getDataNodes().values()
+        );
+        logger.info("--> Marking nodes {} for removal", shuttingDownNodes);
+        markNodesForShutdown(
+            shuttingDownNodes,
+            Arrays.stream(SingleNodeShutdownMetadata.Type.values()).filter(SingleNodeShutdownMetadata.Type::isRemovalType).toList()
+        );
+
+        // Needs assertBusy since we might have marked the current master for shutdown which results in it abdicating to a new
+        // master-eligible node which might return only a subset of the nodes (temporarily)
+        assertBusy(() -> {
+            final List<NodeIngestLoadSnapshot> ingestNodesLoad = getIngestNodesLoad();
+            assertThat(ingestNodesLoad, hasSize(numNodes));
+            assertTrue(ingestNodesLoad.stream().allMatch(ingestNodeLoad -> ingestNodeLoad.metricQuality() == MetricQuality.EXACT));
+        });
+
+        for (var node : shuttingDownNodes) {
+            logger.info("--> stopping node {}", node.getName());
+            if (node.getName().equals(internalCluster().getMasterName())) {
+                shutdownMasterNodeGracefully();
+            } else {
+                internalCluster().stopNode(node.getName());
+            }
+        }
+        ensureStableCluster(numNodes - shuttingDownNodes.size());
+
+        assertBusy(() -> {
+            final List<NodeIngestLoadSnapshot> ingestNodesLoad2 = getIngestNodesLoad();
+            assertThat(ingestNodesLoad2, hasSize(numNodes - shuttingDownNodes.size()));
+            assertTrue(ingestNodesLoad2.stream().allMatch(ingestNodeLoad -> ingestNodeLoad.metricQuality() == MetricQuality.EXACT));
+        });
+    }
+
+    private static void markNodesForShutdown(List<DiscoveryNode> shuttingDownNodes, List<SingleNodeShutdownMetadata.Type> shutdownTypes) {
+        shuttingDownNodes.forEach(node -> {
+            final var type = randomFrom(shutdownTypes);
+            assertAcked(
                 client().execute(
                     PutShutdownNodeAction.INSTANCE,
                     new PutShutdownNodeAction.Request(
                         TEST_REQUEST_TIMEOUT,
                         TEST_REQUEST_TIMEOUT,
                         node.getId(),
-                        SingleNodeShutdownMetadata.Type.SIGTERM,
+                        type,
                         "Shutdown for test",
                         null,
-                        null,
-                        TimeValue.timeValueMinutes(randomIntBetween(1, 5))
+                        type.equals(SingleNodeShutdownMetadata.Type.REPLACE) ? randomIdentifier() : null,
+                        type.equals(SingleNodeShutdownMetadata.Type.SIGTERM) ? TimeValue.timeValueMinutes(randomIntBetween(1, 5)) : null
                     )
                 )
-            )
-        );
+            );
+        });
     }
 
     private static void deleteShutdownMetadataForNodes(List<DiscoveryNode> shuttingDownNodes) {

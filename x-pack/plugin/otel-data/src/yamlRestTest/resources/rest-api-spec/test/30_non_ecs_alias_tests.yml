@@ -34,4 +34,4 @@ setup:
         body:
           fields: ["service.language.name"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: {"service.language.name": ["dotnet"] }}
+  - match: { hits.hits.0.fields.service\.language\.name: [ "dotnet" ] }

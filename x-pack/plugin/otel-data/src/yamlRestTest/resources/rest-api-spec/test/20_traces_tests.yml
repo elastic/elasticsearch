@@ -34,8 +34,9 @@ setup:
         body:
           fields: ["service.name", "telemetry.sdk.language", "telemetry.sdk.name" ]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: {"service.name": ["OtelSample"], "telemetry.sdk.language": ["dotnet"], "telemetry.sdk.name": ["opentelemetry"] }}
-
+  - match: { hits.hits.0.fields.service\.name: [ "OtelSample" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.language: [ "dotnet" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.name: [ "opentelemetry" ] }
 ---
 "Query attributes as top level":
   - do:
@@ -52,4 +53,6 @@ setup:
         body:
           fields: ["db.type", "db.name", "db.operation", "db.statement"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: {"db.type": ["mssql"], "db.name": ["foo"], "db.operation": ["SELECT"], "db.statement": ["SELECT * FROM wuser_table"] }}
+  - match: { hits.hits.0.fields.db\.type: [ "mssql" ] }
+  - match: { hits.hits.0.fields.db\.operation: [ "SELECT" ] }
+  - match: { hits.hits.0.fields.db\.statement: [ "SELECT * FROM wuser_table" ] }

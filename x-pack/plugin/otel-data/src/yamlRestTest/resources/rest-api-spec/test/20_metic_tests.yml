@@ -34,7 +34,9 @@ setup:
         body:
           fields: ["service.name", "telemetry.sdk.language", "telemetry.sdk.name" ]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: {"service.name": ["OtelSample"], "telemetry.sdk.language": ["dotnet"], "telemetry.sdk.name": ["opentelemetry"] }}
+  - match: { hits.hits.0.fields.service\.name: [ "OtelSample" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.language: [ "dotnet" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.name: [ "opentelemetry" ] }
 ---
 "Query resource attributes as top level":
   - do:
@@ -51,9 +53,9 @@ setup:
         body:
           fields: ["service.name", "telemetry.sdk.language", "telemetry.sdk.name"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: { "service.name": ["OtelSample"], "telemetry.sdk.language": ["dotnet"], "telemetry.sdk.name": ["opentelemetry"] }}
-#  - match: { hits.hits.0.fields.telemetry.sdk.language: ["dotnet"] }
-#  - match: { hits.hits.0.fields.telemetry.sdk.name: ["opentelemetry"] }
+  - match: { hits.hits.0.fields.service\.name: [ "OtelSample" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.language: [ "dotnet" ] }
+  - match: { hits.hits.0.fields.telemetry\.sdk\.name: [ "opentelemetry" ] }
 ---
 "Query attributes as top level":
   - do:
@@ -70,7 +72,7 @@ setup:
         body:
           fields: ["foo"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: {"foo": ["bar"] }}
+  - match: { hits.hits.0.fields.foo\: ["bar"] }
 ---
 "Boolean as dimension":
   - do:
@@ -87,4 +89,4 @@ setup:
         body:
           fields: ["transaction.root"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields: {"transaction.root": [false] }}
+  - match: { hits.hits.0.fields.transaction\.root: [false] }

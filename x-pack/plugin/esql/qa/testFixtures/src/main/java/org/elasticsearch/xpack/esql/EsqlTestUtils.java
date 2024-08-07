@@ -630,6 +630,7 @@ public final class EsqlTestUtils {
             case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
             case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case DATETIME -> randomMillisUpToYear9999();
+            case DATE_NANOS -> randomLong();
             case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
             case FLOAT -> randomFloat();
             case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));

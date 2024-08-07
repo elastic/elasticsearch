@@ -360,7 +360,7 @@ public enum DataType {
                 && t.isCounter() == false;
         } else {
             return t != OBJECT
-                && t !=  UNSUPPORTED
+                && t != UNSUPPORTED
                 && t != DATE_PERIOD
                 && t != DATE_NANOS
                 && t != TIME_DURATION

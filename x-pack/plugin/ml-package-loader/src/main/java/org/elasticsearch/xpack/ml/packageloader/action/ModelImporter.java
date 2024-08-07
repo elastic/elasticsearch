@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,6 +30,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,7 +52,7 @@ class ModelImporter {
         this.task = Objects.requireNonNull(task);
     }
 
-    public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException {
+    public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException, InterruptedException {
         long size = config.getSize();
 
         // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
@@ -72,6 +75,9 @@ class ModelImporter {
         // simple round up
         int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
 
+        var latch = new CountDownLatch(totalParts);
+        var countDownListener = new LatchedActionListener<AcknowledgedResponse>(ActionListener.noop(), latch);
+
         for (int part = 0; part < totalParts - 1; ++part) {
             task.setProgress(totalParts, part);
             BytesArray definition = chunkIterator.next();
@@ -86,7 +92,7 @@ class ModelImporter {
             );
 
             logger.info("put part " + part);
-            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
+            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest, countDownListener);
             logger.info("part " + part + " put");
         }
 
@@ -125,7 +131,10 @@ class ModelImporter {
             true
         );
 
-        executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest);
+        executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest, countDownListener);
+        logger.info("awaiting latch");
+        latch.await();
+
         logger.info(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
     }
 
@@ -146,6 +155,7 @@ class ModelImporter {
         executeRequestIfNotCancelled(PutTrainedModelVocabularyAction.INSTANCE, request);
     }
 
+    // blocking
     private <Request extends ActionRequest, Response extends ActionResponse> void executeRequestIfNotCancelled(
         ActionType<Response> action,
         Request request
@@ -154,7 +164,18 @@ class ModelImporter {
             throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
         }
 
-        client.execute(action, request, ActionListener.noop());
-//        client.execute(action, request).actionGet();
+        client.execute(action, request).actionGet();
+    }
+
+    private <Request extends ActionRequest, Response extends ActionResponse> void executeRequestIfNotCancelled(
+        ActionType<Response> action,
+        Request request,
+        LatchedActionListener<Response> listener
+    ) {
+        if (task.isCancelled()) {
+            throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
+        }
+
+        client.execute(action, request, listener);
     }
 }

@@ -174,7 +174,6 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 } else {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-
             }
         }
     }

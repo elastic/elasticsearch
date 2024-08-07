@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -57,7 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
@@ -96,7 +97,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
     private TestPlannerOptimizer plannerOptimizer;
-    private final EsqlConfiguration config;
+    private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
         public boolean isSingleValue(String field) {
@@ -116,7 +117,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return asList(new Tuple<>("default", Map.of()));
     }
 
-    public LocalPhysicalPlanOptimizerTests(String name, EsqlConfiguration config) {
+    public LocalPhysicalPlanOptimizerTests(String name, Configuration config) {
         this.config = config;
     }
 
@@ -386,6 +387,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"\"last_name: Smith\""
      */
     public void testMatchCommand() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | match "last_name: Smith"
@@ -414,6 +416,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *          }]
      */
     public void testMatchCommandWithWhereClause() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
         String queryText = """
             from test
             | where emp_no > 10010
@@ -447,6 +450,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *          sort[[FieldSort[field=emp_no{f}#3, direction=ASC, nulls=LAST]]]
      */
     public void testMatchCommandWithMultipleMatches() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | match "last_name: Smith"

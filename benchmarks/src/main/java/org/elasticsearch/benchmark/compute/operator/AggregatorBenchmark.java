@@ -168,7 +168,7 @@ public class AggregatorBenchmark {
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case SUM -> switch (dataType) {
-                case LONGS -> new SumLongAggregatorFunctionSupplier(List.of(dataChannel));
+                case LONGS -> new SumLongAggregatorFunctionSupplier(-1, -2, "", List.of(dataChannel));
                 case DOUBLES -> new SumDoubleAggregatorFunctionSupplier(List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };

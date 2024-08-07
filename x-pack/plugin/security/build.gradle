@@ -462,7 +462,9 @@ tasks.register('testNoSecurityManager', Test) {
   classpath = sourceSets.test.runtimeClasspath
   include noSecurityManagerClasses
   systemProperty 'tests.security.manager', 'false'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
+
 tasks.named("check").configure { dependsOn 'testNoSecurityManager' }
 
 tasks.named('test').configure {

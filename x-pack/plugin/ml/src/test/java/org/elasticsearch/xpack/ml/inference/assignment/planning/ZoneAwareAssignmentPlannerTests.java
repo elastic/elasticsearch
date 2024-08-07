@@ -23,8 +23,8 @@ import static org.elasticsearch.xpack.ml.inference.assignment.planning.Assignmen
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.assertPreviousAssignmentsAreSatisfied;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.convertToIdIndexed;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.createDeploymentsFromPlan;
-import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.randomModel;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.randomDeployments;
+import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.randomModel;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.randomNodes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

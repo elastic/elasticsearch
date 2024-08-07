@@ -6,10 +6,10 @@
 
 Creates or updates an ip geolocation database configuration.
 
-IMPORTANT: The `account_id` requires a license key. Because the license key is sensitive information, it is stored as a
-<<secure-settings,secure setting>> in {es} named `ingest.geoip.downloader.maxmind.license_key`. Only one license key is
-currently allowed per {es} cluster. A valid license key must be in the secure settings in order to download from Maxmind.
-The license key setting does not take effect until all nodes are restarted.
+IMPORTANT: The Maxmind `account_id` shown below requires a license key. Because the license key is sensitive information,
+it is stored as a <<secure-settings,secure setting>> in {es} named `ingest.geoip.downloader.maxmind.license_key`. Only
+one Maxmind license key is currently allowed per {es} cluster. A valid license key must be in the secure settings in order
+to download from Maxmind. The license key setting does not take effect until all nodes are restarted.
 
 [source,console]
 ----

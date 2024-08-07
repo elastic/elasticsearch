@@ -819,7 +819,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "cluster": ["cross_cluster_search"],
               "remote_indices": [
                 {
@@ -834,7 +834,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 },
                 {
                   "names": ["employees3"],
-                  "privileges": ["view_index_metadata"],
+                  "privileges": ["view_index_metadata", "read_cross_cluster"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]

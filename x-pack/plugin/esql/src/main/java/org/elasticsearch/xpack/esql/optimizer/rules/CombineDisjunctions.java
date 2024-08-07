@@ -31,13 +31,13 @@ import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 
 /**
- * Combine disjunctive Equals or In expression on the same field into an In expression.
+ * Combine disjunctive Equals, In or CIDRMatch expressions on the same field into an In or CIDRMatch expression.
  * This rule looks for both simple equalities:
  * 1. a == 1 OR a == 2 becomes a IN (1, 2)
  * and combinations of In
  * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
  * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
- * Combine disjunctive Equals, In or CIDRMatch expressions on the same field into a CIDRMatch expression.
+ * and combinations of CIDRMatch
  * 4. CIDRMatch(a, ip1) OR CIDRMatch(a, ip2) OR a = ip3 or a IN (ip4, ip5) becomes CIDRMatch(a, ip1, ip2, ip3, ip4, ip5)
  * <p>
  * This rule does NOT check for type compatibility as that phase has been
@@ -79,6 +79,12 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                     ins.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
                     if (eq.left().dataType() == DataType.IP) {
                         Object value = eq.right().fold();
+                        // ImplicitCasting and ConstantFolding(includes explicit casting) are applied before CombineDisjunctions.
+                        // They fold the input IP string to an internal IP format. These happen to Equals and IN, but not for CIDRMatch,
+                        // as CIDRMatch takes strings as input, ImplicitCasting does not apply to it, and the first input to CIDRMatch is a
+                        // field, ConstantFolding does not apply to it either.
+                        // If the data type is IP, convert the internal IP format in Equals and IN to the format that is compatible with
+                        // CIDRMatch, and store them in a separate map, so that they can be combined into existing CIDRMatch later.
                         if (value instanceof BytesRef bytesRef) {
                             value = ipToString(bytesRef);
                         }
@@ -96,6 +102,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                     List<Expression> values = new ArrayList<>(in.list().size());
                     for (Expression i : in.list()) {
                         Object value = i.fold();
+                        // Same as Equals.
                         if (value instanceof BytesRef bytesRef) {
                             value = ipToString(bytesRef);
                         }

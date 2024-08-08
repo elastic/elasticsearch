@@ -59,7 +59,6 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
@@ -120,6 +119,11 @@ public abstract class AbstractClient implements Client {
         ActionType<Response> action,
         Request request
     ) {
+        // if (EsExecutors.executorName(Thread.currentThread()) != null) {
+        // throw new IllegalStateException("can only call synchronous execute on a test thread " + Thread.currentThread());
+        // }
+        // assert EsExecutors.executorName(Thread.currentThread()) == null
+        // : "can only call synchronous execute on a test thread " + Thread.currentThread();
         PlainActionFuture<Response> actionFuture = new RefCountedFuture<>();
         execute(action, request, actionFuture);
         return actionFuture;
@@ -413,11 +417,9 @@ public abstract class AbstractClient implements Client {
      */
     // todo: the use of UnsafePlainActionFuture here is quite broad, we should find a better way to be more specific
     // (unless making all usages safe is easy).
-    private static class RefCountedFuture<R extends RefCounted> extends UnsafePlainActionFuture<R> {
+    private static class RefCountedFuture<R extends RefCounted> extends PlainActionFuture<R> {
 
-        private RefCountedFuture() {
-            super(ThreadPool.Names.GENERIC);
-        }
+        private RefCountedFuture() {}
 
         @Override
         public final void onResponse(R result) {

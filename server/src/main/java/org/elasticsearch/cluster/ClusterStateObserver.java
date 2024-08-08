@@ -19,6 +19,7 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -115,14 +116,24 @@ public class ClusterStateObserver {
         waitForNextChange(listener, statePredicate, null);
     }
 
+    public void waitForNextChange(Listener listener, Predicate<ClusterState> statePredicate, @Nullable TimeValue timeOutValue) {
+        waitForNextChange(listener, statePredicate, timeOutValue, threadPool.generic());
+    }
+
     /**
      * Wait for the next cluster state which satisfies statePredicate
      *
      * @param listener        callback listener
      * @param statePredicate predicate to check whether cluster state changes are relevant and the callback should be called
      * @param timeOutValue    a timeout for waiting. If null the global observer timeout will be used.
+     * @param executor       executor used for notifying listener when running on applier thread (can also be notified in current thread)
      */
-    public void waitForNextChange(Listener listener, Predicate<ClusterState> statePredicate, @Nullable TimeValue timeOutValue) {
+    public void waitForNextChange(
+        Listener listener,
+        Predicate<ClusterState> statePredicate,
+        @Nullable TimeValue timeOutValue,
+        Executor executor
+    ) {
         listener = new ContextPreservingListener(listener, contextHolder.newRestorableContext(false));
         if (observingContext.get() != null) {
             throw new ElasticsearchException("already waiting for a cluster state change");
@@ -173,7 +184,8 @@ public class ClusterStateObserver {
             }
             clusterApplierService.addTimeoutListener(
                 timeoutTimeLeftMS == null ? null : new TimeValue(timeoutTimeLeftMS),
-                clusterStateListener
+                clusterStateListener,
+                executor
             );
         }
     }

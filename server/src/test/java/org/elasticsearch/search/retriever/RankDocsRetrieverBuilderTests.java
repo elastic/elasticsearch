@@ -22,6 +22,7 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -102,8 +103,9 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             source.aggregation(new TermsAggregationBuilder("name").field("field"));
         }
         retriever.extractToSearchSourceBuilder(source, randomBoolean());
-        assertThat(source.sorts().size(), equalTo(1));
+        assertThat(source.sorts().size(), equalTo(2));
         assertThat(source.sorts().get(0), instanceOf(RankDocsSortBuilder.class));
+        assertThat(source.sorts().get(1), instanceOf(ScoreSortBuilder.class));
         assertThat(source.query(), instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder bq = (BoolQueryBuilder) source.query();
         if (source.aggregations() != null) {

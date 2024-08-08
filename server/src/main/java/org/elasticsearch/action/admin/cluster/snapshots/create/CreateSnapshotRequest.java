@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -82,6 +83,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Nullable
     private Map<String, Object> userMetadata;
 
+    @Nullable
+    private String uuid = null;
+
     public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
     }
@@ -96,6 +100,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         this(masterNodeTimeout);
         this.snapshot = snapshot;
         this.repository = repository;
+        this.uuid = UUIDs.randomBase64UUID();
     }
 
     public CreateSnapshotRequest(StreamInput in) throws IOException {
@@ -112,6 +117,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
+        uuid = in.getTransportVersion().onOrAfter(TransportVersions.REGISTER_SLM_STATS) ? in.readOptionalString() : null;
     }
 
     @Override
@@ -129,6 +135,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REGISTER_SLM_STATS)) {
+            out.writeOptionalString(uuid);
+        }
     }
 
     @Override
@@ -365,6 +374,35 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
+     * Set a uuid to identify snapshot.
+     * If no uuid is specified, one will be created within SnapshotService
+     */
+    public CreateSnapshotRequest uuid(String uuid) {
+        this.uuid = uuid;
+        return this;
+    }
+
+    /**
+     * Get the uuid, generating it if one does not yet exist.
+     * Because the uuid can be set, this method is NOT thread-safe.
+     * <p>
+     * The uuid was previously generated in SnapshotService.createSnapshot
+     * but was moved to the CreateSnapshotRequest constructor so that the caller could
+     * uniquely identify the snapshot. Unfortunately, in a mixed-version cluster,
+     * the CreateSnapshotRequest could be created on a node which does not yet
+     * generate the uuid in the constructor. In this case, the uuid
+     * must be generated when it is first accessed with this getter.
+     *
+     * @return the uuid that will be used for the snapshot
+     */
+    public String uuid() {
+        if (this.uuid == null) {
+            this.uuid = UUIDs.randomBase64UUID();
+        }
+        return this.uuid;
+    }
+
+    /**
      * @return Which plugin states should be included in the snapshot
      */
     public String[] featureStates() {
@@ -469,12 +507,13 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Arrays.equals(featureStates, that.featureStates)
             && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
-            && Objects.equals(userMetadata, that.userMetadata);
+            && Objects.equals(userMetadata, that.userMetadata)
+            && Objects.equals(uuid, that.uuid);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata);
+        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata, uuid);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(featureStates);
         return result;
@@ -505,6 +544,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             + masterNodeTimeout()
             + ", metadata="
             + userMetadata
+            + ", uuid="
+            + uuid
             + '}';
     }
 }

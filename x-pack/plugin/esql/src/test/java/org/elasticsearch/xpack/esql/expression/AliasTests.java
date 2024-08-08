@@ -32,14 +32,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
 public class AliasTests extends AbstractWireTestCase<Alias> {
-    @Override
-    protected Alias createTestInstance() {
+    public static Alias randomAlias() {
         Source source = SourceTests.randomSource();
         String name = randomAlphaOfLength(5);
         // TODO better randomChild
         Expression child = ReferenceAttributeTests.randomReferenceAttribute();
         boolean synthetic = randomBoolean();
         return new Alias(source, name, child, new NameId(), synthetic);
+    }
+
+    @Override
+    protected Alias createTestInstance() {
+        return randomAlias();
     }
 
     @Override

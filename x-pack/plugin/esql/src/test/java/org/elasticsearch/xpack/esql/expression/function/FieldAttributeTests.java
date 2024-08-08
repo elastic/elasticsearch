@@ -16,11 +16,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribute> {
-    static FieldAttribute createFieldAttribute(int maxDepth) {
+    public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {
         Source source = Source.EMPTY;
-        FieldAttribute parent = maxDepth == 0 || randomBoolean() ? null : createFieldAttribute(maxDepth - 1);
+        FieldAttribute parent = maxDepth == 0 || randomBoolean() ? null : createFieldAttribute(maxDepth - 1, onlyRepresentable);
         String name = randomAlphaOfLength(5);
-        DataType type = randomFrom(DataType.types());
+        DataType type = onlyRepresentable
+            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), () -> randomFrom(DataType.types()))
+            : randomFrom(DataType.types());
         EsField field = AbstractEsFieldTypeTests.randomAnyEsField(maxDepth);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
@@ -29,7 +31,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
 
     @Override
     protected FieldAttribute create() {
-        return createFieldAttribute(3);
+        return createFieldAttribute(3, false);
     }
 
     @Override
@@ -42,7 +44,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         Nullability nullability = instance.nullable();
         boolean synthetic = instance.synthetic();
         switch (between(0, 5)) {
-            case 0 -> parent = randomValueOtherThan(parent, () -> randomBoolean() ? null : createFieldAttribute(2));
+            case 0 -> parent = randomValueOtherThan(parent, () -> randomBoolean() ? null : createFieldAttribute(2, false));
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
             case 2 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomAnyEsField(3));

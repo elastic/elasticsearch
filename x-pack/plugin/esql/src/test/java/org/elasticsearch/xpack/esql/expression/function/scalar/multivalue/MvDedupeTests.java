@@ -49,17 +49,12 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
 
         // TODO switch extraction to BigInteger so this just works.
         // unsignedLongs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedData(anyNullIsNull(false, cases));
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvDedupe(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableTypes();
     }
 
     @SuppressWarnings("unchecked")

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,7 +34,7 @@ public class MetadataAttribute extends TypedAttribute {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "MetadataAttribute",
-        MetadataAttribute::new
+        MetadataAttribute::readFrom
     );
 
     private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
@@ -88,7 +89,7 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @SuppressWarnings("unchecked")
-    public MetadataAttribute(StreamInput in) throws IOException {
+    private MetadataAttribute(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -111,15 +112,21 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeString(name());
-        dataType().writeTo(out);
-        // We used to write the qualifier here. We can still do if needed in the future.
-        out.writeOptionalString(null);
-        out.writeEnum(nullable());
-        id().writeTo(out);
-        out.writeBoolean(synthetic());
-        out.writeBoolean(searchable);
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            out.writeString(name());
+            dataType().writeTo(out);
+            // We used to write the qualifier here. We can still do if needed in the future.
+            out.writeOptionalString(null);
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
+            out.writeBoolean(searchable);
+        }
+    }
+
+    public static MetadataAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(MetadataAttribute::new);
     }
 
     @Override

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -51,7 +50,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  */
 public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, Stats {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        InlineStats.class,
+        LogicalPlan.class,
         "InlineStats",
         InlineStats::new
     );
@@ -69,7 +68,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     public InlineStats(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readLogicalPlanNode(),
+            in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class)
         );
@@ -78,7 +77,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeLogicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings);
         out.writeNamedWriteableCollection(aggregates);
     }

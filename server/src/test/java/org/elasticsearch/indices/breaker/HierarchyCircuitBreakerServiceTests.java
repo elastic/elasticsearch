@@ -721,8 +721,9 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     public void testAllocationBucketsBreaker() {
         Settings clusterSettings = Settings.builder()
+            // the memory used by the test should be bigger than this value
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
-            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "false")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "true")
             .build();
 
         try (
@@ -743,8 +744,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 breaker
             );
 
-            // make sure used bytes is greater than the total circuit breaker limit
-            breaker.addWithoutBreaking(200);
             // make sure that we check on the the following call
             for (int i = 0; i < 1023; i++) {
                 multiBucketConsumer.accept(0);

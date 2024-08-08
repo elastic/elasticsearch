@@ -110,9 +110,8 @@ public class FieldDataCacheTests extends ESTestCase {
                     assertThat(name, equalTo(CircuitBreaker.FIELDDATA));
                     return new NoopCircuitBreaker("test") {
                         @Override
-                        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                        public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
                             assertThat(label, equalTo("Global Ordinals"));
-                            assertThat(bytes, equalTo(0L));
                             timesCalled[0]++;
                         }
                     };

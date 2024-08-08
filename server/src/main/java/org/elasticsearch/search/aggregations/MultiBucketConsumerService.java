@@ -130,7 +130,7 @@ public class MultiBucketConsumerService {
             // check parent circuit breaker every 1024 calls
             callCount++;
             if ((callCount & 0x3FF) == 0) {
-                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+                breaker.checkRealMemoryUsage("allocated_buckets");
             }
         }
 

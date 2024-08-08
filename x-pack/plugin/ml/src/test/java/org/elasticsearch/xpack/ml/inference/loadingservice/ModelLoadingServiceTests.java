@@ -866,6 +866,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }
 
         @Override
+        public void checkRealMemoryUsage(String label) throws CircuitBreakingException {}
+
+        @Override
         public void addWithoutBreaking(long bytes) {
             synchronized (this) {
                 currentBytes += bytes;

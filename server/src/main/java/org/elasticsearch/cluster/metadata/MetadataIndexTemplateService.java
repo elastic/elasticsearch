@@ -599,8 +599,8 @@ public class MetadataIndexTemplateService {
 
         Map<String, List<String>> overlaps = v2TemplateOverlaps(currentState, name, template, validateV2Overlaps);
 
-        overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
-        if (overlaps.size() > 0) {
+        overlaps.putAll(findConflictingV1Templates(currentState, name, template.indexPatterns()));
+        if (overlaps.isEmpty() == false) {
             String warning = String.format(
                 Locale.ROOT,
                 "index template [%s] has index patterns %s matching patterns from "
@@ -655,6 +655,7 @@ public class MetadataIndexTemplateService {
      * @param template the full composable index template object we check for overlaps
      * @param validate should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
      * @return a map of v2 template names to their index patterns for v2 templates that would overlap with the given template
+     * @throws IllegalArgumentException if it detects conflicts and the validate is true
      */
     public static Map<String, List<String>> v2TemplateOverlaps(
         ClusterState currentState,

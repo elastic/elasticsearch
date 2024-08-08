@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.retriever;
 
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.SetOnce;
@@ -208,7 +207,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score and then the doc (we're forcing 1 shard for consistent results)
+        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
         // so ideal rank would be: 6, 2, 1, 4, 7, 3 and with pagination, we'd just omit the first result
         source.retriever(
             new CompoundRetrieverWithRankDocs(
@@ -310,7 +309,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score and then the doc (we're forcing 1 shard for consistent results)
+        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
         // so ideal rank would be: 6, 2, 1, 4, 7, 3
         // with collapsing on topic field we would have 6, 2, 1, 7
         source.retriever(
@@ -378,7 +377,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score and then the doc (we're forcing 1 shard for consistent results)
+        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
         // so ideal rank would be: 6, 2, 1, 4, 7, 3
         source.retriever(
             new CompoundRetrieverWithRankDocs(
@@ -430,7 +429,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score and then the doc (we're forcing 1 shard for consistent results)
+        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
         // so ideal rank would be: 6, 2, 1, 4, 7, 3
         // with rescore, and given that the final score is the hit ratio, we would have 4, 6, 2, 1, 3, 7
         // as the docs 1, 3, and 7 have the same hit ratio (1/3) and are sorted based on doc id
@@ -486,7 +485,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             null
         );
         // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score and then the doc (we're forcing 1 shard for consistent results)
+        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
         // so ideal rank would be: 6, 2, 1, 4, 3, 7
         source.retriever(
             new CompoundRetrieverWithRankDocs(
@@ -508,7 +507,66 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_6"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_7"));
+            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_3"));
+        });
+    }
+
+    public void testRankDocsRetrieverMultipleCompoundRetrievers() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
+        // this one retrieves docs 1, 4, and 6
+        standard0.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.queryStringQuery("quick").defaultField(TEXT_FIELD))
+            .boost(10L);
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder();
+        // this one retrieves docs 2 and 6 due to prefilter
+        standard1.queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(ID_FIELD, "doc_2", "doc_3", "doc_6")).boost(20L);
+        standard1.preFilterQueryBuilders.add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        // this one retrieves docs 7, 2, 3, and 6
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 3.0f, 3.0f, 3.0f },
+            null,
+            10,
+            100,
+            null
+        );
+        // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
+        // resolves ties based on actual score, rank, and then the doc (we're forcing 1 shard for consistent results)
+        // so ideal rank would be: 6, 2, 1, 4, 7, 3
+        CompoundRetrieverWithRankDocs compoundRetriever1 = new CompoundRetrieverWithRankDocs(
+            rankWindowSize,
+            Arrays.asList(
+                new RetrieverSource(standard0, null),
+                new RetrieverSource(standard1, null),
+                new RetrieverSource(knnRetrieverBuilder, null)
+            )
+        );
+        // simple standard retriever that would have the doc_4 as its first (and only) result
+        StandardRetrieverBuilder standard2 = new StandardRetrieverBuilder();
+        standard2.queryBuilder = QueryBuilders.queryStringQuery("aardvark").defaultField(TEXT_FIELD);
+
+        // combining the two retrievers would bring doc_4 at the top as it would be the only one present in both doc sets
+        // the rest of the docs would be sorted based on their ranks, as the score is not yet currently available for RankDocs
+        source.retriever(
+            new CompoundRetrieverWithRankDocs(
+                rankWindowSize,
+                Arrays.asList(new RetrieverSource(compoundRetriever1, null), new RetrieverSource(standard2, null))
+            )
+        );
+
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_2"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
             assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_7"));
             assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_3"));
         });
@@ -578,7 +636,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
                 client.execute(TransportMultiSearchAction.TYPE, multiSearchRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(MultiSearchResponse items) {
-                        List<ScoreDoc[]> topDocs = new ArrayList<>();
+                        List<RankDoc[]> topDocs = new ArrayList<>();
                         for (int i = 0; i < items.getResponses().length; i++) {
                             var item = items.getResponses()[i];
                             var rankDocs = getRankDocs(item.getResponse());
@@ -639,7 +697,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
                 int doc = decodeDoc(sortValue);
                 int shardRequestIndex = decodeShardRequestIndex(sortValue);
                 docs[i] = new TestRankDoc(doc, hit.getScore(), shardRequestIndex);
-                docs[i].rank = i;
+                docs[i].rank = i + 1;
             }
             return docs;
         }
@@ -657,32 +715,41 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         /**
          * Combines the provided {@code rankResults} to return the final top documents.
          */
-        public RankDoc[] combineResults(List<ScoreDoc[]> rankResults) {
+        public RankDoc[] combineResults(List<RankDoc[]> rankResults) {
             int totalQueries = rankResults.size();
             final float step = 1.0f / totalQueries;
             Map<RankDoc.RankKey, RankDocAndHitRatio> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
             for (var rankResult : rankResults) {
-                for (ScoreDoc scoreDoc : rankResult) {
+                for (RankDoc scoreDoc : rankResult) {
                     docsToRankResults.compute(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), (key, value) -> {
                         if (value == null) {
-                            return new RankDocAndHitRatio(new TestRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex), step);
+                            TestRankDoc res = new TestRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+                            res.rank = scoreDoc.rank;
+                            return new RankDocAndHitRatio(res, step);
                         } else {
-                            return new RankDocAndHitRatio(
-                                new TestRankDoc(scoreDoc.doc, Math.max(scoreDoc.score, value.rankDoc.score), scoreDoc.shardIndex),
-                                value.hitRatio + step
+                            TestRankDoc res = new TestRankDoc(
+                                scoreDoc.doc,
+                                Math.max(scoreDoc.score, value.rankDoc.score),
+                                scoreDoc.shardIndex
                             );
+                            res.rank = Math.min(scoreDoc.rank, value.rankDoc.rank);
+                            return new RankDocAndHitRatio(res, value.hitRatio + step);
                         }
                     });
                 }
             }
-            // sort the results based on hit ratio, tiebreaker based on smaller doc id
+            // sort the results based on hit ratio, then doc, then rank, and final tiebreaker is based on smaller doc id
             RankDocAndHitRatio[] sortedResults = docsToRankResults.values().toArray(RankDocAndHitRatio[]::new);
             Arrays.sort(sortedResults, (RankDocAndHitRatio doc1, RankDocAndHitRatio doc2) -> {
                 if (doc1.hitRatio != doc2.hitRatio) {
                     return doc1.hitRatio < doc2.hitRatio ? 1 : -1;
                 }
-                if (doc1.rankDoc.score != doc2.rankDoc.score) {
+                if (false == (Float.isNaN(doc1.rankDoc.score) || Float.isNaN(doc2.rankDoc.score))
+                    && (doc1.rankDoc.score != doc2.rankDoc.score)) {
                     return doc1.rankDoc.score < doc2.rankDoc.score ? 1 : -1;
+                }
+                if (doc1.rankDoc.rank != doc2.rankDoc.rank) {
+                    return doc1.rankDoc.rank < doc2.rankDoc.rank ? -1 : 1;
                 }
                 return doc1.rankDoc.doc < doc2.rankDoc.doc ? -1 : 1;
             });

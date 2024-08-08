@@ -149,7 +149,7 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         }
     }
 
-    private static ManageRolesPrivilege buildPrivileges() {
+    public static ManageRolesPrivilege buildPrivileges() {
         return buildPrivileges(randomIntBetween(4, 7));
     }
 

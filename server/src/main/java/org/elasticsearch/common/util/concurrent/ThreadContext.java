@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -806,24 +805,22 @@ public final class ThreadContext implements Writeable, TraceContext {
             Map<String, String> selectedHeaders = new HashMap<>(requestHeaders);
             selectedHeaders.keySet().retainAll(List.of(Task.X_OPAQUE_ID_HTTP_HEADER, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
 
-            String messagePattern = HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.equals(thresholdSetting)
-                ? "Dropping a warning header{}, as their total size reached the maximum allowed of [{}] bytes set in [{}]!{}"
-                : "Dropping a warning header{}, as their total count reached the maximum allowed of [{}] set in [{}]!{}";
+            boolean sizeExceeded = HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.equals(thresholdSetting);
 
-            String callToAction = selectedHeaders.containsKey(Task.X_OPAQUE_ID_HTTP_HEADER) == false
-                ? Strings.format(
-                    " Add X-Opaque-Id headers to identify the source of this warning, see %s for more information.",
-                    ReferenceDocs.X_OPAQUE_ID
-                )
-                : "";
+            StringBuilder message = new StringBuilder().append("Dropping a warning header");
+            if (selectedHeaders.isEmpty() == false) {
+                message.append(" for request [").append(selectedHeaders).append("]");
+            }
+            message.append(", as their total").append(sizeExceeded ? " size" : " count");
+            message.append(" reached the maximum allowed of [").append(threshold).append("]").append(sizeExceeded ? " bytes" : "");
+            message.append(" set in [").append(thresholdSetting.getKey()).append("]!");
 
-            logger.warn(
-                messagePattern,
-                selectedHeaders.isEmpty() ? "" : Strings.format(" for request [%s]", selectedHeaders),
-                threshold,
-                thresholdSetting.getKey(),
-                callToAction
-            );
+            if (selectedHeaders.containsKey(Task.X_OPAQUE_ID_HTTP_HEADER) == false) {
+                message.append(" Add X-Opaque-Id headers to identify the source of this warning");
+                message.append(", see ").append(ReferenceDocs.X_OPAQUE_ID).append(" for more information.");
+            }
+
+            logger.warn(message);
         }
 
         private ThreadContextStruct putResponse(

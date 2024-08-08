@@ -546,7 +546,7 @@ public final class DataTypeConverter {
         RATIONAL_TO_DATETIME(toDateTime(RATIONAL_TO_LONG)),
         INTEGER_TO_DATETIME(toDateTime(INTEGER_TO_LONG)),
         BOOL_TO_DATETIME(toDateTime(BOOL_TO_INT)),
-        STRING_TO_DATETIME(fromString(org.elasticsearch.xpack.esql.core.util.DateUtils::asDateTime, "datetime")),
+        STRING_TO_DATETIME(fromString(DateUtils::asDateTime, "datetime")),
 
         NUMERIC_TO_BOOLEAN(fromDouble(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConverter::convertToBoolean, "boolean")),
@@ -600,7 +600,7 @@ public final class DataTypeConverter {
         }
 
         private static Function<Object, Object> toDateTime(Converter conversion) {
-            return l -> org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime(((Number) conversion.convert(l)).longValue());
+            return l -> DateUtils.asDateTime(((Number) conversion.convert(l)).longValue());
         }
 
         @Override

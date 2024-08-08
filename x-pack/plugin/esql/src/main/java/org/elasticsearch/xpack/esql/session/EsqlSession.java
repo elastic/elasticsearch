@@ -125,7 +125,9 @@ public class EsqlSession {
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
             parse(request.query(), request.params()),
-            listener.delegateFailureAndWrap((next, analyzedPlan) -> executeAnalyzedPlan(request, runPhase, analyzedPlan, next))
+            listener.delegateFailureAndWrap(
+                (next, analyzedPlan) -> executeOptimizedPlan(request, runPhase, optimizedPlan(analyzedPlan), next)
+            )
         );
     }
 
@@ -133,17 +135,17 @@ public class EsqlSession {
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
      * this is public for testing. See {@link Phased} for the sequence of operations.
      */
-    public void executeAnalyzedPlan(
+    public void executeOptimizedPlan(
         EsqlQueryRequest request,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
-        LogicalPlan analyzedPlan,
+        LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        LogicalPlan firstPhase = Phased.extractFirstPhase(analyzedPlan);
+        LogicalPlan firstPhase = Phased.extractFirstPhase(optimizedPlan);
         if (firstPhase == null) {
-            runPhase.accept(logicalPlanToPhysicalPlan(analyzedPlan, request), listener);
+            runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
         } else {
-            executePhased(new ArrayList<>(), analyzedPlan, request, firstPhase, runPhase, listener);
+            executePhased(new ArrayList<>(), optimizedPlan, request, firstPhase, runPhase, listener);
         }
     }
 
@@ -155,11 +157,11 @@ public class EsqlSession {
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(firstPhase, request);
+        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan(firstPhase), request);
         runPhase.accept(physicalPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
                 profileAccumulator.addAll(result.profiles());
-                LogicalPlan newMainPlan = Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages());
+                LogicalPlan newMainPlan = optimizedPlan(Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages()));
                 LogicalPlan newFirstPhase = Phased.extractFirstPhase(newMainPlan);
                 if (newFirstPhase == null) {
                     PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request);
@@ -235,7 +237,7 @@ public class EsqlSession {
         }));
     }
 
-    private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
+    private void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
@@ -352,8 +354,8 @@ public class EsqlSession {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
-    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan logicalPlan, EsqlQueryRequest request) {
-        PhysicalPlan physicalPlan = optimizedPhysicalPlan(logicalPlan);
+    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {
+        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan);
         physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
             QueryBuilder filter = request.filter();
             if (filter != null) {
@@ -371,20 +373,25 @@ public class EsqlSession {
     }
 
     public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
-        assert logicalPlan.analyzed();
+        if (logicalPlan.analyzed() == false) {
+            throw new IllegalStateException("Expected analyzed plan");
+        }
         var plan = logicalPlanOptimizer.optimize(logicalPlan);
         LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
         return plan;
     }
 
-    public PhysicalPlan physicalPlan(LogicalPlan logicalPlan) {
-        var plan = mapper.map(optimizedPlan(logicalPlan));
+    public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
+        if (optimizedPlan.optimized() == false) {
+            throw new IllegalStateException("Expected optimized plan");
+        }
+        var plan = mapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
         return plan;
     }
 
-    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan logicalPlan) {
-        var plan = physicalPlanOptimizer.optimize(physicalPlan(logicalPlan));
+    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan) {
+        var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
     }

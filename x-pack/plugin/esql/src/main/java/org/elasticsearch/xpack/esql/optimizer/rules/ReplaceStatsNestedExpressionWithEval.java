@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Stats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,14 +26,21 @@ import java.util.Map;
 
 /**
  * Replace nested expressions inside an aggregate with synthetic eval (which end up being projected away by the aggregate).
- * stats sum(a + 1) by x % 2
+ * {@code STAT SUM(a + 1) BY x % 2}
  * becomes
- * eval `a + 1` = a + 1, `x % 2` = x % 2 | stats sum(`a+1`_ref) by `x % 2`_ref
+ * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a+1`_ref) BY `x % 2`_ref}
  */
-public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.OptimizerRule<LogicalPlan> {
 
     @Override
-    protected LogicalPlan rule(Aggregate aggregate) {
+    protected LogicalPlan rule(LogicalPlan aggregate) {
+        if (aggregate instanceof Stats stats) {
+            return rule(stats);
+        }
+        return aggregate;
+    }
+
+    private LogicalPlan rule(Stats aggregate) {
         List<Alias> evals = new ArrayList<>();
         Map<String, Attribute> evalNames = new HashMap<>();
         Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
@@ -134,10 +141,10 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
             var aggregates = aggsChanged.get() ? newAggs : aggregate.aggregates();
 
             var newEval = new Eval(aggregate.source(), aggregate.child(), evals);
-            aggregate = new Aggregate(aggregate.source(), newEval, aggregate.aggregateType(), groupings, aggregates);
+            aggregate = aggregate.with(newEval, groupings, aggregates);
         }
 
-        return aggregate;
+        return (LogicalPlan) aggregate;
     }
 
     static String syntheticName(Expression expression, AggregateFunction af, int counter) {

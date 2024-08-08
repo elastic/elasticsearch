@@ -369,14 +369,17 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     }
 
     private boolean assertCompleteAllowed() {
-        Thread waiter = sync.getFirstQueuedThread();
-        assert waiter == null || allowedExecutors(waiter, Thread.currentThread())
+        Thread waiterThread = sync.getFirstQueuedThread();
+        Thread currentThread = Thread.currentThread();
+        assert waiterThread == null || allowedExecutors(waiterThread, currentThread)
             : "cannot complete future on thread "
-                + Thread.currentThread()
+                + currentThread
                 + " with waiter on thread "
-                + waiter
+                + waiterThread
                 + ", could deadlock if pool was full\n"
-                + ExceptionsHelper.formatStackTrace(waiter.getStackTrace());
+                + ExceptionsHelper.formatStackTrace(waiterThread.getStackTrace())
+                + "\nCompletion thread stack trace\n"
+                + ExceptionsHelper.formatStackTrace(currentThread.getStackTrace());
         return true;
     }
 

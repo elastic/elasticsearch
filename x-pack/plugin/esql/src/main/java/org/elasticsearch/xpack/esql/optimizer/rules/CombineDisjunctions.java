@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString
  * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
  * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
  * and combinations of CIDRMatch
- * 4. CIDRMatch(a, ip1) OR CIDRMatch(a, ip2) OR a = ip3 or a IN (ip4, ip5) becomes CIDRMatch(a, ip1, ip2, ip3, ip4, ip5)
+ * 4. CIDRMatch(a, ip1) OR CIDRMatch(a, ip2) OR a == ip3 or a IN (ip4, ip5) becomes CIDRMatch(a, ip1, ip2, ip3, ip4, ip5)
  * <p>
  * This rule does NOT check for type compatibility as that phase has been
  * already be verified in the analyzer.

@@ -187,7 +187,40 @@ public class QueryTranslatorTests extends ESTestCase {
             esql_single_value":\\{"field":"ip0".*"terms":\\{"ip0":\\["127.0.0.1","fe80::cae2:65ff:fece:feb9".*"""));
 
         assertQueryTranslationIPs("""
+            FROM hosts | WHERE host == "alpha" OR host == "gamma" OR CIDR_MATCH(ip1, "127.0.0.2/32") OR CIDR_MATCH(ip1, "127.0.0.3/32") \
+            OR card IN ("eth0", "eth1") OR card == "lo0" OR CIDR_MATCH(ip0, "127.0.0.1") OR \
+            CIDR_MATCH(ip0, "127.0.0.0/24", "172.0.0.0/31") OR CIDR_MATCH(ip0, "127.0.1.0/24") OR \
+            CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:fec0", "172.0.2.0/24") OR \
+            CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9") OR host == "beta\"""", matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"host".*"terms":\\{"host":\\["alpha","gamma","beta".*""" + """
+            esql_single_value":\\{"field":"card".*"terms":\\{"card":\\["eth0","eth1","lo0".*""" + """
+            esql_single_value":\\{"field":"ip1".*"terms":\\{"ip1":\\["127.0.0.2/32","127.0.0.3/32".*""" + """
+            esql_single_value":\\{"field":"ip0".*"terms":\\{"ip0":\\["127.0.0.1","127.0.0.0/24","172.0.0.0/31","127.0.1.0/24",\
+            "fe80::cae2:65ff:fece:fec0","172.0.2.0/24","fe80::cae2:65ff:fece:feb9".*"""));
+
+        assertQueryTranslationIPs("""
             FROM hosts | WHERE host == "alpha" OR host == "gamma" OR ip1 IN ("127.0.0.2"::ip) OR CIDR_MATCH(ip1, "127.0.0.3/32") \
+            OR card IN ("eth0", "eth1") OR card == "lo0" OR ip0 IN ("127.0.0.1"::ip, "128.0.0.1"::ip) \
+            OR CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9") OR host == "beta\"""", matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"host".*"terms":\\{"host":\\["alpha","gamma","beta".*""" + """
+            esql_single_value":\\{"field":"card".*"terms":\\{"card":\\["eth0","eth1","lo0".*""" + """
+            esql_single_value":\\{"field":"ip1".*"terms":\\{"ip1":\\["127.0.0.3/32","127.0.0.2".*""" + """
+            esql_single_value":\\{"field":"ip0".*"terms":\\{"ip0":\\["127.0.0.1","128.0.0.1","fe80::cae2:65ff:fece:feb9".*"""));
+
+        assertQueryTranslationIPs("""
+            FROM hosts | WHERE host == "alpha" OR host == "gamma" OR ip1 == "127.0.0.2"::ip OR CIDR_MATCH(ip1, "127.0.0.3/32") \
+            OR card IN ("eth0", "eth1") OR card == "lo0" OR ip0 IN ("127.0.0.1"::ip, "128.0.0.1"::ip) \
+            OR CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9") OR host == "beta\"""", matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"host".*"terms":\\{"host":\\["alpha","gamma","beta".*""" + """
+            esql_single_value":\\{"field":"card".*"terms":\\{"card":\\["eth0","eth1","lo0".*""" + """
+            esql_single_value":\\{"field":"ip1".*"terms":\\{"ip1":\\["127.0.0.3/32","127.0.0.2".*""" + """
+            esql_single_value":\\{"field":"ip0".*"terms":\\{"ip0":\\["127.0.0.1","128.0.0.1","fe80::cae2:65ff:fece:feb9".*"""));
+
+        assertQueryTranslationIPs("""
+            FROM hosts | WHERE host == "alpha" OR host == "gamma" OR ip1 == "127.0.0.2" OR CIDR_MATCH(ip1, "127.0.0.3/32") \
             OR card IN ("eth0", "eth1") OR card == "lo0" OR ip0 IN ("127.0.0.1"::ip, "128.0.0.1"::ip) \
             OR CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9") OR host == "beta\"""", matchesRegex("""
             .*bool.*should.*""" + """

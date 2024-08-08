@@ -95,7 +95,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 fillSegmentStats(segmentReader, true, segmentsStats);
             }
             this.docsStats = docsStats(reader);
-            this.denseVectorStats = denseVectorStats(reader);
+            this.denseVectorStats = denseVectorStats(reader, null);
             this.sparseVectorStats = sparseVectorStats(reader, null);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
                 new RewriteCachingDirectoryReader(directory, reader.leaves(), null),
@@ -334,7 +334,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public DenseVectorStats denseVectorStats() {
+    public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
         return denseVectorStats;
     }
 

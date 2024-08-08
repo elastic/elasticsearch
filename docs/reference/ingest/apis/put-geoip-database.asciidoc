@@ -4,7 +4,7 @@
 <titleabbrev>Create or update geoip database configuration</titleabbrev>
 ++++
 
-Creates or updates an ip geolocation database configuration.
+Creates or updates an IP geolocation database configuration.
 
 IMPORTANT: The Maxmind `account_id` shown below requires a license key. Because the license key is sensitive information,
 it is stored as a <<secure-settings,secure setting>> in {es} named `ingest.geoip.downloader.maxmind.license_key`. Only
@@ -54,11 +54,11 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 // tag::geoip-database-object[]
 `name`::
 (Required, string)
-The provider-assigned name of the ip geolocation database to download.
+The provider-assigned name of the IP geolocation database to download.
 
 `<provider>`::
 (Required, a provider object and its associated configuration)
-The configuration necessary to identify which ip geolocation provider to use to download
+The configuration necessary to identify which IP geolocation provider to use to download
 the database, as well as any provider-specific configuration necessary for such downloading.
 +
 At present, the only supported provider is `maxmind`, and the maxmind provider

@@ -12,8 +12,15 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
+  compileOnly project(":libs:elasticsearch-native")
 
   testImplementation project(":test:framework")
+}
+
+tasks.named("compileJava").configure {
+  // nativeaccess only has qualified exports. Even though the cli is not run modular, compilation is done with the module path
+  // so nativeaccess needs to be exported here, just at compile time
+  options.compilerArgs << '--add-exports' << 'org.elasticsearch.nativeaccess/org.elasticsearch.nativeaccess=ALL-UNNAMED'
 }
 
 tasks.named("test").configure {

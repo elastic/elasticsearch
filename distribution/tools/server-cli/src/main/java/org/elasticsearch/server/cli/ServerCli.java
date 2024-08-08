@@ -24,12 +24,14 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -45,6 +47,7 @@ class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpec<String> enrollmentTokenOption;
 
     private volatile ServerProcess server;
+    private volatile SystemdNotifier notifier;
 
     // visible for testing
     ServerCli() {
@@ -236,6 +239,9 @@ class ServerCli extends EnvironmentAwareCommand {
         if (server != null) {
             server.stop();
         }
+        if (notifier != null) {
+            notifier.close();
+        }
     }
 
     // allow subclasses to access the started process
@@ -257,7 +263,19 @@ class ServerCli extends EnvironmentAwareCommand {
             .withServerArgs(args)
             .withTempDir(tempDir)
             .withJvmOptions(jvmOptions);
+        this.notifier = maybeStartSystemdNotifier(processInfo);
+        if (notifier != null) {
+            serverProcessBuilder.withListener(notifier);
+        }
         return serverProcessBuilder.start();
+    }
+
+    private static SystemdNotifier maybeStartSystemdNotifier(ProcessInfo processInfo) {
+        String notifyFlag = processInfo.envVars().get("ES_SD_NOTIFY");
+        if (Booleans.parseBoolean(notifyFlag, false)) {
+            return new SystemdNotifier();
+        }
+        return null;
     }
 
     // protected to allow tests to override

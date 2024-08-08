@@ -231,7 +231,7 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   }
 }
 
-distro.copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
+//distro.copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
 
 project(':test:external-modules').subprojects.each { Project testModule ->
   distro.copyModule(processExternalTestOutputsTaskProvider, testModule)
@@ -372,9 +372,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (BuildParams.isSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
-        if (project.path.startsWith(':distribution:packages')) {
+        /*if (project.path.startsWith(':distribution:packages')) {
           from(systemdModuleFiles)
-        }
+        }*/
       }
     }
 

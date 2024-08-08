@@ -105,7 +105,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
-                + " only [KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME] allowed for type [range]",
+                + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]",
             error("from test* | enrich client_cidr on multi_typed", analyzer)
         );
 

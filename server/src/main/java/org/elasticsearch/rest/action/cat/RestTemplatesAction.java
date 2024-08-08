@@ -76,7 +76,7 @@ public class RestTemplatesAction extends AbstractCatAction {
                 getComposableTemplatesRequest,
                 getComposableTemplatesStep.delegateResponse((l, e) -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                        l.onResponse(new GetComposableIndexTemplateAction.Response(Map.of(), null));
+                        l.onResponse(new GetComposableIndexTemplateAction.Response(Map.of()));
                     } else {
                         l.onFailure(e);
                     }

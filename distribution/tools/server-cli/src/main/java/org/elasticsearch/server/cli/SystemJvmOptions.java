@@ -16,6 +16,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -151,10 +152,13 @@ final class SystemJvmOptions {
         String existingPath = sysprops.get("java.library.path");
         assert existingPath != null;
 
+        String format = "%s%c%s";
         String osname = sysprops.get("os.name");
         String os;
         if (osname.startsWith("Windows")) {
             os = "windows";
+            // windows doesn't like spaces in paths, so we must wrap the entire path in quotes to guard for it
+            format = "\"" + format + "\"";
         } else if (osname.startsWith("Linux")) {
             os = "linux";
         } else if (osname.startsWith("Mac OS")) {
@@ -171,11 +175,13 @@ final class SystemJvmOptions {
         } else {
             arch = "unsupported_arch[" + archname + "]";
         }
-        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + getPathSeparator() + existingPath;
+
+        String esPlatformDir = platformDir.resolve(os + "-" + arch).toAbsolutePath().toString();
+        return String.format(Locale.ROOT, format, esPlatformDir, getPathSeparator(), existingPath);
     }
 
     @SuppressForbidden(reason = "no way to get path separator with nio")
-    private static String getPathSeparator() {
-        return File.pathSeparator;
+    private static char getPathSeparator() {
+        return File.pathSeparatorChar;
     }
 }

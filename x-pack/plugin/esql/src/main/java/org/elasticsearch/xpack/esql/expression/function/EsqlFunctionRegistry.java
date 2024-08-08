@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -479,6 +480,9 @@ public class EsqlFunctionRegistry {
         FunctionInfo functionInfo = functionInfo(def);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
+        if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
+            returnType = Arrays.stream(returnType).filter(t -> "date_nanos".equals(t) == false).toArray(String[]::new);
+        }
         var params = constructor.getParameters(); // no multiple c'tors supported
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
@@ -490,6 +494,9 @@ public class EsqlFunctionRegistry {
                 String name = paramInfo == null ? params[i].getName() : paramInfo.name();
                 variadic |= List.class.isAssignableFrom(params[i].getType());
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
+                if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
+                    type = Arrays.stream(type).filter(t -> "date_nanos".equals(t) == false).toArray(String[]::new);
+                }
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
                 DataType targetDataType = getTargetType(type);

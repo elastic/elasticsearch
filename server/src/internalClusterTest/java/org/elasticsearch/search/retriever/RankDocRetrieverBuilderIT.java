@@ -260,9 +260,6 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             100,
             null
         );
-        // the compound retriever here produces a score for a doc based on the percentage of the queries that it was matched on and
-        // resolves ties based on actual score and then the doc (we're forcing 1 shard for consistent results)
-        // so ideal rank would be: 6, 2, 1, 4, 7, 3
         source.retriever(
             new CompoundRetrieverWithRankDocs(
                 rankWindowSize,
@@ -588,7 +585,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
                             sources.get(i).retriever().setRankDocs(rankDocs);
                             topDocs.add(rankDocs);
                         }
-                        results.set(combineQueryPhaseResults(topDocs));
+                        results.set(combineResults(topDocs));
                         listener.onResponse(null);
                     }
 
@@ -660,12 +657,12 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         /**
          * Combines the provided {@code rankResults} to return the final top documents.
          */
-        public RankDoc[] combineQueryPhaseResults(List<ScoreDoc[]> rankResults) {
+        public RankDoc[] combineResults(List<ScoreDoc[]> rankResults) {
             int totalQueries = rankResults.size();
             final float step = 1.0f / totalQueries;
             Map<RankDoc.RankKey, RankDocAndHitRatio> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
-            for (var rrfRankResult : rankResults) {
-                for (ScoreDoc scoreDoc : rrfRankResult) {
+            for (var rankResult : rankResults) {
+                for (ScoreDoc scoreDoc : rankResult) {
                     docsToRankResults.compute(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), (key, value) -> {
                         if (value == null) {
                             return new RankDocAndHitRatio(new TestRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex), step);

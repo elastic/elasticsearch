@@ -77,7 +77,7 @@ public final class ConfigurableClusterPrivileges {
      */
     public static void writeArray(StreamOutput out, ConfigurableClusterPrivilege[] privileges) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
-            out.writeArray(privileges);
+            out.writeArray(WRITER, privileges);
         } else {
             out.writeArray(
                 WRITER,

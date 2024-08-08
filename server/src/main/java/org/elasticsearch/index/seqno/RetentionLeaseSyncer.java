@@ -10,8 +10,8 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.Objects;
 

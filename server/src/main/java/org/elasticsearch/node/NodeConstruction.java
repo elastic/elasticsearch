@@ -64,10 +64,6 @@ import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -134,6 +130,10 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Injector;
+import org.elasticsearch.injection.guice.Key;
+import org.elasticsearch.injection.guice.Module;
+import org.elasticsearch.injection.guice.ModulesBuilder;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -210,9 +210,11 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -225,6 +227,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.newSetFromMap;
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
@@ -822,27 +826,6 @@ class NodeConstruction {
             metadataCreateIndexService
         );
 
-        record PluginServiceInstances(
-            Client client,
-            ClusterService clusterService,
-            RerouteService rerouteService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            RepositoriesService repositoriesService,
-            TelemetryProvider telemetryProvider,
-            AllocationService allocationService,
-            IndicesService indicesService,
-            FeatureService featureService,
-            SystemIndices systemIndices,
-            DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider,
-            DocumentParsingProvider documentParsingProvider
-        ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -865,7 +848,32 @@ class NodeConstruction {
             documentParsingProvider
         );
 
-        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
+        Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
+            Collection<?> allItems = plugin.createComponents(pluginServices);
+            List<?> componentObjects = allItems.stream().filter(not(x -> x instanceof Class<?>)).toList();
+            List<? extends Class<?>> classes = allItems.stream().filter(x -> x instanceof Class<?>).map(x -> (Class<?>) x).toList();
+
+            // Then, injection
+            Collection<?> componentsFromInjector;
+            if (classes.isEmpty()) {
+                componentsFromInjector = Set.of();
+            } else {
+                logger.debug("Using injector to instantiate classes for {}: {}", plugin.getClass().getSimpleName(), classes);
+                var injector = org.elasticsearch.injection.Injector.create(MethodHandles.publicLookup());
+                injector.addInstances(componentObjects);
+                injector.addRecordContents(pluginServices);
+                var resultMap = injector.inject(classes);
+                // For now, assume we want all components added to the Guice injector
+                var distinctObjects = newSetFromMap(new IdentityHashMap<>());
+                resultMap.values().forEach(distinctObjects::addAll);
+                componentsFromInjector = distinctObjects;
+            }
+
+            // Return both
+            return Stream.of(componentObjects, componentsFromInjector)
+                .flatMap(Collection::stream)
+                .toList();
+        }).toList();
 
         var terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
             .stream()
@@ -1585,4 +1593,5 @@ class NodeConstruction {
             b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
         };
     }
+
 }

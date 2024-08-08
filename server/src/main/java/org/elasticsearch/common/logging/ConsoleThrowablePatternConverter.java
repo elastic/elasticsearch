@@ -16,7 +16,7 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.core.pattern.ThrowablePatternConverter;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.bootstrap.StartupException;
-import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.injection.guice.CreationException;
 
 /**
  * Outputs a very short version of exceptions for an interactive console, pointing to full log for details.

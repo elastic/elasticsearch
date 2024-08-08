@@ -8,13 +8,13 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.injection.guice.AbstractModule;
 
 import java.util.Arrays;
 import java.util.HashSet;

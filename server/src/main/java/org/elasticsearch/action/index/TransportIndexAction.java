@@ -13,7 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.transport.TransportService;
 
 /**

@@ -30,6 +30,7 @@ import java.util.function.Supplier;
  */
 public class ClusterStateObserver {
 
+    public static org.elasticsearch.xpack.core.ml.MlMetadata.Builder ChangePredicate;
     protected final Logger logger;
 
     public static final Predicate<ClusterState> NON_NULL_MASTER_PREDICATE = state -> state.nodes().getMasterNode() != null;

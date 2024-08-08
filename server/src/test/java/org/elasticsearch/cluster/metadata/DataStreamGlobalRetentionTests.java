@@ -26,8 +26,8 @@ public class DataStreamGlobalRetentionTests extends AbstractWireSerializingTestC
 
     @Override
     protected DataStreamGlobalRetention mutateInstance(DataStreamGlobalRetention instance) {
-        var defaultRetention = instance.getDefaultRetention();
-        var maxRetention = instance.getMaxRetention();
+        var defaultRetention = instance.defaultRetention();
+        var maxRetention = instance.maxRetention();
         switch (randomInt(1)) {
             case 0 -> {
                 defaultRetention = randomValueOtherThan(

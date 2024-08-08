@@ -110,7 +110,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
@@ -179,7 +179,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource countriesBbox;
     private TestDataSource countriesBboxWeb;
 
-    private final EsqlConfiguration config;
+    private final Configuration config;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer) {}
 
@@ -195,7 +195,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return asList(new Tuple<>("default", Map.of()));
     }
 
-    public PhysicalPlanOptimizerTests(String name, EsqlConfiguration config) {
+    public PhysicalPlanOptimizerTests(String name, Configuration config) {
         this.config = config;
     }
 

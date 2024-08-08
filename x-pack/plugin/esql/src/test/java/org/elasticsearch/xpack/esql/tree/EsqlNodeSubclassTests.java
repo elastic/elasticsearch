@@ -16,7 +16,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -53,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -86,6 +85,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -481,7 +481,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomZone();
         }
         if (argClass == Configuration.class) {
-            return EsqlTestUtils.randomConfiguration();
+            return randomConfiguration();
         }
         try {
             return mock(argClass);

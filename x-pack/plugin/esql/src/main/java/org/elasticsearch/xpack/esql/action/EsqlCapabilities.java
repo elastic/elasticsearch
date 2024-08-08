@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -210,9 +211,9 @@ public class EsqlCapabilities {
         MATCH_COMMAND(true),
 
         /**
-         * Support CIDRMatch in CombineDisjunctives rule.
+         * Support for nanosecond dates as a data type
          */
-        COMBINE_DISJUNCTIVE_CIDRMATCHES;
+        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

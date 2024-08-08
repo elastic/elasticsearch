@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -70,13 +70,13 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
 
     public PlanStreamInput(
         StreamInput streamInput,
         PlanNameRegistry registry,
         NamedWriteableRegistry namedWriteableRegistry,
-        EsqlConfiguration configuration
+        Configuration configuration
     ) {
         super(streamInput, namedWriteableRegistry);
         this.registry = registry;
@@ -115,7 +115,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         }
     }
 
-    public EsqlConfiguration configuration() throws IOException {
+    public Configuration configuration() throws IOException {
         return configuration;
     }
 
@@ -124,7 +124,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
@@ -169,7 +169,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */

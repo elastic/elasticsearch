@@ -65,6 +65,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
@@ -157,6 +158,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case DATETIME -> ((LongBlock.Builder) builder).appendLong(randomInstant().toEpochMilli());
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
                 case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
+                // TODO - add a random instant thing here?
+                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomLong());
                 case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case GEO_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
                 case CARTESIAN_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
@@ -662,6 +665,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {
                         long longVal = dateTimeToLong(value.toString());
+                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    }
+                    case DATE_NANOS -> {
+                        long longVal = dateNanosToLong(value.toString());
                         ((LongBlock.Builder) builder).appendLong(longVal);
                     }
                     case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));

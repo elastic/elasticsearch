@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
@@ -37,6 +39,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -940,6 +943,30 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(true));
         assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(true));
+    }
+
+    public void testInconsistentSystemIndexVersionRejected() throws Exception {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> NodeJoinExecutor.ensureSystemIndexVersionsConsistent(
+                Map.of(".my-system-index", new SystemIndexDescriptor.MappingsVersion(1, 2)),
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".my-system-index", new SystemIndexDescriptor.MappingsVersion(1, 1))
+                    )
+                )
+            )
+        );
+
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Joining node has system index mappings inconsistent with current cluster: "
+                    + "System index [.my-system-index] with version [1] on nodes [node1]"
+            )
+        );
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -177,6 +178,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
+                        ensureSystemIndexVersionsConsistent(compatibilityVersions.systemIndexMappingsVersion(), compatibilityVersionsMap);
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
                         nodeFeatures.put(node.getId(), features);
@@ -267,6 +269,25 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // for the joining node to finalize its join and set us as a master
             return newState.build();
         }
+    }
+
+    private boolean systemIndexVersionConsistent(
+        Map<String, SystemIndexDescriptor.MappingsVersion> newMappingsVersions,
+        Map<String, CompatibilityVersions> existingCompatibilityVersions
+    ) {
+        for (Map.Entry<String, CompatibilityVersions> nodeCompatibility : existingCompatibilityVersions.entrySet()) {
+            Map<String, SystemIndexDescriptor.MappingsVersion> existingVersions = nodeCompatibility.getValue().systemIndexMappingsVersion();
+            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> existingMappingVersion : existingVersions.entrySet()) {
+                String indexName = existingMappingVersion.getKey();
+                if (newMappingsVersions.containsKey(indexName)
+                    && existingMappingVersion.getValue().version() == newMappingsVersions.get(indexName).version()
+                    && existingMappingVersion.getValue().hash() != newMappingsVersions.get(indexName).hash()) {
+                    // log warning message?
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
@@ -416,6 +437,65 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion
                     + "], which is incompatible."
+            );
+        }
+    }
+
+    // visible for testing
+    static void ensureSystemIndexVersionsConsistent(
+        Map<String, SystemIndexDescriptor.MappingsVersion> newMappingsVersions,
+        Map<String, CompatibilityVersions> existingCompatibilityVersions
+    ) {
+        // TODO[wrb]: Wow this is ugly... is this more work than just iterating over system indices on each node?
+
+        // Swap the top two levels of the map
+        Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> existingSystemIndexVersions = new HashMap<>();
+        for (Map.Entry<String, CompatibilityVersions> nodeCompatibility : existingCompatibilityVersions.entrySet()) {
+            String nodeId = nodeCompatibility.getKey();
+            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> indexAndVersion : nodeCompatibility.getValue()
+                .systemIndexMappingsVersion()
+                .entrySet()) {
+                Map<String, SystemIndexDescriptor.MappingsVersion> nodeIdToMappingsVersion = new HashMap<>();
+                nodeIdToMappingsVersion.put(nodeId, indexAndVersion.getValue());
+                existingSystemIndexVersions.merge(indexAndVersion.getKey(), nodeIdToMappingsVersion, (v1, v2) -> {
+                    v1.putAll(v2);
+                    return v1;
+                });
+            }
+        }
+
+        // For each system index in the join request, ensure system indices are okay
+        List<String> errors = new ArrayList<>();
+        for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> newMappingsVersion : newMappingsVersions.entrySet()) {
+            String systemIndexName = newMappingsVersion.getKey();
+            SystemIndexDescriptor.MappingsVersion joiningVersion = newMappingsVersion.getValue();
+            Map<String, SystemIndexDescriptor.MappingsVersion> nodeIdToMappingsVersions = existingSystemIndexVersions.getOrDefault(
+                newMappingsVersion.getKey(),
+                Map.of()
+            );
+            List<String> conflictingNodeIds = new ArrayList<>();
+            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> nodeIdAndMappingsVersion : nodeIdToMappingsVersions.entrySet()) {
+                SystemIndexDescriptor.MappingsVersion existingVersion = nodeIdAndMappingsVersion.getValue();
+                if (existingVersion.version() == joiningVersion.version() && existingVersion.hash() != joiningVersion.hash()) {
+                    conflictingNodeIds.add(nodeIdAndMappingsVersion.getKey());
+                }
+            }
+            if (conflictingNodeIds.isEmpty() == false) {
+                errors.add(
+                    "System index ["
+                        + systemIndexName
+                        + "] with version ["
+                        + joiningVersion.version()
+                        + "] on nodes ["
+                        + String.join(", ", conflictingNodeIds)
+                        + "]"
+                );
+            }
+        }
+
+        if (errors.isEmpty() == false) {
+            throw new IllegalStateException(
+                "Joining node has system index mappings inconsistent with current cluster: " + String.join(", ", errors)
             );
         }
     }

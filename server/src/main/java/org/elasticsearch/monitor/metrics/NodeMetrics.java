@@ -129,6 +129,22 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
+                "es.indices.search.query.total",
+                "Total number of query operations.",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getSearch())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getQueryCount())
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
                 "es.indices.merge.total",
                 "Total number of merge operations.",
                 "operation",
@@ -152,6 +168,21 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .map(o -> o.getIndices())
                         .map(o -> o.getMerge())
                         .map(o -> o.getTotalTimeInMillis())
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.indices.docs.total",
+                "The number of documents as reported by Lucene.",
+                "documents",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getDocs())
+                        .map(o -> o.getCount())
                         .orElse(0L)
                 )
             )
@@ -659,6 +690,15 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 )
             )
         );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.http.open.current",
+                "Current number of open HTTP connections for the node",
+                "connections",
+                () -> new LongWithAttributes(stats.getOrRefresh().getHttp().getServerOpen())
+            )
+        );
     }
 
     /**
@@ -692,7 +732,8 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             CommonStatsFlags.Flag.Get,
             CommonStatsFlags.Flag.Search,
             CommonStatsFlags.Flag.Merge,
-            CommonStatsFlags.Flag.Translog
+            CommonStatsFlags.Flag.Translog,
+            CommonStatsFlags.Flag.Docs
         );
         return nodeService.stats(
             flags,
@@ -703,7 +744,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             false,
             true,
             true,
-            false,
+            true,
             false,
             false,
             false,

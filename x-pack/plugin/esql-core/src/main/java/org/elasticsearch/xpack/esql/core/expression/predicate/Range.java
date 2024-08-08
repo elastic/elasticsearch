@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -118,7 +118,7 @@ public class Range extends ScalarFunction {
         if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
                 if (upperValue instanceof String upperString) {
-                    upperValue = DateUtils.asDateTime(upperString);
+                    upperValue = org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime(upperString);
                 }
                 if (lowerValue instanceof String lowerString) {
                     lowerValue = DateUtils.asDateTime(lowerString);

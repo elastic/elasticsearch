@@ -633,6 +633,59 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":[{"to":[{"name":"A"},{"name":"B"}]},{"to":[{"name":"C"},{"name":"D"}]}]}""", booleanValue), syntheticSource);
     }
 
+    public void testArrayWithinHigherLevelArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("to").field("type", "object").field("store_array_source", true);
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("name").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject();
+                {
+                    b.startArray("to");
+                    {
+                        b.startObject().field("name", "A").endObject();
+                        b.startObject().field("name", "B").endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startArray("to");
+                    {
+                        b.startObject().field("name", "C").endObject();
+                        b.startObject().field("name", "D").endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"path":{"to":[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"}]}}""", booleanValue), syntheticSource);
+    }
+
     public void testFieldOrdering() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("A").field("type", "integer").endObject();

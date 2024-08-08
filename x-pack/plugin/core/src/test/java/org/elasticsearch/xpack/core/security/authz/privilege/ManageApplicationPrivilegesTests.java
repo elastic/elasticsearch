@@ -94,8 +94,8 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
     public void testActionAndRequestPredicate() {
         final ManageApplicationPrivileges kibanaAndLogstash = new ManageApplicationPrivileges(Sets.newHashSet("kibana-*", "logstash"));
         final ManageApplicationPrivileges cloudAndSwiftype = new ManageApplicationPrivileges(Sets.newHashSet("cloud-*", "swiftype"));
-        final ClusterPermission kibanaAndLogstashPermission = kibanaAndLogstash.buildPermission(new ClusterPermission.Builder()).build();
-        final ClusterPermission cloudAndSwiftypePermission = cloudAndSwiftype.buildPermission(new ClusterPermission.Builder()).build();
+        final ClusterPermission kibanaAndLogstashPermission = kibanaAndLogstash.buildPermission(ClusterPermission.builder()).build();
+        final ClusterPermission cloudAndSwiftypePermission = cloudAndSwiftype.buildPermission(ClusterPermission.builder()).build();
         assertThat(kibanaAndLogstashPermission, notNullValue());
         assertThat(cloudAndSwiftypePermission, notNullValue());
 
@@ -138,8 +138,8 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
         final ManageApplicationPrivileges kibanaOnly = new ManageApplicationPrivileges(Sets.newHashSet("kibana-*"));
         final ManageApplicationPrivileges allApps = new ManageApplicationPrivileges(Sets.newHashSet("*"));
 
-        final ClusterPermission kibanaOnlyPermission = kibanaOnly.buildPermission(new ClusterPermission.Builder()).build();
-        final ClusterPermission allAppsPermission = allApps.buildPermission(new ClusterPermission.Builder()).build();
+        final ClusterPermission kibanaOnlyPermission = kibanaOnly.buildPermission(ClusterPermission.builder()).build();
+        final ClusterPermission allAppsPermission = allApps.buildPermission(ClusterPermission.builder()).build();
         assertFalse(kibanaOnlyPermission.check("cluster:admin/xpack/security/privilege/get", getAll, authentication));
         assertTrue(allAppsPermission.check("cluster:admin/xpack/security/privilege/get", getAll, authentication));
     }

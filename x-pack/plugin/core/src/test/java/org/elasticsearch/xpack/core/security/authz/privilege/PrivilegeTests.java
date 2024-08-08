@@ -86,14 +86,14 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     private void verifyClusterActionAllowed(ClusterPrivilege clusterPrivilege, String... actions) {
-        ClusterPermission clusterPermission = clusterPrivilege.buildPermission(new ClusterPermission.Builder()).build();
+        ClusterPermission clusterPermission = clusterPrivilege.buildPermission(ClusterPermission.builder()).build();
         for (String action : actions) {
             assertTrue(clusterPermission.check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()));
         }
     }
 
     private void verifyClusterActionDenied(ClusterPrivilege clusterPrivilege, String... actions) {
-        ClusterPermission clusterPermission = clusterPrivilege.buildPermission(new ClusterPermission.Builder()).build();
+        ClusterPermission clusterPermission = clusterPrivilege.buildPermission(ClusterPermission.builder()).build();
         for (String action : actions) {
             assertFalse(clusterPermission.check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()));
         }
@@ -115,13 +115,13 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionDenied(noneClusterPrivilege, "cluster:monitor/*");
         verifyClusterActionDenied(noneClusterPrivilege, "*");
 
-        ClusterPermission monitorClusterPermission = monitorClusterPrivilege.buildPermission(new ClusterPermission.Builder()).build();
-        ClusterPermission allClusterPermission = allClusterPrivilege.buildPermission(new ClusterPermission.Builder()).build();
+        ClusterPermission monitorClusterPermission = monitorClusterPrivilege.buildPermission(ClusterPermission.builder()).build();
+        ClusterPermission allClusterPermission = allClusterPrivilege.buildPermission(ClusterPermission.builder()).build();
 
         // all implies monitor
         assertTrue(allClusterPermission.implies(monitorClusterPermission));
 
-        ClusterPermission.Builder builder = new ClusterPermission.Builder();
+        ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = allClusterPrivilege.buildPermission(builder);
         builder = noneClusterPrivilege.buildPermission(builder);
         ClusterPermission combinedPermission = builder.build();
@@ -136,7 +136,7 @@ public class PrivilegeTests extends ESTestCase {
         );
         verifyClusterActionDenied(crossClusterSearchClusterPrivilege, "internal:transport/handshake", "cluster:admin/xpack/security/*");
         ClusterPermission crossClusterSearchClusterPermission = crossClusterSearchClusterPrivilege.buildPermission(
-            new ClusterPermission.Builder()
+            ClusterPermission.builder()
         ).build();
         assertTrue(allClusterPermission.implies(crossClusterSearchClusterPermission));
 
@@ -155,7 +155,7 @@ public class PrivilegeTests extends ESTestCase {
             "cluster:admin/xpack/security/*"
         );
         ClusterPermission crossClusterReplicationClusterPermission = crossClusterReplicationClusterPrivilege.buildPermission(
-            new ClusterPermission.Builder()
+            ClusterPermission.builder()
         ).build();
         assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
     }

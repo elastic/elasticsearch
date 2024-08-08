@@ -77,6 +77,10 @@ public class ClusterPermission {
         return clusterPrivileges;
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public static class Builder {
         private final Set<ClusterPrivilege> clusterPrivileges = new HashSet<>();
         private final List<Automaton> actionAutomatons = new ArrayList<>();

@@ -43,9 +43,8 @@ import static org.mockito.Mockito.mock;
 public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
 
     public void testAuthenticationWithApiKeyAllowsAccessToApiKeyActionsWhenItIsItself() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final User userJoe = new User("joe");
@@ -61,9 +60,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testAuthenticationWithApiKeyAllowsDeniesGetApiKeyWithLimitedByWhenItIsItself() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final User userJoe = new User("joe");
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
@@ -77,9 +75,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testAuthenticationForUpdateApiKeyAllowsAll() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
@@ -88,9 +85,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testAuthenticationForBulkUpdateApiKeyAllowsAll() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
         final List<String> apiKeyIds = randomList(1, 5, () -> randomAlphaOfLengthBetween(4, 7));
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final TransportRequest bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(apiKeyIds, null, null, null);
@@ -99,9 +95,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testAuthenticationWithApiKeyDeniesAccessToApiKeyActionsWhenItIsNotOwner() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final User userJoe = new User("joe");
@@ -118,9 +113,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testAuthenticationWithUserAllowsAccessToApiKeyActionsWhenItIsOwner() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
 
         final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
         final Authentication authentication = AuthenticationTests.randomAuthentication(new User("joe"), realmRef);
@@ -172,9 +166,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testAuthenticationWithUserAllowsAccessToApiKeyActionsWhenItIsOwner_WithOwnerFlagOnly() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
 
         final boolean isRunAs = randomBoolean();
         final User userJoe = new User("joe");
@@ -204,9 +197,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testAuthenticationWithUserDeniesAccessToApiKeyActionsWhenItIsNotOwner() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
 
         final boolean isRunAs = randomBoolean();
         final User userJoe = new User("joe");
@@ -240,9 +232,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testGetAndInvalidateApiKeyWillRespectRunAsUser() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
 
         final Authentication authentication = Authentication.newRealmAuthentication(
             new User("user_a"),
@@ -266,9 +257,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testCheckQueryApiKeyRequest() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
         QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
             null,
             null,
@@ -293,9 +283,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testAuthenticationWithApiKeyAllowsDeniesQueryApiKeyWithLimitedBy() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
 
         final boolean withLimitedBy = randomBoolean();
         QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, null, withLimitedBy, randomBoolean());
@@ -307,9 +296,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testCheckGrantApiKeyRequestDenied() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
 
         final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
         grantApiKeyRequest.setApiKeyRequest(new CreateApiKeyRequest());
@@ -318,9 +306,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testCheckCreateCrossClusterApiKeyRequestDenied() throws IOException {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
         final CreateCrossClusterApiKeyRequest request = CreateCrossClusterApiKeyRequest.withNameAndAccess(
             randomAlphaOfLengthBetween(3, 8),
             """
@@ -332,9 +319,8 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     }
 
     public void testCheckUpdateCrossClusterApiKeyRequestDenied() {
-        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(
-            new ClusterPermission.Builder()
-        ).build();
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
         final UpdateCrossClusterApiKeyRequest request = new UpdateCrossClusterApiKeyRequest(
             randomAlphaOfLengthBetween(4, 7),
             null,

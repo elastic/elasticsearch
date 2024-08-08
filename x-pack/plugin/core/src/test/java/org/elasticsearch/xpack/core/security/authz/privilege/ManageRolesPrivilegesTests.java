@@ -47,7 +47,7 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
     public void testSimplePutRoleRequest() {
         new ReservedRolesStore();
         final ManageRolesPrivilege privilege = new ManageRolesPrivilege(Sets.newHashSet("allowed-*"));
-        final ClusterPermission permission = privilege.buildPermission(new ClusterPermission.Builder()).build();
+        final ClusterPermission permission = privilege.buildPermission(ClusterPermission.builder()).build();
 
         assertAllowedIndexPatterns(permission, randomArray(10, String[]::new, () -> "allowed-" + randomAlphaOfLength(5)), true);
         assertAllowedIndexPatterns(permission, randomArray(10, String[]::new, () -> "not-allowed-" + randomAlphaOfLength(5)), false);
@@ -62,7 +62,7 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         new ReservedRolesStore();
 
         final ManageRolesPrivilege privilege = new ManageRolesPrivilege(Sets.newHashSet("a*", "b*"));
-        final ClusterPermission permission = privilege.buildPermission(new ClusterPermission.Builder()).build();
+        final ClusterPermission permission = privilege.buildPermission(ClusterPermission.builder()).build();
 
         assertAllowedIndexPatterns(permission, new String[] { "/[ab].*/" }, true);
         assertAllowedIndexPatterns(permission, new String[] { "/[abc].*/" }, false);

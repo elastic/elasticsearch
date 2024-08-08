@@ -1093,8 +1093,6 @@ multiIndexIndirectUseOfUnionTypesInWildcardKeep2
 required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
-// This is not allowed because it implicitly uses @timestamp, which is a multi-typed field.
-// It probably should be! Otherwise we're inconsistent with `KEEP *`.
 | KEEP *e*
 | SORT client_ip ASC
 | LIMIT 1

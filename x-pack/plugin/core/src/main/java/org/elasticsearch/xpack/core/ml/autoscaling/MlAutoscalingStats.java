@@ -55,7 +55,7 @@ import static java.lang.Math.max;
  *                                          ML nodes currently within the cluster then this will be the *sum* of the vCPU requirements
  *                                          of those allocations. Zero otherwise.
  * @param unwantedNodeMemoryBytesToRemove   The size of the ML node to be removed, in GB rounded to the nearest GB,
- *                                          or zero if no nodes could be removed.
+ *                                          or zero if no nodes could be removed. Probably the *min* size of nodes in the cluster.
  */
 
 public record MlAutoscalingStats(

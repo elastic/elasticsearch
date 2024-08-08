@@ -10,7 +10,9 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -18,6 +20,7 @@ import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
@@ -216,6 +219,120 @@ public class TsdbIT extends AbstractRollingUpgradeTestCase {
                 assertThat(endTime, notNullValue());
             }
         }
+    }
+
+    public static final String CREATE_INDEX_REQUEST_BODY = """
+        {
+          "settings":{
+            "index": {
+              "mode": "time_series",
+              "routing_path": ["metricset", "attributes.pod.uid"]
+            }
+          },
+          "mappings":{
+            "properties": {
+              "@timestamp" : {
+                "type": "date"
+              },
+              "attributes": {
+                "properties": {
+                  "metricset": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  },
+                  "pod": {
+                    "properties": {
+                      "uid": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                      },
+                      "name": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                      },
+                      "number": {
+                        "type": "long",
+                        "time_series_dimension": true
+                      },
+                      "ip": {
+                        "type": "ip",
+                        "time_series_dimension": true
+                      }
+                    }
+                  }
+                }
+              },
+              "metrics": {
+                "properties": {
+                    "network": {
+                        "properties": {
+                            "tx": {
+                                "type": "long",
+                                "time_series_metric": "counter"
+                            },
+                            "rx": {
+                                "type": "long",
+                                "time_series_metric": "counter"
+                            }
+                        }
+                    }
+                }
+              }
+            }
+          }
+        }""";
+
+    private static final String DOC_TEMPLATE = """
+        {
+            "@timestamp": "$time",
+            "attributes": {
+                "metricset": "pod",
+                "pod": {
+                    "name": "$name",
+                    "uid": "$uid",
+                    "ip": "8.8.8.8",
+                    "number": 43221
+                }
+            },
+            "metrics": {
+                "network": {
+                    "tx": 1434595272,
+                    "rx": 530605511
+                }
+            }
+        }
+        """;
+
+    public void testTsdbIndexIdConsistency() throws IOException {
+        assumeTrue("", Version.fromString(getOldClusterVersion()).onOrAfter(Version.V_8_7_0));
+
+        String indexName = "id_check";
+        if (isOldCluster()) {
+            var createIndexRequest = new Request("PUT", "/" + indexName);
+            createIndexRequest.setJsonEntity(CREATE_INDEX_REQUEST_BODY);
+            assertOK(client().performRequest(createIndexRequest));
+            for (int i = 0; i < 128; i++) {
+                var indexResponse = client().performRequest(createIndexRequest(indexName, i));
+                assertOK(indexResponse);
+            }
+        }
+        for (int i = 0; i < 128; i++) {
+            int finalI = i;
+            var e = expectThrows(ResponseException.class, () -> client().performRequest(createIndexRequest(indexName, finalI)));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        }
+    }
+
+    private static Request createIndexRequest(String indexName, int i) {
+        var indexRequest = new Request("POST", "/" + indexName + "/_doc");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.addParameter("op_type", "create");
+        indexRequest.setJsonEntity(
+            DOC_TEMPLATE.replace("$time", "2024-01-01T00:00:00.000Z")
+                .replace("$uid", "df3145b3-0563-4d3b-a0f7-897eb2876ea9" + i)
+                .replace("$name", String.format(Locale.ROOT, "host-%02d", i))
+        );
+        return indexRequest;
     }
 
     private void performUpgradedClusterOperations(String dataStreamName) throws Exception {

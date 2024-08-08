@@ -45,9 +45,9 @@ public class UnsafePlainActionFuture<T> extends PlainActionFuture<T> {
     }
 
     @Override
-    boolean allowedExecutors(Thread thread1, Thread thread2) {
-        return super.allowedExecutors(thread1, thread2)
-            || unsafeExecutor.equals(EsExecutors.executorName(thread1))
-            || unsafeExecutor2.equals(EsExecutors.executorName(thread1));
+    boolean allowedExecutors(Thread blockedThread, Thread completingThread) {
+        return super.allowedExecutors(blockedThread, completingThread)
+            || unsafeExecutor.equals(EsExecutors.executorName(blockedThread))
+            || unsafeExecutor2.equals(EsExecutors.executorName(blockedThread));
     }
 }

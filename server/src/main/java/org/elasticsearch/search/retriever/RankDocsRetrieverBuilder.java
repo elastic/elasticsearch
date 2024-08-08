@@ -16,11 +16,11 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -98,7 +98,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         // here we force a custom sort based on the rank of the documents
         // TODO: should we adjust to account for other fields sort options just for the top ranked docs?
         if (searchSourceBuilder.rescores() == null || searchSourceBuilder.rescores().isEmpty()) {
-            searchSourceBuilder.sort(Collections.singletonList(new RankDocsSortBuilder(rankDocs.get())));
+            searchSourceBuilder.sort(Arrays.asList(new RankDocsSortBuilder(rankDocs.get()), new ScoreSortBuilder()));
         }
         if (searchSourceBuilder.explain() != null && searchSourceBuilder.explain()) {
             searchSourceBuilder.trackScores(true);

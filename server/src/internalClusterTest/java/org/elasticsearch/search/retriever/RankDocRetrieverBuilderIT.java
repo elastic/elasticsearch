@@ -549,7 +549,7 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
         standard2.queryBuilder = QueryBuilders.queryStringQuery("aardvark").defaultField(TEXT_FIELD);
 
         // combining the two retrievers would bring doc_4 at the top as it would be the only one present in both doc sets
-        // the rest of the docs would be sorted based on their ranks, as the score is not yet currently available for RankDocs
+        // the rest of the docs would be sorted based on their ranks as they have the same score (1/2)
         source.retriever(
             new CompoundRetrieverWithRankDocs(
                 rankWindowSize,

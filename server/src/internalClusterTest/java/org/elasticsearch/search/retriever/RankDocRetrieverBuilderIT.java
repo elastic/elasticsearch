@@ -37,6 +37,7 @@ import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilderTests;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -569,6 +570,43 @@ public class RankDocRetrieverBuilderIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
             assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_7"));
             assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_3"));
+        });
+    }
+
+    public void testRankDocsRetrieverDifferentNestedSorting() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder();
+        // this one retrieves docs 1, 4, 6, 2
+        standard0.queryBuilder = QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery(LAST_30D_FIELD).gt(0), ScoreMode.Avg);
+        standard0.sortBuilders = List.of(
+            new FieldSortBuilder(LAST_30D_FIELD).setNestedSort(new NestedSortBuilder("views")).order(SortOrder.DESC)
+        );
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder();
+        // this one retrieves docs 4, 7
+        standard1.queryBuilder = QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery(ALL_TIME_FIELD).gt(0), ScoreMode.Avg);
+        standard1.sortBuilders = List.of(
+            new FieldSortBuilder(ALL_TIME_FIELD).setNestedSort(new NestedSortBuilder("views")).order(SortOrder.ASC)
+        );
+
+        source.retriever(
+            new CompoundRetrieverWithRankDocs(
+                rankWindowSize,
+                Arrays.asList(new RetrieverSource(standard0, null), new RetrieverSource(standard1, null))
+            )
+        );
+
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value, equalTo(5L));
+            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_1"));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_7"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_6"));
+            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_2"));
         });
     }
 

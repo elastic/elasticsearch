@@ -37,7 +37,6 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.Future;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -71,10 +70,13 @@ public abstract class TestCluster {
      * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
     public void wipe(Set<String> excludeTemplates) {
-        var deleteLegacyTemplates = wipeAllTemplates(excludeTemplates);
-        final PlainActionFuture<Void> templatesDeleted = new PlainActionFuture<>();
-        final PlainActionFuture<Void> indicesAndRepositoriesDeleted = new PlainActionFuture<>();
-        if (size() > 0) {
+        if (size() == 0) {
+            return;
+        }
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        try (RefCountingListener refCountingListener = new RefCountingListener(done)) {
+            final ActionListener<Void> templatesDeleted = refCountingListener.acquire();
+            wipeAllTemplates(excludeTemplates, refCountingListener.acquire());
             // First delete data streams, because composable index templates can't be deleted if these templates are still used by data
             // streams.
             client().execute(
@@ -88,7 +90,7 @@ public abstract class TestCluster {
                         assertAcked(acknowledgedResponse);
                         wipeIndicesAsync(
                             new String[] { "_all" },
-                            indicesAndRepositoriesDeleted.delegateFailure((l, r) -> wipeRepositories(l))
+                            refCountingListener.acquire().delegateFailure((l, r) -> wipeRepositories(l))
                         );
                         deleteTemplates(excludeTemplates, templatesDeleted);
                     }
@@ -105,18 +107,9 @@ public abstract class TestCluster {
                     }
                 }
             );
-        } else {
-            templatesDeleted.onResponse(null);
-            indicesAndRepositoriesDeleted.onResponse(null);
         }
         try {
-            templatesDeleted.get();
-            indicesAndRepositoriesDeleted.get();
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
-        try {
-            deleteLegacyTemplates.get();
+            done.get();
         } catch (Exception e) {
             throw new AssertionError(e);
         }
@@ -302,13 +295,8 @@ public abstract class TestCluster {
     /**
      * Removes all templates, except the templates defined in the exclude
      */
-    private Future<Void> wipeAllTemplates(Set<String> exclude) {
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        if (size() == 0) {
-            future.onResponse(null);
-            return future;
-        }
-        client().admin().indices().prepareGetTemplates().execute(future.delegateFailure((f, response) -> {
+    private void wipeAllTemplates(Set<String> exclude, ActionListener<Void> listener) {
+        client().admin().indices().prepareGetTemplates().execute(listener.delegateFailure((f, response) -> {
             try (RefCountingListener subscribableListener = new RefCountingListener(f)) {
                 for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
                     if (exclude.contains(indexTemplate.getName())) {
@@ -331,7 +319,6 @@ public abstract class TestCluster {
                 }
             }
         }));
-        return future;
     }
 
     /**

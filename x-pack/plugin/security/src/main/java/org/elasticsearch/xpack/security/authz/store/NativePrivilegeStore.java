@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -61,9 +62,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -108,6 +111,8 @@ public class NativePrivilegeStore {
         }
     );
     private static final Logger logger = LogManager.getLogger(NativePrivilegeStore.class);
+
+    private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(50), 3);
 
     private final Settings settings;
     private final Client client;
@@ -193,15 +198,41 @@ public class NativePrivilegeStore {
 
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
-
+        final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
+        innerGetPrivilegesWithRetry(applications, frozenSecurityIndex, backoff, listener);
+    }
+
+    private void innerGetPrivilegesWithRetry(
+        Collection<String> applications,
+        SecurityIndexManager frozenSecurityIndex,
+        Iterator<TimeValue> backoff,
+        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+    ) {
+        assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
+
+        final Consumer<Exception> maybeRetryOnFailure = ex -> {
+            if (backoff.hasNext()) {
+                final TimeValue backofTimeValue = backoff.next();
+                logger.debug("retrying after [{}] back off", backofTimeValue);
+                client.threadPool()
+                    .schedule(
+                        () -> innerGetPrivilegesWithRetry(applications, frozenSecurityIndex, backoff, listener),
+                        backofTimeValue,
+                        client.threadPool().generic()
+                    );
+            } else {
+                logger.warn("failed to find token from refresh token after all retries");
+                listener.onFailure(ex);
+            }
+        };
+
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            maybeRetryOnFailure.accept(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(
                     ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(),
                     DOC_TYPE_VALUE

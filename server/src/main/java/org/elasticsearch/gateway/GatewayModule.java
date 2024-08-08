@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.injection.guice.AbstractModule;
 
 public class GatewayModule extends AbstractModule {
 

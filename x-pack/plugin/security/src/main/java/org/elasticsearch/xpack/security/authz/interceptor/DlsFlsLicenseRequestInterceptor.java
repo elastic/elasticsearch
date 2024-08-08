@@ -47,58 +47,64 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
         ActionListener<Void> listener
     ) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
-            final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
-            // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
-            // can contain a long list of indices
-            // But if role is null, it means a custom authorization engine is in use and we have to directly go check indicesAccessControl
-            if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
-                logger.trace("Role has DLS or FLS. Checking for whether the request touches any indices that have DLS or FLS configured");
-                final IndicesAccessControl indicesAccessControl = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
-                if (indicesAccessControl != null) {
-                    final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
-                    if (logger.isDebugEnabled()) {
-                        final IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
-                        if (dlsFlsUsage.hasFieldLevelSecurity()) {
-                            logger.debug(
-                                () -> format(
-                                    "User [%s] has field level security on [%s]",
-                                    requestInfo.getAuthentication(),
-                                    indicesAccessControl.getIndicesWithFieldLevelSecurity()
-                                )
-                            );
-                        }
-                        if (dlsFlsUsage.hasDocumentLevelSecurity()) {
-                            logger.debug(
-                                () -> format(
-                                    "User [%s] has document level security on [%s]",
-                                    requestInfo.getAuthentication(),
-                                    indicesAccessControl.getIndicesWithDocumentLevelSecurity()
-                                )
-                            );
-                        }
-                    }
-                    if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)
-                        || false == FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
-                        boolean incompatibleLicense = false;
-                        IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
-                        if (dlsFlsUsage.hasDocumentLevelSecurity() && false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
-                            incompatibleLicense = true;
-                        }
-                        if (dlsFlsUsage.hasFieldLevelSecurity() && false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
-                            incompatibleLicense = true;
-                        }
+            doIntercept(requestInfo, listener);
+        } else {
+            listener.onResponse(null);
+        }
+    }
 
-                        if (incompatibleLicense) {
-                            final ElasticsearchSecurityException licenseException = LicenseUtils.newComplianceException(
-                                "field and document level security"
-                            );
-                            licenseException.addMetadata(
-                                "es.indices_with_dls_or_fls",
-                                indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity()
-                            );
-                            listener.onFailure(licenseException);
-                            return;
-                        }
+    private void doIntercept(AuthorizationEngine.RequestInfo requestInfo, ActionListener<Void> listener) {
+        final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
+        // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
+        // can contain a long list of indices
+        // But if role is null, it means a custom authorization engine is in use and we have to directly go check indicesAccessControl
+        if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
+            logger.trace("Role has DLS or FLS. Checking for whether the request touches any indices that have DLS or FLS configured");
+            final IndicesAccessControl indicesAccessControl = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
+            if (indicesAccessControl != null) {
+                final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
+                if (logger.isDebugEnabled()) {
+                    final IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
+                    if (dlsFlsUsage.hasFieldLevelSecurity()) {
+                        logger.debug(
+                            () -> format(
+                                "User [%s] has field level security on [%s]",
+                                requestInfo.getAuthentication(),
+                                indicesAccessControl.getIndicesWithFieldLevelSecurity()
+                            )
+                        );
+                    }
+                    if (dlsFlsUsage.hasDocumentLevelSecurity()) {
+                        logger.debug(
+                            () -> format(
+                                "User [%s] has document level security on [%s]",
+                                requestInfo.getAuthentication(),
+                                indicesAccessControl.getIndicesWithDocumentLevelSecurity()
+                            )
+                        );
+                    }
+                }
+                if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)
+                    || false == FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
+                    boolean incompatibleLicense = false;
+                    IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
+                    if (dlsFlsUsage.hasDocumentLevelSecurity() && false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
+                        incompatibleLicense = true;
+                    }
+                    if (dlsFlsUsage.hasFieldLevelSecurity() && false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
+                        incompatibleLicense = true;
+                    }
+
+                    if (incompatibleLicense) {
+                        final ElasticsearchSecurityException licenseException = LicenseUtils.newComplianceException(
+                            "field and document level security"
+                        );
+                        licenseException.addMetadata(
+                            "es.indices_with_dls_or_fls",
+                            indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity()
+                        );
+                        listener.onFailure(licenseException);
+                        return;
                     }
                 }
             }

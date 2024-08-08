@@ -88,6 +88,7 @@ public final class ConfigurableClusterPrivileges {
         Collection<ConfigurableClusterPrivilege> privileges
     ) throws IOException {
         builder.startObject();
+        // TODO: This will always add a "role" object, is that ok for BWC?
         for (Category category : Category.values()) {
             builder.startObject(category.field.getPreferredName());
             for (ConfigurableClusterPrivilege privilege : privileges) {

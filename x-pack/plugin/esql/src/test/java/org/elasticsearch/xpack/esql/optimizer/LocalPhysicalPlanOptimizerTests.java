@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -32,14 +33,14 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -57,7 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
@@ -96,7 +97,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
     private TestPlannerOptimizer plannerOptimizer;
-    private final EsqlConfiguration config;
+    private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
         public boolean isSingleValue(String field) {
@@ -116,7 +117,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return asList(new Tuple<>("default", Map.of()));
     }
 
-    public LocalPhysicalPlanOptimizerTests(String name, EsqlConfiguration config) {
+    public LocalPhysicalPlanOptimizerTests(String name, Configuration config) {
         this.config = config;
     }
 
@@ -236,11 +237,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     // optimized doesn't know yet how to push down count over field
     public void testCountOneFieldWithFilter() {
-        var plan = plannerOptimizer.plan("""
+        String query = """
             from test
             | where salary > 1000
             | stats c = count(salary)
-            """, IS_SV_STATS);
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -254,7 +256,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         Source source = new Source(2, 8, "salary > 1000");
         var exists = QueryBuilders.existsQuery("salary");
         assertThat(stat.query(), is(exists));
-        var range = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
+        var range = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
         var expected = QueryBuilders.boolQuery().must(range).must(exists);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
@@ -345,11 +347,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testAnotherCountAllWithFilter() {
-        var plan = plannerOptimizer.plan("""
+        String query = """
             from test
             | where emp_no > 10010
             | stats c = count()
-            """, IS_SV_STATS);
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -360,7 +363,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
         var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
+        var expected = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
@@ -372,6 +375,101 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             | stats c = count(), call = count(*), c_literal = count(1)
             """, IS_SV_STATS);
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    /**
+     * Expecting
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, last_na
+     * me{f}#6, long_noidx{f}#11, salary{f}#7]]
+     *     \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3]
+     *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"\"last_name: Smith\""
+     */
+    public void testMatchCommand() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | match "last_name: Smith"
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+        var expected = QueryBuilders.queryStringQuery("last_name: Smith");
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen]
+     *       \_EsQueryExec[test], indexMode[standard],
+     *          query[{"bool":{ "must":[{
+     *            "esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}}}},
+     *            {"query_string":{"query":"last_name: Smith","fields":[]}}],"boost":1.0}
+     *          }]
+     */
+    public void testMatchCommandWithWhereClause() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
+        String queryText = """
+            from test
+            | where emp_no > 10010
+            | match "last_name: Smith"
+            """;
+        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        Source source = new Source(2, 8, "emp_no > 10010");
+        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
+        var queryString = QueryBuilders.queryStringQuery("last_name: Smith");
+        var expected = QueryBuilders.boolQuery().must(range).must(queryString);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * TopNExec[[Order[emp_no{f}#3,ASC,LAST]],1000[INTEGER],0]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen]
+     *       \_EsQueryExec[test],
+     *          query[{"bool":{"must":[{"query_string":{"query":"last_name: Smith","fields":[]}},
+     *          {"query_string":{"query":"John","fields":[]}}],"boost":1.0}}]
+     *          sort[[FieldSort[field=emp_no{f}#3, direction=ASC, nulls=LAST]]]
+     */
+    public void testMatchCommandWithMultipleMatches() {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | match "last_name: Smith"
+            | sort emp_no
+            | MATCH "John"
+            """, IS_SV_STATS);
+
+        var limit = as(plan, TopNExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(1000));
+
+        Source source = new Source(2, 8, "emp_no > 10010");
+        var queryString1 = QueryBuilders.queryStringQuery("last_name: Smith");
+        var queryString2 = QueryBuilders.queryStringQuery("John");
+        var expected = QueryBuilders.boolQuery().must(queryString1).must(queryString2);
+        assertThat(query.query().toString(), is(expected.toString()));
     }
 
     // optimizer doesn't know yet how to break down different multi count
@@ -606,7 +704,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(queryExec.limit().fold(), is(1000));
 
         var expectedInnerQuery = QueryBuilders.termsQuery(fieldName, cidrBlocks);
-        var expectedQuery = wrapWithSingleQuery(expectedInnerQuery, fieldName, new Source(1, 18, cidrMatch));
+        var expectedQuery = wrapWithSingleQuery(query, expectedInnerQuery, fieldName, new Source(1, 18, cidrMatch));
         assertThat(queryExec.query().toString(), is(expectedQuery.toString()));
     }
 
@@ -796,14 +894,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testMultipleMatchFilterPushdown() {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
 
-        var plan = plannerOptimizer.plan("""
+        String query = """
             from test
             | where first_name match "Anna" OR first_name match "Anneke"
             | sort emp_no
             | where emp_no > 10000
             | eval description = concat("emp_no: ", to_str(emp_no), ", name: ", first_name, " ", last_name)
             | where last_name match "Xinglin"
-            """);
+            """;
+        var plan = plannerOptimizer.plan(query);
 
         var eval = as(plan, EvalExec.class);
         var topNExec = as(eval.child(), TopNExec.class);
@@ -816,13 +915,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var expectedLuceneQuery = new BoolQueryBuilder().must(
             new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna")).should(new MatchQueryBuilder("first_name", "Anneke"))
         )
-            .must(wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
+            .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
             .must(new MatchQueryBuilder("last_name", "Xinglin"));
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
-    private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {
-        return FilterTests.singleValueQuery(inner, fieldName, source);
+    private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
+        return FilterTests.singleValueQuery(query, inner, fieldName, source);
     }
 
     private Stat queryStatsFor(PhysicalPlan plan) {

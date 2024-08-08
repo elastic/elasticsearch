@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,7 +36,7 @@ public class TopN extends UnaryPlan {
     private TopN(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readLogicalPlanNode(),
+            in.readNamedWriteable(LogicalPlan.class),
             in.readCollectionAsList(Order::new),
             in.readNamedWriteable(Expression.class)
         );
@@ -46,7 +45,7 @@ public class TopN extends UnaryPlan {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writeLogicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeCollection(order);
         out.writeNamedWriteable(limit);
     }

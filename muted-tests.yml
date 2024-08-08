@@ -74,9 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
   method: testCacheFileCreatedAsSparseFile
   issue: https://github.com/elastic/elasticsearch/issues/110801
-- class: org.elasticsearch.nativeaccess.PreallocateTests
-  method: testPreallocate
-  issue: https://github.com/elastic/elasticsearch/issues/110948
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
@@ -97,9 +94,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithImplicitFlow
   issue: https://github.com/elastic/elasticsearch/issues/111191
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  method: testReadNonexistentBlobThrowsNoSuchFileException
-  issue: https://github.com/elastic/elasticsearch/issues/111233
 - class: org.elasticsearch.action.admin.indices.create.SplitIndexIT
   method: testSplitIndexPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/111282
@@ -122,6 +116,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=rollup/security_tests/Index-based access}
+  issue: https://github.com/elastic/elasticsearch/issues/111631
+- class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
+  method: testGetModel
+  issue: https://github.com/elastic/elasticsearch/issues/111570
 
 # Examples:
 #

@@ -144,6 +144,10 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             this(indexTemplates, null, globalRetention);
         }
 
+        public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
+            this(indexTemplates, null, null);
+        }
+
         public Response(
             Map<String, ComposableIndexTemplate> indexTemplates,
             @Nullable RolloverConfiguration rolloverConfiguration,

@@ -79,7 +79,9 @@ public abstract class TestCluster {
             // streams.
             client().execute(
                 DeleteDataStreamAction.INSTANCE,
-                new DeleteDataStreamAction.Request("*").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN),
+                new DeleteDataStreamAction.Request(ESTestCase.TEST_REQUEST_TIMEOUT, "*").indicesOptions(
+                    IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+                ),
                 new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {

@@ -92,7 +92,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             responseHeaders.get("Warning").get(0),
             containsString(
                 "Not providing a retention is not allowed for this project. The default retention of ["
-                    + globalRetention.getDefaultRetention().getStringRep()
+                    + globalRetention.defaultRetention().getStringRep()
                     + "] will be applied."
             )
         );

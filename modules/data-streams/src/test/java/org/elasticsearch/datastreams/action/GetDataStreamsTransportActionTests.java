@@ -344,12 +344,12 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             new DataStreamFactoryRetention() {
                 @Override
                 public TimeValue getMaxRetention() {
-                    return globalRetention.getMaxRetention();
+                    return globalRetention.maxRetention();
                 }
 
                 @Override
                 public TimeValue getDefaultRetention() {
-                    return globalRetention.getDefaultRetention();
+                    return globalRetention.defaultRetention();
                 }
 
                 @Override

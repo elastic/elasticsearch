@@ -1901,7 +1901,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
             if (dataStream.isSystem() == false
-                && (globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null)) {
+                && (globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null)) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));

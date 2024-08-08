@@ -179,6 +179,11 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             return null;
         }
 
+        @Nullable
+        public RolloverConfiguration getRolloverConfiguration() {
+            return rolloverConfiguration;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indexTemplates, StreamOutput::writeWriteable);

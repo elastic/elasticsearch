@@ -1896,7 +1896,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         ChannelFactory channelFactory,
         long primaryTerm
     ) throws IOException {
-        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, null, channelFactory);
+        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, null, channelFactory, true);
     }
 
     /**
@@ -1913,6 +1913,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param primaryTerm             the shard's primary term to initialize the translog with
      * @param translogUUID            the unique identifier to initialize the translog with
      * @param factory                 a {@link ChannelFactory} used to open translog files
+     * @param fsync                   allows using fsync file api
      * @return the translog's unique identifier
      * @throws IOException if something went wrong during translog creation
      */
@@ -1922,7 +1923,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final long initialGlobalCheckpoint,
         final long primaryTerm,
         @Nullable final String translogUUID,
-        @Nullable final ChannelFactory factory
+        @Nullable final ChannelFactory factory,
+        final boolean fsync
     ) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
@@ -1957,7 +1959,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             BigArrays.NON_RECYCLING_INSTANCE,
             DiskIoBufferPool.INSTANCE,
             TranslogConfig.NOOP_OPERATION_LISTENER,
-            true
+            fsync
         );
         writer.close();
         return uuid;

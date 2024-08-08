@@ -187,13 +187,7 @@ public class Netty4HttpRequest implements HttpRequest {
             copiedHeadersWithout,
             copiedTrailingHeadersWithout
         );
-        HttpBody copiedContent;
-        if (content.isFull()) {
-            copiedContent = HttpBody.fromBytesReference(content.asFull().bytes());
-        } else {
-            copiedContent = content;
-        }
-        return new Netty4HttpRequest(sequence, requestWithoutHeader, released, pooled, copiedContent);
+        return new Netty4HttpRequest(sequence, requestWithoutHeader, released, pooled, content);
     }
 
     @Override

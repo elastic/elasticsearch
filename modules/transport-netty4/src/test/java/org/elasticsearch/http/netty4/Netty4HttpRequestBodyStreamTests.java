@@ -47,13 +47,11 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
     }
 
     public void testEnqueueChunksBeforeRequest() {
-        var chunkSize = 1024;
         var totalChunks = randomIntBetween(1, 100);
         for (int i = 0; i < totalChunks; i++) {
-            channel.writeInbound(randomContent(chunkSize));
+            channel.writeInbound(randomContent(1024));
         }
         assertEquals(totalChunks, stream.chunkQueue().size());
-        assertEquals(totalChunks * chunkSize, stream.chunkQueue().availableBytes());
     }
 
     // test that every small request consume at least one chunk
@@ -72,57 +70,10 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         }
         // consume all chunks
         for (var i = 0; i < totalChunks; i++) {
-            stream.requestBytes(1);
+            stream.next();
         }
         assertEquals(totalChunks, chunks.size());
         assertEquals(chunkSize * totalChunks, totalBytes.get());
-    }
-
-    // test that one large request consume all chunks
-    public void testFlushQueuedLargeRequest() {
-        var requestedChunkSize = new AtomicInteger();
-        stream.setHandler((chunk, isLast) -> { requestedChunkSize.addAndGet(chunk.length()); });
-        var chunkSize = 1024;
-        var totalChunks = randomIntBetween(1, 100);
-        for (int i = 0; i < totalChunks; i++) {
-            channel.writeInbound(randomContent(chunkSize));
-        }
-        stream.requestBytes(chunkSize * totalChunks);
-        assertEquals(chunkSize * totalChunks, requestedChunkSize.get());
-    }
-
-    // test that we flush queued chunks with last content when request is larger than availableBytes
-    public void testFlushQueuedLastContent() {
-        var gotLast = new AtomicBoolean(false);
-        var contentSize = new AtomicInteger(0);
-        stream.setHandler((chunk, isLast) -> {
-            contentSize.addAndGet(chunk.length());
-            gotLast.set(isLast);
-        });
-        channel.writeInbound(randomContent(1024));
-        channel.writeInbound(randomLastContent(0));
-        stream.requestBytes(1025);
-        assertTrue(gotLast.get());
-        assertEquals(1024, contentSize.get());
-    }
-
-    // ensures that we enqueue chunk if cannot fulfill current request
-    public void testEnqueueWhenNotEnoughBytes() {
-        stream.requestBytes(1024);
-        var chunkSize = 32;
-        var totalChunks = randomIntBetween(1, 1024 / chunkSize - 1);
-        for (int i = 0; i < totalChunks; i++) {
-            channel.writeInbound(randomContent(chunkSize));
-        }
-        assertEquals(chunkSize * totalChunks, stream.chunkQueue().availableBytes());
-    }
-
-    public void testFlushSingleLastContent() {
-        var flushed = new AtomicBoolean(false);
-        stream.setHandler((chunk, isLast) -> flushed.set(true));
-        stream.requestBytes(1024);
-        channel.writeInbound(randomLastContent(0));
-        assertTrue(flushed.get());
     }
 
     // test that we read from channel when not enough available bytes
@@ -136,22 +87,17 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         channel.pipeline().addFirst(new FlowControlHandler()); // block all incoming messages, need explicit channel.read()
         var chunkSize = 1024;
         var totalChunks = randomIntBetween(1, 32);
-        for (int i = 0; i < totalChunks; i++) {
+        for (int i = 0; i < totalChunks - 1; i++) {
             channel.writeInbound(randomContent(chunkSize));
         }
+        channel.writeInbound(randomLastContent(chunkSize));
 
-        assertEquals("should not read until requested", 0, stream.chunkQueue().size());
-        stream.requestBytes(chunkSize);
-        assertEquals(1, gotChunks.size());
-
-        stream.requestBytes(Integer.MAX_VALUE);
-        assertEquals("should enqueue remaining chunks", totalChunks - 1, stream.chunkQueue().size());
-
-        // send last content and flush queued content
-        channel.writeInbound(randomLastContent(0));
-        assertEquals(0, stream.chunkQueue().size());
-        assertEquals(2, gotChunks.size());
-        assertTrue(gotLast.get());
+        for (int i = 0; i < totalChunks; i++) {
+            assertEquals("should not enqueue chunks", 0, stream.chunkQueue().size());
+            stream.next();
+            assertEquals("each next() should produce single chunk", i + 1, gotChunks.size());
+        }
+        assertTrue("should receive last content", gotLast.get());
     }
 
     HttpContent randomContent(int size, boolean isLast) {

@@ -74,24 +74,24 @@ public sealed interface HttpBody permits HttpBody.Full, HttpBody.Stream {
         void setHandler(ChunkHandler chunkHandler);
 
         /**
-         * Request next chunk of bytes. For every request there will be at least one chunk. Size of
-         * the next chunk might vary, and it depends on following factors:
-         * <ul>
-         * <li>
-         *     Size might round up to optimal network chunk size. For example, default HttpDecoder
-         *     content size is 8kb. Request for 1 byte will produce 8kb chunk, 5 requests for 1 byte
-         *     will produce 5 chunks of 8kb each. Request for 10kb will produce 16kb chunk.
-         * </li>
-         * <li>
-         *     Last chunk always less or equal requested size. Request for Integer.MAX_VALUE or
-         *     other number larger than actual payload, will always produce single full content chunk.
-         * </li>
-         * <li>
-         *     After last chunk there will be no more chunks. This method will not do anything.
-         * </li>
-         * </ul>
+         * Request next chunk of data from the network. The size of the chunk depends on following
+         * factors. If request is not compressed then chunk size will be up to
+         * {@link HttpTransportSettings#SETTING_HTTP_MAX_CHUNK_SIZE}. If request is compressed then
+         * chunk size will be up to max_chunk_size * compression_ratio. Multiple calls can be
+         * deduplicated when next chunk is not yet available. It's recommended to call "next" once
+         * for every chunk.
+         * <pre>
+         * {@code
+         *     stream.setHandler((chunk, isLast) -> {
+         *         processChunk(chunk);
+         *         if (isLast == false) {
+         *             stream.next();
+         *         }
+         *     });
+         * }
+         * </pre>
          */
-        void requestBytes(int bytes);
+        void next();
     }
 
     @FunctionalInterface

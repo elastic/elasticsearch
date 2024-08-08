@@ -28,13 +28,13 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.LastHttpContent;
 
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -55,6 +55,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -84,7 +85,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 // send request with empty content
                 ctx.clientChannel.writeAndFlush(fullHttpRequest(Unpooled.EMPTY_BUFFER));
                 var handler = ctx.awaitRestChannelAccepted();
-                handler.stream.requestBytes(1);
+                handler.stream.next();
 
                 // should receive a single empty chunk
                 var recvChunk = safePoll(handler.recvChunks);
@@ -113,17 +114,16 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
                 var handler = ctx.awaitRestChannelAccepted();
 
-                // consume chunks at random pace
                 var gotAllChunks = false;
                 var recvData = Unpooled.buffer(dataSize);
                 while (gotAllChunks == false) {
-                    handler.stream.requestBytes(randomIntBetween(1024, 64 * 1024));
+                    handler.stream.next();
                     var recvChunk = safePoll(handler.recvChunks);
                     try (recvChunk.chunk) {
                         if (recvChunk.isLast) {
                             gotAllChunks = true;
                         }
-                        recvData.writeBytes(BytesReference.toBytes(recvChunk.chunk));
+                        recvData.writeBytes(Netty4Utils.toByteBuf(recvChunk.chunk));
                     }
                 }
 
@@ -138,13 +138,15 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     public void testClientConnectionCloseMidStream() throws Exception {
         try (var ctx = setupClientCtx()) {
             // write half of http request
-            ctx.clientChannel.writeAndFlush(httpRequest(16 * 1024));
-            ctx.clientChannel.writeAndFlush(randomContent(8 * 1024, false));
+            ctx.clientChannel.write(httpRequest(2 * 1024));
+            ctx.clientChannel.writeAndFlush(randomContent(1024, false));
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted();
-            handler.stream.requestBytes(Integer.MAX_VALUE);
             assertBusy(() -> assertEquals(1, handler.stream.chunkQueue().size()));
+
+            // enable auto-read to receive channel close event
+            handler.stream.channel().config().setAutoRead(true);
 
             // terminate connection and wait resources are released
             ctx.clientChannel.close();
@@ -156,12 +158,11 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     public void testServerCloseConnectionMidStream() throws Exception {
         try (var ctx = setupClientCtx()) {
             // write half of http request
-            ctx.clientChannel.writeAndFlush(httpRequest(16 * 1024));
-            ctx.clientChannel.writeAndFlush(randomContent(8 * 1024, false));
+            ctx.clientChannel.write(httpRequest(2 * 1024));
+            ctx.clientChannel.writeAndFlush(randomContent(1024, false));
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted();
-            handler.stream.requestBytes(Integer.MAX_VALUE);
             assertBusy(() -> assertEquals(1, handler.stream.chunkQueue().size()));
 
             // terminate connection on server and wait resources are released
@@ -170,62 +171,40 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    // ensure that client's socket is no longer writable if server not consuming data
+    static int MBytes(int m) {
+        return m * 1024 * 1024;
+    }
+
+    // ensure that client's socket buffers data when server is not consuming data
     public void testClientBackpressure() throws Exception {
         try (var ctx = setupClientCtx()) {
+            var payloadSize = MBytes(50);
+            ctx.clientChannel.writeAndFlush(httpRequest(payloadSize));
+            for (int i = 0; i < 5; i++) {
+                ctx.clientChannel.writeAndFlush(randomContent(MBytes(10), false));
+            }
+            ctx.clientChannel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
 
-            // a meaningful write payload that is larger than socket and channel buffers
-            final var writeChunkSize = 16 * 1024;
-            final var totalWriteChunks = randomIntBetween(1024, 2048); // 16-32MB
-            final var totalWriteSize = writeChunkSize * totalWriteChunks;
-            var writtenChunks = 0;
-
-            ctx.clientChannel.writeAndFlush(httpRequest(totalWriteSize));
             var handler = ctx.awaitRestChannelAccepted();
 
-            // write chunks until channel is no longer writable
-            while (writtenChunks <= totalWriteChunks && ctx.clientChannel.isWritable()) {
-                ctx.clientChannel.writeAndFlush(randomContent(writeChunkSize, false));
-                writtenChunks += 1;
+            // Read buffers for socket and channel usually within few MBytes range all together.
+            // This test assumes that buffers will not exceed 10 MBytes, in other words there should
+            // be less than 10 MBytes in fly between http client's socket and rest handler. This
+            // loop ensures that reading 10 MBytes of content on server side should free almost
+            // same size in client's channel write buffer.
+            for (int mb = 0; mb <= 50; mb += 10) {
+                var minBufSize = payloadSize - MBytes(10 + mb);
+                var maxBufSize = payloadSize - MBytes(mb);
+                assertBusy(() -> {
+                    var bufSize = ctx.clientChannel.bytesBeforeWritable();
+                    assertTrue(
+                        "client's channel buffer should be in range [" + minBufSize + "," + maxBufSize + "], got " + bufSize,
+                        bufSize >= minBufSize && bufSize <= maxBufSize
+                    );
+                });
+                handler.consumeBytes(MBytes(10));
             }
-            assertTrue("should not be able to write all chunks", writtenChunks < totalWriteChunks);
-
-            // read all written chunks and check client socket is writable again
-            var totalReadSize = 0;
-            var mustReadBytes = writtenChunks * writeChunkSize;
-            while (mustReadBytes > 0) {
-                handler.stream.requestBytes(writeChunkSize);
-                var recvChunk = safePoll(handler.recvChunks);
-                mustReadBytes -= recvChunk.chunk.length();
-                totalReadSize += recvChunk.chunk.length();
-                recvChunk.chunk.close();
-            }
-
-            assertBusy(() -> assertTrue("channel must be writable again", ctx.clientChannel.isWritable()));
-
-            // write remaining chunks
-            while (writtenChunks < totalWriteChunks) { // leave 1 for LastHttpContent
-                writtenChunks += 1;
-                ctx.clientChannel.writeAndFlush(randomContent(writeChunkSize, false));
-            }
-            ctx.clientChannel.writeAndFlush(randomContent(writeChunkSize, true));
-
-            // consume remaining chunks
-            var allConsumed = false;
-            while (allConsumed == false) {
-                handler.stream.requestBytes(writeChunkSize);
-                var recvChunk = safePoll(handler.recvChunks);
-                totalReadSize += recvChunk.chunk.length();
-                allConsumed = recvChunk.isLast;
-                recvChunk.chunk.close();
-            }
-            assertEquals("did not received all bytes", totalWriteSize, totalReadSize);
-
-            // send OK response back to wrap it up
-            handler.channel.sendResponse(new RestResponse(RestStatus.OK, ""));
-            var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
-            assertEquals(200, resp.status().code());
-            resp.release();
+            assertTrue(handler.stream.hasLast());
         }
     }
 
@@ -342,6 +321,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         RestChannel channel;
         HttpChannel httpChannel;
         Netty4HttpRequestBodyStream stream;
+        boolean recvLast = false;
         BlockingDeque<Chunk> recvChunks = new LinkedBlockingDeque<>();
 
         record Chunk(ReleasableBytesReference chunk, boolean isLast) {}
@@ -363,6 +343,22 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             assertEquals(SingleRequestHandlerPlugin.handlers.get(0), this);
             SingleRequestHandlerPlugin.handlers.remove(0);
             channel.sendResponse(response);
+        }
+
+        void consumeBytes(int bytes) {
+            if (recvLast) {
+                return;
+            }
+            while (bytes > 0) {
+                stream.next();
+                var recvChunk = safePoll(recvChunks);
+                bytes -= recvChunk.chunk.length();
+                recvChunk.chunk.close();
+                if (recvChunk.isLast) {
+                    recvLast = true;
+                    break;
+                }
+            }
         }
     }
 

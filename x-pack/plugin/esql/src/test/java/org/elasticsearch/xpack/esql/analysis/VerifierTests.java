@@ -84,7 +84,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | dissect unsupported \"%{foo}\"", analyzer)
         );
         assertEquals(
-            "1:22: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:22: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | dissect multi_typed \"%{foo}\"", analyzer)
         );
 
@@ -93,7 +94,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | grok unsupported \"%{WORD:foo}\"", analyzer)
         );
         assertEquals(
-            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | grok multi_typed \"%{WORD:foo}\"", analyzer)
         );
 
@@ -102,7 +104,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | enrich client_cidr on unsupported", analyzer)
         );
         assertEquals(
-            "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed]; only [KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME] allowed for type [range]",
+            "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
+                + " only [KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME] allowed for type [range]",
             error("from test* | enrich client_cidr on multi_typed", analyzer)
         );
 
@@ -111,7 +114,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | eval x = unsupported", analyzer)
         );
         assertEquals(
-            "1:23: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:23: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | eval x = multi_typed", analyzer)
         );
 
@@ -120,7 +124,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | eval x = to_lower(unsupported)", analyzer)
         );
         assertEquals(
-            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | eval x = to_lower(multi_typed)", analyzer)
         );
 
@@ -129,7 +134,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | stats count(1) by unsupported", analyzer)
         );
         assertEquals(
-            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:32: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | stats count(1) by multi_typed", analyzer)
         );
         assertEquals(
@@ -137,7 +143,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | inlinestats count(1) by unsupported", analyzer)
         );
         assertEquals(
-            "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | inlinestats count(1) by multi_typed", analyzer)
         );
 
@@ -146,7 +153,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | stats values(unsupported)", analyzer)
         );
         assertEquals(
-            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | stats values(multi_typed)", analyzer)
         );
         assertEquals(
@@ -154,7 +162,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | inlinestats values(unsupported)", analyzer)
         );
         assertEquals(
-            "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | inlinestats values(multi_typed)", analyzer)
         );
 
@@ -163,7 +172,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | stats values(unsupported)", analyzer)
         );
         assertEquals(
-            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:27: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | stats values(multi_typed)", analyzer)
         );
 
@@ -183,7 +193,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | mv_expand unsupported", analyzer)
         );
         assertEquals(
-            "1:24: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:24: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | mv_expand multi_typed", analyzer)
         );
 
@@ -192,7 +203,8 @@ public class VerifierTests extends ESTestCase {
             error("from test* | rename unsupported as x", analyzer)
         );
         assertEquals(
-            "1:21: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types: [ip] in [test1, test2], [keyword] in [test3]",
+            "1:21: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | rename multi_typed as x", analyzer)
         );
     }

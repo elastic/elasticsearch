@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
@@ -76,7 +77,8 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         ).build();
 
         assertAllowedIndexPatterns(permission, new String[] { "security" }, true);
-        assertAllowedIndexPatterns(permission, new String[] { "security", ".security" }, false);
+        assertAllowedIndexPatterns(permission, new String[] { ".security" }, false);
+        assertAllowedIndexPatterns(permission, new String[] { "security", ".security-7" }, false);
     }
 
     public void testGenerateAndParseXContent() throws Exception {
@@ -103,15 +105,18 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         }
     }
 
-    private static void assertAllowedIndexPatterns(ClusterPermission permission, String[] indexPatterns, boolean expected) {
+    private static boolean permissionCheck(ClusterPermission permission, String action, ActionRequest request) {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
+        assertThat(request.validate(), nullValue());
+        return permission.check(action, request, authentication);
+    }
 
+    private static void assertAllowedIndexPatterns(ClusterPermission permission, String[] indexPatterns, boolean expected) {
         {
             final PutRoleRequest putRoleRequest = new PutRoleRequest();
             putRoleRequest.name(randomAlphaOfLength(3));
             putRoleRequest.addIndex(indexPatterns, new String[] { "index", "write", "indices:data/read" }, null, null, null, false);
-            assertThat(putRoleRequest.validate(), nullValue());
-            assertThat(permission.check("cluster:admin/xpack/security/role/put", putRoleRequest, authentication), is(expected));
+            assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/put", putRoleRequest), is(expected));
         }
         {
             final BulkPutRolesRequest bulkPutRolesRequest = new BulkPutRolesRequest(
@@ -128,25 +133,18 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
                     )
                 )
             );
-            assertThat(bulkPutRolesRequest.validate(), nullValue());
-            assertThat(permission.check("cluster:admin/xpack/security/role/bulk_put", bulkPutRolesRequest, authentication), is(expected));
+            assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/bulk_put", bulkPutRolesRequest), is(expected));
         }
         // Deletes do not contain patterns, but still need to make sure index name is within permissions
         {
             final BulkDeleteRolesRequest bulkDeleteRolesRequest = new BulkDeleteRolesRequest(List.of(indexPatterns));
-            assertThat(bulkDeleteRolesRequest.validate(), nullValue());
-            assertThat(
-                permission.check("cluster:admin/xpack/security/role/bulk_delete", bulkDeleteRolesRequest, authentication),
-                is(expected)
-            );
+            assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/bulk_delete", bulkDeleteRolesRequest), is(expected));
         }
         {
             assertThat(Arrays.stream(indexPatterns).allMatch(pattern -> {
                 final DeleteRoleRequest deleteRolesRequest = new DeleteRoleRequest();
                 deleteRolesRequest.name(pattern);
-
-                assertThat(deleteRolesRequest.validate(), nullValue());
-                return permission.check("cluster:admin/xpack/security/role/delete", deleteRolesRequest, authentication);
+                return permissionCheck(permission, "cluster:admin/xpack/security/role/delete", deleteRolesRequest);
             }), is(expected));
         }
     }

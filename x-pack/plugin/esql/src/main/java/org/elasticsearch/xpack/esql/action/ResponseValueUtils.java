@@ -32,6 +32,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
@@ -121,6 +122,10 @@ public final class ResponseValueUtils {
             case DATETIME -> {
                 long longVal = ((LongBlock) block).getLong(offset);
                 yield dateTimeToString(longVal);
+            }
+            case DATE_NANOS -> {
+                long longVal = ((LongBlock) block).getLong(offset);
+                yield nanoTimeToString(longVal);
             }
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
             case VERSION -> versionToString(((BytesRefBlock) block).getBytesRef(offset, scratch));

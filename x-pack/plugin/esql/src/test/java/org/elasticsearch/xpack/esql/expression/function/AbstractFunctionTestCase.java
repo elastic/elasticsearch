@@ -443,6 +443,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // We don't test that functions don't take date_period or time_duration. We should.
                 return false;
             }
+            if (t == DataType.DATE_NANOS) {
+                // Date nanos is still under construction
+                return false;
+            }
             if (t.isCounter()) {
                 /*
                  * For now, we're assuming no functions take counters

@@ -14,36 +14,24 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A cluster state entry that contains global retention settings that are configurable by the user. These settings include:
  * - default retention, applied on any data stream managed by DSL that does not have an explicit retention defined
  * - max retention, applied on every data stream managed by DSL
  */
-public final class DataStreamGlobalRetention implements Writeable {
+public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) implements Writeable {
 
     public static final String TYPE = "data-stream-global-retention";
 
     public static final NodeFeature GLOBAL_RETENTION = new NodeFeature("data_stream.lifecycle.global_retention");
-
-    public static final ParseField DEFAULT_RETENTION_FIELD = new ParseField("default_retention");
-    public static final ParseField MAX_RETENTION_FIELD = new ParseField("max_retention");
-
-    public static final DataStreamGlobalRetention EMPTY = new DataStreamGlobalRetention(null, null);
     public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
-
-    @Nullable
-    private final TimeValue defaultRetention;
-    @Nullable
-    private final TimeValue maxRetention;
 
     /**
      * @param defaultRetention the default retention or null if it's undefined
-     * @param maxRetention the max retention or null if it's undefined
+     * @param maxRetention     the max retention or null if it's undefined
      * @throws IllegalArgumentException when the default retention is greater than the max retention.
      */
     public DataStreamGlobalRetention(TimeValue defaultRetention, TimeValue maxRetention) {
@@ -75,29 +63,6 @@ public final class DataStreamGlobalRetention implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(defaultRetention);
         out.writeOptionalTimeValue(maxRetention);
-    }
-
-    @Nullable
-    public TimeValue getDefaultRetention() {
-        return defaultRetention;
-    }
-
-    @Nullable
-    public TimeValue getMaxRetention() {
-        return maxRetention;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DataStreamGlobalRetention that = (DataStreamGlobalRetention) o;
-        return Objects.equals(defaultRetention, that.defaultRetention) && Objects.equals(maxRetention, that.maxRetention);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(defaultRetention, maxRetention);
     }
 
     @Override

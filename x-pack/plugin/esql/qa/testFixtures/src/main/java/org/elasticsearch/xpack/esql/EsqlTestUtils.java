@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
@@ -59,7 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -178,10 +177,6 @@ public final class EsqlTestUtils {
         return of(Source.EMPTY, value);
     }
 
-    public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
-    }
-
     /**
      * Utility method for creating 'in-line' Literals (out of values instead of expressions).
      */
@@ -254,14 +249,14 @@ public final class EsqlTestUtils {
 
     private static final Map<String, Map<String, Column>> TABLES = tables();
 
-    public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
+    public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
 
     private EsqlTestUtils() {}
 
-    public static EsqlConfiguration configuration(QueryPragmas pragmas, String query) {
-        return new EsqlConfiguration(
+    public static Configuration configuration(QueryPragmas pragmas, String query) {
+        return new Configuration(
             DateUtils.UTC,
             Locale.US,
             null,
@@ -275,11 +270,11 @@ public final class EsqlTestUtils {
         );
     }
 
-    public static EsqlConfiguration configuration(QueryPragmas pragmas) {
+    public static Configuration configuration(QueryPragmas pragmas) {
         return configuration(pragmas, StringUtils.EMPTY);
     }
 
-    public static EsqlConfiguration configuration(String query) {
+    public static Configuration configuration(String query) {
         return configuration(new QueryPragmas(Settings.EMPTY), query);
     }
 
@@ -635,6 +630,7 @@ public final class EsqlTestUtils {
             case UNSIGNED_LONG, LONG, COUNTER_LONG -> randomLong();
             case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case DATETIME -> randomMillisUpToYear9999();
+            case DATE_NANOS -> randomLong();
             case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
             case FLOAT -> randomFloat();
             case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));

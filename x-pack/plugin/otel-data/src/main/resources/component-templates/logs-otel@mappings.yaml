@@ -27,7 +27,7 @@ template:
       body_structured:
         type: flattened
       trace_flags:
-        type: byte
+        type: long
       trace_id:
         type: keyword
       trace.id:

@@ -56,3 +56,23 @@ setup:
   - match: { hits.hits.0.fields.db\.type: [ "mssql" ] }
   - match: { hits.hits.0.fields.db\.operation: [ "SELECT" ] }
   - match: { hits.hits.0.fields.db\.statement: [ "SELECT * FROM wuser_table" ] }
+---
+"Sending non-zeroed trace flags":
+# Undefined flags in trace flags are not guaranteed to be 0.
+# According to comments in the collector code, readers should not expect those to be all 0.
+# Therefore, this test sends an all 1's flag (max-int: 4294967295) and makes sure it's not rejected.
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-02-18T14:48:33.467654000Z", "trace_flags": 4294967295, "data_stream":{"dataset":"generic.otel","namespace":"traces","type":"default"},"resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"}},"attributes":{"db.type":"mssql","db.name":"foo","db.operation":"SELECT","db.statement":"SELECT * FROM wuser_table"},"name":"foo","trace_id":"7bba9f33312b3dbb8b2c2c62bb7abe2d","span_id":"086e83747d0e381e","kind":"SERVER","status":{"code":"2xx"}}'
+  - is_false: errors
+  - do:
+      search:
+        index: traces-generic.otel-default
+        body:
+          fields: ["trace_flags",]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.trace_flags\: [ 4294967295 ] }

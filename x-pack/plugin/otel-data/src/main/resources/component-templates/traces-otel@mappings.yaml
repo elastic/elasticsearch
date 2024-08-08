@@ -25,7 +25,7 @@ template:
         type: alias
         path: parent_span_id
       trace_flags:
-        type: byte
+        type: long
       name:
         type: keyword
       span.name:
@@ -54,7 +54,7 @@ template:
           dropped_attributes_count:
             type: long
           trace_flags:
-            type: byte
+            type: long
       dropped_links_count:
         type: long
       status:

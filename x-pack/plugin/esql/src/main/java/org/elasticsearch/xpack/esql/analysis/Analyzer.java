@@ -812,7 +812,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (Arrays.asList(allowed).contains(dataType) == false) {
                         String suffix = "only " + Arrays.toString(allowed) + " allowed for type [" + matchType + "]";
                         resolved = ua.withUnresolvedMessage(
-                            "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; " + suffix
+                            "Unsupported type ["
+                                + resolved.dataType().typeName()
+                                + "] for enrich matching field ["
+                                + ua.name()
+                                + "]; "
+                                + suffix
                         );
                     }
                 }

@@ -211,6 +211,18 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a->}࿏%{b}", "⟳༒࿏࿏࿏࿏࿏༒⟲", Arrays.asList("a", "b"), Arrays.asList("⟳༒", "༒⟲"));
         assertMatch("%{*a}࿏%{&a}", "⟳༒࿏༒⟲", Arrays.asList("⟳༒"), Arrays.asList("༒⟲"));
         assertMatch("%{}࿏%{a}", "⟳༒࿏༒⟲", Arrays.asList("a"), Arrays.asList("༒⟲"));
+        assertMatch(
+            "Zürich, the %{adjective} city in Switzerland",
+            "Zürich, the largest city in Switzerland",
+            Arrays.asList("adjective"),
+            Arrays.asList("largest")
+        );
+        assertMatch(
+            "Zürich, the %{one} city in Switzerland; Zürich, the %{two} city in Switzerland",
+            "Zürich, the largest city in Switzerland; Zürich, the LARGEST city in Switzerland",
+            Arrays.asList("one", "two"),
+            Arrays.asList("largest", "LARGEST")
+        );
     }
 
     public void testMatchRemainder() {

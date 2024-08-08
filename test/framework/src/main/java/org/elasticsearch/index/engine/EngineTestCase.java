@@ -99,7 +99,6 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -250,7 +249,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -282,7 +281,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -314,7 +313,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            config.getCodecService(),
+            config.getCodecProvider(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -429,7 +428,7 @@ public abstract class EngineTestCase extends ESTestCase {
             source,
             XContentType.JSON,
             mappingUpdate,
-            DocumentSizeObserver.EMPTY_INSTANCE
+            ParsedDocument.DocumentSize.UNKNOWN
         );
     }
 
@@ -670,7 +669,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (localCheckpointTrackerSupplier == null) {
             return new InternalTestEngine(config) {
                 @Override
-                IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+                protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null)
                         ? indexWriterFactory.createWriter(directory, iwc)
                         : super.createWriter(directory, iwc);
@@ -686,7 +685,7 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
                 @Override
-                IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+                protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null)
                         ? indexWriterFactory.createWriter(directory, iwc)
                         : super.createWriter(directory, iwc);
@@ -1401,12 +1400,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public static MapperService createMapperService() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            )
+            .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .putMapping("{\"properties\": {}}")
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(

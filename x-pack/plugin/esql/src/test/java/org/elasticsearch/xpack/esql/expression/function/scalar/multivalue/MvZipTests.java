@@ -52,7 +52,7 @@ public class MvZipTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "string"));
     }
 
     private static TestCaseSupplier supplier(DataType leftType, DataType rightType, DataType delimType) {
@@ -139,10 +139,5 @@ public class MvZipTests extends AbstractScalarFunctionTestCase {
             j++;
         }
         return expected;
-    }
-
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("mv_zip returns null only if both left and right inputs are nulls", false);
     }
 }

@@ -87,7 +87,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
           int o = valuesBlocks[i].getFirstValueIndex(p);
           valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
         }
-        result.appendBytesRef(Concat.process(scratch, valuesValues));
+        result.appendBytesRef(Concat.process(this.scratch, valuesValues));
       }
       return result.build();
     }
@@ -105,7 +105,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
         }
-        result.appendBytesRef(Concat.process(scratch, valuesValues));
+        result.appendBytesRef(Concat.process(this.scratch, valuesValues));
       }
       return result.build();
     }

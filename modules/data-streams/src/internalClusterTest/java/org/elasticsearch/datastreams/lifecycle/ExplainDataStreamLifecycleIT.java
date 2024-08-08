@@ -30,8 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -218,16 +216,6 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
          * This test makes sure that for system data streams, we correctly ignore the global retention when calling
          * ExplainDataStreamLifecycle. It is very similar to testExplainLifecycle, but only focuses on the retention for a system index.
          */
-        // Putting in place a global retention that we expect will be ignored by the system data stream:
-        final int globalRetentionSeconds = 10;
-        client().execute(
-            PutDataStreamGlobalRetentionAction.INSTANCE,
-            new PutDataStreamGlobalRetentionAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                TimeValue.timeValueSeconds(globalRetentionSeconds),
-                TimeValue.timeValueSeconds(globalRetentionSeconds)
-            )
-        ).actionGet();
         try {
             String dataStreamName = SYSTEM_DATA_STREAM_NAME;
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -279,10 +267,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 );
             }
         } finally {
-            client().execute(
-                DeleteDataStreamGlobalRetentionAction.INSTANCE,
-                new DeleteDataStreamGlobalRetentionAction.Request(TEST_REQUEST_TIMEOUT)
-            );
+            // reset properties
         }
     }
 

@@ -183,7 +183,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
         for (int i = 0; i < schema.size(); i++) {
             Attribute s = schema.get(i);
             Object value = BlockUtils.toJavaObject(p.getBlock(i), 0);
-            values.add(new Alias(source(), s.name(), null, new Literal(source(), value, s.dataType()), aggregates.get(i).id()));
+            values.add(new Alias(source(), s.name(), new Literal(source(), value, s.dataType()), aggregates.get(i).id()));
         }
         return new Eval(source(), child(), values);
     }

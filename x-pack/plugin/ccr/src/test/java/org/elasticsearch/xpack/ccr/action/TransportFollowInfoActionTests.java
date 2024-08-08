@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response;
@@ -46,7 +46,7 @@ public class TransportFollowInfoActionTests extends ESTestCase {
     }
 
     private static ClusterState createCS(String[] indices, boolean[] followerIndices, boolean[] statuses) {
-        PersistentTasksCustomMetadata.Builder persistentTasks = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder persistentTasks = PersistentTasksExtensionMetadata.builder();
         Metadata.Builder mdBuilder = Metadata.builder();
         for (int i = 0; i < indices.length; i++) {
             String index = indices[i];
@@ -72,7 +72,7 @@ public class TransportFollowInfoActionTests extends ESTestCase {
             mdBuilder.put(imdBuilder);
         }
 
-        mdBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build());
+        mdBuilder.putCustom(PersistentTasksExtensionMetadata.TYPE, persistentTasks.build());
         return ClusterState.builder(new ClusterName("_cluster")).metadata(mdBuilder.build()).build();
     }
 

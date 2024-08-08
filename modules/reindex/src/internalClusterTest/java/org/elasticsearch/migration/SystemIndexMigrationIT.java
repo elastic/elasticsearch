@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -66,7 +66,7 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
 
         final ClusterStateListener clusterStateListener = event -> {
-            PersistentTasksCustomMetadata.PersistentTask<?> task = PersistentTasksCustomMetadata.getTaskWithId(
+            PersistentTasksExtensionMetadata.PersistentTask<?> task = PersistentTasksExtensionMetadata.getTaskWithId(
                 event.state(),
                 SYSTEM_INDEX_UPGRADE_TASK_NAME
             );

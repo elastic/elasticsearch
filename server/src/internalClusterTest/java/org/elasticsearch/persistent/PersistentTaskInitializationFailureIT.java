@@ -43,7 +43,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
 
     public void testPersistentTasksThatFailDuringInitializationAreRemovedFromClusterState() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        PlainActionFuture<PersistentTasksCustomMetadata.PersistentTask<FailingInitializationTaskParams>> startPersistentTaskFuture =
+        PlainActionFuture<PersistentTasksExtensionMetadata.PersistentTask<FailingInitializationTaskParams>> startPersistentTaskFuture =
             new PlainActionFuture<>();
         persistentTasksService.sendStartRequest(
             UUIDs.base64UUID(),
@@ -56,7 +56,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
-            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(
+            List<PersistentTasksExtensionMetadata.PersistentTask<?>> tasks = findTasks(
                 clusterService.state(),
                 FailingInitializationPersistentTaskExecutor.TASK_NAME
             );
@@ -141,7 +141,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
             String type,
             String action,
             TaskId parentTaskId,
-            PersistentTasksCustomMetadata.PersistentTask<FailingInitializationTaskParams> taskInProgress,
+            PersistentTasksExtensionMetadata.PersistentTask<FailingInitializationTaskParams> taskInProgress,
             Map<String, String> headers
         ) {
             return new AllocatedPersistentTask(id, type, action, "", parentTaskId, headers) {

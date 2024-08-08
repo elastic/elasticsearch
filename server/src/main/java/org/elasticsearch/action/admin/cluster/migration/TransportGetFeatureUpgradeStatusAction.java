@@ -23,7 +23,7 @@ import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,7 +103,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             .map(feature -> getFeatureUpgradeStatus(state, feature))
             .toList();
 
-        boolean migrationTaskExists = PersistentTasksCustomMetadata.getTaskWithId(state, SYSTEM_INDEX_UPGRADE_TASK_NAME) != null;
+        boolean migrationTaskExists = PersistentTasksExtensionMetadata.getTaskWithId(state, SYSTEM_INDEX_UPGRADE_TASK_NAME) != null;
         GetFeatureUpgradeStatusResponse.UpgradeStatus initalStatus = migrationTaskExists ? IN_PROGRESS : NO_MIGRATION_NEEDED;
 
         GetFeatureUpgradeStatusResponse.UpgradeStatus status = Stream.concat(
@@ -120,7 +120,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(ClusterState state, SystemIndices.Feature feature) {
         String featureName = feature.getName();
 
-        PersistentTasksCustomMetadata.PersistentTask<SystemIndexMigrationTaskParams> migrationTask = PersistentTasksCustomMetadata
+        PersistentTasksExtensionMetadata.PersistentTask<SystemIndexMigrationTaskParams> migrationTask = PersistentTasksExtensionMetadata
             .getTaskWithId(state, SYSTEM_INDEX_UPGRADE_TASK_NAME);
         final String currentFeature = Optional.ofNullable(migrationTask)
             .map(task -> task.getState())

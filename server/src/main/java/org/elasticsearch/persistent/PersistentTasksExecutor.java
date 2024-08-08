@@ -11,8 +11,8 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collection;
@@ -65,7 +65,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
                 if (persistentTasks == null) {

@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -75,13 +75,13 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0L, Collections.emptyMap()))
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, new PersistentTasksExtensionMetadata(0L, Collections.emptyMap()))
             )
             .build();
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id", "_node_id", null, tasksBuilder);
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             // set local node master
@@ -122,9 +122,9 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             clusterService
         );
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id", "_node_id", null, tasksBuilder);
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             // set local node master
@@ -136,9 +136,9 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             )
             .build();
 
-        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id", null, null, tasksBuilder);
-        metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
+        metadata = Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             // set local node master
@@ -180,9 +180,9 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             clusterService
         );
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id", null, null, tasksBuilder);
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState previous = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
@@ -219,9 +219,9 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             clusterService
         );
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id", null, null, tasksBuilder);
-        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
             .metadata(metadata)
             // set local node master
@@ -232,7 +232,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                     .masterNodeId("_node_id")
             )
             .build();
-        notifier.auditUnassignedMlTasks(newState.nodes(), newState.metadata().custom(PersistentTasksCustomMetadata.TYPE));
+        notifier.auditUnassignedMlTasks(newState.nodes(), newState.metadata().custom(PersistentTasksExtensionMetadata.TYPE));
         if (anomalyDetectionAuditor.includeNodeInfo()) {
             verify(anomalyDetectionAuditor, times(1)).warning("job_id", "No node found to open job. Reasons [test assignment]");
         } else {
@@ -255,7 +255,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         Instant twoHoursAgo = sevenHoursAgo.plus(Duration.ofHours(5));
         Instant tomorrow = now.plus(Duration.ofHours(24));
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job1", "node1", JobState.OPENED, tasksBuilder);
         addJobTask("job2", "node1", JobState.OPENED, tasksBuilder);
         addJobTask("job3", null, JobState.OPENED, tasksBuilder);
@@ -265,7 +265,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         // Nothing reported because unassigned jobs only just detected
         assertThat(itemsToReport, empty());
 
-        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job1", null, JobState.OPENED, tasksBuilder);
         addJobTask("job2", "node1", JobState.OPENED, tasksBuilder);
         addJobTask("job3", null, JobState.OPENED, tasksBuilder);
@@ -278,7 +278,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             containsInAnyOrder("[xpack/ml/job]/[job3] unassigned for [3600] seconds", "[xpack/ml/job]/[job5] unassigned for [3600] seconds")
         );
 
-        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job1", null, JobState.OPENED, tasksBuilder);
         addJobTask("job2", null, JobState.OPENED, tasksBuilder);
         addJobTask("job3", null, JobState.OPENED, tasksBuilder);
@@ -289,7 +289,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         // job 2 only just detected unassigned
         assertThat(itemsToReport, contains("[xpack/ml/job]/[job1] unassigned for [18000] seconds"));
 
-        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job1", null, JobState.OPENED, tasksBuilder);
         addJobTask("job2", null, JobState.OPENED, tasksBuilder);
         addJobTask("job3", null, JobState.OPENED, tasksBuilder);
@@ -306,7 +306,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             )
         );
 
-        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job1", null, JobState.FAILED, tasksBuilder);
         addJobTask("job2", null, JobState.FAILED, tasksBuilder);
         addJobTask("job3", null, JobState.FAILED, tasksBuilder);
@@ -331,14 +331,14 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         {
             // run once with valid state to add unassigned job to the history
-            PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+            PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
             addJobTask("job1", null, JobState.OPENED, tasksBuilder);
             List<String> itemsToReport = notifier.findLongTimeUnassignedTasks(eightHoursAgo, tasksBuilder.build());
             // Nothing reported because unassigned jobs only just detected
             assertThat(itemsToReport, empty());
         }
         {
-            PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+            PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
             addJobTask("job1", null, null, tasksBuilder); // this time the job has no state
             // one hour later the job would be detected as unassigned if not for the missing state
             List<String> itemsToReport = notifier.findLongTimeUnassignedTasks(sevenHoursAgo, tasksBuilder.build());

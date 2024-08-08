@@ -17,7 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.mockito.Mockito;
@@ -112,11 +112,11 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfReplicas(0)
             .build();
 
-        PersistentTasksCustomMetadata.Builder emptyPersistentTasks = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder emptyPersistentTasks = PersistentTasksExtensionMetadata.builder();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, emptyPersistentTasks.build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, emptyPersistentTasks.build())
                     .put(indexMetadata, false)
                     .build()
             )
@@ -153,7 +153,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
     }
 
     private static ClusterState setupClusterStateWithFollowingIndex(IndexMetadata followerIndex) {
-        PersistentTasksCustomMetadata.Builder persistentTasks = PersistentTasksCustomMetadata.builder()
+        PersistentTasksExtensionMetadata.Builder persistentTasks = PersistentTasksExtensionMetadata.builder()
             .addTask(
                 "1",
                 ShardFollowTask.NAME,
@@ -178,7 +178,10 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
         return ClusterState.builder(new ClusterName("_cluster"))
             .metadata(
-                Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build()).put(followerIndex, false).build()
+                Metadata.builder()
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, persistentTasks.build())
+                    .put(followerIndex, false)
+                    .build()
             )
             .build();
     }

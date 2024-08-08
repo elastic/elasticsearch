@@ -33,7 +33,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -189,7 +189,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         when(job.allowLazyOpen()).thenReturn(true);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("lazy_job");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+        PersistentTasksExtensionMetadata.Assignment assignment = executor.getAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
             csBuilder.build()
@@ -210,7 +210,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         Job job = mock(Job.class);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("job_during_reset");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+        PersistentTasksExtensionMetadata.Assignment assignment = executor.getAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
             csBuilder.build()
@@ -220,7 +220,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(MlTasks.RESET_IN_PROGRESS.getExplanation(), assignment.getExplanation());
     }
 
-    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetadata.Builder builder) {
+    public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksExtensionMetadata.Builder builder) {
         addJobTask(jobId, nodeId, jobState, builder, false);
     }
 
@@ -228,14 +228,14 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         String jobId,
         String nodeId,
         JobState jobState,
-        PersistentTasksCustomMetadata.Builder builder,
+        PersistentTasksExtensionMetadata.Builder builder,
         boolean isStale
     ) {
         builder.addTask(
             MlTasks.jobTaskId(jobId),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams(jobId),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
             builder.updateTaskState(

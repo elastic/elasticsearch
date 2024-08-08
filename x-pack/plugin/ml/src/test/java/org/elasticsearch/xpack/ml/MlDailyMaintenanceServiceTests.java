@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -332,7 +332,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("MlDailyMaintenanceServiceTests"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata.builder().build())
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, PersistentTasksExtensionMetadata.builder().build())
                     .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).build())
             )
             .nodes(DiscoveryNodes.builder().build())

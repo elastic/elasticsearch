@@ -29,8 +29,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
@@ -95,12 +95,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = state.metadata().custom(PersistentTasksExtensionMetadata.TYPE);
         if (isForce == false && tasks != null) {
             List<String> failedTasks = new ArrayList<>();
             List<String> failedReasons = new ArrayList<>();
             for (String transformId : transformIds) {
-                PersistentTasksCustomMetadata.PersistentTask<?> dfTask = tasks.getTask(transformId);
+                PersistentTasksExtensionMetadata.PersistentTask<?> dfTask = tasks.getTask(transformId);
                 if (dfTask != null
                     && dfTask.getState() instanceof TransformState
                     && ((TransformState) dfTask.getState()).getTaskState() == TransformTaskState.FAILED) {
@@ -383,7 +383,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 return true;
             }
             for (String persistentTaskId : persistentTaskIds) {
-                PersistentTasksCustomMetadata.PersistentTask<?> transformsTask = persistentTasksCustomMetadata.getTask(persistentTaskId);
+                PersistentTasksExtensionMetadata.PersistentTask<?> transformsTask = persistentTasksCustomMetadata.getTask(persistentTaskId);
                 // Either the task has successfully stopped or we have seen that it has failed
                 if (transformsTask == null || exceptions.containsKey(persistentTaskId)) {
                     continue;
@@ -435,9 +435,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }, e -> {
             // waitForPersistentTasksCondition throws a IllegalStateException on timeout
             if (e instanceof IllegalStateException && e.getMessage().startsWith("Timed out")) {
-                PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
+                PersistentTasksExtensionMetadata persistentTasksCustomMetadata = clusterService.state()
                     .metadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE);
+                    .custom(PersistentTasksExtensionMetadata.TYPE);
 
                 if (persistentTasksCustomMetadata == null) {
                     listener.onResponse(new Response(Boolean.TRUE));

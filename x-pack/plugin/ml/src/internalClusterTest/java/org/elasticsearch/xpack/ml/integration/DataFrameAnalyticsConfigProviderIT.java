@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -376,21 +376,21 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     }
 
     private static ClusterState clusterStateWithRunningAnalyticsTask(String analyticsId, DataFrameAnalyticsState analyticsState) {
-        PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder builder = PersistentTasksExtensionMetadata.builder();
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams(analyticsId, MlConfigVersion.CURRENT, false),
-            new PersistentTasksCustomMetadata.Assignment("node", "test assignment")
+            new PersistentTasksExtensionMetadata.Assignment("node", "test assignment")
         );
         builder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             new DataFrameAnalyticsTaskState(analyticsState, builder.getLastAllocationId(), null, Instant.now())
         );
-        PersistentTasksCustomMetadata tasks = builder.build();
+        PersistentTasksExtensionMetadata tasks = builder.build();
 
         return ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks).build())
+            .metadata(Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasks).build())
             .build();
     }
 

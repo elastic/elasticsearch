@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -93,7 +93,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
                 .nodeFeatures(nodeFeatures)
                 .build();
             remainingNodesClusterState(remainingNodesClusterState);
-            final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+            final var ptasksDisassociatedState = PersistentTasksExtensionMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
                 true,

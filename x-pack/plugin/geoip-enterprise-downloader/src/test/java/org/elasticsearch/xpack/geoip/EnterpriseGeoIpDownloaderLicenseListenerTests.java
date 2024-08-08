@@ -27,7 +27,7 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -166,7 +166,7 @@ public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
         }
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("name"));
         if (hasGeoIpDatabases) {
-            PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of());
+            PersistentTasksExtensionMetadata tasksCustomMetadata = new PersistentTasksExtensionMetadata(1L, Map.of());
             clusterStateBuilder.metadata(Metadata.builder().putCustom(INGEST_GEOIP_CUSTOM_METADATA_TYPE, tasksCustomMetadata).put(idxMeta));
         }
         return clusterStateBuilder.nodes(discoveryNodesBuilder).build();

@@ -30,10 +30,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The {@link ComposableIndexTemplateMetadata} class is a custom {@link Metadata.Custom} implementation that
+ * The {@link ComposableIndexTemplateMetadata} class is a custom {@link MetadataExtension} implementation that
  * stores a map of ids to {@link ComposableIndexTemplate} templates.
  */
-public class ComposableIndexTemplateMetadata implements Metadata.Custom {
+public class ComposableIndexTemplateMetadata implements MetadataExtension {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
     @SuppressWarnings("unchecked")
@@ -78,11 +78,11 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<MetadataExtension> diff(MetadataExtension before) {
         return new ComposableIndexTemplateMetadataDiff((ComposableIndexTemplateMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetadataExtension> readDiffFrom(StreamInput in) throws IOException {
         return new ComposableIndexTemplateMetadataDiff(in);
     }
 
@@ -128,7 +128,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
-    static class ComposableIndexTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ComposableIndexTemplateMetadataDiff implements NamedDiff<MetadataExtension> {
 
         final Diff<Map<String, ComposableIndexTemplate>> indexTemplateDiff;
 
@@ -150,7 +150,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataExtension apply(MetadataExtension part) {
             return new ComposableIndexTemplateMetadata(indexTemplateDiff.apply(((ComposableIndexTemplateMetadata) part).indexTemplates));
         }
 

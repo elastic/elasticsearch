@@ -34,7 +34,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -158,7 +158,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             return;
         }
         final ClusterState state = clusterService.state();
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata persistentTasks = state.metadata().custom(PersistentTasksExtensionMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         final List<String> forecastIds;
         try {

@@ -27,8 +27,8 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.Assignment;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -224,7 +224,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         validateJobAndId(jobId, job);
         // If we already know that we can't find an ml node because all ml nodes are running at capacity or
         // simply because there are no ml nodes in the cluster then we fail quickly here:
-        PersistentTasksCustomMetadata.Assignment assignment = getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        PersistentTasksExtensionMetadata.Assignment assignment = getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         if (assignment.equals(AWAITING_UPGRADE)) {
             throw makeCurrentlyBeingUpgradedException(logger, params.getJobId());
         }
@@ -406,8 +406,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             }
 
             String datafeedId = datafeeds.iterator().next();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
+            PersistentTasksExtensionMetadata tasks = clusterState.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
+            PersistentTasksExtensionMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             delegate.onResponse(datafeedTask != null ? datafeedId : null);
         });
 
@@ -612,19 +612,19 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
+        PersistentTasksExtensionMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
         Map<String, String> headers
     ) {
         return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers, licenseState);
     }
 
     public static Optional<ElasticsearchException> checkAssignmentState(
-        PersistentTasksCustomMetadata.Assignment assignment,
+        PersistentTasksExtensionMetadata.Assignment assignment,
         String jobId,
         Logger logger
     ) {
         if (assignment != null
-            && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
+            && assignment.equals(PersistentTasksExtensionMetadata.INITIAL_ASSIGNMENT) == false
             && assignment.isAssigned() == false) {
             // Assignment has failed on the master node despite passing our "fast fail" validation
             if (assignment.equals(AWAITING_UPGRADE)) {

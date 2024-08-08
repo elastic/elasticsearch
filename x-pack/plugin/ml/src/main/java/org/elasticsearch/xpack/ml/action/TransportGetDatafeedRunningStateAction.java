@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -89,12 +89,12 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         if (tasks == null) {
             listener.onResponse(new Response(Collections.emptyMap()));
             return;
         }
-        final List<PersistentTasksCustomMetadata.PersistentTask<?>> datafeedTasks = request.getDatafeedTaskIds()
+        final List<PersistentTasksExtensionMetadata.PersistentTask<?>> datafeedTasks = request.getDatafeedTaskIds()
             .stream()
             .map(tasks::getTask)
             .filter(Objects::nonNull)
@@ -131,7 +131,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
         }, listener::onFailure);
 
         String[] nodesOfConcern = datafeedTasks.stream()
-            .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
+            .map(PersistentTasksExtensionMetadata.PersistentTask::getExecutorNode)
             .filter(Objects::nonNull)
             .filter(nodes::nodeExists)
             .toArray(String[]::new);

@@ -36,7 +36,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -215,7 +215,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 perDeploymentMemoryBytes.get(),
                 perAllocationMemoryBytes.get()
             );
-            PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksExtensionMetadata persistentTasks = clusterService.state()
+                .getMetadata()
+                .custom(PersistentTasksExtensionMetadata.TYPE);
             memoryTracker.refresh(
                 persistentTasks,
                 ActionListener.wrap(

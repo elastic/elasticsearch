@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +33,7 @@ import java.util.Optional;
  * Class that encapsulates the running operation mode of Index Lifecycle
  * Management and Snapshot Lifecycle Management
  */
-public class LifecycleOperationMetadata implements Metadata.Custom {
+public class LifecycleOperationMetadata implements MetadataExtension {
     public static final String TYPE = "lifecycle_operation";
     public static final ParseField ILM_OPERATION_MODE_FIELD = new ParseField("ilm_operation_mode");
     public static final ParseField SLM_OPERATION_MODE_FIELD = new ParseField("slm_operation_mode");
@@ -114,7 +115,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<MetadataExtension> diff(MetadataExtension previousState) {
         return new LifecycleOperationMetadata.LifecycleOperationMetadataDiff((LifecycleOperationMetadata) previousState, this);
     }
 
@@ -164,7 +165,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
         return Strings.toString(this, true, true);
     }
 
-    public static class LifecycleOperationMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class LifecycleOperationMetadataDiff implements NamedDiff<MetadataExtension> {
 
         final OperationMode ilmOperationMode;
         final OperationMode slmOperationMode;
@@ -180,7 +181,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetadataExtension apply(MetadataExtension part) {
             return new LifecycleOperationMetadata(this.ilmOperationMode, this.slmOperationMode);
         }
 

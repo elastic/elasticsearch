@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -284,8 +284,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // using externally accessible actions. The only way this situation could occur in reality is through extremely unfortunate
         // timing. Therefore, to simulate this unfortunate timing we cheat and access internal classes to set the datafeed state to
         // stopping.
-        PersistentTasksCustomMetadata tasks = clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
+        PersistentTasksExtensionMetadata tasks = clusterService().state().getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
+        PersistentTasksExtensionMetadata.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
 
         // It is possible that the datafeed has already detected the job failure and
         // terminated itself. In this happens there is no persistent task to stop
@@ -719,11 +719,11 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // in a Lucene index it can take a while to update when there are many updates in quick
         // succession, like we see in internal cluster tests of node failure scenarios
         awaitClusterState(state -> {
-            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
+            List<PersistentTasksExtensionMetadata.PersistentTask<?>> tasks = findTasks(state, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
             if (tasks == null || tasks.size() != 2) {
                 return false;
             }
-            for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
+            for (PersistentTasksExtensionMetadata.PersistentTask<?> task : tasks) {
                 if (needsReassignment(task.getAssignment(), state.nodes())) {
                     return false;
                 }

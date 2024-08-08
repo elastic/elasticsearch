@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -342,7 +342,7 @@ public class DataFrameAnalyticsManager {
      * @param tasks Persistent tasks metadata.
      * @return Memory used by data frame analytics jobs that are active on the current node.
      */
-    public ByteSizeValue getActiveTaskMemoryUsage(PersistentTasksCustomMetadata tasks) {
+    public ByteSizeValue getActiveTaskMemoryUsage(PersistentTasksExtensionMetadata tasks) {
         long memoryUsedBytes = 0;
         for (Map.Entry<String, ByteSizeValue> entry : memoryLimitById.entrySet()) {
             DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(entry.getKey(), tasks);

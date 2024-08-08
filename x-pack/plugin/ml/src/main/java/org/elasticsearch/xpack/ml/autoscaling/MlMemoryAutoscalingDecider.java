@@ -20,7 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -354,7 +354,7 @@ class MlMemoryAutoscalingDecider {
     private long maxMemoryBytes(MlAutoscalingContext mlContext) {
         long maxMemoryBytes = Math.max(
             mlContext.anomalyDetectionTasks.stream()
-                .filter(PersistentTasksCustomMetadata.PersistentTask::isAssigned)
+                .filter(PersistentTasksExtensionMetadata.PersistentTask::isAssigned)
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = getAnomalyMemoryRequirement(t);
@@ -367,7 +367,7 @@ class MlMemoryAutoscalingDecider {
                 .max()
                 .orElse(0L),
             mlContext.snapshotUpgradeTasks.stream()
-                .filter(PersistentTasksCustomMetadata.PersistentTask::isAssigned)
+                .filter(PersistentTasksExtensionMetadata.PersistentTask::isAssigned)
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = getAnomalyMemoryRequirement(t);
@@ -383,7 +383,7 @@ class MlMemoryAutoscalingDecider {
         maxMemoryBytes = Math.max(
             maxMemoryBytes,
             mlContext.dataframeAnalyticsTasks.stream()
-                .filter(PersistentTasksCustomMetadata.PersistentTask::isAssigned)
+                .filter(PersistentTasksExtensionMetadata.PersistentTask::isAssigned)
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = this.getAnalyticsMemoryRequirement(t);
@@ -851,7 +851,7 @@ class MlMemoryAutoscalingDecider {
      */
     Optional<NativeMemoryCapacity> calculateFutureAvailableCapacity(Collection<DiscoveryNode> mlNodes, ClusterState clusterState) {
         return calculateFutureAvailableCapacity(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE),
+            clusterState.metadata().custom(PersistentTasksExtensionMetadata.TYPE),
             mlNodes.stream()
                 .map(node -> nodeLoadDetector.detectNodeLoad(clusterState, node, maxOpenJobs, maxMachineMemoryPercent, useAuto))
                 .toList()
@@ -868,10 +868,10 @@ class MlMemoryAutoscalingDecider {
      * - node: The largest block of memory that will be free on a given node.
      * - If > 1 "batch" ml tasks are running on the same node, we sum their resources.
      */
-    Optional<NativeMemoryCapacity> calculateFutureAvailableCapacity(PersistentTasksCustomMetadata tasks, List<NodeLoad> nodeLoads) {
-        final List<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> jobsWithLookbackDatafeeds =
+    Optional<NativeMemoryCapacity> calculateFutureAvailableCapacity(PersistentTasksExtensionMetadata tasks, List<NodeLoad> nodeLoads) {
+        final List<PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> jobsWithLookbackDatafeeds =
             datafeedTasks(tasks).stream().filter(t -> t.getParams().getEndTime() != null && t.getExecutorNode() != null).toList();
-        final List<PersistentTasksCustomMetadata.PersistentTask<?>> assignedAnalyticsJobs = MlAutoscalingContext.dataframeAnalyticsTasks(
+        final List<PersistentTasksExtensionMetadata.PersistentTask<?>> assignedAnalyticsJobs = MlAutoscalingContext.dataframeAnalyticsTasks(
             tasks
         ).stream().filter(t -> t.getExecutorNode() != null).toList();
 
@@ -884,14 +884,15 @@ class MlMemoryAutoscalingDecider {
             }
             freeMemoryByNodeId.put(nodeLoad.getNodeId(), nodeLoad.getFreeMemoryExcludingPerNodeOverhead());
         }
-        for (PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> lookbackOnlyDf : jobsWithLookbackDatafeeds) {
+        for (PersistentTasksExtensionMetadata.PersistentTask<
+            StartDatafeedAction.DatafeedParams> lookbackOnlyDf : jobsWithLookbackDatafeeds) {
             Long jobSize = getAnomalyMemoryRequirement(lookbackOnlyDf.getParams().getJobId());
             if (jobSize == null) {
                 return Optional.empty();
             }
             freeMemoryByNodeId.compute(lookbackOnlyDf.getExecutorNode(), (k, v) -> v == null ? jobSize : jobSize + v);
         }
-        for (PersistentTasksCustomMetadata.PersistentTask<?> task : assignedAnalyticsJobs) {
+        for (PersistentTasksExtensionMetadata.PersistentTask<?> task : assignedAnalyticsJobs) {
             Long jobSize = getAnalyticsMemoryRequirement(MlTasks.dataFrameAnalyticsId(task.getId()));
             if (jobSize == null) {
                 return Optional.empty();
@@ -907,8 +908,8 @@ class MlMemoryAutoscalingDecider {
     }
 
     @SuppressWarnings("unchecked")
-    private static Collection<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> datafeedTasks(
-        PersistentTasksCustomMetadata tasksCustomMetadata
+    private static Collection<PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> datafeedTasks(
+        PersistentTasksExtensionMetadata tasksCustomMetadata
     ) {
         if (tasksCustomMetadata == null) {
             return List.of();
@@ -916,7 +917,7 @@ class MlMemoryAutoscalingDecider {
 
         return tasksCustomMetadata.findTasks(MlTasks.DATAFEED_TASK_NAME, Predicates.always())
             .stream()
-            .map(p -> (PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>) p)
+            .map(p -> (PersistentTasksExtensionMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>) p)
             .toList();
     }
 
@@ -936,7 +937,7 @@ class MlMemoryAutoscalingDecider {
         return mem;
     }
 
-    private Long getAnalyticsMemoryRequirement(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+    private Long getAnalyticsMemoryRequirement(PersistentTasksExtensionMetadata.PersistentTask<?> task) {
         return getAnalyticsMemoryRequirement(MlTasks.dataFrameAnalyticsId(task.getId()));
     }
 
@@ -948,7 +949,7 @@ class MlMemoryAutoscalingDecider {
         return mem;
     }
 
-    private Long getAnomalyMemoryRequirement(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+    private Long getAnomalyMemoryRequirement(PersistentTasksExtensionMetadata.PersistentTask<?> task) {
         return getAnomalyMemoryRequirement(MlTasks.jobId(task.getId()));
     }
 

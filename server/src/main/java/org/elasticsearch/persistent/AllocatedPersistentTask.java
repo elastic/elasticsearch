@@ -62,7 +62,7 @@ public class AllocatedPersistentTask extends CancellableTask {
      */
     public void updatePersistentTaskState(
         final PersistentTaskState state,
-        final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+        final ActionListener<PersistentTasksExtensionMetadata.PersistentTask<?>> listener
     ) {
         persistentTasksService.sendUpdateStateRequest(persistentTaskId, allocationId, state, null, listener);
     }
@@ -99,7 +99,7 @@ public class AllocatedPersistentTask extends CancellableTask {
      * @param listener the callback listener
      */
     public void waitForPersistentTask(
-        final Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate,
+        final Predicate<PersistentTasksExtensionMetadata.PersistentTask<?>> predicate,
         final @Nullable TimeValue timeout,
         final PersistentTasksService.WaitForPersistentTaskListener<?> listener
     ) {
@@ -203,7 +203,7 @@ public class AllocatedPersistentTask extends CancellableTask {
                         null,
                         new ActionListener<>() {
                             @Override
-                            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                            public void onResponse(PersistentTasksExtensionMetadata.PersistentTask<?> persistentTask) {
                                 logger.trace("notification for task [{}] with id [{}] was successful", getAction(), getPersistentTaskId());
                             }
 

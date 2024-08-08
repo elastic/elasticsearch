@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -93,7 +93,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()
         );
-        PersistentTasksCustomMetadata.PersistentTask<?> task = new PersistentTasksCustomMetadata.PersistentTask<>(
+        PersistentTasksExtensionMetadata.PersistentTask<?> task = new PersistentTasksExtensionMetadata.PersistentTask<>(
             "id",
             ShardFollowTask.NAME,
             params,
@@ -106,8 +106,8 @@ public class TransportUnfollowActionTests extends ESTestCase {
                 Metadata.builder()
                     .put(followerIndex)
                     .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(0, Collections.singletonMap("id", task))
+                        PersistentTasksExtensionMetadata.TYPE,
+                        new PersistentTasksExtensionMetadata(0, Collections.singletonMap("id", task))
                     )
                     .build()
             )

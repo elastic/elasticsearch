@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.junit.After;
@@ -48,7 +48,7 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
     public void testTaskRemovedAfterCancellation() throws Exception {
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
-            PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
+            PersistentTasksExtensionMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             assertNotNull(task);
             assertTrue(task.isAssigned());
         });
@@ -63,7 +63,7 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
         });
     }
 
-    private PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> getTask() {
-        return PersistentTasksCustomMetadata.getTaskWithId(clusterService().state(), GeoIpDownloader.GEOIP_DOWNLOADER);
+    private PersistentTasksExtensionMetadata.PersistentTask<PersistentTaskParams> getTask() {
+        return PersistentTasksExtensionMetadata.getTaskWithId(clusterService().state(), GeoIpDownloader.GEOIP_DOWNLOADER);
     }
 }

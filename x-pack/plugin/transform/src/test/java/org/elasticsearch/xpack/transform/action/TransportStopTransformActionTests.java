@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTaskResponse;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.rest.RestStatus;
@@ -55,8 +55,8 @@ import static org.mockito.Mockito.when;
 
 public class TransportStopTransformActionTests extends ESTestCase {
 
-    private Metadata.Builder buildMetadata(PersistentTasksCustomMetadata ptasks) {
-        return Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, ptasks);
+    private Metadata.Builder buildMetadata(PersistentTasksExtensionMetadata ptasks) {
+        return Metadata.builder().putCustom(PersistentTasksExtensionMetadata.TYPE, ptasks);
     }
 
     public void testTaskStateValidationWithNoTasks() {
@@ -64,19 +64,19 @@ public class TransportStopTransformActionTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(metadata);
         TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
 
-        PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder pTasksBuilder = PersistentTasksExtensionMetadata.builder();
         csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
         TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
     }
 
     public void testTaskStateValidationWithTransformTasks() {
         // Test with the task state being null
-        PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder()
+        PersistentTasksExtensionMetadata.Builder pTasksBuilder = PersistentTasksExtensionMetadata.builder()
             .addTask(
                 "non-failed-task",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
+                new PersistentTasksExtensionMetadata.Assignment("current-data-node-with-1-tasks", "")
             );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
@@ -96,7 +96,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
             "failed-task",
             TransformTaskParams.NAME,
             new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
+            new PersistentTasksExtensionMetadata.Assignment("current-data-node-with-1-tasks", "")
         )
             .updateTaskState(
                 "failed-task",
@@ -128,7 +128,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
             "failed-task-2",
             TransformTaskParams.NAME,
             new TransformTaskParams("transform-task-2", TransformConfigVersion.CURRENT, null, false),
-            new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+            new PersistentTasksExtensionMetadata.Assignment("current-data-node-with-2-tasks", "")
         )
             .updateTaskState(
                 "failed-task-2",
@@ -292,7 +292,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
         return invocationOnMock -> {
             @SuppressWarnings("unchecked")
             var l = (ActionListener<PersistentTaskResponse>) invocationOnMock.getArguments()[2];
-            l.onResponse(new PersistentTaskResponse((PersistentTasksCustomMetadata.PersistentTask<?>) null));
+            l.onResponse(new PersistentTaskResponse((PersistentTasksExtensionMetadata.PersistentTask<?>) null));
             return null;
         };
     }

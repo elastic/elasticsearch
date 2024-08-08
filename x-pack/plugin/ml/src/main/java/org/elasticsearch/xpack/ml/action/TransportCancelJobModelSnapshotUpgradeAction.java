@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -70,13 +70,15 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         ActionListener<List<Job.Builder>> expandIdsListener = listener.delegateFailureAndWrap((delegate, jobs) -> {
             SimpleIdsMatcher matcher = new SimpleIdsMatcher(request.getSnapshotId());
             Set<String> jobIds = jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet());
-            PersistentTasksCustomMetadata tasksInProgress = clusterService.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksExtensionMetadata tasksInProgress = clusterService.state()
+                .metadata()
+                .custom(PersistentTasksExtensionMetadata.TYPE);
             // allow_no_match plays no part here. The reason is that we have a principle that stopping
             // a stopped entity is a no-op, and upgrades that have already completed won't have a task.
             // This is a bit different to jobs and datafeeds, where the entity continues to exist even
             // after it's stopped. Upgrades cease to exist after they're stopped so the match validation
             // cannot be as thorough.
-            List<PersistentTasksCustomMetadata.PersistentTask<?>> upgradeTasksToCancel = MlTasks.snapshotUpgradeTasks(tasksInProgress)
+            List<PersistentTasksExtensionMetadata.PersistentTask<?>> upgradeTasksToCancel = MlTasks.snapshotUpgradeTasks(tasksInProgress)
                 .stream()
                 .filter(t -> jobIds.contains(((SnapshotUpgradeTaskParams) t.getParams()).getJobId()))
                 .filter(t -> matcher.idMatches(((SnapshotUpgradeTaskParams) t.getParams()).getSnapshotId()))
@@ -90,7 +92,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
 
     private void removePersistentTasks(
         Request request,
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> upgradeTasksToCancel,
+        List<PersistentTasksExtensionMetadata.PersistentTask<?>> upgradeTasksToCancel,
         ActionListener<Response> listener
     ) {
         final int numberOfTasks = upgradeTasksToCancel.size();
@@ -102,10 +104,10 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         final AtomicInteger counter = new AtomicInteger();
         final AtomicArray<Exception> failures = new AtomicArray<>(numberOfTasks);
 
-        for (PersistentTasksCustomMetadata.PersistentTask<?> task : upgradeTasksToCancel) {
+        for (PersistentTasksExtensionMetadata.PersistentTask<?> task : upgradeTasksToCancel) {
             persistentTasksService.sendRemoveRequest(task.getId(), null, new ActionListener<>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                public void onResponse(PersistentTasksExtensionMetadata.PersistentTask<?> task) {
                     if (counter.incrementAndGet() == numberOfTasks) {
                         sendResponseOrFailure(listener, failures);
                     }

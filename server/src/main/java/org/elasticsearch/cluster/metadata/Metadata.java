@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -56,7 +55,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -139,22 +137,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    /**
-     * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
-     * with the {@link NamedXContentRegistry}.
-     */
-    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
-
-        EnumSet<XContentContext> context();
-
-        /**
-         * @return true if this custom could be restored from snapshot
-         */
-        default boolean isRestorable() {
-            return context().contains(XContentContext.SNAPSHOT);
-        }
-    }
-
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
         false,
@@ -202,7 +184,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     public static final String DEDUPLICATED_MAPPINGS_PARAM = "deduplicated_mappings";
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
-    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
+    private static final NamedDiffableValueSerializer<MetadataExtension> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
+        MetadataExtension.class
+    );
 
     private final String clusterUUID;
     private final boolean clusterUUIDCommitted;
@@ -217,7 +201,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     private final ImmutableOpenMap<String, IndexMetadata> indices;
     private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final ImmutableOpenMap<String, MetadataExtension> customs;
     private final Map<String, ReservedStateMetadata> reservedStateMetadata;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
@@ -259,7 +243,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         ImmutableOpenMap<String, IndexMetadata> indices,
         ImmutableOpenMap<String, Set<Index>> aliasedIndices,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
-        ImmutableOpenMap<String, Custom> customs,
+        ImmutableOpenMap<String, MetadataExtension> customs,
         String[] allIndices,
         String[] visibleIndices,
         String[] allOpenIndices,
@@ -1386,7 +1370,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return true;
     }
 
-    public Map<String, Custom> customs() {
+    public Map<String, MetadataExtension> customs() {
         return this.customs;
     }
 
@@ -1407,12 +1391,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type) {
+    public <T extends MetadataExtension> T custom(String type) {
         return (T) customs.get(type);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type, T defaultValue) {
+    public <T extends MetadataExtension> T custom(String type, T defaultValue) {
         return (T) customs.getOrDefault(type, defaultValue);
     }
 
@@ -1468,7 +1452,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
-        for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
+        for (Map.Entry<String, MetadataExtension> cursor : metadata1.customs.entrySet()) {
             if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
                 if (cursor.getValue().equals(metadata2.custom(cursor.getKey())) == false) {
                     return false;
@@ -1477,8 +1461,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             }
         }
         int customCount2 = 0;
-        for (Custom custom : metadata2.customs.values()) {
-            if (custom.context().contains(XContentContext.GATEWAY)) {
+        for (MetadataExtension extension : metadata2.customs.values()) {
+            if (extension.context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
@@ -1572,7 +1556,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<ImmutableOpenMap<String, MetadataExtension>> customs;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
         /**
@@ -1737,8 +1721,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
-            builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
+            MetadataExtension extensionIndexMetadata = in.readNamedWriteable(MetadataExtension.class);
+            builder.putCustom(extensionIndexMetadata.getWriteableName(), extensionIndexMetadata);
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
@@ -1805,7 +1789,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final ImmutableOpenMap.Builder<String, MetadataExtension> customs;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
@@ -2184,12 +2168,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return true;
         }
 
-        public Custom getCustom(String type) {
+        public MetadataExtension getCustom(String type) {
             return customs.get(type);
         }
 
-        public Builder putCustom(String type, Custom custom) {
-            customs.put(type, Objects.requireNonNull(custom, type));
+        public Builder putCustom(String type, MetadataExtension extension) {
+            customs.put(type, Objects.requireNonNull(extension, type));
             return this;
         }
 
@@ -2198,12 +2182,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return this;
         }
 
-        public Builder removeCustomIf(BiPredicate<String, Custom> p) {
+        public Builder removeCustomIf(BiPredicate<String, MetadataExtension> p) {
             customs.removeAll(p);
             return this;
         }
 
-        public Builder customs(Map<String, Custom> customs) {
+        public Builder customs(Map<String, MetadataExtension> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
             return this;
@@ -2786,8 +2770,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         }
                     } else {
                         try {
-                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
-                            builder.putCustom(custom.getWriteableName(), custom);
+                            MetadataExtension extension = parser.namedObject(MetadataExtension.class, currentFieldName, null);
+                            builder.putCustom(extension.getWriteableName(), extension);
                         } catch (NamedObjectNotFoundException ex) {
                             logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                             parser.skipChildren();

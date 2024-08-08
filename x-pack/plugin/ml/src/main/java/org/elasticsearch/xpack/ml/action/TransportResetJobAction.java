@@ -27,7 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -106,7 +106,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
             Job job = jobBuilder.build();
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksExtensionMetadata tasks = state.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
             JobState jobState = MlTasks.getJobState(job.getId(), tasks);
             if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
                 listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET)));
@@ -212,7 +212,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
         // Now that we have updated the job's block reason, we should check again
         // if the job has been opened.
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, tasks);
         if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
             jobConfigProvider.updateJobBlockReason(

@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +28,7 @@ import java.util.Objects;
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public class LicensesMetadata extends AbstractNamedDiffable<MetadataExtension> implements MetadataExtension {
 
     public static final String TYPE = "licenses";
 
@@ -186,8 +187,8 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
         }
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public static NamedDiff<MetadataExtension> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(MetadataExtension.class, TYPE, streamInput);
     }
 
     public static License extractLicense(LicensesMetadata licensesMetadata) {

@@ -41,7 +41,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -419,7 +419,7 @@ public class DatafeedConfigProvider {
     public void expandDatafeedIds(
         String expression,
         boolean allowNoMatch,
-        PersistentTasksCustomMetadata tasks,
+        PersistentTasksExtensionMetadata tasks,
         boolean allowMissingConfigs,
         @Nullable TaskId parentTaskId,
         ActionListener<SortedSet<String>> listener
@@ -471,10 +471,10 @@ public class DatafeedConfigProvider {
     }
 
     /**
-     * The same logic as {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)} but
+     * The same logic as {@link #expandDatafeedIds(String, boolean, PersistentTasksExtensionMetadata, boolean, TaskId, ActionListener)} but
      * the full datafeed configuration is returned.
      *
-     * See {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)}
+     * See {@link #expandDatafeedIds(String, boolean, PersistentTasksExtensionMetadata, boolean, TaskId, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
@@ -569,7 +569,7 @@ public class DatafeedConfigProvider {
         return boolQueryBuilder;
     }
 
-    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
+    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksExtensionMetadata tasksMetadata) {
         return MlStrings.findMatching(datafeedIdPatterns, MlTasks.startedDatafeedIds(tasksMetadata));
     }
 

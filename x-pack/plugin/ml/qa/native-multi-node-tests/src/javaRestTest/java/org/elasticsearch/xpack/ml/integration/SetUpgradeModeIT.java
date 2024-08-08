@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -64,7 +64,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         ClusterState masterClusterState = clusterAdmin().prepareState().all().get().getState();
 
-        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 
@@ -74,7 +74,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         masterClusterState = clusterAdmin().prepareState().all().get().getState();
 
         // Assert state for tasks still exists and that the upgrade setting is set
-        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 
@@ -101,7 +101,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         masterClusterState = clusterAdmin().prepareState().all().get().getState();
 
-        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 

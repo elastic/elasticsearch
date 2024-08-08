@@ -22,7 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.PersistentTaskResponse;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
@@ -62,10 +62,10 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
             return;
         }
         final Metadata metadata = event.state().metadata();
-        final PersistentTasksCustomMetadata persistentTasksMetadata = metadata.custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksExtensionMetadata persistentTasksMetadata = metadata.custom(PersistentTasksExtensionMetadata.TYPE);
         final Metadata previousMetadata = event.previousState().metadata();
         if (metadata.indices() == event.previousState().getMetadata().indices()
-            && persistentTasksMetadata == previousMetadata.custom(PersistentTasksCustomMetadata.TYPE)
+            && persistentTasksMetadata == previousMetadata.custom(PersistentTasksExtensionMetadata.TYPE)
             && event.previousState().nodes().isLocalNodeElectedMaster()
             && event.blocksChanged() == false) {
             // nothing of relevance changed
@@ -75,7 +75,7 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
         if (persistentTasksMetadata == null) {
             return;
         }
-        for (PersistentTasksCustomMetadata.PersistentTask<?> persistentTask : persistentTasksMetadata.tasks()) {
+        for (PersistentTasksExtensionMetadata.PersistentTask<?> persistentTask : persistentTasksMetadata.tasks()) {
             if (ShardFollowTask.NAME.equals(persistentTask.getTaskName()) == false) {
                 // this task is not a shard follow task
                 continue;

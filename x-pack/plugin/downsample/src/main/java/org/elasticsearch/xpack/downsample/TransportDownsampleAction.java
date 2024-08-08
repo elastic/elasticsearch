@@ -65,7 +65,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.tasks.Task;
@@ -496,7 +496,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 dimensionFields,
                 shardId
             );
-            Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate = runningTask -> {
+            Predicate<PersistentTasksExtensionMetadata.PersistentTask<?>> predicate = runningTask -> {
                 if (runningTask == null) {
                     // NOTE: don't need to wait if the persistent task completed and was removed
                     return true;
@@ -507,7 +507,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             var taskListener = new PersistentTasksService.WaitForPersistentTaskListener<>() {
 
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
+                public void onResponse(PersistentTasksExtensionMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
                     if (persistentTask != null) {
                         var runningPersistentTaskState = (DownsampleShardPersistentTaskState) persistentTask.getState();
                         if (runningPersistentTaskState != null) {

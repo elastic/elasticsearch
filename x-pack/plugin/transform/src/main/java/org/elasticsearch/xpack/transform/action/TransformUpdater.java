@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -343,7 +343,7 @@ public class TransformUpdater {
             config.getSource().getIndex()
         );
         // If we are running, we should verify that the destination index exists and create it if it does not
-        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, config.getId()) != null && dest.length == 0
+        if (PersistentTasksExtensionMetadata.getTaskWithId(clusterState, config.getId()) != null && dest.length == 0
         // Verify we have source indices. The user could defer_validations and if the task is already running
         // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
         // the transform will just have to dynamically create the destination index without special mapping.

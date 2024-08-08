@@ -36,8 +36,8 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -94,7 +94,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final String type,
         final String action,
         final TaskId parentTaskId,
-        final PersistentTasksCustomMetadata.PersistentTask<DownsampleShardTaskParams> taskInProgress,
+        final PersistentTasksExtensionMetadata.PersistentTask<DownsampleShardTaskParams> taskInProgress,
         final Map<String, String> headers
     ) {
         final DownsampleShardTaskParams params = taskInProgress.getParams();
@@ -123,7 +123,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    public PersistentTasksExtensionMetadata.Assignment getAssignment(
         final DownsampleShardTaskParams params,
         final Collection<DiscoveryNode> candidateNodes,
         final ClusterState clusterState
@@ -139,7 +139,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         var indexShardRouting = findShardRoutingTable(shardId, clusterState);
         if (indexShardRouting == null) {
             var node = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
-            return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
+            return new PersistentTasksExtensionMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
         }
 
         final ShardRouting shardRouting = indexShardRouting.primaryShard();
@@ -151,7 +151,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             .filter(candidateNode -> candidateNode.getId().equals(shardRouting.currentNodeId()))
             .findAny()
             .map(
-                node -> new PersistentTasksCustomMetadata.Assignment(
+                node -> new PersistentTasksExtensionMetadata.Assignment(
                     node.getId(),
                     "downsampling using node holding shard [" + shardId + "]"
                 )

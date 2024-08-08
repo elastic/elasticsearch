@@ -28,7 +28,7 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -394,7 +394,7 @@ public class MlDailyMaintenanceService implements Releasable {
      */
     private void auditUnassignedMlTasks() {
         ClusterState state = clusterService.state();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata tasks = state.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         if (tasks != null) {
             mlAssignmentNotifier.auditUnassignedMlTasks(state.nodes(), tasks);
         }

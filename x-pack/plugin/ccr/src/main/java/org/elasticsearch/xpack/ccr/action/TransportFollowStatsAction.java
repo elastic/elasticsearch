@@ -20,7 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -124,7 +124,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     }
 
     static Set<String> findFollowerIndicesFromShardFollowTasks(ClusterState state, String[] indices) {
-        final PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksExtensionMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksExtensionMetadata.TYPE);
         if (persistentTasksMetadata == null) {
             return Collections.emptySet();
         }

@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -55,8 +55,8 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         String jobId = request.getJobId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+        PersistentTasksExtensionMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
+        PersistentTasksExtensionMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null || jobTask.isAssigned() == false) {
             String message = "Cannot perform requested action because job [" + jobId + "] is not open";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));

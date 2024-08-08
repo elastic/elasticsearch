@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -104,18 +104,18 @@ public class NodeLoadDetectorTests extends ESTestCase {
             )
             .build();
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id1", "_node_id1", null, tasksBuilder);
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id2", "_node_id1", null, tasksBuilder);
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id3", "_node_id2", null, tasksBuilder);
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id4", "_node_id4", JobState.OPENED, tasksBuilder);
-        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+        PersistentTasksExtensionMetadata tasks = tasksBuilder.build();
 
         final ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .nodes(nodes)
             .metadata(
                 Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                    .putCustom(PersistentTasksExtensionMetadata.TYPE, tasks)
                     .putCustom(
                         TrainedModelAssignmentMetadata.NAME,
                         TrainedModelAssignmentMetadata.Builder.empty()

@@ -23,8 +23,8 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -88,7 +88,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
             String type,
             String action,
             TaskId parentTaskId,
-            PersistentTasksCustomMetadata.PersistentTask<RollupJob> persistentTask,
+            PersistentTasksExtensionMetadata.PersistentTask<RollupJob> persistentTask,
             Map<String, String> headers
         ) {
             return new RollupJobTask(

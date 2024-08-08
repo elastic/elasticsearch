@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.test.TestExtensionMetadata;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -876,10 +876,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .build();
     }
 
-    public static class CustomMetadata extends TestCustomMetadata {
+    public static class ExtensionMetadata extends TestExtensionMetadata {
         public static final String TYPE = "custom_md";
 
-        CustomMetadata(String data) {
+        ExtensionMetadata(String data) {
             super(data);
         }
 

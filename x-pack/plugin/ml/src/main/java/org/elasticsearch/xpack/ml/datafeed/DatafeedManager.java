@@ -20,7 +20,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -264,8 +264,8 @@ public final class DatafeedManager {
 
     }
 
-    private static PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+    private static PersistentTasksExtensionMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
+        PersistentTasksExtensionMetadata tasks = state.getMetadata().custom(PersistentTasksExtensionMetadata.TYPE);
         return MlTasks.getDatafeedTask(datafeedId, tasks);
     }
 

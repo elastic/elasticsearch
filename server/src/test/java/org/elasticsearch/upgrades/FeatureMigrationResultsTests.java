@@ -10,7 +10,7 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataExtension;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
+public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSerializationTestCase<MetadataExtension> {
 
     private static final ConstructingObjectParser<SingleFeatureMigrationResult, Void> SINGLE_FEATURE_RESULT_PARSER =
         new ConstructingObjectParser<>(
@@ -80,7 +80,7 @@ public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSeria
     }
 
     @Override
-    protected FeatureMigrationResults mutateInstance(Metadata.Custom instance) {
+    protected FeatureMigrationResults mutateInstance(MetadataExtension instance) {
         int oldSize = ((FeatureMigrationResults) instance).getFeatureStatuses().size();
         if (oldSize == 0 || randomBoolean()) {
             return new FeatureMigrationResults(
@@ -101,7 +101,7 @@ public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSeria
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<MetadataExtension> instanceReader() {
         return FeatureMigrationResults::new;
     }
 
@@ -111,12 +111,12 @@ public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSeria
     }
 
     @Override
-    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+    protected MetadataExtension makeTestChanges(MetadataExtension testInstance) {
         return mutateInstance(testInstance);
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<MetadataExtension>> diffReader() {
         return FeatureMigrationResults.ResultsDiff::new;
     }
 }

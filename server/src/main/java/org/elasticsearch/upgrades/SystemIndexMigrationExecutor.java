@@ -20,8 +20,8 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -73,7 +73,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<SystemIndexMigrationTaskParams> taskInProgress,
+        PersistentTasksExtensionMetadata.PersistentTask<SystemIndexMigrationTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
         return new SystemIndexMigrator(
@@ -93,7 +93,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    public PersistentTasksExtensionMetadata.Assignment getAssignment(
         SystemIndexMigrationTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState
@@ -106,7 +106,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
-            return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
+            return new PersistentTasksExtensionMetadata.Assignment(discoveryNode.getId(), "");
         }
     }
 

@@ -17,7 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -76,12 +76,12 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         // Step 2: Search for all the transform tasks (matching the request) that *do not* have corresponding transform config.
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = ActionListener.wrap(r -> {
             Set<String> transformConfigIds = r.results().stream().map(TransformConfig::getId).collect(toSet());
-            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findTransformTasks(
+            Collection<PersistentTasksExtensionMetadata.PersistentTask<?>> transformTasks = TransformTask.findTransformTasks(
                 request.getId(),
                 clusterState
             );
             List<Response.Error> errors = transformTasks.stream()
-                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                .map(PersistentTasksExtensionMetadata.PersistentTask::getId)
                 .filter(not(transformConfigIds::contains))
                 .map(transformId -> new Response.Error("dangling_task", Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)))
                 .collect(toList());

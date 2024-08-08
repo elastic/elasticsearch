@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -82,7 +82,7 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
 
     static List<FollowerInfo> getFollowInfos(List<String> concreteFollowerIndices, ClusterState state) {
         List<FollowerInfo> followerInfos = new ArrayList<>();
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksExtensionMetadata persistentTasks = state.metadata().custom(PersistentTasksExtensionMetadata.TYPE);
 
         for (String index : concreteFollowerIndices) {
             IndexMetadata indexMetadata = state.metadata().index(index);

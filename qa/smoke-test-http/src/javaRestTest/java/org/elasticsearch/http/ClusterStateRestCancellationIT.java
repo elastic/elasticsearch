@@ -67,7 +67,10 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
     public void testClusterStateRestCancellation() throws Exception {
 
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-        updateClusterState(clusterService, s -> ClusterState.builder(s).putCustom(AssertingCustom.NAME, AssertingCustom.INSTANCE).build());
+        updateClusterState(
+            clusterService,
+            s -> ClusterState.builder(s).putCustom(AssertingExtension.NAME, AssertingExtension.INSTANCE).build()
+        );
 
         final Request clusterStateRequest = new Request(HttpGet.METHOD_NAME, "/_cluster/state");
         clusterStateRequest.addParameter("wait_for_metadata_version", Long.toString(Long.MAX_VALUE));
@@ -93,13 +96,13 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().equals(ClusterStateAction.NAME)));
         });
 
-        updateClusterState(clusterService, s -> ClusterState.builder(s).removeCustom(AssertingCustom.NAME).build());
+        updateClusterState(clusterService, s -> ClusterState.builder(s).removeCustom(AssertingExtension.NAME).build());
     }
 
-    private static class AssertingCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
+    private static class AssertingExtension implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String NAME = "asserting";
-        static final AssertingCustom INSTANCE = new AssertingCustom();
+        static final AssertingExtension INSTANCE = new AssertingExtension();
 
         @Override
         public String getWriteableName() {
@@ -126,7 +129,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return Collections.singletonList(
-                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, AssertingCustom.NAME, in -> AssertingCustom.INSTANCE)
+                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, AssertingExtension.NAME, in -> AssertingExtension.INSTANCE)
             );
         }
     }

@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata;
+import org.elasticsearch.persistent.PersistentTasksExtensionMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -87,12 +87,12 @@ public class TransportCloseJobActionTests extends ESTestCase {
         List<String> closingJobIds = new ArrayList<>();
         List<String> failedJobIds = new ArrayList<>();
 
-        PersistentTasksCustomMetadata.Builder taskBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder taskBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("open-job", null, JobState.OPENED, taskBuilder);
         addJobTask("failed-job", null, JobState.FAILED, taskBuilder);
         addJobTask("closing-job", null, JobState.CLOSING, taskBuilder);
         addJobTask("opening-job", null, JobState.OPENING, taskBuilder);
-        PersistentTasksCustomMetadata tasks = taskBuilder.build();
+        PersistentTasksExtensionMetadata tasks = taskBuilder.build();
 
         for (String id : new String[] { "open-job", "closing-job", "opening-job", "failed-job" }) {
             TransportCloseJobAction.addJobAccordingToState(id, tasks, openJobIds, closingJobIds, failedJobIds);
@@ -104,7 +104,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testStopDatafeedsIfNecessary() {
-        final PersistentTasksCustomMetadata.Builder datafeedStartedTaskBuilder = PersistentTasksCustomMetadata.builder();
+        final PersistentTasksExtensionMetadata.Builder datafeedStartedTaskBuilder = PersistentTasksExtensionMetadata.builder();
         String jobId = "job-with-started-df";
         String datafeedId = "df1";
         addJobTask(jobId, null, JobState.OPENED, datafeedStartedTaskBuilder);
@@ -127,7 +127,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         assertTrue(responseHolder.get());
         assertNull(exceptionHolder.get());
 
-        final PersistentTasksCustomMetadata.Builder datafeedNotStartedTaskBuilder = PersistentTasksCustomMetadata.builder();
+        final PersistentTasksExtensionMetadata.Builder datafeedNotStartedTaskBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask(jobId, null, JobState.OPENED, datafeedNotStartedTaskBuilder);
         if (randomBoolean()) {
             addTask(datafeedId, 0L, null, DatafeedState.STOPPED, datafeedNotStartedTaskBuilder);
@@ -142,7 +142,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testStopDatafeedsIfNecessaryWithForce() {
-        final PersistentTasksCustomMetadata.Builder datafeedStartedTaskBuilder = PersistentTasksCustomMetadata.builder();
+        final PersistentTasksExtensionMetadata.Builder datafeedStartedTaskBuilder = PersistentTasksExtensionMetadata.builder();
         String jobId = "job-with-started-df";
         String datafeedId = "df1";
         addJobTask(jobId, null, JobState.OPENED, datafeedStartedTaskBuilder);
@@ -166,7 +166,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         assertTrue(responseHolder.get());
         assertNull(exceptionHolder.get());
 
-        final PersistentTasksCustomMetadata.Builder datafeedNotStartedTaskBuilder = PersistentTasksCustomMetadata.builder();
+        final PersistentTasksExtensionMetadata.Builder datafeedNotStartedTaskBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask(jobId, null, JobState.OPENED, datafeedNotStartedTaskBuilder);
         if (randomBoolean()) {
             addTask(datafeedId, 0L, null, DatafeedState.STOPPED, datafeedNotStartedTaskBuilder);
@@ -181,7 +181,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     public void testValidate_givenFailedJob() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id_failed", null, JobState.FAILED, tasksBuilder);
 
         mockDatafeedConfigFindDatafeeds(Collections.emptySet());
@@ -211,11 +211,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     public void testValidate_withSpecificJobIds() {
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("job_id_closing", null, JobState.CLOSING, tasksBuilder);
         addJobTask("job_id_open-1", null, JobState.OPENED, tasksBuilder);
         addJobTask("job_id_open-2", null, JobState.OPENED, tasksBuilder);
-        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+        PersistentTasksExtensionMetadata tasks = tasksBuilder.build();
 
         mockDatafeedConfigFindDatafeeds(Collections.emptySet());
 
@@ -251,11 +251,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
     public void testDoExecute_whenNothingToClose() {
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("foo", null, JobState.CLOSED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(new Metadata.Builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .metadata(new Metadata.Builder().putCustom(PersistentTasksExtensionMetadata.TYPE, tasksBuilder.build()))
             .build();
 
         TransportCloseJobAction transportAction = createAction();
@@ -290,7 +290,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         List<String> openJobIds = Arrays.asList("openjob1", "openjob2");
         List<String> closingJobIds = Collections.singletonList("closingjob1");
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        PersistentTasksExtensionMetadata.Builder tasksBuilder = PersistentTasksExtensionMetadata.builder();
         addJobTask("openjob1", null, JobState.OPENED, tasksBuilder);
         addJobTask("openjob2", null, JobState.OPENED, tasksBuilder);
         addJobTask("closingjob1", null, JobState.CLOSING, tasksBuilder);
@@ -326,7 +326,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         long startTime,
         String nodeId,
         DatafeedState state,
-        PersistentTasksCustomMetadata.Builder tasks
+        PersistentTasksExtensionMetadata.Builder tasks
     ) {
         tasks.addTask(
             MlTasks.datafeedTaskId(datafeedId),

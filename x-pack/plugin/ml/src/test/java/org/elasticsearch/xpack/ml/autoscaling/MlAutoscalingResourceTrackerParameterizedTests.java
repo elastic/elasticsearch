@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -395,11 +394,25 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
     }
 
     private static long calculateExtraPerNodeModelMemoryBytes(Collection<TrainedModelAssignment> assignments) {
-        return assignments.stream().findFirst().get().getTaskParams().estimateMemoryUsageBytes();
+        return assignments.stream()
+            .max((a, b) -> Long.compare(a.getTaskParams().estimateMemoryUsageBytes(), b.getTaskParams().estimateMemoryUsageBytes()))
+            .get()
+            .getTaskParams()
+            .estimateMemoryUsageBytes();
     }
 
     private static int calculateTotalExistingAndUsedProcessors(Map<String, TrainedModelAssignment> assignments) {
-        return assignments.values().stream().mapToInt(TrainedModelAssignment::totalTargetProcessors).sum();
+        return assignments.values().stream().filter(tma -> {
+            if (tma.getAssignmentState() == AssignmentState.STARTED) {
+                return true;
+            } else if (tma.getAssignmentState() == AssignmentState.STARTING && tma.getNodeRoutingTable().isEmpty() == false) {
+                return true;
+            } else if (tma.getAssignmentState() == AssignmentState.STOPPING) {
+                return false;
+            } else {
+                return false;
+            }
+        }).mapToInt(TrainedModelAssignment::totalTargetProcessors).sum();
     }
 
     private static long calculateExistingTotalModelMemoryBytes(Map<String, TrainedModelAssignment> assignments) {
@@ -408,8 +421,8 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
                 return true;
             } else if (tma.getAssignmentState() == AssignmentState.STARTING && tma.getNodeRoutingTable().isEmpty() == false) {
                 return true;
-            } else if (tma.getAssignmentState() == AssignmentState.STOPPING && tma.getNodeRoutingTable().isEmpty() == false) {
-                return true;
+            } else if (tma.getAssignmentState() == AssignmentState.STOPPING) {
+                return false;
             } else {
                 return false;
             }
@@ -575,7 +588,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
         int minNodes = Math.min(3, Math.max(1, numAllocationsRequestedPreviously));
         long extraPerNodeModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(assignments.values());
-        int extraPerNodeProcessors = calculateExtraProcessorsPerNode(assignments, clusterState, true);
+        int extraPerNodeProcessors = calculateExtraProcessorsPerNode(assignments, true);
         long extraModelMemoryBytes = extraPerNodeModelMemoryBytes;
         int extraProcessors = (numAllocationsRequestedPreviously * threadsPerAllocation) * 2 - numProcessorsOnNodes;
         long removeNodeMemoryInBytes = 0;
@@ -606,7 +619,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         long cacheSize
     ) {
         String testDescription =
-            "test scaling up with existing deployment when the new deployment requires more processers per node than are available";
+            "test scaling up with existing deployment when the new deployment requires more processors per node than are available";
         // Generic settings
         ClusterSettings clusterSettings = createClusterSettings();
         MlMemoryTracker mlMemoryTracker = createMlMemoryTracker();
@@ -668,7 +681,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
         int minNodes = Math.min(3, Math.max(1, numAllocationsRequestedPreviously));
         long extraPerNodeModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(assignments.values());
-        int extraPerNodeProcessors = calculateExtraProcessorsPerNode(assignments, clusterState, true);
+        int extraPerNodeProcessors = calculateExtraProcessorsPerNode(assignments, true);
         long extraModelMemoryBytes = extraPerNodeModelMemoryBytes;
         int extraProcessors = (numAllocationsRequestedPreviously * threadsPerAllocation) * 2;
         long removeNodeMemoryInBytes = 0;
@@ -692,17 +705,12 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         return new TestCase(testDescription, clusterState, clusterSettings, mlMemoryTracker, settings, verificationListener);
     }
 
-    private static int calculateExtraProcessorsPerNode(
-        Map<String, TrainedModelAssignment> assignments,
-        ClusterState clusterState,
-        boolean isScaleUp
-    ) {
-        int nodeSize = calculateNodeSize(clusterState);
+    private static int calculateExtraProcessorsPerNode(Map<String, TrainedModelAssignment> assignments, boolean isScaleUp) {
         int maxTPA = calculateMaxThreadsPerAllocation(assignments);
-        if (nodeSize >= maxTPA) {
-            return isScaleUp ? 1 : 0;
-        } else {
+        if (isScaleUp) {
             return maxTPA;
+        } else {
+            return 0;
         }
     }
 
@@ -722,7 +730,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         int numAllocationsRequestedPreviously = 4;
         DiscoveryNodes nodes = createMlNodesOfUniformSize(
             threadsPerAllocation,
-            ByteSizeValue.ofBytes(modelBytes + cacheSize),
+            ByteSizeValue.ofBytes(modelBytes), // TODO include cache size in autoscaling calculation
             numAllocationsRequestedPreviously * threadsPerAllocation,
             ByteSizeValue.ZERO
         );
@@ -747,6 +755,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
             assignments.put("TrainedModelAssignment-" + seed + "-" + 0, tmaBuilder.build());
         }
         // assignment 2 - not deployed yet
+        String assignment2Id = "TrainedModelAssignment-" + seed + "-" + 1;
         {
             StartTrainedModelDeploymentAction.TaskParams taskParams = createTaskParams(
                 1,
@@ -758,7 +767,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
             TrainedModelAssignment.Builder tmaBuilder = TrainedModelAssignment.Builder.empty(taskParams, null);
             tmaBuilder.setAssignmentState(AssignmentState.STARTING);
             tmaBuilder.clearNodeRoutingTable();
-            assignments.put("TrainedModelAssignment-" + seed + "-" + 1, tmaBuilder.build());
+            assignments.put(assignment2Id, tmaBuilder.build());
         }
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = new TrainedModelAssignmentMetadata(assignments);
 
@@ -770,15 +779,11 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
         long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
         int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
-        int minNodes = 3; // TODO understand why this value
-        long extraPerNodeModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(
-            Collections.singleton(assignments.get("TrainedModelAssignment-" + seed + "-" + 1))
-        );
-        int extraPerNodeProcessors = 0;
-        long extraModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(
-            Collections.singleton(assignments.get("TrainedModelAssignment-" + seed + "-" + 1))
-        );
-        int extraProcessors = 0;
+        int minNodes = 3;
+        long extraPerNodeModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(assignments.values());
+        int extraPerNodeProcessors = threadsPerAllocation;
+        long extraModelMemoryBytes = assignments.get(assignment2Id).getTaskParams().estimateMemoryUsageBytes();
+        int extraProcessors = threadsPerAllocation;
         long removeNodeMemoryInBytes = 0;
         long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
 
@@ -941,9 +946,9 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
         int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
         int minNodes = 3;
-        long extraPerNodeModelMemoryBytes = 0;
-        int extraPerNodeProcessors = 1;
-        long extraModelMemoryBytes = 0;
+        long extraPerNodeModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(assignments.values());
+        int extraPerNodeProcessors = threadsPerAllocation;
+        long extraModelMemoryBytes = calculateExtraPerNodeModelMemoryBytes(assignments.values());
         int extraProcessors = updatedNumAllocations * threadsPerAllocation - numAllocationsRequestedPreviously * threadsPerAllocation;
         long removeNodeMemoryInBytes = 0;
         long perNodeMemoryOverheadInBytes = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
@@ -987,7 +992,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         int numAllocationsRequestedPreviously = 4;
         int updatedNumAllocations = 8;
         DiscoveryNodes nodes = createMlNodesOfUniformSize(
-            threadsPerAllocation * numAllocationsRequestedPreviously,
+            updatedNumAllocations * numAllocationsRequestedPreviously,
             ByteSizeValue.ofBytes(modelBytes + cacheSize),
             updatedNumAllocations * threadsPerAllocation,
             ByteSizeValue.ZERO
@@ -1021,7 +1026,7 @@ public class MlAutoscalingResourceTrackerParameterizedTests extends ESTestCase {
         long existingPerNodeMemoryBytes = calculateExistingPerNodeMemoryBytes(clusterState);
         long existingTotalModelMemoryBytes = calculateExistingTotalModelMemoryBytes(assignments);
         int totalExistingProcessors = calculateTotalExistingAndUsedProcessors(assignments);
-        int minNodes = 3; // TODO understand why this value
+        int minNodes = 3;
         long extraPerNodeModelMemoryBytes = 0;
         int extraPerNodeProcessors = 0;
         long extraModelMemoryBytes = 0;

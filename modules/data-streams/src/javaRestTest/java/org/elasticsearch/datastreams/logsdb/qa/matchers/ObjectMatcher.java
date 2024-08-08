@@ -11,7 +11,9 @@ package org.elasticsearch.datastreams.logsdb.qa.matchers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-public class ObjectMatcher extends EqualMatcher<Object> {
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+
+public class ObjectMatcher extends GenericEqualsMatcher<Object> {
     ObjectMatcher(
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,

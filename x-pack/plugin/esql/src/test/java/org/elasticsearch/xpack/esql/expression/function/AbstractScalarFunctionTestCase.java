@@ -304,7 +304,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             assertTypeResolutionFailure(expression);
             return;
         }
-        assertFalse(expression.typeResolved().unresolved());
+        assertFalse("expected resolved", expression.typeResolved().unresolved());
         Expression nullOptimized = new FoldNull().rule(expression);
         assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());

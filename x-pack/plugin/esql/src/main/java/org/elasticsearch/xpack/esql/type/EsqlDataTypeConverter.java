@@ -46,6 +46,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAmount;
 import java.util.Locale;
 import java.util.Map;
@@ -322,8 +323,22 @@ public class EsqlDataTypeConverter {
         return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
     }
 
+    public static long dateNanosToLong(String dateNano) {
+        return dateNanosToLong(dateNano, DateFormatter.forPattern("strict_date_optional_time_nanos"));
+    }
+
+    public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
+        TemporalAccessor parsed = formatter.parse(dateNano);
+        long nanos = parsed.getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000 + parsed.getLong(ChronoField.NANO_OF_SECOND);
+        return nanos;
+    }
+
     public static String dateTimeToString(long dateTime) {
         return DEFAULT_DATE_TIME_FORMATTER.formatMillis(dateTime);
+    }
+
+    public static String nanoTimeToString(long dateTime) {
+        return DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(dateTime);
     }
 
     public static String dateTimeToString(long dateTime, DateFormatter formatter) {

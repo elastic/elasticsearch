@@ -22,7 +22,6 @@ import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.Objects;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -35,7 +34,6 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class RankDocsQuery extends Query {
 
     private final RankDoc[] docs;
-    private final Iterator<Float> scores;
     private final int[] segmentStarts;
     private final Object contextIdentity;
 
@@ -54,19 +52,6 @@ public class RankDocsQuery extends Query {
         this.docs = docs;
         this.segmentStarts = segmentStarts;
         this.contextIdentity = contextIdentity;
-        this.scores = new Iterator<>() {
-            int i = 0;
-
-            @Override
-            public boolean hasNext() {
-                return i < docs.length;
-            }
-
-            @Override
-            public Float next() {
-                return docs[i++].score;
-            }
-        };
     }
 
     @Override
@@ -113,6 +98,7 @@ public class RankDocsQuery extends Query {
                     final int lower = segmentStarts[context.ord];
                     final int upper = segmentStarts[context.ord + 1];
                     int upTo = -1;
+                    float score;
 
                     @Override
                     public DocIdSetIterator iterator() {
@@ -146,16 +132,19 @@ public class RankDocsQuery extends Query {
 
                     @Override
                     public float getMaxScore(int docId) {
-                        return 0;
+                        if (docId != NO_MORE_DOCS) {
+                            docId += context.docBase;
+                        }
+                        float maxScore = 0;
+                        for (int idx = Math.max(lower, upTo); idx < upper && docs[idx].doc <= docId; idx++) {
+                            maxScore = Math.max(maxScore, docs[idx].score);
+                        }
+                        return maxScore;
                     }
 
                     @Override
                     public float score() {
-                        if (scores.hasNext()) {
-                            return scores.next();
-                        } else {
-                            throw new IllegalStateException("No more scores available");
-                        }
+                        return docs[upTo].score;
                     }
 
                     @Override

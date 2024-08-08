@@ -103,6 +103,7 @@ public class SnapshotShutdownProgressTracker {
     }
 
     protected void cancelProgressLogger() {
+        assert scheduledProgressLoggerFuture != null : "Somehow shutdown mode was removed before it was added.";
         scheduledProgressLoggerFuture.cancel();
     }
 
@@ -110,6 +111,8 @@ public class SnapshotShutdownProgressTracker {
      * Called as soon as a node shutdown signal is received.
      */
     public void onClusterStateAddShutdown() {
+        assert this.shutdownStartMillis == -1 : "Expected not to be tracking anything, since we're only just entering shutdown mode";
+
         // Reset these values when a new shutdown occurs, to minimize/eliminate chances of racing if shutdown is later removed and async
         // shard snapshots updates continue to occur.
         doneCount.set(0);
@@ -135,6 +138,8 @@ public class SnapshotShutdownProgressTracker {
      * case, no further shutdown shard snapshot progress reporting is desired.
      */
     public void onClusterStateRemoveShutdown() {
+        assert shutdownStartMillis != -1 : "Expected a call to add shutdown mode before a call to remove shutdown mode.";
+
         // Reset the shutdown specific trackers.
         this.shutdownStartMillis = -1;
         this.shutdownFinishedSignallingPausingMillis = -1;

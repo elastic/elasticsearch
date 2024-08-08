@@ -137,9 +137,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             if (previousSnapshots.equals(currentSnapshots) == false) {
                 final var localNodeId = clusterService.localNode().getId();
 
-                // Track when this node goes into shutdown mode because we'll start pausing shard snapshots for shutdown.
-                if (previousSnapshots.isNodeIdForRemoval(localNodeId) && currentSnapshots.isNodeIdForRemoval(localNodeId) == false) {
-                    snapshotShutdownProgressTracker.onClusterStateRemoveShutdown();
+                {
+                    // Track when this node goes into shutdown mode because we'll start pausing shard snapshots for shutdown.
+                    final var previouslyInShutdownMode = previousSnapshots.isNodeIdForRemoval(localNodeId);
+                    final var currentlyInShutdownMode = previousSnapshots.isNodeIdForRemoval(localNodeId);
+                    if (previouslyInShutdownMode == false && currentlyInShutdownMode) {
+                        snapshotShutdownProgressTracker.onClusterStateAddShutdown();
+                    }
+                    if (previouslyInShutdownMode && currentlyInShutdownMode == false) {
+                        snapshotShutdownProgressTracker.onClusterStateRemoveShutdown();
+                    }
                 }
 
                 synchronized (shardSnapshots) {
@@ -156,6 +163,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                             );
                         }
                     }
+                    snapshotShutdownProgressTracker.onClusterStatePausingSetForAllShardSnapshots();
                 }
             }
 
@@ -338,7 +346,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     }
 
     private void pauseShardSnapshotsForNodeRemoval(String localNodeId, SnapshotsInProgress.Entry entry) {
-        snapshotShutdownProgressTracker.onClusterStateAddShutdown();
         final var localShardSnapshots = shardSnapshots.getOrDefault(entry.snapshot(), Map.of());
 
         for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
@@ -370,7 +377,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 localShardSnapshotStatus.pauseIfNotCompleted(notifyOnAbortTaskRunner::enqueueTask);
             }
         }
-        snapshotShutdownProgressTracker.onClusterStatePausingSetForAllShardSnapshots();
     }
 
     private Runnable newShardSnapshotTask(

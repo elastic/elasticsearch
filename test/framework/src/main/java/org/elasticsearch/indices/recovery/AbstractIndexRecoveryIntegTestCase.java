@@ -107,12 +107,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         assertThat(response.isTimedOut(), is(false));
 
         indicesAdmin().prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue"))
             .get();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -213,12 +208,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         assertThat(response.isTimedOut(), is(false));
 
         indicesAdmin().prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue"))
             .get();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -314,12 +304,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
         indicesAdmin().prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue"))
             .get();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();

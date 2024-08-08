@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +50,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(true),
+        INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -200,24 +203,48 @@ public class EsqlCapabilities {
         /**
          * Add CombineBinaryComparisons rule.
          */
-        COMBINE_BINARY_COMPARISONS;
+        COMBINE_BINARY_COMPARISONS,
+
+        /**
+         * MATCH command support
+         */
+        MATCH_COMMAND(true),
+
+        /**
+         * Support for nanosecond dates as a data type
+         */
+        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG);
 
         private final boolean snapshotOnly;
+        private final FeatureFlag featureFlag;
 
         Cap() {
-            snapshotOnly = false;
+            this(false, null);
         };
 
         Cap(boolean snapshotOnly) {
-            this.snapshotOnly = snapshotOnly;
+            this(snapshotOnly, null);
         };
+
+        Cap(FeatureFlag featureFlag) {
+            this(false, featureFlag);
+        }
+
+        Cap(boolean snapshotOnly, FeatureFlag featureFlag) {
+            assert featureFlag == null || snapshotOnly == false;
+            this.snapshotOnly = snapshotOnly;
+            this.featureFlag = featureFlag;
+        }
+
+        public boolean isEnabled() {
+            if (featureFlag == null) {
+                return Build.current().isSnapshot() || this.snapshotOnly == false;
+            }
+            return featureFlag.isEnabled();
+        }
 
         public String capabilityName() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        public boolean snapshotOnly() {
-            return snapshotOnly;
         }
     }
 
@@ -226,7 +253,7 @@ public class EsqlCapabilities {
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
         for (Cap cap : Cap.values()) {
-            if (Build.current().isSnapshot() || cap.snapshotOnly == false) {
+            if (cap.isEnabled()) {
                 caps.add(cap.capabilityName());
             }
         }

@@ -57,6 +57,25 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
      */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        List<TestCaseSupplier> suppliers,
+        boolean entirelyNullPreservesType,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
+    ) {
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(
+                withNoRowsExpectingNull(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers))),
+                positionalErrorMessageSupplier
+            )
+        );
+    }
+
+    // TODO: Remove and migrate everything to the method with all the parameters
+    /**
+     * @deprecated Use {@link #parameterSuppliersFromTypedDataWithDefaultChecks(List, boolean, PositionalErrorMessageSupplier)} instead.
+     * This method doesn't add all the default checks.
+     */
+    @Deprecated
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
@@ -119,24 +138,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         Expression expression = buildLiteralExpression(testCase);
 
         resolveExpression(expression, aggregatorFunctionSupplier -> {
-            // An aggregation cannot be folded
-        }, evaluableExpression -> {
-            assertTrue(evaluableExpression.foldable());
-            if (testCase.foldingExceptionClass() == null) {
-                Object result = evaluableExpression.fold();
-                // Decode unsigned longs into BigIntegers
-                if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-                    result = NumericUtils.unsignedLongAsBigInteger((Long) result);
-                }
-                assertThat(result, testCase.getMatcher());
-                if (testCase.getExpectedWarnings() != null) {
-                    assertWarnings(testCase.getExpectedWarnings());
-                }
-            } else {
-                Throwable t = expectThrows(testCase.foldingExceptionClass(), evaluableExpression::fold);
-                assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
-            }
-        });
+            // An aggregation cannot be folded.
+            // It's not an error either as not all aggregations are foldable.
+        }, this::evaluate);
     }
 
     private void aggregateSingleMode(Expression expression) {
@@ -263,13 +267,19 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private void evaluate(Expression evaluableExpression) {
-        Object result;
-        try (var evaluator = evaluator(evaluableExpression).get(driverContext())) {
-            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
-                result = toJavaObjectUnsignedLongAware(block, 0);
-            }
+        assertTrue(evaluableExpression.foldable());
+
+        if (testCase.foldingExceptionClass() != null) {
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), evaluableExpression::fold);
+            assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
+            return;
         }
 
+        Object result = evaluableExpression.fold();
+        // Decode unsigned longs into BigIntegers
+        if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
+            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+        }
         assertThat(result, not(equalTo(Double.NaN)));
         assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
         assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
@@ -435,16 +445,23 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      */
     private void processPageGrouping(GroupingAggregator aggregator, Page inputPage, int groupCount) {
         var groupSliceSize = 1;
+        var allValuesNull = IntStream.range(0, inputPage.getBlockCount())
+            .<Block>mapToObj(inputPage::getBlock)
+            .anyMatch(Block::areAllValuesNull);
         // Add data to chunks of groups
         for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
-            var seenGroupIds = new SeenGroupIds.Range(0, currentGroupOffset + groupSliceSize);
+            int groupSliceRemainingSize = Math.min(groupSliceSize, groupCount - currentGroupOffset);
+            var seenGroupIds = new SeenGroupIds.Range(0, allValuesNull ? 0 : currentGroupOffset + groupSliceRemainingSize);
             var addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage);
 
             var positionCount = inputPage.getPositionCount();
             var dataSliceSize = 1;
             // Divide data in chunks
             for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
-                try (var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceSize, dataSliceSize)) {
+                int dataSliceRemainingSize = Math.min(dataSliceSize, positionCount - currentDataOffset);
+                try (
+                    var groups = makeGroupsVector(currentGroupOffset, currentGroupOffset + groupSliceRemainingSize, dataSliceRemainingSize)
+                ) {
                     addInput.add(currentDataOffset, groups);
                 }
 

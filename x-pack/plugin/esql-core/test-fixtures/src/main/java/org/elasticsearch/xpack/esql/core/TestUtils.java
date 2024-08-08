@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -51,7 +50,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -78,21 +76,10 @@ import static org.junit.Assert.assertEquals;
 
 public final class TestUtils {
 
-    public static final ZoneId UTC = ZoneId.of("Z");
-    public static final Configuration TEST_CFG = new Configuration(UTC, null, null);
-
     private static final String MATCHER_TYPE_CONTAINS = "CONTAINS";
     private static final String MATCHER_TYPE_REGEX = "REGEX";
 
     private TestUtils() {}
-
-    public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
-    }
-
-    public static Configuration randomConfiguration(ZoneId zoneId) {
-        return new Configuration(zoneId, randomAlphaOfLength(10), randomAlphaOfLength(10));
-    }
 
     public static Literal of(Object value) {
         return of(Source.EMPTY, value);

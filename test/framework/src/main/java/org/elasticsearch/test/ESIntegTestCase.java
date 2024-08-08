@@ -23,6 +23,9 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -82,6 +85,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -94,12 +99,14 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -119,6 +126,7 @@ import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.node.NodeMocksPlugin;
@@ -663,6 +671,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return client;
     }
 
+    /**
+     * Execute the given {@link ActionRequest} using the given {@link ActionType} and a default node client, wait for it to complete with
+     * a timeout of {@link #SAFE_AWAIT_TIMEOUT}, and then return the result. An exceptional response, timeout or interrupt triggers a test
+     * failure.
+     */
+    public static <T extends ActionResponse> T safeExecute(ActionType<T> action, ActionRequest request) {
+        return safeExecute(client(), action, request);
+    }
+
     public static Iterable<Client> clients() {
         return cluster().getClients();
     }
@@ -1120,12 +1137,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = SearchResponseUtils.getTotalHitsValue(
-                        prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery())
-                    );
-                    if (count == lastKnownCount) {
-                        // no progress - try to refresh for the next time
+                    long count = getTotalHitsAllIndices();
+                    if (count < lastKnownCount) {
+                        // not caught up - try to refresh
                         indicesAdmin().prepareRefresh().get();
+                        count = getTotalHitsAllIndices();
                     }
                     lastKnownCount = count;
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
@@ -1144,6 +1160,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    private static long getTotalHitsAllIndices() {
+        return SearchResponseUtils.getTotalHitsValue(prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery()));
     }
 
     public static SearchRequestBuilder prepareSearch(String... indices) {
@@ -2340,6 +2360,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    @Override
+    protected boolean enableBigArraysReleasedCheck() {
+        // checking that all big arrays have been released makes little sense for a still-running cluster, see comments in
+        // #ensureAllArraysAreReleased for details
+        return isSuiteScopedTest(getTestClass()) == false;
+    }
+
     @AfterClass
     public static void afterClass() throws Exception {
         try {
@@ -2348,6 +2375,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
+                MockBigArrays.ensureAllArraysAreReleased();
                 checkStaticState();
             }
         } finally {
@@ -2542,5 +2570,42 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
+    }
+
+    /**
+     * Allocate the entire capacity of a circuit breaker on a specific node
+     *
+     * @param targetNode The node on which to allocate
+     * @param breakerName The circuit breaker to allocate
+     * @return A {@link Releasable} which will de-allocate the amount allocated
+     */
+    protected static Releasable fullyAllocateCircuitBreakerOnNode(String targetNode, String breakerName) {
+        final var circuitBreaker = internalCluster().getInstance(CircuitBreakerService.class, targetNode).getBreaker(breakerName);
+        final long totalAllocated = fullyAllocate(circuitBreaker);
+        return () -> circuitBreaker.addWithoutBreaking(-totalAllocated);
+    }
+
+    /**
+     * Fully allocate a circuit breaker
+     *
+     * @param circuitBreaker The circuit breaker to allocate
+     * @return the amount of bytes allocated
+     */
+    private static long fullyAllocate(CircuitBreaker circuitBreaker) {
+        long allocationSize = 1;
+        long totalAllocated = 0;
+        while (true) {
+            try {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(allocationSize, "test");
+                totalAllocated += allocationSize;
+            } catch (CircuitBreakingException e) {
+                circuitBreaker.addWithoutBreaking(allocationSize);
+                totalAllocated += allocationSize;
+                break;
+            }
+            allocationSize <<= 1;
+            assert 0 <= allocationSize;
+        }
+        return totalAllocated;
     }
 }

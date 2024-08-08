@@ -1,3 +1,27 @@
+tag::adaptive-allocation[]
+Adaptive allocations configuration object.
+If enabled, the number of allocations of the model is set based on the current load the process gets.
+When the load is high, a new model allocation is automatically created (respecting the value of `max_number_of_allocations` if it's set).
+When the load is low, a model allocation is automatically removed (respecting the value of `min_number_of_allocations` if it's set).
+The number of model allocations cannot be scaled down to less than `1` this way.
+If `adaptive_allocations` is enabled, do not set the number of allocations manually.
+end::adaptive-allocation[]
+
+tag::adaptive-allocation-enabled[]
+If `true`, `adaptive_allocations` is enabled.
+Defaults to `false`.
+end::adaptive-allocation-enabled[]
+
+tag::adaptive-allocation-max-number[]
+Specifies the maximum number of allocations to scale to.
+If set, it must be greater than or equal to `min_number_of_allocations`.
+end::adaptive-allocation-max-number[]
+
+tag::adaptive-allocation-min-number[]
+Specifies the minimum number of allocations to scale to.
+If set, it must be greater than or equal to `1`.
+end::adaptive-allocation-min-number[]
+
 tag::aggregations[]
 If set, the {dfeed} performs aggregation searches. Support for aggregations is
 limited and should be used only with low cardinality data. For more information,

@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -313,7 +313,7 @@ public class VerifierTests extends ESTestCase {
     public void testUnsignedLongTypeMixInComparisons() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -351,7 +351,7 @@ public class VerifierTests extends ESTestCase {
     public void testUnsignedLongTypeMixInArithmetics() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -495,7 +495,7 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:20: argument of [min(network.bytes_in)] must be"
                     + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
-                    + " found value [min(network.bytes_in)] type [counter_long]"
+                    + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
@@ -504,7 +504,7 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:20: argument of [max(network.bytes_in)] must be"
                     + " [boolean, datetime, ip or numeric except unsigned_long or counter types],"
-                    + " found value [max(network.bytes_in)] type [counter_long]"
+                    + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
@@ -626,6 +626,56 @@ public class VerifierTests extends ESTestCase {
             "1:27: SECOND argument of [weighted_avg(salary, 0.0)] cannot be null or 0, received [0.0]",
             error("from test | stats w_avg = weighted_avg(salary, 0.0)")
         );
+    }
+
+    public void testMatchInsideEval() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
+        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+    }
+
+    public void testMatchFilter() throws Exception {
+        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+
+        assertEquals(
+            "1:63: MATCH requires a mapped index field, found [name]",
+            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
+        );
+
+        assertEquals(
+            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
+            error("from test | where salary match \"100\"")
+        );
+
+        assertEquals(
+            "1:19: Invalid condition using MATCH",
+            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
+        );
+
+        assertEquals(
+            "1:51: Invalid condition using MATCH",
+            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
+        );
+
+        assertEquals(
+            "1:45: MATCH requires a mapped index field, found [fn]",
+            error("from test | rename first_name as fn | where fn match \"Anna\"")
+        );
+    }
+
+    public void testMatchCommand() throws Exception {
+        assumeTrue("skipping because MATCH_COMMAND is not enabled", EsqlCapabilities.Cap.MATCH_COMMAND.isEnabled());
+        assertEquals("1:24: MATCH cannot be used after LIMIT", error("from test | limit 10 | match \"Anna\""));
+        assertEquals("1:13: MATCH cannot be used after SHOW", error("show info | match \"8.16.0\""));
+        assertEquals("1:17: MATCH cannot be used after ROW", error("row a= \"Anna\" | match \"Anna\""));
+        assertEquals("1:26: MATCH cannot be used after EVAL", error("from test | eval z = 2 | match \"Anna\""));
+        assertEquals("1:43: MATCH cannot be used after DISSECT", error("from test | dissect first_name \"%{foo}\" | match \"Connection\""));
+        assertEquals("1:27: MATCH cannot be used after DROP", error("from test | drop emp_no | match \"Anna\""));
+        assertEquals("1:35: MATCH cannot be used after EVAL", error("from test | eval n = emp_no * 3 | match \"Anna\""));
+        assertEquals("1:44: MATCH cannot be used after GROK", error("from test | grok last_name \"%{WORD:foo}\" | match \"Anna\""));
+        assertEquals("1:27: MATCH cannot be used after KEEP", error("from test | keep emp_no | match \"Anna\""));
+
+        // TODO Keep adding tests for all unsupported commands
     }
 
     private String error(String query) {

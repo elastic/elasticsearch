@@ -1,5 +1,0 @@
-pr: 111671
-summary: Remove `ioExecutor` from `SharedBlobCacheService`
-area: Snapshot/Restore
-type: enhancement
-issues: []

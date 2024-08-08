@@ -8,6 +8,7 @@ field | result
 boolean | boolean
 cartesian_point | cartesian_point
 cartesian_shape | cartesian_shape
+date_nanos | date_nanos
 datetime | datetime
 double | double
 geo_point | geo_point

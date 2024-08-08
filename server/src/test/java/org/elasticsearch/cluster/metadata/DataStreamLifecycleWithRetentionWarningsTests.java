@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -130,23 +129,15 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         String dataStream = randomAlphaOfLength(5);
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
 
-        DataStreamFactoryRetention factoryRetention;
+        DataStreamFactoryRetention factoryRetention = getDefaultFactoryRetention(defaultRetention);
         ClusterState before = ClusterState.builder(
             DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of())
         ).build();
-        if (randomBoolean()) {
-            factoryRetention = DataStreamFactoryRetention.emptyFactoryRetention();
-            before = ClusterState.builder(before)
-                .putCustom(DataStreamGlobalRetention.TYPE, new DataStreamGlobalRetention(defaultRetention, null))
-                .build();
-        } else {
-            factoryRetention = getDefaultFactoryRetention(defaultRetention);
-        }
 
         MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            new DataStreamGlobalRetentionResolver(factoryRetention)
+            new DataStreamGlobalRetentionProvider(factoryRetention)
         );
 
         ClusterState after = metadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), DataStreamLifecycle.DEFAULT);
@@ -254,17 +245,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             new IndexSettingProviders(Set.of())
         );
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
-        DataStreamFactoryRetention factoryRetention;
-        ClusterState state;
-        if (randomBoolean()) {
-            factoryRetention = DataStreamFactoryRetention.emptyFactoryRetention();
-            state = ClusterState.builder(ClusterName.DEFAULT)
-                .putCustom(DataStreamGlobalRetention.TYPE, new DataStreamGlobalRetention(defaultRetention, null))
-                .build();
-        } else {
-            state = ClusterState.EMPTY_STATE;
-            factoryRetention = getDefaultFactoryRetention(defaultRetention);
-        }
+        DataStreamFactoryRetention factoryRetention = getDefaultFactoryRetention(defaultRetention);
+        ClusterState state = ClusterState.EMPTY_STATE;
         MetadataIndexTemplateService metadataIndexTemplateService = new MetadataIndexTemplateService(
             clusterService,
             createIndexService,
@@ -273,7 +255,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            new DataStreamGlobalRetentionResolver(factoryRetention)
+            new DataStreamGlobalRetentionProvider(factoryRetention)
         );
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

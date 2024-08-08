@@ -1540,7 +1540,7 @@ public class AnalyzerTests extends ESTestCase {
             | enrich languages on x
             | keep first_name, language_name, id
             """));
-        assertThat(e.getMessage(), containsString("Unsupported type [BOOLEAN] for enrich matching field [x]; only [KEYWORD,"));
+        assertThat(e.getMessage(), containsString("Unsupported type [boolean] for enrich matching field [x]; only [keyword, "));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             FROM airports
@@ -1548,7 +1548,7 @@ public class AnalyzerTests extends ESTestCase {
             | ENRICH city_boundaries ON x
             | KEEP abbrev, airport, region
             """, "airports", "mapping-airports.json"));
-        assertThat(e.getMessage(), containsString("Unsupported type [KEYWORD] for enrich matching field [x]; only [GEO_POINT,"));
+        assertThat(e.getMessage(), containsString("Unsupported type [keyword] for enrich matching field [x]; only [geo_point, "));
     }
 
     public void testValidEnrich() {

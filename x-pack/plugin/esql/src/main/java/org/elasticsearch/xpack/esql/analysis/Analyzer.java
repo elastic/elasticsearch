@@ -810,7 +810,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
                     if (Arrays.asList(allowed).contains(dataType) == false) {
-                        String suffix = "only " + Arrays.toString(allowed) + " allowed for type [" + matchType + "]";
+                        String suffix = "only ["
+                            + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
+                            + "] allowed for type ["
+                            + matchType
+                            + "]";
                         resolved = ua.withUnresolvedMessage(
                             "Unsupported type ["
                                 + resolved.dataType().typeName()

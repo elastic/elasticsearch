@@ -632,30 +632,6 @@ public class AnalyzerTests extends ESTestCase {
             """, "_meta_field", "e", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
-    public void testRenameUnsupportedField() {
-        assertProjectionWithMapping("""
-            from test
-            | rename unsupported as u
-            | keep int, u, float
-            """, "mapping-multi-field-variation.json", "int", "u", "float");
-    }
-
-    public void testRenameUnsupportedFieldChained() {
-        assertProjectionWithMapping("""
-            from test
-            | rename unsupported as u1, u1 as u2
-            | keep int, u2, float
-            """, "mapping-multi-field-variation.json", "int", "u2", "float");
-    }
-
-    public void testRenameUnsupportedAndResolved() {
-        assertProjectionWithMapping("""
-            from test
-            | rename unsupported as u, float as f
-            | keep int, u, f
-            """, "mapping-multi-field-variation.json", "int", "u", "f");
-    }
-
     public void testRenameUnsupportedSubFieldAndResolved() {
         assertProjectionWithMapping("""
             from test

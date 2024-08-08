@@ -23,7 +23,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -48,22 +47,8 @@ public final class BulkRequestParser {
     private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
     private static final String STRICT_ACTION_PARSING_WARNING_KEY = "bulk_request_strict_action_parsing";
 
-    private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
-    private static final ParseField ID = new ParseField("_id");
-    private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField OP_TYPE = new ParseField("op_type");
-    private static final ParseField VERSION = new ParseField("version");
-    private static final ParseField VERSION_TYPE = new ParseField("version_type");
-    private static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
-    private static final ParseField PIPELINE = new ParseField("pipeline");
-    private static final ParseField SOURCE = new ParseField("_source");
-    private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
-    private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
-    private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
-    private static final ParseField REQUIRE_DATA_STREAM = new ParseField(DocWriteRequest.REQUIRE_DATA_STREAM);
-    private static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
-    private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
+    private static final String SOURCE = "_source";
+    private static final String DYNAMIC_TEMPLATES = "dynamic_templates";
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     // for CompatibleApi V7 this means to deprecate on type, for V8+ it means to throw an error
@@ -225,53 +210,49 @@ public final class BulkRequestParser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (allowExplicitIndex == false) {
-                                    throw new IllegalArgumentException("explicit index in bulk is not allowed");
+                            switch (currentFieldName) {
+                                case "_index" -> {
+                                    if (allowExplicitIndex == false) {
+                                        throw new IllegalArgumentException("explicit index in bulk is not allowed");
+                                    }
+                                    index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                                 }
-                                index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
-                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (parser.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
-                                    // for bigger bulks, deprecation throttling might not be enough
-                                    if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
-                                        deprecationLogger.compatibleCritical("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-                                        typesDeprecationLogged = true;
-                                    }
-                                } else if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
-                                    && deprecateOrErrorOnType) {
-                                        throw new IllegalArgumentException(
-                                            "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
-                                        );
-                                    }
-                                type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
-                            } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                                id = parser.text();
-                            } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                                routing = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
-                            } else if (OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                opType = parser.text();
-                            } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                                version = parser.longValue();
-                            } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                versionType = VersionType.fromString(parser.text());
-                            } else if (IF_SEQ_NO.match(currentFieldName, parser.getDeprecationHandler())) {
-                                ifSeqNo = parser.longValue();
-                            } else if (IF_PRIMARY_TERM.match(currentFieldName, parser.getDeprecationHandler())) {
-                                ifPrimaryTerm = parser.longValue();
-                            } else if (RETRY_ON_CONFLICT.match(currentFieldName, parser.getDeprecationHandler())) {
-                                retryOnConflict = parser.intValue();
-                            } else if (PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                pipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
-                            } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                fetchSourceContext = FetchSourceContext.fromXContent(parser);
-                            } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
-                                requireAlias = parser.booleanValue();
-                            } else if (REQUIRE_DATA_STREAM.match(currentFieldName, parser.getDeprecationHandler())) {
-                                requireDataStream = parser.booleanValue();
-                            } else if (LIST_EXECUTED_PIPELINES.match(currentFieldName, parser.getDeprecationHandler())) {
-                                listExecutedPipelines = parser.booleanValue();
-                            } else {
-                                throw new IllegalArgumentException(
+                                case "_type" -> {
+                                    if (parser.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
+                                        // for bigger bulks, deprecation throttling might not be enough
+                                        if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
+                                            deprecationLogger.compatibleCritical(
+                                                "bulk_with_types",
+                                                RestBulkAction.TYPES_DEPRECATION_MESSAGE
+                                            );
+                                            typesDeprecationLogged = true;
+                                        }
+                                    } else if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
+                                        && deprecateOrErrorOnType) {
+                                            throw new IllegalArgumentException(
+                                                "Action/metadata line ["
+                                                    + line
+                                                    + "] contains an unknown parameter ["
+                                                    + currentFieldName
+                                                    + "]"
+                                            );
+                                        }
+                                    type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
+                                }
+                                case "_id" -> id = parser.text();
+                                case "routing" -> routing = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
+                                case "op_type" -> opType = parser.text();
+                                case "version" -> version = parser.longValue();
+                                case "version_type" -> versionType = VersionType.fromString(parser.text());
+                                case "if_seq_no" -> ifSeqNo = parser.longValue();
+                                case "if_primary_term" -> ifPrimaryTerm = parser.longValue();
+                                case "retry_on_conflict" -> retryOnConflict = parser.intValue();
+                                case "pipeline" -> pipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
+                                case SOURCE -> fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                                case DocWriteRequest.REQUIRE_ALIAS -> requireAlias = parser.booleanValue();
+                                case DocWriteRequest.REQUIRE_DATA_STREAM -> requireDataStream = parser.booleanValue();
+                                case DocWriteRequest.LIST_EXECUTED_PIPELINES -> listExecutedPipelines = parser.booleanValue();
+                                default -> throw new IllegalArgumentException(
                                     "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
                                 );
                             }
@@ -285,23 +266,21 @@ public final class BulkRequestParser {
                                     + token
                                     + "]"
                             );
-                        } else if (token == XContentParser.Token.START_OBJECT
-                            && DYNAMIC_TEMPLATES.match(currentFieldName, parser.getDeprecationHandler())) {
-                                dynamicTemplates = parser.mapStrings();
-                            } else if (token == XContentParser.Token.START_OBJECT
-                                && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    fetchSourceContext = FetchSourceContext.fromXContent(parser);
-                                } else if (token != XContentParser.Token.VALUE_NULL) {
-                                    throw new IllegalArgumentException(
-                                        "Malformed action/metadata line ["
-                                            + line
-                                            + "], expected a simple value for field ["
-                                            + currentFieldName
-                                            + "] but found ["
-                                            + token
-                                            + "]"
-                                    );
-                                }
+                        } else if (token == XContentParser.Token.START_OBJECT && DYNAMIC_TEMPLATES.equals(currentFieldName)) {
+                            dynamicTemplates = parser.mapStrings();
+                        } else if (token == XContentParser.Token.START_OBJECT && SOURCE.equals(currentFieldName)) {
+                            fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                        } else if (token != XContentParser.Token.VALUE_NULL) {
+                            throw new IllegalArgumentException(
+                                "Malformed action/metadata line ["
+                                    + line
+                                    + "], expected a simple value for field ["
+                                    + currentFieldName
+                                    + "] but found ["
+                                    + token
+                                    + "]"
+                            );
+                        }
                     }
                 } else if (token != XContentParser.Token.END_OBJECT) {
                     throw new IllegalArgumentException(
@@ -320,9 +299,7 @@ public final class BulkRequestParser {
 
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {
-                        throw new IllegalArgumentException(
-                            "Delete request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName()
-                        );
+                        throw new IllegalArgumentException("Delete request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES);
                     }
                     deleteRequestConsumer.accept(
                         new DeleteRequest(index).id(id)
@@ -375,7 +352,7 @@ public final class BulkRequestParser {
                         // TODO: support dynamic_templates in update requests
                         if (dynamicTemplates.isEmpty() == false) {
                             throw new IllegalArgumentException(
-                                "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName()
+                                "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES
                             );
                         }
                         UpdateRequest updateRequest = new UpdateRequest().index(index)

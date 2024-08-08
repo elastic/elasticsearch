@@ -8,14 +8,27 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.TransportException;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
 /**
  * This is a snapshot of telemetry from an individual cross-cluster search for _search or _async_search (or
@@ -57,6 +70,10 @@ public class CCSUsage {
             return this;
         }
 
+        public Builder setFailure(Exception e) {
+            return setFailure(getFailureType(e));
+        }
+
         public Builder setFeature(String feature) {
             this.features.add(feature);
             return this;
@@ -88,6 +105,53 @@ public class CCSUsage {
 
         public int getRemotesCount() {
             return remotesCount;
+        }
+
+        /**
+         * Get failure type as {@link Result} from the search failure exception.
+         */
+        public static Result getFailureType(Exception e) {
+            var unwrapped = ExceptionsHelper.unwrapCause(e);
+            if (unwrapped instanceof Exception) {
+                e = (Exception) unwrapped;
+            }
+            if (ExceptionsHelper.unwrapCorruption(e) != null) {
+                return Result.CORRUPTION;
+            }
+            if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
+                return Result.NOT_FOUND;
+            }
+            if (ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class) != null) {
+                return Result.SECURITY;
+            }
+            if (ExceptionsHelper.unwrap(e, SearchTimeoutException.class) != null) {
+                return Result.TIMEOUT;
+            }
+            if (e instanceof TaskCancelledException || (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null)) {
+                return Result.CANCELED;
+            }
+            if (ExceptionsHelper.unwrap(e, TransportException.class) != null) {
+                return Result.REMOTES_UNAVAILABLE;
+            }
+            if (e instanceof SearchPhaseExecutionException spe) {
+                // If this is a failure that happened because of remote failures only
+                var groupedFails = ExceptionsHelper.groupBy(spe.shardFailures());
+                if (Arrays.stream(groupedFails).allMatch(Builder::isRemoteFailure)) {
+                    return Result.REMOTES_UNAVAILABLE;
+                }
+            }
+            return Result.UNKNOWN;
+        }
+
+        /**
+         * Is this failure coming from a remote cluster?
+         */
+        public static boolean isRemoteFailure(ShardOperationFailedException failure) {
+            if (failure instanceof ShardSearchFailure shardFailure) {
+                SearchShardTarget shard = shardFailure.shard();
+                return shard != null && shard.getClusterAlias() != null && LOCAL_CLUSTER_GROUP_KEY.equals(shard.getClusterAlias()) == false;
+            }
+            return false;
         }
     }
 
@@ -152,4 +216,5 @@ public class CCSUsage {
             return took;
         }
     }
+
 }

@@ -10,9 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -27,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
-import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -81,15 +78,13 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
-import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
@@ -121,7 +116,6 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
-import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
@@ -735,7 +729,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             if (resolvedIndices.getLocalIndices() != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
-                    LOCAL_CLUSTER_GROUP_KEY,
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     false,
                     countDown,
                     exceptions,
@@ -748,7 +742,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     parentTaskId,
                     searchRequest,
                     resolvedIndices.getLocalIndices().indices(),
-                    LOCAL_CLUSTER_GROUP_KEY,
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     timeProvider.absoluteStartMillis(),
                     false
                 );
@@ -1683,7 +1677,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
-                if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
                     exception = wrapRemoteClusterFailure(clusterAlias, e);
                 }
                 if (exceptions.compareAndSet(null, exception) == false) {
@@ -1923,55 +1917,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         public void onFailure(Exception e) {
             searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
             if (collectTelemetry()) {
-                usageBuilder.setFailure(getFailureType(e));
+                usageBuilder.setFailure(e);
                 recordTelemetry();
             }
             listener.onFailure(e);
-        }
-
-        /**
-         * Determine the failure type for telemetry from the exception and its underlying causes.
-         */
-        private Result getFailureType(Exception e) {
-            var unwrapped = ExceptionsHelper.unwrapCause(e);
-            if (unwrapped instanceof Exception) {
-                e = (Exception) unwrapped;
-            }
-            if (ExceptionsHelper.unwrapCorruption(e) != null) {
-                return Result.CORRUPTION;
-            }
-            if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
-                return Result.NOT_FOUND;
-            }
-            if (ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class) != null) {
-                return Result.SECURITY;
-            }
-            if (ExceptionsHelper.unwrap(e, SearchTimeoutException.class) != null) {
-                return Result.TIMEOUT;
-            }
-            if (e instanceof TaskCancelledException || (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null)) {
-                return Result.CANCELED;
-            }
-            if (ExceptionsHelper.unwrap(e, TransportException.class) != null) {
-                return Result.REMOTES_UNAVAILABLE;
-            }
-            if (e instanceof SearchPhaseExecutionException spe) {
-                // If this is a failure that happened because of remote failures only
-                var groupedFails = ExceptionsHelper.groupBy(spe.shardFailures());
-                if (Arrays.stream(groupedFails).allMatch(SearchResponseActionListener::isRemoteFailure)) {
-                    return Result.REMOTES_UNAVAILABLE;
-                }
-            }
-            return Result.UNKNOWN;
-        }
-
-        private static boolean isRemoteFailure(ShardOperationFailedException failure) {
-            if (failure instanceof ShardSearchFailure shardFailure) {
-                return shardFailure.shard() != null
-                    && shardFailure.shard().getClusterAlias() != null
-                    && LOCAL_CLUSTER_GROUP_KEY.equals(shardFailure.shard().getClusterAlias()) == false;
-            }
-            return false;
         }
 
         private void recordTelemetry() {

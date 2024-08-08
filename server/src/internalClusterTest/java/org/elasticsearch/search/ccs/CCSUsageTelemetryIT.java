@@ -671,8 +671,4 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         }
 
     }
-
-    // TODO: implement the following tests:
-    // - scenarios with remotes not allowed to be skipped
-    // - various search failure reasons
 }

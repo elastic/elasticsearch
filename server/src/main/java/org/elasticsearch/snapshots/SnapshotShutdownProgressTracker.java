@@ -27,7 +27,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Tracks progress of shard snapshots during shutdown, on this single data node. Periodically reports progress via logging.
+ * Tracks progress of shard snapshots during shutdown, on this single data node. Periodically reports progress via logging, the interval for
+ * which see {@link #SNAPSHOT_PROGRESS_DURING_SHUTDOWN_INTERVAL_TIME_SETTING}.
  */
 public class SnapshotShutdownProgressTracker {
     /**

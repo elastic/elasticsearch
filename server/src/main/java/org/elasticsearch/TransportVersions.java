@@ -186,6 +186,8 @@ public class TransportVersions {
     public static final TransportVersion REGISTER_SLM_STATS = def(8_716_00_0);
     public static final TransportVersion ESQL_NESTED_UNSUPPORTED = def(8_717_00_0);
 
+    public static final TransportVersion RANK_DOCS_RETRIEVER = def(8_999_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -76,9 +76,7 @@ public final class EsqlExpressionTranslators {
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
         new InComparisons(),
-        // Ranges is redundant until we start combining binary comparisons (see CombineBinaryComparisons in ql's OptimizerRules)
-        // or introduce a BETWEEN keyword.
-        new Ranges(),
+        new Ranges(), // Create Range in PushFiltersToSource for qualified pushable filters on the same field.
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
         new ExpressionTranslators.IsNotNulls(),
@@ -474,27 +472,6 @@ public final class EsqlExpressionTranslators {
             Object lower = valueOf(r.lower());
             Object upper = valueOf(r.upper());
             String format = null;
-
-            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
-            // no matter the timezone provided by the user
-            DateFormatter formatter = null;
-            if (lower instanceof ZonedDateTime || upper instanceof ZonedDateTime) {
-                formatter = DEFAULT_DATE_TIME_FORMATTER;
-            } else if (lower instanceof OffsetTime || upper instanceof OffsetTime) {
-                formatter = HOUR_MINUTE_SECOND;
-            }
-            if (formatter != null) {
-                // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime
-                // instance which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
-                // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format.
-                if (lower instanceof ZonedDateTime || lower instanceof OffsetTime) {
-                    lower = formatter.format((TemporalAccessor) lower);
-                }
-                if (upper instanceof ZonedDateTime || upper instanceof OffsetTime) {
-                    upper = formatter.format((TemporalAccessor) upper);
-                }
-                format = formatter.pattern();
-            }
 
             DataType dataType = r.value().dataType();
             if (DataType.isDateTime(dataType) && DataType.isDateTime(r.lower().dataType()) && DataType.isDateTime(r.upper().dataType())) {

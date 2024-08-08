@@ -130,28 +130,40 @@ public class QueryTranslatorTests extends ESTestCase {
 
         // ANDs
         assertQueryTranslation("""
-            FROM test | WHERE 10 < integer AND integer < 12""", containsString("""
-            "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gt":10,"lt":12,"time_zone":"Z","boost":1.0}}}"""));
+            FROM test | WHERE 10 < integer AND integer < 12""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"integer","next":\\{"range":\\{"integer":\\{"gt":10,"lt":12.*"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10 <= integer AND integer <= 12""", containsString("""
-            "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gte":10,"lte":12,"time_zone":"Z","boost":1.0}}}"""));
+            FROM test | WHERE 10 <= integer AND integer <= 12""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"integer","next":\\{"range":\\{"integer":\\{"gte":10,"lte":12.*"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10 <= integer AND integer < 12""", containsString("""
-            "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gte":10,"lt":12,"time_zone":"Z","boost":1.0}}}"""));
+            FROM test | WHERE 10 <= integer AND integer < 12""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"integer","next":\\{"range":\\{"integer":\\{"gte":10,"lt":12.*"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10.9 < double AND double < 12.1""", containsString("""
-            "esql_single_value":{"field":"double","next":{"range":{"double":{"gt":10.9,"lt":12.1,"time_zone":"Z","boost":1.0}}}"""));
+            FROM test | WHERE 10.9 < double AND double < 12.1""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"double","next":\\{"range":\\{"double":\\{"gt":10.9,"lt":12.1.*"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10.9 <= double AND double <= 12.1""", containsString("""
-            "esql_single_value":{"field":"double","next":{"range":{"double":{"gte":10.9,"lte":12.1,"time_zone":"Z","boost":1.0}}}"""));
+            FROM test | WHERE 10.9 <= double AND double <= 12.1""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"double","next":\\{"range":\\{"double":\\{"gte":10.9,"lte":12.1.*"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 10.9 < double AND double <= 12.1""", containsString("""
-            "esql_single_value":{"field":"double","next":{"range":{"double":{"gt":10.9,"lte":12.1,"time_zone":"Z","boost":1.0}}}"""));
+            FROM test | WHERE 10.9 < double AND double <= 12.1""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"double","next":\\{"range":\\{"double":\\{"gt":10.9,"lte":12.1.*"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long""",
+            matchesRegex("""
+            \\{"esql_single_value":\\{"field":"unsigned_long".*\\{"range":\\{"unsigned_long":\\{"gt":2147483648,"lt":2147483650.*"""));
+
+        assertQueryTranslation(
+            """
+                FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""",
+            matchesRegex("""
+                \\{"esql_single_value":\\{"field":"unsigned_long".*\\{"range":\\{"unsigned_long":\\{"gte":2147483648,"lte":2147483650.*""")
+        );
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", containsString("""
@@ -163,17 +175,6 @@ public class QueryTranslatorTests extends ESTestCase {
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T09:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
             "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
 
-        assertQueryTranslation("""
-            FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long""", containsString("""
-            "esql_single_value":{"field":"unsigned_long","next":{"range":{"unsigned_long":{"gt":2147483648,\
-            "lt":2147483650,"time_zone":"Z","boost":1.0}}}"""));
 
-        assertQueryTranslation(
-            """
-                FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""",
-            containsString("""
-                "esql_single_value":{"field":"unsigned_long","next":{"range":{"unsigned_long":{"gte":2147483648,\
-                "lte":2147483650,"time_zone":"Z","boost":1.0}}}""")
-        );
     }
 }

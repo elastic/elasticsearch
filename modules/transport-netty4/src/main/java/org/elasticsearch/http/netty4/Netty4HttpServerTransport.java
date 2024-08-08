@@ -53,6 +53,7 @@ import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
+import org.elasticsearch.rest.ChunkedZipResponse;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
@@ -382,7 +383,16 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 })
                 .addLast("aggregator", aggregator);
             if (handlingSettings.compression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
+                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
+                    @Override
+                    protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
+                        if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
+                            return null;
+                        } else {
+                            return super.beginEncode(httpResponse, acceptEncoding);
+                        }
+                    }
+                });
             }
             ch.pipeline()
                 .addLast(

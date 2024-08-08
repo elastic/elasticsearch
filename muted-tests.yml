@@ -135,9 +135,6 @@ tests:
   method: testMatchCommand
   issue: https://github.com/elastic/elasticsearch/issues/111661
 - class: org.elasticsearch.rest.ChunkedZipResponseIT
-  method: testGetNextPartFailure
-  issue: https://github.com/elastic/elasticsearch/issues/111697
-- class: org.elasticsearch.rest.ChunkedZipResponseIT
   method: testAbort
   issue: https://github.com/elastic/elasticsearch/issues/111698
 

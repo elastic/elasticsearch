@@ -163,7 +163,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                     final var getNextPartCountDown = request.paramAsInt(GET_NEXT_PART_COUNT_DOWN_PARAM, -1);
                     final Runnable onGetNextPart;
                     final Supplier<EntryBody> entryBodySupplier;
-                    if (getNextPartCountDown <= 1) {
+                    if (getNextPartCountDown <= 0) {
                         onGetNextPart = () -> {};
                         entryBodySupplier = () -> randomContent(between(1, 10), ByteSizeUnit.MB.toIntBytes(1));
                     } else {

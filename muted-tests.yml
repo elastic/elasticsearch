@@ -122,9 +122,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetModel
   issue: https://github.com/elastic/elasticsearch/issues/111570
-- class: org.elasticsearch.rest.ChunkedZipResponseIT
-  method: testAbort
-  issue: https://github.com/elastic/elasticsearch/issues/111698
 
 # Examples:
 #

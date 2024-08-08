@@ -366,9 +366,9 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                     actualEntries.put(name, bytesStream.bytes());
                 }
             }
+        } finally {
+            assertEquals(getExpectedEntries(), actualEntries);
         }
-
-        assertEquals(getExpectedEntries(), actualEntries);
     }
 
     public void testAbort() throws IOException {
@@ -436,13 +436,16 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
             }
         }));
 
-        try (var restClient = createRestClient(internalCluster().getRandomNodeName())) {
-            // one-node REST client to avoid retries
-            expectThrows(ConnectionClosedException.class, () -> restClient.performRequest(request));
+        try {
+            try (var restClient = createRestClient(internalCluster().getRandomNodeName())) {
+                // one-node REST client to avoid retries
+                expectThrows(ConnectionClosedException.class, () -> restClient.performRequest(request));
+            }
+            safeAwait(responseStarted);
+            safeAwait(bodyConsumed);
+        } finally {
+            assertNull(getExpectedEntries()); // mainly just checking that all refs are released
         }
-        safeAwait(responseStarted);
-        safeAwait(bodyConsumed);
-        assertNull(getExpectedEntries()); // mainly just checking that all refs are released
     }
 
     public void testGetNextPartFailure() throws IOException {
@@ -458,8 +461,9 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                 ),
                 anyOf(instanceOf(ConnectionClosedException.class), instanceOf(MalformedChunkCodingException.class))
             );
+        } finally {
+            assertNull(getExpectedEntries()); // mainly just checking that all refs are released
         }
-        assertNull(getExpectedEntries()); // mainly just checking that all refs are released
     }
 
     private static Map<String, BytesReference> getExpectedEntries() {

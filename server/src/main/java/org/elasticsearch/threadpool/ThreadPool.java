@@ -568,7 +568,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public ExecutorService executor(String name) {
         final ExecutorHolder holder = executors.get(name);
         if (holder == null) {
-            logger.warn("IRAKLIS all executors: {}", executors);
             final var message = "no executor service found for [" + name + "]";
             assert false : message;
             throw new IllegalArgumentException(message);

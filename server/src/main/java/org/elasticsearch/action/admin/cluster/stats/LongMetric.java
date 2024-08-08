@@ -8,7 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.HdrHistogram.DoubleHistogram;
+import org.HdrHistogram.ConcurrentHistogram;
+import org.HdrHistogram.Histogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,11 +25,11 @@ import java.util.zip.DataFormatException;
  * {@link LongMetricValue} is a snapshot of the current state of the metric.
  */
 public class LongMetric {
-    private final DoubleHistogram values;
+    private final Histogram values;
     private static final int SIGNIFICANT_DIGITS = 2;
 
     LongMetric() {
-        values = new DoubleHistogram(SIGNIFICANT_DIGITS);
+        values = new ConcurrentHistogram(SIGNIFICANT_DIGITS);
     }
 
     void record(long v) {
@@ -47,9 +48,9 @@ public class LongMetric {
         // We have to carry the full histogram around since we might need to calculate aggregate percentiles
         // after collecting individual stats from the nodes, and we can't do that without having the full histogram.
         // This costs about 2K per metric, which was deemed acceptable.
-        private final DoubleHistogram values;
+        private final Histogram values;
 
-        public LongMetricValue(DoubleHistogram values) {
+        public LongMetricValue(Histogram values) {
             // Copy here since we don't want the snapshot value to change if somebody updates the original one
             this.values = values.copy();
         }
@@ -59,7 +60,7 @@ public class LongMetric {
         }
 
         LongMetricValue() {
-            this.values = new DoubleHistogram(SIGNIFICANT_DIGITS);
+            this.values = new Histogram(SIGNIFICANT_DIGITS);
         }
 
         public void add(LongMetricValue v) {
@@ -71,7 +72,7 @@ public class LongMetric {
             ByteBuffer bb = ByteBuffer.wrap(b);
             try {
                 // TODO: not sure what is the good value for minBarForHighestToLowestValueRatio here?
-                DoubleHistogram dh = DoubleHistogram.decodeFromCompressedByteBuffer(bb, 1);
+                Histogram dh = Histogram.decodeFromCompressedByteBuffer(bb, 1);
                 return new LongMetricValue(dh);
             } catch (DataFormatException e) {
                 throw new IOException(e);
@@ -92,7 +93,7 @@ public class LongMetric {
         }
 
         public long max() {
-            return (long) Math.ceil(values.getMaxValue());
+            return values.getMaxValue();
         }
 
         public long avg() {
@@ -100,7 +101,7 @@ public class LongMetric {
         }
 
         public long p90() {
-            return (long) Math.ceil(values.getValueAtPercentile(90));
+            return values.getValueAtPercentile(90);
         }
 
         @Override

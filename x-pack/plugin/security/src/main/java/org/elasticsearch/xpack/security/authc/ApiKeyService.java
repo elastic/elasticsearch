@@ -390,12 +390,14 @@ public class ApiKeyService implements Closeable {
                 listener.onFailure(workflowsValidationException);
                 return;
             }
-            createApiKeyAndIndexIt(
-                authentication,
-                request,
-                filterRoleDescriptorsForMixedCluster(userRoleDescriptors, transportVersion, request.getId()),
-                listener
+
+            Set<RoleDescriptor> filteredRoleDescriptors = filterRoleDescriptorsForMixedCluster(
+                userRoleDescriptors,
+                transportVersion,
+                request.getId()
             );
+
+            createApiKeyAndIndexIt(authentication, request, filteredRoleDescriptors, listener);
         }
     }
 
@@ -640,17 +642,17 @@ public class ApiKeyService implements Closeable {
             logger.debug("Updating [{}] API keys", buildDelimitedStringWithLimit(10, apiKeyIds));
         }
 
+        Set<RoleDescriptor> filteredRoleDescriptors = filterRoleDescriptorsForMixedCluster(
+            userRoleDescriptors,
+            transportVersion,
+            apiKeyIds
+        );
+
         findVersionedApiKeyDocsForSubject(
             authentication,
             apiKeyIds,
             ActionListener.wrap(
-                versionedDocs -> updateApiKeys(
-                    authentication,
-                    request,
-                    filterRoleDescriptorsForMixedCluster(userRoleDescriptors, transportVersion, apiKeyIds),
-                    versionedDocs,
-                    listener
-                ),
+                versionedDocs -> updateApiKeys(authentication, request, filteredRoleDescriptors, versionedDocs, listener),
                 ex -> listener.onFailure(traceLog("bulk update", ex))
             )
         );
@@ -825,8 +827,8 @@ public class ApiKeyService implements Closeable {
     }
 
     /**
-     * This method removes any global cluster privileges that are not support by the remote node from the given role descriptors
-     * since storing these roles would cause parsing issues on old nodes
+     * This method removes any global cluster privileges from the given role descriptors when we are in a mixed cluster in which some of
+     * the nodes do not support global cluster privileges since storing these roles would cause parsing issues on old nodes
      */
     static Set<RoleDescriptor> maybeRemoveGlobalPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,

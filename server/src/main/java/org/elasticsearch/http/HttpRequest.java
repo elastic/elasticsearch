@@ -27,7 +27,7 @@ public interface HttpRequest extends HttpPreRequest {
         HTTP_1_1
     }
 
-    BytesReference content();
+    HttpBody body();
 
     List<String> strictCookies();
 
@@ -46,7 +46,7 @@ public interface HttpRequest extends HttpPreRequest {
     Exception getInboundException();
 
     /**
-     * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #content()}
+     * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #body()}
      * after this method has been invoked is undefined and implementation specific.
      */
     void release();

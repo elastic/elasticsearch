@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +54,12 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         ClusterService clusterService,
         ActionFilters actionFilters
     ) {
-        super(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name(), actionFilters, transportService.getTaskManager());
+        super(
+            ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name(),
+            actionFilters,
+            transportService.getTaskManager(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.clusterService = clusterService;
     }

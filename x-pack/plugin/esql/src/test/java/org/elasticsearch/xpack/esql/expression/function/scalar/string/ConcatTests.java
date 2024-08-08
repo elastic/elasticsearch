@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,11 +51,11 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         Set<DataType> supported = Set.of(DataType.NULL, DataType.KEYWORD, DataType.TEXT);
         List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
         for (DataType lhs : DataType.types()) {
-            if (lhs == DataType.NULL || EsqlDataTypes.isRepresentable(lhs) == false) {
+            if (lhs == DataType.NULL || DataType.isRepresentable(lhs) == false) {
                 continue;
             }
             for (DataType rhs : DataType.types()) {
-                if (rhs == DataType.NULL || EsqlDataTypes.isRepresentable(rhs) == false) {
+                if (rhs == DataType.NULL || DataType.isRepresentable(rhs) == false) {
                     continue;
                 }
                 boolean lhsIsString = lhs == DataType.KEYWORD || lhs == DataType.TEXT;
@@ -65,7 +64,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
                     continue;
                 }
 
-                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs)));
+                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs), (v, p) -> "string"));
             }
         }
         return parameterSuppliersFromTypedData(suppliers);

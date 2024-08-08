@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -129,7 +130,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(
         12,
-        "disk usage exceeded flood-stage watermark, index has read-only-allow-delete block",
+        "disk usage exceeded flood-stage watermark, index has read-only-allow-delete block; for more information, see "
+            + ReferenceDocs.FLOOD_STAGE_WATERMARK,
         false,
         false,
         true,
@@ -1623,7 +1625,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             primaryTerms = in.readVLongArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_FIELDS_METADATA)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 inferenceFields = DiffableUtils.readImmutableOpenMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1691,7 +1693,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_FIELDS_METADATA)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 inferenceFields.writeTo(out);
             }
             aliases.writeTo(out);
@@ -1784,7 +1786,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(in));
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_FIELDS_METADATA)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             var fields = in.readCollectionAsImmutableList(InferenceFieldMetadata::new);
             fields.stream().forEach(f -> builder.putInferenceField(f));
         }
@@ -1856,7 +1858,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_FIELDS_METADATA)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeCollection(inferenceFields.values());
         }
         out.writeCollection(aliases.values());

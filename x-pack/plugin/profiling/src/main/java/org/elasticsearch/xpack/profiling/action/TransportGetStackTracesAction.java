@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -138,7 +139,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         ProfilingLicenseChecker licenseChecker,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager());
+        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
         this.licenseChecker = licenseChecker;
         this.clusterService = clusterService;

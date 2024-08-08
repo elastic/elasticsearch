@@ -92,16 +92,11 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "numeric");
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvMedian(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNumerics();
     }
 }

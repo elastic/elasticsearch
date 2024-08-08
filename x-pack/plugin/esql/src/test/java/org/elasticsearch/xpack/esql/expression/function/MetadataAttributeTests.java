@@ -16,6 +16,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAttribute> {
     @Override
     protected MetadataAttribute create() {
+        return randomMetadataAttribute();
+    }
+
+    public static MetadataAttribute randomMetadataAttribute() {
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
         DataType type = randomFrom(DataType.types());

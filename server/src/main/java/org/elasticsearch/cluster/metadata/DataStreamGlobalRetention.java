@@ -8,23 +8,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Objects;
 
 /**
@@ -32,7 +24,7 @@ import java.util.Objects;
  * - default retention, applied on any data stream managed by DSL that does not have an explicit retention defined
  * - max retention, applied on every data stream managed by DSL
  */
-public final class DataStreamGlobalRetention extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+public final class DataStreamGlobalRetention implements Writeable {
 
     public static final String TYPE = "data-stream-global-retention";
 
@@ -80,52 +72,9 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
     }
 
     @Override
-    public String getWriteableName() {
-        return TYPE;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(defaultRetention);
         out.writeOptionalTimeValue(maxRetention);
-    }
-
-    public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(ClusterState.Custom.class, TYPE, in);
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.single(this::toXContentFragment);
-    }
-
-    /**
-     * Adds to the XContentBuilder the two fields when they are not null.
-     */
-    public XContentBuilder toXContentFragment(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (defaultRetention != null) {
-            builder.field(DEFAULT_RETENTION_FIELD.getPreferredName(), defaultRetention.getStringRep());
-        }
-        if (maxRetention != null) {
-            builder.field(MAX_RETENTION_FIELD.getPreferredName(), maxRetention.getStringRep());
-        }
-        return builder;
-    }
-
-    /**
-     * Returns the metadata found in the cluster state or null. When trying to retrieve the effective global retention,
-     * prefer to use the {@link DataStreamGlobalRetentionResolver#resolve(ClusterState)} because it takes into account
-     * the factory retention settings as well. Only use this, if you only want to know the global retention settings
-     * stored in the cluster metadata.
-     */
-    @Nullable
-    public static DataStreamGlobalRetention getFromClusterState(ClusterState clusterState) {
-        return clusterState.custom(DataStreamGlobalRetention.TYPE);
     }
 
     @Nullable

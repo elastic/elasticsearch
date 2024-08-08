@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,7 +76,16 @@ public final class ConfigurableClusterPrivileges {
      * Utility method to write an array of {@link ConfigurableClusterPrivilege} objects to a {@link StreamOutput}
      */
     public static void writeArray(StreamOutput out, ConfigurableClusterPrivilege[] privileges) throws IOException {
-        out.writeArray(WRITER, privileges);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
+            out.writeArray(privileges);
+        } else {
+            out.writeArray(
+                WRITER,
+                Arrays.stream(privileges)
+                    .filter(privilege -> privilege instanceof ManageRolesPrivilege == false)
+                    .toArray(ConfigurableClusterPrivilege[]::new)
+            );
+        }
     }
 
     /**
@@ -88,7 +98,6 @@ public final class ConfigurableClusterPrivileges {
         Collection<ConfigurableClusterPrivilege> privileges
     ) throws IOException {
         builder.startObject();
-        // TODO: This will always add a "role" object, is that ok for BWC?
         for (Category category : Category.values()) {
             builder.startObject(category.field.getPreferredName());
             for (ConfigurableClusterPrivilege privilege : privileges) {

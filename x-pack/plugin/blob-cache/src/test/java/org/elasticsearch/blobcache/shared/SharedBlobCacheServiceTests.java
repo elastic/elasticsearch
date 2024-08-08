@@ -86,7 +86,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -164,7 +164,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -208,7 +208,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -242,7 +242,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -276,7 +276,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -384,7 +384,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -459,7 +459,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -539,7 +539,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -598,7 +598,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -801,7 +801,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -819,7 +819,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -844,7 +844,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -939,7 +939,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -1077,7 +1077,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -1226,7 +1226,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -1318,7 +1318,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ThreadPool.Names.GENERIC,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             ) {
                 @Override
@@ -1359,7 +1359,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 environment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                threadPool.executor(ThreadPool.Names.GENERIC),
                 BlobCacheMetrics.NOOP
             )
         ) {

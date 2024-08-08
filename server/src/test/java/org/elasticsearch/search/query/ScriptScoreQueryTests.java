@@ -178,6 +178,11 @@ public class ScriptScoreQueryTests extends ESTestCase {
             }
 
             @Override
+            public boolean needs_termStatistics() {
+                return randomBoolean();
+            }
+
+            @Override
             public ScoreScript newInstance(DocReader docReader) {
                 return new ScoreScript(script.getParams(), lookup, docReader) {
                     @Override

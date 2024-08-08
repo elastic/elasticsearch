@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.telemetry.tracing.Traceable;
@@ -71,7 +72,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     private final long requestId;
 
     public boolean isContentConsumed() {
-        return contentConsumed;
+        return contentConsumed || isStreamedContent();
     }
 
     @SuppressWarnings("this-escape")
@@ -278,16 +279,32 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return contentLength() > 0;
+        return contentLength() > 0 || isStreamedContent();
     }
 
     public int contentLength() {
-        return httpRequest.content().length();
+        if (httpRequest.body().isFull()) {
+            return httpRequest.body().asFull().bytes().length();
+        } else {
+            return 0;
+        }
     }
 
     public BytesReference content() {
         this.contentConsumed = true;
-        return httpRequest.content();
+        if (httpRequest.body().isFull()) {
+            return httpRequest.body().asFull().bytes();
+        } else {
+            return BytesArray.EMPTY;
+        }
+    }
+
+    public boolean isStreamedContent() {
+        return httpRequest.body().isStream();
+    }
+
+    public HttpBody.Stream contentStream() {
+        return httpRequest.body().asStream();
     }
 
     /**

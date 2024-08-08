@@ -10,6 +10,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
@@ -115,6 +116,12 @@ public abstract class BaseRestHandler implements RestHandler {
                 );
             }
 
+            if (request.isStreamedContent()) {
+                assert action instanceof RequestBodyChunkConsumer;
+                var chunkConsumer = (RequestBodyChunkConsumer) action;
+                request.contentStream().setHandler((chunk, isLast) -> chunkConsumer.handleChunk(channel, chunk, isLast));
+            }
+
             usageCount.increment();
             // execute the action
             action.accept(channel);
@@ -170,6 +177,10 @@ public abstract class BaseRestHandler implements RestHandler {
          */
         @Override
         default void close() {}
+    }
+
+    public interface RequestBodyChunkConsumer extends RestChannelConsumer {
+        void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
     }
 
     /**

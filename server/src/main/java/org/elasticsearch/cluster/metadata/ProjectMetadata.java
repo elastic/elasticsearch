@@ -1104,6 +1104,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             customs = ImmutableOpenMap.builder();
             previousIndicesLookup = null;
             this.mappingsByHash = new HashMap<>(mappingsByHash);
+            indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
@@ -1497,6 +1498,14 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
             return this;
+        }
+
+        public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
+            return putCustom(IndexGraveyard.TYPE, indexGraveyard);
+        }
+
+        public IndexGraveyard indexGraveyard() {
+            return (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
         }
 
         public Builder updateSettings(Settings settings, String... indices) {

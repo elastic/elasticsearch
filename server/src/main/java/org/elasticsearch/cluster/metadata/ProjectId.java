@@ -9,7 +9,5 @@
 package org.elasticsearch.cluster.metadata;
 
 public record ProjectId(String id) {
-    static ProjectId fromClusterUUID(String clusterUUID) {
-        return new ProjectId(clusterUUID);
-    }
+
 }

@@ -79,6 +79,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public static final Runnable ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = () -> {};
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
+    private static final ProjectId DEFAULT_PROJECT_ID = new ProjectId("default");
 
     public enum XContentContext {
         /* Custom metadata should be returned as part of API call */
@@ -248,12 +249,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     private ProjectMetadata getSingleProject() {
-        if (projectMetadata.size() != 1) {
+        if (projectMetadata.isEmpty()) {
+            throw new UnsupportedOperationException("There are no projects");
+        } else if (projectMetadata.size() != 1) {
             throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
         }
-        ProjectMetadata metadata = projectMetadata.get(ProjectId.fromClusterUUID(clusterUUID));
-        assert metadata != null : "Default project " + clusterUUID + " not present in " + projectMetadata.keySet();
-        return metadata;
+        final ProjectMetadata defaultProject = projectMetadata.get(DEFAULT_PROJECT_ID);
+        if (defaultProject == null) {
+            throw new UnsupportedOperationException(
+                "There is 1 project, but it has id " + projectMetadata.keySet() + " rather than " + DEFAULT_PROJECT_ID
+            );
+        }
+        return defaultProject;
     }
 
     public Metadata withIncrementedVersion() {
@@ -284,38 +291,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * @return a <code>Metadata</code> instance where the index has the provided lifecycle state
      */
     public Metadata withLifecycleState(Index index, LifecycleExecutionState lifecycleState) {
-        ProjectMetadata newMetadata = getSingleProject().withLifecycleState(index, lifecycleState);
-        return newMetadata == getSingleProject()
-            ? this
-            : new Metadata(
-                clusterUUID,
-                clusterUUIDCommitted,
-                version,
-                coordinationMetadata,
-                Map.of(ProjectId.fromClusterUUID(clusterUUID), newMetadata),
-                transientSettings,
-                persistentSettings,
-                settings,
-                hashesOfConsistentSettings,
-                customs,
-                reservedStateMetadata
-            );
+        return updateSingleProject(project -> project.withLifecycleState(index, lifecycleState));
     }
 
     public Metadata withIndexSettingsUpdates(Map<Index, Settings> updates) {
-        return new Metadata(
-            clusterUUID,
-            clusterUUIDCommitted,
-            version,
-            coordinationMetadata,
-            Map.of(ProjectId.fromClusterUUID(clusterUUID), getSingleProject().withIndexSettingsUpdates(updates)),
-            transientSettings,
-            persistentSettings,
-            settings,
-            hashesOfConsistentSettings,
-            customs,
-            reservedStateMetadata
-        );
+        return updateSingleProject(project -> project.withIndexSettingsUpdates(updates));
     }
 
     public Metadata withCoordinationMetadata(CoordinationMetadata coordinationMetadata) {
@@ -365,22 +345,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * @return updated metadata instance
      */
     public Metadata withAllocationAndTermUpdatesOnly(Map<String, IndexMetadata> updates) {
-        ProjectMetadata newMetadata = getSingleProject().withAllocationAndTermUpdatesOnly(updates);
-        return newMetadata == getSingleProject()
-            ? this
-            : new Metadata(
-                clusterUUID,
-                clusterUUIDCommitted,
-                version,
-                coordinationMetadata,
-                Map.of(ProjectId.fromClusterUUID(clusterUUID), newMetadata),
-                transientSettings,
-                persistentSettings,
-                settings,
-                hashesOfConsistentSettings,
-                customs,
-                reservedStateMetadata
-            );
+        return updateSingleProject(project -> project.withAllocationAndTermUpdatesOnly(updates));
     }
 
     /**
@@ -389,19 +354,31 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * @return copy with added index
      */
     public Metadata withAddedIndex(IndexMetadata index) {
-        return new Metadata(
-            clusterUUID,
-            clusterUUIDCommitted,
-            version,
-            coordinationMetadata,
-            Map.of(ProjectId.fromClusterUUID(clusterUUID), getSingleProject().withAddedIndex(index)),
-            transientSettings,
-            persistentSettings,
-            settings,
-            hashesOfConsistentSettings,
-            customs,
-            reservedStateMetadata
-        );
+        return updateSingleProject(project -> project.withAddedIndex(index));
+    }
+
+    private Metadata updateSingleProject(Function<ProjectMetadata, ProjectMetadata> update) {
+        if (projectMetadata.size() == 1) {
+            var entry = this.projectMetadata.entrySet().iterator().next();
+            var newProject = update.apply(entry.getValue());
+            return newProject == entry.getValue()
+                ? this
+                : new Metadata(
+                    clusterUUID,
+                    clusterUUIDCommitted,
+                    version,
+                    coordinationMetadata,
+                    Map.of(entry.getKey(), newProject),
+                    transientSettings,
+                    persistentSettings,
+                    settings,
+                    hashesOfConsistentSettings,
+                    customs,
+                    reservedStateMetadata
+                );
+        } else {
+            throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+        }
     }
 
     public long version() {
@@ -923,7 +900,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @SuppressWarnings("this-escape")
         public Builder() {
-            this(Map.of(), 0);
+            clusterUUID = UNKNOWN_CLUSTER_UUID;
+            customs = ImmutableOpenMap.builder();
+            projectMetadata = new HashMap<>();
+            reservedStateMetadata = new HashMap<>();
         }
 
         Builder(Metadata metadata) {
@@ -939,23 +919,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             this.reservedStateMetadata = new HashMap<>(metadata.reservedStateMetadata);
         }
 
-        @SuppressWarnings("this-escape")
-        private Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
-            clusterUUID = UNKNOWN_CLUSTER_UUID;
-            customs = ImmutableOpenMap.builder();
-            projectMetadata = new HashMap<>();
-            projectMetadata.put(ProjectId.fromClusterUUID(clusterUUID), new ProjectMetadata.Builder(mappingsByHash, indexCountHint));
-            reservedStateMetadata = new HashMap<>();
-            indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
-        }
-
         private ProjectMetadata.Builder getSingleProject() {
-            if (projectMetadata.size() != 1) {
+            if (projectMetadata.isEmpty()) {
+                createDefaultProject();
+            } else if (projectMetadata.size() != 1) {
                 throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
             }
-            ProjectMetadata.Builder metadata = projectMetadata.get(ProjectId.fromClusterUUID(clusterUUID));
-            assert metadata != null : "Default project " + clusterUUID + " not present in " + projectMetadata.keySet();
-            return metadata;
+            return projectMetadata.values().iterator().next();
         }
 
         Builder put(ProjectMetadata projectMetadata) {
@@ -965,7 +935,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         public Builder put(ProjectMetadata.Builder projectMetadata) {
             // TODO: tighten this up when we remove all the methods delegating to ProjectMetadata.Builder
             this.projectMetadata.clear();
-            this.projectMetadata.put(ProjectId.fromClusterUUID(clusterUUID), projectMetadata);
+            return put(DEFAULT_PROJECT_ID, projectMetadata);
+        }
+
+        public Builder put(ProjectId projectId, ProjectMetadata.Builder projectMetadata) {
+            this.projectMetadata.put(projectId, projectMetadata);
             return this;
         }
 
@@ -1112,10 +1086,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
-        public ProjectCustom getProjectCustom(String type) {
-            return getSingleProject().getCustom(type);
-        }
-
         public Builder putProjectCustom(String type, ProjectCustom custom) {
             getSingleProject().putCustom(type, Objects.requireNonNull(custom, type));
             return this;
@@ -1168,12 +1138,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
-            putCustom(IndexGraveyard.TYPE, indexGraveyard);
+            getSingleProject().indexGraveyard(indexGraveyard);
             return this;
         }
 
         public IndexGraveyard indexGraveyard() {
-            return (IndexGraveyard) getProjectCustom(IndexGraveyard.TYPE);
+            return getSingleProject().indexGraveyard();
         }
 
         public Builder updateSettings(Settings settings, String... indices) {
@@ -1232,12 +1202,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         public Builder clusterUUID(String clusterUUID) {
-            // get the default project metadata
-            ProjectMetadata.Builder metadata = projectMetadata.remove(ProjectId.fromClusterUUID(this.clusterUUID));
-            assert metadata != null : "Project " + this.clusterUUID + " not present in " + projectMetadata.keySet();
             this.clusterUUID = clusterUUID;
-            // re-add the metadata with the new uuid
-            projectMetadata.put(ProjectId.fromClusterUUID(clusterUUID), metadata);
             return this;
         }
 
@@ -1261,6 +1226,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         public Metadata build(boolean skipNameCollisionChecks) {
+            if (projectMetadata.isEmpty()) {
+                createDefaultProject();
+            }
             return new Metadata(
                 clusterUUID,
                 clusterUUIDCommitted,
@@ -1274,6 +1242,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 customs.build(),
                 Collections.unmodifiableMap(reservedStateMetadata)
             );
+        }
+
+        private ProjectMetadata.Builder createDefaultProject() {
+            return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(Map.of(), 0));
         }
 
         public static Metadata fromXContent(XContentParser parser) throws IOException {

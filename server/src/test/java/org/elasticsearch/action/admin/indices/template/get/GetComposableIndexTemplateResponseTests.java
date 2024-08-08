@@ -41,7 +41,24 @@ public class GetComposableIndexTemplateResponseTests extends AbstractWireSeriali
 
     @Override
     protected GetComposableIndexTemplateAction.Response mutateInstance(GetComposableIndexTemplateAction.Response instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        var rolloverConfiguration = instance.getRolloverConfiguration();
+        var templates = instance.indexTemplates();
+        switch (randomInt(1)) {
+            case 0 -> rolloverConfiguration = randomBoolean() || rolloverConfiguration == null
+                ? randomValueOtherThan(rolloverConfiguration, RolloverConfigurationTests::randomRolloverConditions)
+                : null;
+            case 1 -> {
+                var updatedTemplates = new HashMap<String, ComposableIndexTemplate>();
+                for (String name : templates.keySet()) {
+                    if (randomBoolean()) {
+                        updatedTemplates.put(name, templates.get(name));
+                    }
+                }
+                updatedTemplates.put(randomAlphaOfLength(4), ComposableIndexTemplateTests.randomInstance());
+                templates = updatedTemplates;
+            }
+        }
+        return new GetComposableIndexTemplateAction.Response(templates, rolloverConfiguration);
     }
 
     @Override

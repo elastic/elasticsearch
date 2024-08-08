@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,7 +70,6 @@ import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
  *     }
  *     // previous context is restored on StoredContext#close()
  * </pre>
- *
  */
 public final class ThreadContext implements Writeable, TraceContext {
 
@@ -90,6 +90,7 @@ public final class ThreadContext implements Writeable, TraceContext {
 
     /**
      * Creates a new ThreadContext instance
+     *
      * @param settings the settings to read the default request headers from
      */
     public ThreadContext(Settings settings) {
@@ -102,6 +103,7 @@ public final class ThreadContext implements Writeable, TraceContext {
     /**
      * Removes the current context and resets a default context. The removed context can be
      * restored by closing the returned {@link StoredContext}.
+     *
      * @return a stored context that will restore the current context to its state at the point this method was called
      */
     public StoredContext stashContext() {
@@ -430,6 +432,7 @@ public final class ThreadContext implements Writeable, TraceContext {
 
     /**
      * Same as {@link #newRestorableContext(boolean)} but wraps an existing context to restore.
+     *
      * @param storedContext the context to restore
      */
     public Supplier<StoredContext> wrapRestorable(StoredContext storedContext) {
@@ -806,14 +809,22 @@ public final class ThreadContext implements Writeable, TraceContext {
             selectedHeaders.keySet().retainAll(List.of(Task.X_OPAQUE_ID_HTTP_HEADER, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
 
             String messagePattern = HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.equals(thresholdSetting)
-                ? "Dropping a warning header{}, as their total size reached the maximum allowed of [{}] bytes set in [{}]!"
-                : "Dropping a warning header{}, as their total count reached the maximum allowed of [{}] set in [{}]!";
+                ? "Dropping a warning header{}, as their total size reached the maximum allowed of [{}] bytes set in [{}]!{}"
+                : "Dropping a warning header{}, as their total count reached the maximum allowed of [{}] set in [{}]!{}";
+
+            String callToAction = selectedHeaders.containsKey(Task.X_OPAQUE_ID_HTTP_HEADER) == false
+                ? Strings.format(
+                    " Add X-Opaque-Id headers to identify the source of this warning, see %s for more information.",
+                    ReferenceDocs.X_OPAQUE_ID
+                )
+                : "";
 
             logger.warn(
                 messagePattern,
                 selectedHeaders.isEmpty() ? "" : Strings.format(" for request [%s]", selectedHeaders),
                 threshold,
-                thresholdSetting.getKey()
+                thresholdSetting.getKey(),
+                callToAction
             );
         }
 

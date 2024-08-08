@@ -8,6 +8,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -649,8 +650,8 @@ public class ThreadContextTests extends ESTestCase {
                     "too many warnings",
                     ThreadContext.class.getCanonicalName(),
                     Level.WARN,
-                    "Dropping a warning header, "
-                        + "as their total count reached the maximum allowed of [1] set in [http.max_warning_header_count]!"
+                    "Dropping a warning header,* count reached the maximum allowed of [1] set in [http.max_warning_header_count]!"
+                        + ("* X-Opaque-Id header*, see " + ReferenceDocs.X_OPAQUE_ID + "*")
                 )
             );
             mockLog.addExpectation(
@@ -659,7 +660,7 @@ public class ThreadContextTests extends ESTestCase {
                     ThreadContext.class.getCanonicalName(),
                     Level.WARN,
                     "Dropping a warning header for request [{X-Opaque-Id=abc, X-elastic-product-origin=product}], "
-                        + "as their total size reached the maximum allowed of [50] bytes set in [http.max_warning_header_size]!"
+                        + "* size reached the maximum allowed of [50] bytes set in [http.max_warning_header_size]!"
                 )
             );
 

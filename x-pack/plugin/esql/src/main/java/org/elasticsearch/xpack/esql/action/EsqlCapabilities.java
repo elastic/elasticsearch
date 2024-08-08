@@ -213,7 +213,12 @@ public class EsqlCapabilities {
         /**
          * Support for nanosecond dates as a data type
          */
-        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG);
+        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support CIDRMatch in CombineDisjunctions rule.
+         */
+        COMBINE_DISJUNCTIVE_CIDRMATCHES;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

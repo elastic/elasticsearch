@@ -26,14 +26,16 @@ public class UnsafePlainActionFuture<T> extends PlainActionFuture<T> {
     private final String unsafeExecutor2;
 
     /**
-     * Allow the single executor passed to be used unsafely.
+     * Allow the single executor passed to be used unsafely. This allows waiting for the future and completing the future on threads in
+     * the same executor, but only for the specific executor.
      */
     public UnsafePlainActionFuture(String unsafeExecutor) {
         this(unsafeExecutor, "__none__");
     }
 
     /**
-     * Allow both executors passed to be used unsafely.
+     * Allow both executors passed to be used unsafely. This allows waiting for the future and completing the future on threads in
+     * the same executor, but only for the two specific executors.
      */
     public UnsafePlainActionFuture(String unsafeExecutor, String unsafeExecutor2) {
         Objects.requireNonNull(unsafeExecutor);

@@ -54,11 +54,6 @@ Refer to <<remote-clusters-cert, TLS certificate authentication>> for prerequisi
 [[esql-ccs-security-model-api-key]]
 ===== API key authentication
 
-[NOTE]
-====
-`ENRICH` is *not supported* in this version when using {esql} with the API key based security model.
-====
-
 The following information pertains to using {esql} across clusters with the <<remote-clusters-api-key, *API key based security model*>>. You'll need to follow the steps on that page for the *full setup instructions*. This page only contains additional information specific to {esql}.
 
 API key based cross-cluster search (CCS) enables more granular control over allowed actions between clusters.
@@ -71,6 +66,7 @@ You will need to:
 
 Using {esql} with the API key based security model requires some additional permissions that may not be needed when using the traditional query DSL based search.
 The following example API call creates a role that can query remote indices using {esql} when using the API key based security model.
+The final privilege, `remote_cluster`, is required to allow remote enrich operations.
 
 [source,console]
 ----
@@ -89,7 +85,17 @@ POST /_security/role/remote1
       "privileges": [ "read","read_cross_cluster" ], <4>
       "clusters" : ["my_remote_cluster"] <5>
     }
-  ]
+  ], 
+   "remote_cluster": [ <6>
+        {
+            "privileges": [
+                "monitor_enrich"
+            ],
+            "clusters": [
+                "my_remote_cluster"
+            ]
+        }
+    ]
 }
 ----
 
@@ -100,6 +106,7 @@ POST /_security/role/remote1
 <5> The remote clusters to which these privileges apply.
 This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried.
 Verify connection using the <<cluster-remote-info, Remote cluster info>> API.
+<6> Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the remote cluster. The `remote_cluster` security privilege was introduced in version *8.15.0*.
 
 You will then need a user or API key with the permissions you created above. The following example API call creates a user with the `remote1` role.
 
@@ -113,6 +120,11 @@ POST /_security/user/remote_user
 ----
 
 Remember that all cross-cluster requests from the local cluster are bound by the cross cluster API key’s privileges, which are controlled by the remote cluster's administrator.
+
+[TIP]
+====
+Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to add the new permissions required for {esql} with ENRICH.
+====
 
 [discrete]
 [[ccq-remote-cluster-setup]]
@@ -174,9 +186,11 @@ clusters, aiming to minimize computation or inter-cluster data transfer. Ensurin
 the policy exists with consistent data on both the local cluster and the remote
 clusters is critical for ES|QL to produce a consistent query result.
 
-[NOTE]
+[TIP]
 ====
-Enrich across clusters is *not supported* in this version when using {esql} with the <<remote-clusters-api-key, *API key based security model*>>.
+Enrich in {esql} across clusters using the API key based security model was introduced in version *8.15.0*.
+Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to use the new required permissions.
+Refer to the example in the <<esql-ccs-security-model-api-key,API key authentication>> section.
 ====
 
 In the following example, the enrich with `hosts` policy can be executed on

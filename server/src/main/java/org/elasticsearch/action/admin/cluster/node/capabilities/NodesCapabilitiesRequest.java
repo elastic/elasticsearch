@@ -24,8 +24,13 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
     private RestApiVersion restApiVersion = RestApiVersion.current();
 
     public NodesCapabilitiesRequest() {
-        // always send to all nodes
+        // send to all nodes
         super(Strings.EMPTY_ARRAY);
+    }
+
+    public NodesCapabilitiesRequest(String nodeId) {
+        // only send to this node (the local node)
+        super(new String[] { nodeId });
     }
 
     public NodesCapabilitiesRequest path(String path) {

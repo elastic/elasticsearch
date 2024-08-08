@@ -284,7 +284,16 @@ public class RealmsAuthenticator implements Authenticator {
     ) {
         messages.forEach((realm, tuple) -> {
             final String message = tuple.v1();
-            final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
+            Throwable ex = tuple.v2();
+            var cause = new StringBuilder();
+            while (ex != null) {
+                cause.append(cause.isEmpty() ? " (" : "; ");
+                cause.append("Caused by ").append(ex);
+                ex = ex.getCause();
+            }
+            if (cause.isEmpty() == false) {
+                cause.append(')');
+            }
             logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
         });
         if (context.getUnlicensedRealms().isEmpty() == false) {

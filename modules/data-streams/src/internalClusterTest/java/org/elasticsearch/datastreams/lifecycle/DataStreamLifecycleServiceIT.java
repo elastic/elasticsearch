@@ -51,8 +51,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
@@ -220,16 +218,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         AtomicLong now = new AtomicLong(clock.millis());
         dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(now::get));
         try {
-            // Putting in place a global retention that we expect will be ignored by the system data stream:
-            final int globalRetentionSeconds = 10;
-            client().execute(
-                PutDataStreamGlobalRetentionAction.INSTANCE,
-                new PutDataStreamGlobalRetentionAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TimeValue.timeValueSeconds(globalRetentionSeconds),
-                    TimeValue.timeValueSeconds(globalRetentionSeconds)
-                )
-            ).actionGet();
             try {
 
                 CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -239,12 +227,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 );
                 client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
                 indexDocs(SYSTEM_DATA_STREAM_NAME, 1);
-                /*
-                 * First we advance the time to well beyond the global retention (10s) but well under the configured retention (100d).
-                 * We expect to see that rollover has occurred but that the old index has not been deleted since the global retention is
-                 * ignored.
-                 */
-                now.addAndGet(TimeValue.timeValueSeconds(3 * globalRetentionSeconds).millis());
+                now.addAndGet(TimeValue.timeValueSeconds(30).millis());
                 assertBusy(() -> {
                     GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
                         TEST_REQUEST_TIMEOUT,
@@ -322,10 +305,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, SYSTEM_DATA_STREAM_NAME)
                 ).actionGet();
             } finally {
-                client().execute(
-                    DeleteDataStreamGlobalRetentionAction.INSTANCE,
-                    new DeleteDataStreamGlobalRetentionAction.Request(TEST_REQUEST_TIMEOUT)
-                );
+                // reset properties
             }
         } finally {
             dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(clock::millis));

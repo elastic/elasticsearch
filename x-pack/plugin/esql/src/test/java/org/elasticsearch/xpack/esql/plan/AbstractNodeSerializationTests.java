@@ -14,13 +14,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -33,7 +33,7 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
      * We use a single random config for all serialization because it's pretty
      * heavy to build, especially in {@link #testConcurrentSerialization()}.
      */
-    private EsqlConfiguration config;
+    private Configuration config;
 
     public static Source randomSource() {
         int lineNumber = between(0, EXAMPLE_QUERY.length - 1);
@@ -71,7 +71,7 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
         return false;
     }
 
-    public final EsqlConfiguration configuration() {
+    public final Configuration configuration() {
         return config;
     }
 
@@ -87,6 +87,6 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
 
     @Before
     public void initConfig() {
-        config = EsqlConfigurationSerializationTests.randomConfiguration(String.join("\n", EXAMPLE_QUERY), Map.of());
+        config = randomConfiguration(String.join("\n", EXAMPLE_QUERY), Map.of());
     }
 }

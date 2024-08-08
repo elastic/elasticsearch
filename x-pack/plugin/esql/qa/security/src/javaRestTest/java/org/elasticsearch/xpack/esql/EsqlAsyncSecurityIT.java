@@ -15,6 +15,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -22,9 +23,12 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
 
@@ -43,6 +47,11 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         var deleteResponse = runAsyncDelete(user, id);
         assertOK(deleteResponse);
         return getResponse;
+    }
+
+    @Override
+    protected MapMatcher responseMatcher() {
+        return super.responseMatcher().entry("is_running", equalTo(false)).entry("id", allOf(notNullValue(), instanceOf(String.class)));
     }
 
     @Override

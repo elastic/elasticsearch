@@ -106,14 +106,7 @@ public final class ReplaceStatsAggExpressionWithEval extends OptimizerRules.Opti
                         Alias alias = rootAggs.get(canonical);
                         if (alias == null) {
                             // create synthetic alias ove the found agg function
-                            alias = new Alias(
-                                af.source(),
-                                syntheticName(canonical, child, counter[0]++),
-                                as.qualifier(),
-                                canonical,
-                                null,
-                                true
-                            );
+                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), canonical, null, true);
                             // and remember it to remove duplicates
                             rootAggs.put(canonical, alias);
                             // add it to the list of aggregates and continue

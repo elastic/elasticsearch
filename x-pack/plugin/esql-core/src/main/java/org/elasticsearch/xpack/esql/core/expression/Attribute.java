@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -15,7 +14,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.util.StringUtils.splitQualifiedIndex;
 
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
@@ -35,47 +33,25 @@ public abstract class Attribute extends NamedExpression {
         return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY);
     }
 
-    // empty - such as a top level attribute in SELECT cause
-    // present - table name or a table name alias
-    private final String qualifier;
-    // cluster name in the qualifier (if any)
-    private final String cluster;
-
     // can the attr be null - typically used in JOINs
     private final Nullability nullability;
 
-    public Attribute(Source source, String name, String qualifier, NameId id) {
-        this(source, name, qualifier, Nullability.TRUE, id);
+    public Attribute(Source source, String name, NameId id) {
+        this(source, name, Nullability.TRUE, id);
     }
 
-    public Attribute(Source source, String name, String qualifier, Nullability nullability, NameId id) {
-        this(source, name, qualifier, nullability, id, false);
+    public Attribute(Source source, String name, Nullability nullability, NameId id) {
+        this(source, name, nullability, id, false);
     }
 
-    public Attribute(Source source, String name, String qualifier, Nullability nullability, NameId id, boolean synthetic) {
+    public Attribute(Source source, String name, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, emptyList(), id, synthetic);
-        if (qualifier != null) {
-            Tuple<String, String> splitQualifier = splitQualifiedIndex(qualifier);
-            this.cluster = splitQualifier.v1();
-            this.qualifier = splitQualifier.v2();
-        } else {
-            this.cluster = null;
-            this.qualifier = null;
-        }
         this.nullability = nullability;
     }
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
-    }
-
-    public String qualifier() {
-        return qualifier;
-    }
-
-    public String qualifiedName() {
-        return qualifier == null ? name() : qualifier + "." + name();
     }
 
     @Override
@@ -89,42 +65,26 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withLocation(Source source) {
-        return Objects.equals(source(), source) ? this : clone(source, name(), dataType(), qualifier(), nullable(), id(), synthetic());
-    }
-
-    public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier(), qualifier)
-            ? this
-            : clone(source(), name(), dataType(), qualifier, nullable(), id(), synthetic());
+        return Objects.equals(source(), source) ? this : clone(source, name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
-        return Objects.equals(name(), name) ? this : clone(source(), name, dataType(), qualifier(), nullable(), id(), synthetic());
+        return Objects.equals(name(), name) ? this : clone(source(), name, dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withNullability(Nullability nullability) {
-        return Objects.equals(nullable(), nullability)
-            ? this
-            : clone(source(), name(), dataType(), qualifier(), nullability, id(), synthetic());
+        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), dataType(), nullability, id(), synthetic());
     }
 
     public Attribute withId(NameId id) {
-        return clone(source(), name(), dataType(), qualifier(), nullable(), id, synthetic());
+        return clone(source(), name(), dataType(), nullable(), id, synthetic());
     }
 
     public Attribute withDataType(DataType type) {
-        return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, qualifier(), nullable(), id(), synthetic());
+        return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, nullable(), id(), synthetic());
     }
 
-    protected abstract Attribute clone(
-        Source source,
-        String name,
-        DataType type,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    );
+    protected abstract Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic);
 
     @Override
     public Attribute toAttribute() {
@@ -143,19 +103,19 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     protected Expression canonicalize() {
-        return clone(Source.EMPTY, name(), dataType(), qualifier, nullability, id(), synthetic());
+        return clone(Source.EMPTY, name(), dataType(), nullability, id(), synthetic());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), qualifier, nullability);
+        return Objects.hash(super.hashCode(), nullability);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             Attribute other = (Attribute) obj;
-            return Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
+            return Objects.equals(nullability, other.nullability);
         }
 
         return false;
@@ -163,7 +123,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public String toString() {
-        return qualifiedName() + "{" + label() + "}" + "#" + id();
+        return name() + "{" + label() + "}" + "#" + id();
     }
 
     @Override

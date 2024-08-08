@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
 import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionProvider;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
@@ -588,25 +588,25 @@ class NodeConstruction {
         return scriptService;
     }
 
-    private DataStreamGlobalRetentionResolver createDataStreamServicesAndGlobalRetentionResolver(
+    private DataStreamGlobalRetentionProvider createDataStreamServicesAndGlobalRetentionResolver(
         ThreadPool threadPool,
         ClusterService clusterService,
         IndicesService indicesService,
         MetadataCreateIndexService metadataCreateIndexService
     ) {
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+        DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider = new DataStreamGlobalRetentionProvider(
             DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
         );
-        modules.bindToInstance(DataStreamGlobalRetentionResolver.class, dataStreamGlobalRetentionResolver);
+        modules.bindToInstance(DataStreamGlobalRetentionProvider.class, dataStreamGlobalRetentionProvider);
         modules.bindToInstance(
             MetadataCreateDataStreamService.class,
             new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
         );
         modules.bindToInstance(
             MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionResolver)
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionProvider)
         );
-        return dataStreamGlobalRetentionResolver;
+        return dataStreamGlobalRetentionProvider;
     }
 
     private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
@@ -815,7 +815,7 @@ class NodeConstruction {
             threadPool
         );
 
-        final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = createDataStreamServicesAndGlobalRetentionResolver(
+        final DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider = createDataStreamServicesAndGlobalRetentionResolver(
             threadPool,
             clusterService,
             indicesService,
@@ -840,7 +840,7 @@ class NodeConstruction {
             IndicesService indicesService,
             FeatureService featureService,
             SystemIndices systemIndices,
-            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver,
+            DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider,
             DocumentParsingProvider documentParsingProvider
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
@@ -861,7 +861,7 @@ class NodeConstruction {
             indicesService,
             featureService,
             systemIndices,
-            dataStreamGlobalRetentionResolver,
+            dataStreamGlobalRetentionProvider,
             documentParsingProvider
         );
 
@@ -895,7 +895,7 @@ class NodeConstruction {
                 systemIndices,
                 indexSettingProviders,
                 metadataCreateIndexService,
-                dataStreamGlobalRetentionResolver
+                dataStreamGlobalRetentionProvider
             ),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
         );
@@ -1465,7 +1465,7 @@ class NodeConstruction {
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
         MetadataCreateIndexService metadataCreateIndexService,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        DataStreamGlobalRetentionProvider globalRetentionResolver
     ) {
         List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 

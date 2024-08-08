@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;
@@ -71,15 +71,14 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     private int maxSerializedAttributes;
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable EsqlConfiguration configuration)
-        throws IOException {
+    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable Configuration configuration) throws IOException {
         this(delegate, registry, configuration, PlanNamedTypes::name, MAX_SERIALIZED_ATTRIBUTES);
     }
 
     public PlanStreamOutput(
         StreamOutput delegate,
         PlanNameRegistry registry,
-        @Nullable EsqlConfiguration configuration,
+        @Nullable Configuration configuration,
         Function<Class<?>, String> nameSupplier,
         int maxSerializedAttributes
     ) throws IOException {
@@ -154,7 +153,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      * <p>
      *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
      *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link EsqlConfiguration#tables()} if
+     *     reusing blocks sent as part of the {@link Configuration#tables()} if
      *     possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
@@ -223,7 +222,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     /**
      * The byte representing a {@link Block} that was part of the
-     * {@link EsqlConfiguration#tables()} map. It is followed a string for
+     * {@link Configuration#tables()} map. It is followed a string for
      * the table name and then a string for the column name.
      */
     static final byte FROM_CONFIG_KEY = 2;
@@ -241,7 +240,7 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     }
 
     /**
-     * Build the key for reading a {@link Block} from the {@link EsqlConfiguration}.
+     * Build the key for reading a {@link Block} from the {@link Configuration}.
      * This is important because some operations like {@code LOOKUP} frequently read
      * {@linkplain Block}s directly from the configuration.
      * <p>

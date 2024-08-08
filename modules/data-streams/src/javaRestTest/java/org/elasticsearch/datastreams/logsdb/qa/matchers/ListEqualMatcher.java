@@ -13,8 +13,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
 
-class ListEqualMatcher extends EqualMatcher<List<?>> {
-    ListEqualMatcher(
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.datastreams.logsdb.qa.matchers.Messages.prettyPrintCollections;
+
+public class ListEqualMatcher extends GenericEqualsMatcher<List<?>> {
+    public ListEqualMatcher(
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,
         final XContentBuilder expectedMappings,
@@ -40,7 +43,7 @@ class ListEqualMatcher extends EqualMatcher<List<?>> {
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "List lengths do no match, " + prettyPrintLists(actualList, expectedList)
+                    "List lengths do no match, " + prettyPrintCollections(actualList, expectedList)
                 )
             );
         }
@@ -53,7 +56,7 @@ class ListEqualMatcher extends EqualMatcher<List<?>> {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Lists do not match when ignoring sort order, " + prettyPrintLists(actualList, expectedList)
+                        "Lists do not match when ignoring sort order, " + prettyPrintCollections(actualList, expectedList)
                     )
                 );
         } else {
@@ -65,7 +68,7 @@ class ListEqualMatcher extends EqualMatcher<List<?>> {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Lists do not match exactly, " + prettyPrintLists(actualList, expectedList)
+                        "Lists do not match exactly, " + prettyPrintCollections(actualList, expectedList)
                     )
                 );
         }

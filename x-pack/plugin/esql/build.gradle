@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
+import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -49,10 +50,12 @@ dependencies {
   internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
+def projectDirectory = project.layout.projectDirectory
+def generatedSourceDir = projectDirectory.dir("src/main/generated")
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-s", "$projectDir/src/main/generated"])
+  options.compilerArgumentProviders.add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir))
   // IntelliJ sticks generated files here and we can't stop it....
-  exclude { it.file.toString().contains("$projectDir/src/main/generated-src/generated") }
+  exclude { it.file.toString().contains("src/main/generated-src/generated") }
 }
 
 interface Injected {

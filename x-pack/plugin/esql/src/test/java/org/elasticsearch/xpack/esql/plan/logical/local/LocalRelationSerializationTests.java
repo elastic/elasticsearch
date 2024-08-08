@@ -12,11 +12,12 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 
 public class LocalRelationSerializationTests extends AbstractLogicalPlanSerializationTests<LocalRelation> {
     public static LocalRelation randomLocalRelation() {
@@ -31,7 +32,7 @@ public class LocalRelationSerializationTests extends AbstractLogicalPlanSerializ
         for (int b = 0; b < blocks.length; b++) {
             blocks[b] = BlockUtils.constantBlock(
                 TestBlockFactory.getNonBreakingInstance(),
-                AbstractFunctionTestCase.randomLiteral(attributes.get(b).dataType()).value(),
+                randomLiteral(attributes.get(b).dataType()).value(),
                 1
             );
         }

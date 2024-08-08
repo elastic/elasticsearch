@@ -103,7 +103,7 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
                     if (field instanceof Attribute == false && field.foldable() == false) {
                         // 3. create a new alias if one doesn't exist yet no reference
                         Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
-                            Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), null, k, null, true);
+                            Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), k, null, true);
                             evals.add(newAlias);
                             return newAlias.toAttribute();
                         });

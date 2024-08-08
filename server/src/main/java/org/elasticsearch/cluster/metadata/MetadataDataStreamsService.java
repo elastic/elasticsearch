@@ -41,14 +41,14 @@ public class MetadataDataStreamsService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
+    private final DataStreamGlobalRetentionProvider globalRetentionResolver;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
 
     public MetadataDataStreamsService(
         ClusterService clusterService,
         IndicesService indicesService,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        DataStreamGlobalRetentionProvider globalRetentionResolver
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -223,7 +223,7 @@ public class MetadataDataStreamsService {
         if (lifecycle != null) {
             if (atLeastOneDataStreamIsNotSystem) {
                 // We don't issue any warnings if all data streams are system data streams
-                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
+                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.provide());
             }
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();

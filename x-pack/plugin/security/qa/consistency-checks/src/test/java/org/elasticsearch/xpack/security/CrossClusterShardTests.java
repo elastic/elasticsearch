@@ -61,7 +61,10 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
         DownsampleShardPersistentTaskExecutor.DelegatingAction.NAME,
 
         // These actions do not have any references to shard IDs in their requests.
-        TransportClusterSearchShardsAction.TYPE.name()
+        TransportClusterSearchShardsAction.TYPE.name(),
+
+        // forked search_shards for ES|QL
+        "indices:data/read/esql/search_shards"
     );
 
     Set<Class<?>> CHECKED_ABSTRACT_CLASSES = Set.of(

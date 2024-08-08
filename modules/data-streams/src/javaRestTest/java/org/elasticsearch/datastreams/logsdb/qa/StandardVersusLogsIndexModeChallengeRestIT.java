@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
     private final int numShards = randomBoolean() ? randomIntBetween(2, 5) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
+    private final boolean fullyDynamicMapping = randomBoolean();
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
         super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
@@ -57,7 +58,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        if (randomBoolean()) {
+        if (fullyDynamicMapping == false) {
             builder.startObject()
                 .startObject("properties")
 
@@ -108,7 +109,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         builder.startObject();
         builder.field("subobjects", false);
 
-        if (randomBoolean()) {
+        if (fullyDynamicMapping == false) {
             builder.startObject("properties")
 
                 .startObject("@timestamp")
@@ -188,7 +189,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .size(numberOfDocuments);
 
-        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -208,7 +210,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
             .size(numberOfDocuments);
 
-        final MatchResult matchResult = Matcher.mappings(getContenderMappings(), getBaselineMappings())
+        final MatchResult matchResult = Matcher.matchSource()
+            .mappings(getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -324,5 +327,4 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         var contenderResponseBody = entityAsMap(tuple.v2());
         assertThat("errors in contender bulk response:\n " + contenderResponseBody, contenderResponseBody.get("errors"), equalTo(false));
     }
-
 }

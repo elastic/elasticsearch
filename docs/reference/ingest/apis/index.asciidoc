@@ -13,7 +13,7 @@ Use the following APIs to create, manage, and test ingest pipelines:
 * <<put-pipeline-api>> to create or update a pipeline
 * <<get-pipeline-api>> to retrieve a pipeline configuration
 * <<delete-pipeline-api>> to delete a pipeline
-* <<simulate-pipeline-api>> to test a pipeline
+* <<simulate-pipeline-api>> and <<simulate-ingest-api>> to test ingest pipelines
 
 [discrete]
 [[ingest-stat-apis]]
@@ -21,12 +21,27 @@ Use the following APIs to create, manage, and test ingest pipelines:
 
 Use the following APIs to get statistics about ingest processing:
 
-* <<geoip-stats-api>> to get download statistics for GeoIP2 databases used with
+* <<geoip-stats-api>> to get download statistics for IP geolocation databases used with
 the <<geoip-processor,`geoip` processor>>.
 
+[discrete]
+[[ingest-geoip-database-apis]]
+=== Ingest GeoIP Database APIs
+
+preview::["The commercial IP geolocation database download management APIs are in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but this feature is not subject to the support SLA of official GA features."]
+
+Use the following APIs to configure and manage commercial IP geolocation database downloads:
+
+* <<put-geoip-database-api>> to create or update a database configuration
+* <<get-geoip-database-api>> to retrieve a database configuration
+* <<delete-geoip-database-api>> to delete a database configuration
+
 include::put-pipeline.asciidoc[]
-include::delete-pipeline.asciidoc[]
-include::geoip-stats-api.asciidoc[]
 include::get-pipeline.asciidoc[]
+include::delete-pipeline.asciidoc[]
 include::simulate-pipeline.asciidoc[]
 include::simulate-ingest.asciidoc[]
+include::geoip-stats.asciidoc[]
+include::put-geoip-database.asciidoc[]
+include::get-geoip-database.asciidoc[]
+include::delete-geoip-database.asciidoc[]

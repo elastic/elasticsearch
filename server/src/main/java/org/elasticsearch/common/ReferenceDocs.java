@@ -80,6 +80,7 @@ public enum ReferenceDocs {
     LUCENE_MAX_DOCS_LIMIT,
     MAX_SHARDS_PER_NODE,
     FLOOD_STAGE_WATERMARK,
+    X_OPAQUE_ID,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

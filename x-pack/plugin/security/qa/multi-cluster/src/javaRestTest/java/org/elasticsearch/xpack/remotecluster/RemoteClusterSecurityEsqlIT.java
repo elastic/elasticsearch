@@ -85,7 +85,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                         {
                           "search": [
                             {
-                                "names": ["index*", "not_found_index", "employees", "employees2"]
+                                "names": ["index*", "alias*", "not_found_index", "employees", "employees2"]
                             },
                             {
                                 "names": ["employees3"],
@@ -738,6 +738,143 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             .flatMap(innerList -> innerList instanceof List ? ((List<?>) innerList).stream() : Stream.empty())
             .collect(Collectors.toList());
         assertThat(flatList, containsInAnyOrder(1, 3, "usa", "germany"));
+    }
+
+    private void createAliases() throws Exception {
+        Request createAlias = new Request("POST", "_aliases");
+        createAlias.setJsonEntity("""
+            {
+                "actions": [
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-employees"
+                        }
+                    },
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-engineering",
+                            "filter": { "match": { "department": "engineering" }}
+                        }
+                    },
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-management",
+                            "filter": { "match": { "department": "management" }}
+                        }
+                    },
+                    {
+                        "add": {
+                           "index": "employees2",
+                           "alias": "alias-employees2"
+                        }
+                    }
+                ]
+            }
+            """);
+        assertOK(performRequestAgainstFulfillingCluster(createAlias));
+    }
+
+    private void removeAliases() throws Exception {
+        var removeAlias = new Request("POST", "/_aliases/");
+        removeAlias.setJsonEntity("""
+            {
+                "actions": [
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-employees"
+                        }
+                    },
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-engineering"
+                        }
+                    },
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-management"
+                        }
+                    },
+                    {
+                        "remove": {
+                           "index": "employees2",
+                           "alias": "alias-employees2"
+                        }
+                    }
+                ]
+            }
+            """);
+        assertOK(performRequestAgainstFulfillingCluster(removeAlias));
+    }
+
+    public void testAlias() throws Exception {
+        configureRemoteCluster();
+        populateData();
+        createAliases();
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [{"names": [""], "privileges": ["read"]}],
+              "cluster": ["cross_cluster_search"],
+              "remote_indices": [
+                {
+                  "names": ["alias-engineering"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                },
+                {
+                  "names": ["employees2"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                },
+                {
+                  "names": ["employees3"],
+                  "privileges": ["view_index_metadata", "read_cross_cluster"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+        // query `employees2`
+        for (String index : List.of("*:employees2", "*:employee*", "*:employee*,*:alias-employees,*:employees3")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertOK(response);
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<?> ids = (List<?>) responseAsMap.get("values");
+            assertThat(ids, equalTo(List.of(List.of("11"), List.of("13"))));
+        }
+        // query `alias-engineering`
+        for (var index : List.of("*:alias*", "*:alias*", "*:alias*,my*:employees1", "*:alias*,my*:employees3")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertOK(response);
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<?> ids = (List<?>) responseAsMap.get("values");
+            assertThat(ids, equalTo(List.of(List.of("1"), List.of("7"))));
+        }
+        // query `employees2` and `alias-engineering`
+        for (var index : List.of("*:employees2,*:alias-engineering", "*:emp*,*:alias-engineering", "*:emp*,my*:alias*")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertOK(response);
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<?> ids = (List<?>) responseAsMap.get("values");
+            assertThat(ids, equalTo(List.of(List.of("1"), List.of("11"), List.of("13"), List.of("7"))));
+        }
+        // none
+        for (var index : List.of("*:employees1", "*:employees3", "*:employees1,employees3", "*:alias-employees,*:alias-management")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(error.getMessage(), containsString(" Unknown index [" + index + "]"));
+        }
+        removeAliases();
     }
 
     protected Request esqlRequest(String command) throws IOException {

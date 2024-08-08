@@ -130,8 +130,11 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             v -> new BytesRef(v.toString()),
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> typeErrorString);
     }
+
+    private static String typeErrorString =
+        "boolean or cartesian_point or cartesian_shape or datetime or geo_point or geo_shape or ip or numeric or string or version";
 
     @Override
     protected Expression build(Source source, List<Expression> args) {

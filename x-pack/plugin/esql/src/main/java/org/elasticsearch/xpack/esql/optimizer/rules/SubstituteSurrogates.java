@@ -82,7 +82,7 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
                         if (attr == null) {
                             var temporaryName = LogicalPlanOptimizer.temporaryName(af, agg, counter[0]++);
                             // create a synthetic alias (so it doesn't clash with a user defined name)
-                            var newAlias = new Alias(agg.source(), temporaryName, null, af, null, true);
+                            var newAlias = new Alias(agg.source(), temporaryName, af, null, true);
                             attr = newAlias.toAttribute();
                             aggFuncToAttr.put(af, attr);
                             newAggs.add(newAlias);
@@ -92,7 +92,7 @@ public final class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Agg
                     // 4. move the expression as an eval using the original alias
                     // copy the original alias id so that other nodes using it down stream (e.g. eval referring to the original agg)
                     // don't have to updated
-                    var aliased = new Alias(agg.source(), agg.name(), null, surrogateWithRefs, agg.toAttribute().id());
+                    var aliased = new Alias(agg.source(), agg.name(), surrogateWithRefs, agg.toAttribute().id());
                     transientEval.add(aliased);
                 }
                 // the replacement is another aggregate function, so replace it in place

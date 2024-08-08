@@ -1,0 +1,72 @@
+simple
+required_capability: date_nanos_type
+
+FROM date_nanos | SORT millis DESC | KEEP millis, nanos | LIMIT 1;
+
+millis:date              | nanos:date_nanos
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+;
+
+sort by nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | SORT nanos DESC | KEEP millis, nanos | LIMIT 1;
+
+millis:date              | nanos:date_nanos
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+;
+
+sort by nanos asc
+required_capability: date_nanos_type
+
+FROM date_nanos | WHERE millis > "2020-02-02" | SORT nanos ASC | KEEP millis, nanos | LIMIT 1;
+
+millis:date              | nanos:date_nanos
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+mv_max on date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | SORT millis ASC | EVAL nanos = MV_MAX(nanos) | KEEP nanos | LIMIT 1;
+
+
+nanos:date_nanos
+2023-03-23T12:15:03.360103847Z
+;
+
+mv_min on date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | SORT millis ASC | EVAL nanos = MV_MIN(nanos) | KEEP nanos | LIMIT 1;
+
+nanos:date_nanos
+2023-01-23T13:55:01.543123456Z
+;
+
+mv_count on date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | SORT millis ASC | EVAL ct = MV_COUNT(nanos) | KEEP ct | LIMIT 1;
+
+ct:integer
+3
+;
+
+mv_first on date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | SORT millis ASC | EVAL nanos = MV_FIRST(nanos) | KEEP nanos | LIMIT 1;
+
+nanos:date_nanos
+2023-01-23T13:55:01.543123456Z
+;
+
+mv_last on date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | SORT millis asc | EVAL nanos = MV_LAST(nanos) | KEEP nanos | LIMIT 1;
+
+nanos:date_nanos
+2023-03-23T12:15:03.360103847Z
+;

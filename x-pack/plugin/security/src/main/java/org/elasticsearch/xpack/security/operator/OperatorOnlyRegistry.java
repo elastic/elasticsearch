@@ -23,21 +23,18 @@ public interface OperatorOnlyRegistry {
     OperatorPrivilegesViolation check(String action, TransportRequest request);
 
     /**
-     * Checks to see if a given {@link RestHandler} is subject to operator-only restrictions for the REST API.
+     * Checks to see if a given {@link RestHandler} is subject to full restrictions for the REST API.
      *
-     * Any REST API may be fully or partially restricted.
      * A fully restricted REST API mandates that the implementation of this method throw an
      * {@link org.elasticsearch.ElasticsearchStatusException} with an appropriate status code and error message.
      *
-     * A partially restricted REST API mandates that the {@link RestRequest} is marked as restricted so that the downstream handler can
-     * behave appropriately.
-     * For example, to restrict the REST response the implementation
-     * should call {@link RestRequest#markPathRestricted(String)} so that the downstream handler can properly restrict the response
-     * before returning to the client. Note - a partial restriction should not throw an exception.
+     * An API may also be partially restricted: available to all users but with request or response restrictions,
+     * (e.g., certain fields are not allowed in the request).
+     * Partial restrictions are handled by the REST handler itself, not by this method.
      *
-     * @param restHandler The {@link RestHandler} to check for any restrictions
-     * @param restRequest The {@link RestRequest} to check for any restrictions and mark any partially restricted REST API's
-     * @throws ElasticsearchStatusException if the request should be denied in its entirety (fully restricted)
+     * @param restHandler The {@link RestHandler} to check for any full restrictions
+     * @param restRequest The {@link RestRequest} to provide context for restriction failures
+     * @throws ElasticsearchStatusException if the request should be denied due to a full restriction
      */
     void checkRest(RestHandler restHandler, RestRequest restRequest) throws ElasticsearchException;
 

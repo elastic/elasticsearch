@@ -123,12 +123,12 @@ public class CCSUsageTelemetry {
 
     public void updateUsage(CCSUsage ccsUsage) {
         assert ccsUsage.getRemotesCount() > 0 : "Expected at least one remote cluster in CCSUsage";
-        // TODO: fork this to a background thread? if yes, could just pass in the SearchResponse to parse it off the response thread
+        // TODO: fork this to a background thread?
         doUpdate(ccsUsage);
     }
 
-    // TODO: what is the best thread-safety model here? Start with locking model in order to get the functionality working.
-    private synchronized void doUpdate(CCSUsage ccsUsage) {
+    // This is not synchronized, instead we ensure that every metric in the class is thread-safe.
+    private void doUpdate(CCSUsage ccsUsage) {
         totalCount.increment();
         long searchTook = ccsUsage.getTook();
         if (isSuccess(ccsUsage)) {
@@ -176,29 +176,28 @@ public class CCSUsageTelemetry {
         private final String clusterAlias;
         // Right now, this is the number of successful (not skipped) requests to this cluster.
         // We need to make it clear in the docs that it does not count skipped requests.
-        // TODO: are we OK to use long and not LongAdder here?
-        private long count;
-        private long skippedCount;
+        private final LongAdder count;
+        private final LongAdder skippedCount;
         private final LongMetric took;
 
         PerClusterCCSTelemetry(String clusterAlias) {
             this.clusterAlias = clusterAlias;
-            this.count = 0;
+            this.count = new LongAdder();
             took = new LongMetric();
-            this.skippedCount = 0;
+            this.skippedCount = new LongAdder();
         }
 
         void update(CCSUsage.PerClusterUsage remoteUsage) {
-            count++;
+            count.increment();
             took.record(remoteUsage.getTook());
         }
 
         void skipped() {
-            skippedCount++;
+            skippedCount.increment();
         }
 
         public long getCount() {
-            return count;
+            return count.longValue();
         }
 
         @Override
@@ -215,11 +214,11 @@ public class CCSUsageTelemetry {
         }
 
         public long getSkippedCount() {
-            return skippedCount;
+            return skippedCount.longValue();
         }
 
         public CCSTelemetrySnapshot.PerClusterCCSTelemetry getSnapshot() {
-            return new CCSTelemetrySnapshot.PerClusterCCSTelemetry(count, skippedCount, took.getValue());
+            return new CCSTelemetrySnapshot.PerClusterCCSTelemetry(count.longValue(), skippedCount.longValue(), took.getValue());
         }
 
     }

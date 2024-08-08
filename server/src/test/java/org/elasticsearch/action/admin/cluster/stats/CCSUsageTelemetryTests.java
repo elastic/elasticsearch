@@ -16,6 +16,7 @@ import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASY
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.KNOWN_CLIENTS;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result.CANCELED;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -273,5 +274,70 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             assertThat(snapshot.getFailureReasons().get(CANCELED.getName()), equalTo(2L));
             assertThat(snapshot.getClientCounts().get("kibana"), equalTo(1L));
         }
+    }
+
+    public void testConcurrentUpdates() throws InterruptedException {
+        CCSUsageTelemetry ccsUsageHolder = new CCSUsageTelemetry();
+        CCSUsageTelemetry expectedHolder = new CCSUsageTelemetry();
+        int numSearches = randomIntBetween(1000, 5000);
+        int numThreads = randomIntBetween(10, 20);
+        Thread[] threads = new Thread[numThreads];
+        CCSUsage[] ccsUsages = new CCSUsage[numSearches];
+
+        // Make random usage objects
+        for (int i = 0; i < numSearches; i++) {
+            CCSUsage.Builder builder = new CCSUsage.Builder();
+            builder.took(randomLongBetween(5, 10000)).setRemotesCount(randomIntBetween(1, 10));
+            if (randomBoolean()) {
+                builder.setFeature(ASYNC_FEATURE);
+            }
+            if (randomBoolean()) {
+                builder.setFeature(WILDCARD_FEATURE);
+            }
+            if (randomBoolean()) {
+                builder.setFeature(MRT_FEATURE);
+            }
+            if (randomBoolean()) {
+                builder.setClient("kibana");
+            }
+            if (randomInt(20) == 7) {
+                // 5% of requests will fail
+                builder.setFailure(randomFrom(CCSUsageTelemetry.Result.values()));
+                ccsUsages[i] = builder.build();
+                continue;
+            }
+            builder.perClusterUsage("", new TimeValue(randomLongBetween(1, 10000)));
+            if (randomBoolean()) {
+                builder.skippedRemote("remote1");
+            } else {
+                builder.perClusterUsage("remote1", new TimeValue(randomLongBetween(1, 10000)));
+            }
+            builder.perClusterUsage(randomFrom("remote2", "remote3", "remote4"), new TimeValue(randomLongBetween(1, 10000)));
+            ccsUsages[i] = builder.build();
+        }
+
+        // Add each of the search objects to the telemetry holder in a different thread
+        for (int i = 0; i < numThreads; i++) {
+            final int threadNo = i;
+            threads[i] = new Thread(() -> {
+                for (int j = threadNo; j < numSearches; j += numThreads) {
+                    ccsUsageHolder.updateUsage(ccsUsages[j]);
+                }
+            });
+            threads[i].start();
+        }
+
+        for (int i = 0; i < numThreads; i++) {
+            threads[i].join();
+        }
+
+        // Add the same search objects to the expected holder in a single thread
+        for (int i = 0; i < numSearches; i++) {
+            expectedHolder.updateUsage(ccsUsages[i]);
+        }
+
+        CCSTelemetrySnapshot snapshot = ccsUsageHolder.getCCSTelemetrySnapshot();
+        CCSTelemetrySnapshot expectedSnapshot = ccsUsageHolder.getCCSTelemetrySnapshot();
+        assertThat(snapshot, equalTo(expectedSnapshot));
     }
 }

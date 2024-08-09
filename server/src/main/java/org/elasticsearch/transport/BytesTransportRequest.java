@@ -61,6 +61,17 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     }
 
     @Override
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(SerializationContext result) throws IOException {
+        super.writeTo(result.out);
+        result.insertBytesReference(bytes);
+    }
+
+    @Override
     public void incRef() {
         bytes.incRef();
     }

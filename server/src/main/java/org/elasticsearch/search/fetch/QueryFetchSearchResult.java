@@ -79,6 +79,17 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     }
 
     @Override
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(SerializationContext result) throws IOException {
+        queryResult.writeTo(result.out);
+        fetchResult.serialize(result);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);

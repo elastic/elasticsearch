@@ -12,6 +12,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,7 +22,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-public class BulkItemRequest implements Writeable, Accountable {
+public final class BulkItemRequest implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
@@ -104,6 +105,12 @@ public class BulkItemRequest implements Writeable, Accountable {
     public void writeThin(StreamOutput out) throws IOException {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequestThin(out, request);
+        out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);
+    }
+
+    public void serializeThin(BytesStream out, SerializationContext result) throws IOException {
+        out.writeVInt(id);
+        DocWriteRequest.writeDocumentRequestThin(out, result, request);
         out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);
     }
 

@@ -15,8 +15,10 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -278,6 +280,21 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeThin(out);
+        } else if (request instanceof DeleteRequest) {
+            out.writeByte((byte) 1);
+            ((DeleteRequest) request).writeThin(out);
+        } else if (request instanceof UpdateRequest) {
+            out.writeByte((byte) 2);
+            ((UpdateRequest) request).writeThin(out);
+        } else {
+            throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
+        }
+    }
+
+    static void writeDocumentRequestThin(BytesStream out, Writeable.SerializationContext result, DocWriteRequest<?> request)
+        throws IOException {
+        if (request instanceof IndexRequest) {
+            ((IndexRequest) request).serializeThin(out, result);
         } else if (request instanceof DeleteRequest) {
             out.writeByte((byte) 1);
             ((DeleteRequest) request).writeThin(out);

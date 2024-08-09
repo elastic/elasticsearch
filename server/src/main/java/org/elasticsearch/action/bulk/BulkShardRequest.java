@@ -144,6 +144,29 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     }
 
     @Override
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(SerializationContext result) throws IOException {
+        var out = result.out;
+        super.writeTo(out);
+        out.writeVInt(items.length);
+        for (BulkItemRequest item : items) {
+            if (item == null) {
+                out.writeBoolean(false);
+                continue;
+            }
+            out.writeBoolean(true);
+            item.serializeThin(out, result);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
+            out.writeBoolean(isSimulated);
+        }
+    }
+
+    @Override
     public String toString() {
         // This is included in error messages so we'll try to make it somewhat user friendly.
         StringBuilder b = new StringBuilder("BulkShardRequest [");

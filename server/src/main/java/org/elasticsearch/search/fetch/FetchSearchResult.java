@@ -47,6 +47,20 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     @Override
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(SerializationContext result) throws IOException {
+        assert hasReferences();
+        var out = result.out;
+        contextId.writeTo(out);
+        hits.serialize(result);
+        out.writeOptionalWriteable(profileResult);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
         contextId.writeTo(out);

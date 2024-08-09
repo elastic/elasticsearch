@@ -8,7 +8,12 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Implementers can be written to a {@linkplain StreamOutput} and read from a {@linkplain StreamInput}. This allows them to be "thrown
@@ -21,6 +26,44 @@ public interface Writeable {
      * Write this into the {@linkplain StreamOutput}.
      */
     void writeTo(StreamOutput out) throws IOException;
+
+    default boolean supportsZeroCopy() {
+        return false;
+    }
+
+    default void serialize(SerializationContext result) throws IOException {
+        var e = new UnsupportedOperationException("[" + this.getClass() + "] does not support zero copy serialization");
+        assert false : e;
+        throw e;
+    }
+
+    final class SerializationContext {
+
+        private final List<BytesReference> bytesReferences = new ArrayList<>();
+
+        public final BytesStream out;
+
+        private int startingOffset;
+
+        public SerializationContext(BytesStream out) throws IOException {
+            this.out = out;
+            startingOffset = Math.toIntExact(out.position());
+        }
+
+        public void insertBytesReference(BytesReference bytes) throws IOException {
+            out.writeVInt(bytes.length());
+            int currentPos = Math.toIntExact(out.position());
+            bytesReferences.add(out.bytes().slice(startingOffset, currentPos - startingOffset));
+            bytesReferences.add(bytes);
+            startingOffset = currentPos;
+        }
+
+        public BytesReference finish() throws IOException {
+            bytesReferences.add(out.bytes().slice(startingOffset, Math.toIntExact(out.position()) - startingOffset));
+            return CompositeBytesReference.of(bytesReferences.toArray(new BytesReference[0]));
+        }
+
+    }
 
     /**
      * Reference to a method that can write some object to a {@link StreamOutput}.

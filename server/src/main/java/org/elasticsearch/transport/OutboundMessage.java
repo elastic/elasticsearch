@@ -61,7 +61,13 @@ abstract class OutboundMessage extends NetworkMessage {
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
-            if (message instanceof BytesTransportRequest bRequest) {
+            if (message.supportsZeroCopy() && stream instanceof RecyclerBytesStreamOutput b) {
+                int posBefore = Math.toIntExact(b.position());
+                final Writeable.SerializationContext serializationContext = new Writeable.SerializationContext(b);
+                message.serialize(serializationContext);
+                zeroCopyBuffer = serializationContext.finish();
+                b.seek(posBefore);
+            } else if (message instanceof BytesTransportRequest bRequest) {
                 bRequest.writeThin(stream);
                 zeroCopyBuffer = bRequest.bytes;
             } else if (message instanceof RemoteTransportException) {

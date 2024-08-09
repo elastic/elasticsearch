@@ -934,8 +934,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void checkDimensions(int dvDims, int qvDims) {
-                if (dvDims != qvDims * Byte.SIZE) {
+            public void checkDimensions(Integer dvDims, int qvDims) {
+                if (dvDims != null && dvDims != qvDims * Byte.SIZE) {
                     throw new IllegalArgumentException(
                         "The query vector has a different number of dimensions ["
                             + qvDims * Byte.SIZE
@@ -969,8 +969,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float squaredMagnitude
         );
 
-        public void checkDimensions(int dvDims, int qvDims) {
-            if (dvDims != qvDims) {
+        public void checkDimensions(Integer dvDims, int qvDims) {
+            if (dvDims != null && dvDims != qvDims) {
                 throw new IllegalArgumentException(
                     "The query vector has a different number of dimensions [" + qvDims + "] than the document vectors [" + dvDims + "]."
                 );

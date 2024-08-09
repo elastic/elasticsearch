@@ -249,7 +249,10 @@ enrich policy executor.
 The enrich coordinator supports the following node settings:
 
 `enrich.cache_size`::
-Maximum number of searches to cache for enriching documents. Defaults to `1000`.
+Maximum number of searches to cache for enriching documents.
+By default, instead of looking at the _number_ of searches,
+the enrich coordinator looks at the size of the search hits in bytes and
+aims to only take up to 1% of the node's max heap space.
 There is a single cache for all enrich processors in the cluster. This setting
 determines the size of that cache.
 

@@ -18,11 +18,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -121,14 +123,28 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
-    public static final Setting<Long> CACHE_SIZE = Setting.longSetting("enrich.cache_size", 1000, 0, Setting.Property.NodeScope);
+    public static final Setting<Long> CACHE_SIZE = new Setting<>("enrich.cache_size", (String) null, (String s) -> {
+        if (s == null) {
+            return null;
+        }
+        return Setting.parseLong(s, 0, "enrich.cache_size");
+    }, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final EnrichCache enrichCache;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
-        this.enrichCache = new EnrichCache(CACHE_SIZE.get(settings));
+        Long maxSize = CACHE_SIZE.get(settings);
+        long maxHeapSize = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        // If we were unable to read the max heap size, we fall back to 1000 entries.
+        if (maxSize == null && maxHeapSize > 0) {
+            var maxByteSize = (long) (maxHeapSize * 0.01);
+            this.enrichCache = new EnrichCache(ByteSizeValue.ofBytes(maxByteSize));
+        } else {
+            maxSize = maxSize == null ? 1000 : maxSize;
+            this.enrichCache = new EnrichCache(maxSize);
+        }
     }
 
     @Override

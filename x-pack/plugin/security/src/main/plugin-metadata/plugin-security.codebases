@@ -1,2 +1,4 @@
 netty-common: io.netty.util.NettyRuntime
 netty-transport: io.netty.channel.Channel
+nimbus-jose-jwt: com.nimbusds.jose.shaded.gson.internal.ConstructorConstructor
+oauth2-oidc-sdk: com.nimbusds.jwt.SignedJWT

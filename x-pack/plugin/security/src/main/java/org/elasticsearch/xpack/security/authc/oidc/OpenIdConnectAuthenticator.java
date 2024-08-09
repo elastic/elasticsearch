@@ -85,6 +85,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.nimbus.NimbusWrapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -253,9 +254,23 @@ public class OpenIdConnectAuthenticator {
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
     // package private to testing
-    @SuppressWarnings("unchecked")
+
     void getUserClaims(
         @Nullable AccessToken accessToken,
+        JWT idToken,
+        Nonce expectedNonce,
+        boolean shouldRetry,
+        ActionListener<JWTClaimsSet> claimsListener
+    ) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            doGetUserClaims(accessToken, idToken, expectedNonce, shouldRetry, claimsListener);
+            return null;
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void doGetUserClaims(
+        AccessToken accessToken,
         JWT idToken,
         Nonce expectedNonce,
         boolean shouldRetry,
@@ -265,7 +280,7 @@ public class OpenIdConnectAuthenticator {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("ID Token Header: {}", idToken.getHeader());
             }
-            JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
+            JWTClaimsSet verifiedIdTokenClaims = NimbusWrapper.verifyTokenClaims(idTokenValidator.get(), idToken, expectedNonce);
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
             }
@@ -301,7 +316,7 @@ public class OpenIdConnectAuthenticator {
                 LOGGER.debug("Failed to parse or validate the ID Token", e);
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
-        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
+        } catch (ParseException | JOSEException e) {
             LOGGER.debug(
                 () -> format("ID Token: [%s], Nonce: [%s]", JwtUtil.toStringRedactSignature(idToken).get(), expectedNonce.toString()),
                 e

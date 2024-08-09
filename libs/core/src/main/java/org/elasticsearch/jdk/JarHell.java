@@ -218,6 +218,7 @@ public class JarHell {
                     throw new IllegalStateException("jar hell!" + System.lineSeparator() + "duplicate jar on classpath: " + path);
                 }
                 output.accept("examining jar: " + path);
+                logPathInfo(path, output);
                 try (JarFile file = new JarFile(path.toString())) {
                     Manifest manifest = file.getManifest();
                     if (manifest != null) {
@@ -257,6 +258,24 @@ public class JarHell {
                     });
                 }
             }
+        }
+    }
+
+    private static void logPathInfo(Path path, Consumer<String> output) {
+        try {
+            if (Files.exists(path)) {
+                output.accept("Plugin classpath path exists: " + path);
+            } else {
+                output.accept("Plugin classpath path does not exist: " + path);
+                Path parent = path.getParent();
+                if (Files.exists(parent)) {
+                    Files.list(parent).forEach(p -> output.accept("parent path entry: " + p));
+                } else {
+                    output.accept("parent path does not exist: " + parent);
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

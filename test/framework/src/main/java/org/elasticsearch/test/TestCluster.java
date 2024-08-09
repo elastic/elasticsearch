@@ -241,20 +241,19 @@ public abstract class TestCluster {
                         // Happens if `action.destructive_requires_name` is set to true
                         // which is the case in the CloseIndexDisableCloseAllTests
                         if ("_all".equals(indices[0])) {
-                            ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-                            ArrayList<String> concreteIndices = new ArrayList<>();
-                            for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
-                                concreteIndices.add(indexMetadata.getIndex().getName());
-                            }
-                            if (concreteIndices.isEmpty() == false) {
-                                client().admin()
-                                    .indices()
-                                    .prepareDelete(concreteIndices.toArray(Strings.EMPTY_ARRAY))
-                                    .execute(listener.delegateFailure((l, r) -> {
-                                        assertAcked(r);
-                                        l.onResponse(null);
-                                    }));
-                            }
+                            final SubscribableListener<ClusterStateResponse> clusterStateListener = new SubscribableListener<>();
+                            client().admin().cluster().prepareState().execute(clusterStateListener);
+                            clusterStateListener.<AcknowledgedResponse>andThen((l, clusterStateResponse) -> {
+                                ArrayList<String> concreteIndices = new ArrayList<>();
+                                for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
+                                    concreteIndices.add(indexMetadata.getIndex().getName());
+                                }
+                                if (concreteIndices.isEmpty() == false) {
+                                    client().admin().indices().prepareDelete(concreteIndices.toArray(Strings.EMPTY_ARRAY)).execute(l);
+                                } else {
+                                    l.onResponse(AcknowledgedResponse.TRUE);
+                                }
+                            }).andThenAccept(ElasticsearchAssertions::assertAcked).addListener(listener);
                         } else {
                             // TODO: this is clearly wrong but at least
                             // org.elasticsearch.xpack.watcher.test.integration.BootStrapTests.testTriggeredWatchLoading depends on this

@@ -19,7 +19,6 @@ import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Res
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CCSUsageTelemetryTests extends ESTestCase {
 
@@ -73,7 +72,7 @@ public class CCSUsageTelemetryTests extends ESTestCase {
             assertThat(snapshot.getTook().avg(), greaterThan(0L));
             // Expect it to be within 1% of the actual value
             assertThat(snapshot.getTook().avg(), closeTo(took1));
-            assertThat(snapshot.getTook().max(), lessThanOrEqualTo(took1));
+            assertThat(snapshot.getTook().max(), closeTo(took1));
             if (minimizeRoundTrips) {
                 assertThat(snapshot.getTookMrtTrue().count(), equalTo(1L));
                 assertThat(snapshot.getTookMrtTrue().avg(), greaterThan(0L));

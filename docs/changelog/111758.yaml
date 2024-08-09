@@ -1,0 +1,6 @@
+pr: 111758
+summary: Revert "Avoid bucket copies in Aggs"
+area: Aggregations
+type: bug
+issues:
+ - 111679

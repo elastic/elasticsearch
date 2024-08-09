@@ -226,34 +226,11 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
-            List<InternalAggregation> internalAggregations = null;
-            for (int i = 0; i < reducedInternalAggs.size(); i++) {
-                InternalAggregation agg = reducedInternalAggs.get(i);
-                InternalAggregation internalAggregation = agg.reducePipelines(
-                    agg,
-                    context,
-                    context.pipelineTreeRoot().subTree(agg.getName())
-                );
-                if (internalAggregation.equals(agg) == false) {
-                    if (internalAggregations == null) {
-                        internalAggregations = new ArrayList<>(reducedInternalAggs);
-                    }
-                    internalAggregations.set(i, internalAggregation);
-                }
-            }
+            reducedInternalAggs = reducedInternalAggs.stream()
+                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
+                .collect(Collectors.toCollection(ArrayList::new));
 
-            var pipelineAggregators = context.pipelineTreeRoot().aggregators();
-            if (pipelineAggregators.isEmpty()) {
-                if (internalAggregations == null) {
-                    return reduced;
-                }
-                return from(internalAggregations);
-            }
-            if (internalAggregations != null) {
-                reducedInternalAggs = internalAggregations;
-            }
-            reducedInternalAggs = new ArrayList<>(reducedInternalAggs);
-            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
                 InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);

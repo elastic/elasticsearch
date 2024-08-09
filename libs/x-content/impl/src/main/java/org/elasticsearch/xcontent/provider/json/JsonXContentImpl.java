@@ -65,7 +65,7 @@ public class JsonXContentImpl implements XContent {
     }
 
     @Override
-    public byte streamSeparator() {
+    public byte bulkSeparator() {
         return '\n';
     }
 

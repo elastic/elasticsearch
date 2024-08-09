@@ -61,8 +61,8 @@ public final class YamlXContentImpl implements XContent {
     }
 
     @Override
-    public byte streamSeparator() {
-        throw new UnsupportedOperationException("yaml does not support stream parsing...");
+    public byte bulkSeparator() {
+        throw new UnsupportedOperationException("yaml does not support bulk parsing...");
     }
 
     @Override

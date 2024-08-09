@@ -26,8 +26,6 @@ template:
         path: body_text
       body_structured:
         type: flattened
-      trace_flags:
-        type: long
       trace_id:
         type: keyword
       trace.id:

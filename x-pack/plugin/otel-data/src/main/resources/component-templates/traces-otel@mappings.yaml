@@ -24,8 +24,6 @@ template:
       parent.id:
         type: alias
         path: parent_span_id
-      trace_flags:
-        type: long
       name:
         type: keyword
       span.name:
@@ -52,8 +50,6 @@ template:
             subobjects: false
             dynamic: true
           dropped_attributes_count:
-            type: long
-          trace_flags:
             type: long
       dropped_links_count:
         type: long

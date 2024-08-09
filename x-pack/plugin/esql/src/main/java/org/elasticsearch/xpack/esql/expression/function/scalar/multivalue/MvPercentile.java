@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -44,11 +45,14 @@ public class MvPercentile extends EsqlScalarFunction {
         MvPercentile::new
     );
 
+    // 2^52 is the smallest integer where it and all smaller integers can be represented exactly as double
+    private static final double MAX_SAFE_DOUBLE = Double.longBitsToDouble(0x4330000000000000L);
+
     private final Expression field;
     private final Expression percentile;
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long"/*, "unsigned_long"*/ },
+        returnType = { "double", "integer", "long" },
         description = "Converts a multivalued field into a single valued field containing "
             + "the value at which a certain percentage of observed values occur."
         /*examples = {
@@ -65,7 +69,7 @@ public class MvPercentile extends EsqlScalarFunction {
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long"/*, "unsigned_long"*/ },
+            type = { "double", "integer", "long" },
             description = "Multivalue expression."
         ) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
@@ -97,7 +101,7 @@ public class MvPercentile extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isNumeric(field, sourceText(), FIRST).and(
+        return isType(field, dt -> dt.isNumeric() && dt != UNSIGNED_LONG, sourceText(), FIRST, "numeric except unsigned_long").and(
             isType(percentile, dt -> dt.isNumeric() && dt != UNSIGNED_LONG, sourceText(), SECOND, "numeric except unsigned_long")
         );
     }
@@ -218,7 +222,6 @@ public class MvPercentile extends EsqlScalarFunction {
         var lowerIndex = (int) index;
         var upperIndex = lowerIndex + 1;
         var fraction = index - lowerIndex;
-        assert lowerIndex >= 0 && upperIndex < valueCount;
 
         if (valuesBlock.mvSortedAscending()) {
             if (percentile == 0) {
@@ -226,6 +229,7 @@ public class MvPercentile extends EsqlScalarFunction {
             } else if (percentile == 100) {
                 builder.appendDouble(valuesBlock.getDouble(valueCount - 1));
             } else {
+                assert lowerIndex >= 0 && upperIndex < valueCount;
                 var lowerValue = valuesBlock.getDouble(lowerIndex);
                 var upperValue = valuesBlock.getDouble(upperIndex);
                 var percentileValue = lowerValue + fraction * (upperValue - lowerValue);
@@ -246,6 +250,7 @@ public class MvPercentile extends EsqlScalarFunction {
         } else if (percentile == 100) {
             builder.appendDouble(values[valueCount - 1]);
         } else {
+            assert lowerIndex >= 0 && upperIndex < valueCount;
             var lowerValue = values[lowerIndex];
             var upperValue = values[upperIndex];
             var percentileValue = lowerValue + fraction * (upperValue - lowerValue);
@@ -272,7 +277,6 @@ public class MvPercentile extends EsqlScalarFunction {
         var lowerIndex = (int) index;
         var upperIndex = lowerIndex + 1;
         var fraction = index - lowerIndex;
-        assert lowerIndex >= 0 && upperIndex < valueCount;
 
         if (valuesBlock.mvSortedAscending()) {
             if (percentile == 0) {
@@ -280,10 +284,12 @@ public class MvPercentile extends EsqlScalarFunction {
             } else if (percentile == 100) {
                 builder.appendInt(valuesBlock.getInt(valueCount - 1));
             } else {
+                assert lowerIndex >= 0 && upperIndex < valueCount;
                 var lowerValue = valuesBlock.getInt(lowerIndex);
                 var upperValue = valuesBlock.getInt(upperIndex);
-                var percentileValue = lowerValue + fraction * (upperValue - lowerValue);
-                builder.appendInt((int) percentileValue);
+                var difference = (long) upperValue - lowerValue;
+                var percentileValue = lowerValue + (int) (fraction * difference);
+                builder.appendInt(percentileValue);
             }
         }
 
@@ -300,10 +306,12 @@ public class MvPercentile extends EsqlScalarFunction {
         } else if (percentile == 100) {
             builder.appendInt(values[valueCount - 1]);
         } else {
+            assert lowerIndex >= 0 && upperIndex < valueCount;
             var lowerValue = values[lowerIndex];
             var upperValue = values[upperIndex];
-            var percentileValue = lowerValue + fraction * (upperValue - lowerValue);
-            builder.appendInt((int) percentileValue);
+            var difference = (long) upperValue - lowerValue;
+            var percentileValue = lowerValue + (int) (fraction * difference);
+            builder.appendInt(percentileValue);
         }
     }
 
@@ -326,7 +334,6 @@ public class MvPercentile extends EsqlScalarFunction {
         var lowerIndex = (int) index;
         var upperIndex = lowerIndex + 1;
         var fraction = index - lowerIndex;
-        assert lowerIndex >= 0 && upperIndex < valueCount;
 
         if (valuesBlock.mvSortedAscending()) {
             if (percentile == 0) {
@@ -334,10 +341,9 @@ public class MvPercentile extends EsqlScalarFunction {
             } else if (percentile == 100) {
                 builder.appendLong(valuesBlock.getLong(valueCount - 1));
             } else {
-                var lowerValue = valuesBlock.getLong(lowerIndex);
-                var upperValue = valuesBlock.getLong(upperIndex);
-                var percentileValue = lowerValue + fraction * (upperValue - lowerValue);
-                builder.appendLong((long) percentileValue);
+                assert lowerIndex >= 0 && upperIndex < valueCount;
+                var result = calculateLongPercentile(fraction, valuesBlock.getLong(lowerIndex), valuesBlock.getLong(upperIndex));
+                builder.appendLong(result);
             }
         }
 
@@ -354,10 +360,29 @@ public class MvPercentile extends EsqlScalarFunction {
         } else if (percentile == 100) {
             builder.appendLong(values[valueCount - 1]);
         } else {
-            var lowerValue = values[lowerIndex];
-            var upperValue = values[upperIndex];
-            var percentileValue = lowerValue + fraction * (upperValue - lowerValue);
-            builder.appendLong((long) percentileValue);
+            assert lowerIndex >= 0 && upperIndex < valueCount;
+            var result = calculateLongPercentile(fraction, values[lowerIndex], values[upperIndex]);
+            builder.appendLong(result);
         }
+    }
+
+    /**
+     * Calculates a percentile for a long avoiding overflows and double precision issues.
+     * <p>
+     *     To do that, if the values are over the limit of the representable double integers,
+     *     it uses instead BigDecimals for the calculations.
+     * </p>
+     */
+    private static long calculateLongPercentile(double fraction, long lowerValue, long upperValue) {
+        if (upperValue < MAX_SAFE_DOUBLE && lowerValue > -MAX_SAFE_DOUBLE) {
+            var difference = upperValue - lowerValue;
+            return lowerValue + (long) (fraction * difference);
+        }
+
+        var lowerBigDecimal = new BigDecimal(lowerValue);
+        var upperBigDecimal = new BigDecimal(upperValue);
+        var difference = upperBigDecimal.subtract(lowerBigDecimal);
+        var fractionBigDecimal = new BigDecimal(fraction);
+        return lowerBigDecimal.add(fractionBigDecimal.multiply(difference)).longValue();
     }
 }

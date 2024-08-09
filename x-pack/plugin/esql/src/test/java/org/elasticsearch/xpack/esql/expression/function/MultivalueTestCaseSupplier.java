@@ -38,7 +38,7 @@ public final class MultivalueTestCaseSupplier {
             if (0 <= max && 0 >= min && includeZero) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<0 ints>",
+                        "<0 mv " + ordering + " ints>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> 0), ordering),
                         DataType.INTEGER
                     )
@@ -48,7 +48,7 @@ public final class MultivalueTestCaseSupplier {
             if (max != 0) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<" + max + " ints>",
+                        "<" + max + " mv " + ordering + " ints>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> max), ordering),
                         DataType.INTEGER
                     )
@@ -58,7 +58,7 @@ public final class MultivalueTestCaseSupplier {
             if (min != 0 && min != max) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<" + min + " ints>",
+                        "<" + min + " mv " + ordering + " ints>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> min), ordering),
                         DataType.INTEGER
                     )
@@ -70,7 +70,7 @@ public final class MultivalueTestCaseSupplier {
             if (lower < upper) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<positive ints>",
+                        "<positive mv " + ordering + " ints>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> ESTestCase.randomIntBetween(lower, upper)), ordering),
                         DataType.INTEGER
                     )
@@ -82,7 +82,7 @@ public final class MultivalueTestCaseSupplier {
             if (lower1 < upper1) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<negative ints>",
+                        "<negative mv " + ordering + " ints>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> ESTestCase.randomIntBetween(lower1, upper1)), ordering),
                         DataType.INTEGER
                     )
@@ -90,12 +90,14 @@ public final class MultivalueTestCaseSupplier {
             }
 
             if (min < 0 && max > 0) {
-                cases.add(new TypedDataSupplier("<random ints>", () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> {
-                    if (includeZero) {
-                        return ESTestCase.randomIntBetween(min, max);
-                    }
-                    return randomBoolean() ? ESTestCase.randomIntBetween(min, -1) : ESTestCase.randomIntBetween(1, max);
-                }), ordering), DataType.INTEGER));
+                cases.add(
+                    new TypedDataSupplier("<random mv " + ordering + " ints>", () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> {
+                        if (includeZero) {
+                            return ESTestCase.randomIntBetween(min, max);
+                        }
+                        return randomBoolean() ? ESTestCase.randomIntBetween(min, -1) : ESTestCase.randomIntBetween(1, max);
+                    }), ordering), DataType.INTEGER)
+                );
             }
         }
 
@@ -109,7 +111,7 @@ public final class MultivalueTestCaseSupplier {
             if (0 <= max && 0 >= min && includeZero) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<0 longs>",
+                        "<0 mv " + ordering + " longs>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> 0L), ordering),
                         DataType.LONG
                     )
@@ -119,7 +121,7 @@ public final class MultivalueTestCaseSupplier {
             if (max != 0) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<" + max + " longs>",
+                        "<" + max + " mv " + ordering + " longs>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> max), ordering),
                         DataType.LONG
                     )
@@ -129,7 +131,7 @@ public final class MultivalueTestCaseSupplier {
             if (min != 0 && min != max) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<" + min + " longs>",
+                        "<" + min + " mv " + ordering + " longs>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> min), ordering),
                         DataType.LONG
                     )
@@ -141,7 +143,7 @@ public final class MultivalueTestCaseSupplier {
             if (lower < upper) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<positive longs>",
+                        "<positive mv " + ordering + " longs>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> ESTestCase.randomLongBetween(lower, upper)), ordering),
                         DataType.LONG
                     )
@@ -153,7 +155,7 @@ public final class MultivalueTestCaseSupplier {
             if (lower1 < upper1) {
                 cases.add(
                     new TypedDataSupplier(
-                        "<negative longs>",
+                        "<negative mv " + ordering + " longs>",
                         () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> ESTestCase.randomLongBetween(lower1, upper1)), ordering),
                         DataType.LONG
                     )
@@ -161,12 +163,14 @@ public final class MultivalueTestCaseSupplier {
             }
 
             if (min < 0 && max > 0) {
-                cases.add(new TypedDataSupplier("<random longs>", () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> {
-                    if (includeZero) {
-                        return ESTestCase.randomLongBetween(min, max);
-                    }
-                    return randomBoolean() ? ESTestCase.randomLongBetween(min, -1) : ESTestCase.randomLongBetween(1, max);
-                }), ordering), DataType.LONG));
+                cases.add(
+                    new TypedDataSupplier("<random mv " + ordering + " longs>", () -> putInOrder(randomList(MIN_VALUES, MAX_VALUES, () -> {
+                        if (includeZero) {
+                            return ESTestCase.randomLongBetween(min, max);
+                        }
+                        return randomBoolean() ? ESTestCase.randomLongBetween(min, -1) : ESTestCase.randomLongBetween(1, max);
+                    }), ordering), DataType.LONG)
+                );
             }
         }
 

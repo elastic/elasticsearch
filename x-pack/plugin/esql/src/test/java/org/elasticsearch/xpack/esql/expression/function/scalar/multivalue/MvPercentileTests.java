@@ -18,12 +18,16 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.MultivalueTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -54,11 +58,12 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        for (var percentileType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE)) {
+        for (var percentileType : List.of(INTEGER, LONG, DataType.DOUBLE)) {
             cases.addAll(
                 List.of(
+                    // Doubles
                     new TestCaseSupplier(
-                        "median",
+                        "median double",
                         List.of(DOUBLE, percentileType),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -71,7 +76,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                         )
                     ),
                     new TestCaseSupplier(
-                        "single value",
+                        "single value double",
                         List.of(DOUBLE, percentileType),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -84,7 +89,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                         )
                     ),
                     new TestCaseSupplier(
-                        "p0",
+                        "p0 double",
                         List.of(DOUBLE, percentileType),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -97,7 +102,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                         )
                     ),
                     new TestCaseSupplier(
-                        "p100",
+                        "p100 double",
                         List.of(DOUBLE, percentileType),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -110,7 +115,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                         )
                     ),
                     new TestCaseSupplier(
-                        "averaged",
+                        "averaged double",
                         List.of(DOUBLE, percentileType),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -121,15 +126,178 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                             DOUBLE,
                             equalTo(7.5)
                         )
+                    ),
+
+                    // Int
+                    new TestCaseSupplier(
+                        "median int",
+                        List.of(INTEGER, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-10, 5, 10), INTEGER, "field"),
+                                percentileWithType(50, percentileType)
+                            ),
+                            evaluatorString(INTEGER, percentileType),
+                            INTEGER,
+                            equalTo(5)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "single value int",
+                        List.of(INTEGER, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(55), INTEGER, "field"),
+                                percentileWithType(randomIntBetween(0, 100), percentileType)
+                            ),
+                            evaluatorString(INTEGER, percentileType),
+                            INTEGER,
+                            equalTo(55)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "p0 int",
+                        List.of(INTEGER, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-10, 5, 10), INTEGER, "field"),
+                                percentileWithType(0, percentileType)
+                            ),
+                            evaluatorString(INTEGER, percentileType),
+                            INTEGER,
+                            equalTo(-10)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "p100 int",
+                        List.of(INTEGER, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-10, 5, 10), INTEGER, "field"),
+                                percentileWithType(100, percentileType)
+                            ),
+                            evaluatorString(INTEGER, percentileType),
+                            INTEGER,
+                            equalTo(10)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "averaged int",
+                        List.of(INTEGER, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-10, 5, 10), INTEGER, "field"),
+                                percentileWithType(75, percentileType)
+                            ),
+                            evaluatorString(INTEGER, percentileType),
+                            INTEGER,
+                            equalTo(7)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "big int difference",
+                        List.of(INTEGER, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(Integer.MIN_VALUE, Integer.MAX_VALUE), INTEGER, "field"),
+                                percentileWithType(50, percentileType)
+                            ),
+                            evaluatorString(INTEGER, percentileType),
+                            INTEGER,
+                            equalTo(-1) // Negative max is 1 smaller than positive max
+                        )
+                    ),
+
+                    // Long
+                    new TestCaseSupplier(
+                        "median long",
+                        List.of(LONG, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-10L, 5L, 10L), LONG, "field"),
+                                percentileWithType(50, percentileType)
+                            ),
+                            evaluatorString(LONG, percentileType),
+                            LONG,
+                            equalTo(5L)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "single value long",
+                        List.of(LONG, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(55L), LONG, "field"),
+                                percentileWithType(randomIntBetween(0, 100), percentileType)
+                            ),
+                            evaluatorString(LONG, percentileType),
+                            LONG,
+                            equalTo(55L)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "p0 long",
+                        List.of(LONG, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-10L, 5L, 10L), LONG, "field"),
+                                percentileWithType(0, percentileType)
+                            ),
+                            evaluatorString(LONG, percentileType),
+                            LONG,
+                            equalTo(-10L)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "p100 long",
+                        List.of(LONG, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-10L, 5L, 10L), LONG, "field"),
+                                percentileWithType(100, percentileType)
+                            ),
+                            evaluatorString(LONG, percentileType),
+                            LONG,
+                            equalTo(10L)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "averaged long",
+                        List.of(LONG, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-10L, 5L, 10L), LONG, "field"),
+                                percentileWithType(75, percentileType)
+                            ),
+                            evaluatorString(LONG, percentileType),
+                            LONG,
+                            equalTo(7L)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "big long difference",
+                        List.of(LONG, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(Long.MIN_VALUE, Long.MAX_VALUE), LONG, "field"),
+                                percentileWithType(50, percentileType)
+                            ),
+                            evaluatorString(LONG, percentileType),
+                            LONG,
+                            equalTo(0L)
+                        )
                     )
                 )
             );
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> switch (p) {
-            case 0 -> "numeric";
-            default -> "numeric except unsigned_long";
-        });
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL
+                && nullPosition == 0 ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullData, original) -> original,
+            cases,
+            (v, p) -> "numeric except unsigned_long"
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -169,12 +337,12 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
         if (rawValues.size() == 1) {
             return rawValues.get(0);
         }
+
         int valueCount = rawValues.size();
         var p = percentile / 100.0;
         var index = p * (valueCount - 1);
         var lowerIndex = (int) index;
         var upperIndex = lowerIndex + 1;
-        assert lowerIndex >= 0 && upperIndex < valueCount;
 
         if (rawValues.get(0) instanceof Integer) {
             var values = rawValues.stream().mapToInt(Number::intValue).sorted().toArray();
@@ -184,8 +352,10 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
             } else if (percentile == 100) {
                 return values[valueCount - 1];
             } else {
+                assert lowerIndex >= 0 && upperIndex < valueCount;
                 var fraction = index - lowerIndex;
-                return (int)(values[lowerIndex] + fraction * (values[upperIndex] - values[lowerIndex]));
+                var difference = (long) values[upperIndex] - values[lowerIndex];
+                return values[lowerIndex] + (int) (fraction * difference);
             }
         }
 
@@ -197,8 +367,12 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
             } else if (percentile == 100) {
                 return values[valueCount - 1];
             } else {
-                var fraction = index - lowerIndex;
-                return (long)(values[lowerIndex] + fraction * (values[upperIndex] - values[lowerIndex]));
+                assert lowerIndex >= 0 && upperIndex < valueCount;
+                var fraction = new BigDecimal(index - lowerIndex);
+                var upperValue = new BigDecimal(values[upperIndex]);
+                var lowerValue = new BigDecimal(values[lowerIndex]);
+                var difference = upperValue.subtract(lowerValue);
+                return lowerValue.add(fraction.multiply(difference)).longValue();
             }
         }
 
@@ -210,6 +384,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
             } else if (percentile == 100) {
                 return values[valueCount - 1];
             } else {
+                assert lowerIndex >= 0 && upperIndex < valueCount;
                 var fraction = index - lowerIndex;
                 return values[lowerIndex] + fraction * (values[upperIndex] - values[lowerIndex]);
             }

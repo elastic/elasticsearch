@@ -58,16 +58,8 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         this.timestampFieldType = timestampFieldType;
     }
 
-    long getMinTimestamp() {
-        return indexLongFieldRange.getMin();
-    }
-
     long getMaxTimestamp() {
         return indexLongFieldRange.getMax();
-    }
-
-    boolean hasTimestampData() {
-        return indexLongFieldRange.isComplete() && indexLongFieldRange != IndexLongFieldRange.EMPTY;
     }
 
     @Nullable
@@ -77,6 +69,15 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         }
 
         return timestampFieldType;
+    }
+
+    @Nullable
+    public IndexLongFieldRange getFieldRange(String fieldName) {
+        if (fieldName.equals(timestampFieldType.name()) == false) {
+            return null;
+        }
+
+        return indexLongFieldRange;
     }
 
     @Override

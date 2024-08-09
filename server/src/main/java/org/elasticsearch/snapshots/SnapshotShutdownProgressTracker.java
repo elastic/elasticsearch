@@ -8,18 +8,15 @@
 
 package org.elasticsearch.snapshots;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ResultDeduplicator;
-import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -51,7 +48,6 @@ public class SnapshotShutdownProgressTracker {
     private static final Logger logger = LogManager.getLogger(SnapshotShutdownProgressTracker.class);
 
     private final ThreadPool threadPool;
-    private final SnapshotShardsService snapshotShardsService;
 
     private final ProgressLogger progressLogger = new ProgressLogger();
     private final TimeValue progressLoggerInterval;
@@ -89,13 +85,12 @@ public class SnapshotShutdownProgressTracker {
     private final AtomicLong abortedCount = new AtomicLong();
     private final AtomicLong pausedCount = new AtomicLong();
 
-    public SnapshotShutdownProgressTracker(Settings settings, ThreadPool threadPool, SnapshotShardsService snapshotShardsService) {
+    public SnapshotShutdownProgressTracker(Settings settings, ThreadPool threadPool) {
         this.progressLoggerInterval = SNAPSHOT_PROGRESS_DURING_SHUTDOWN_INTERVAL_TIME_SETTING.get(settings);
         this.threadPool = threadPool;
-        this.snapshotShardsService = snapshotShardsService;
     }
 
-    protected void scheduleProgressLogger() {
+    private void scheduleProgressLogger() {
         scheduledProgressLoggerFuture = threadPool.scheduleWithFixedDelay(
             progressLogger,
             progressLoggerInterval,
@@ -103,9 +98,37 @@ public class SnapshotShutdownProgressTracker {
         );
     }
 
-    protected void cancelProgressLogger() {
+    private void cancelProgressLogger() {
         assert scheduledProgressLoggerFuture != null : "Somehow shutdown mode was removed before it was added.";
         scheduledProgressLoggerFuture.cancel();
+    }
+
+    /**
+     * Logs some statistics about shard snapshot progress.
+     */
+    private void logProgressReport() {
+        // A shard snapshot has two phases for tracking, for reporting purposes. The first is while the shard snapshot is running on the
+        // data node. The second, to update the shard snapshot status in the cluster state on the master node, occurs asynchronously upon
+        // shard snapshot completion.
+        logger.info(
+            """
+                Current active shard snapshot stats. \
+                Node shutdown cluster state update received at [{}}]. \
+                Finished signalling shard snapshots to pause [{}]. \
+                [Phase 1 of 2] Number shard snapshots running on the data node (have not yet noticed pause signal) [{}]. \
+                [Phase 2 of 2] Number shard snapshots running according to the master node (awaiting response to status update \
+                requests sent to master node) [{}]. \
+                Shard snapshot completion stats during shutdown: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}] \
+                """,
+            shutdownStartMillis,
+            shutdownFinishedSignallingPausingMillis,
+            numberOfShardSnapshotsInProgressOnDataNode.get(),
+            shardSnapshotRequests.size(),
+            doneCount.get(),
+            failureCount.get(),
+            abortedCount.get(),
+            pausedCount.get()
+        );
     }
 
     /**
@@ -123,6 +146,8 @@ public class SnapshotShutdownProgressTracker {
 
         // Track the timestamp of shutdown signal, on which to base periodic progress logging.
         this.shutdownStartMillis = threadPool.relativeTimeInMillis();
+
+        // Start logging periodic progress reports.
         scheduleProgressLogger();
     }
 
@@ -193,35 +218,5 @@ public class SnapshotShutdownProgressTracker {
      */
     public void releaseRequestSentToMaster(Snapshot snapshot, ShardId shardId) {
         shardSnapshotRequests.remove(snapshot.toString() + shardId.getIndexName() + shardId.getId());
-    }
-
-    /**
-     * Logs some statistics about shard snapshot progress, as well as {@link HotThreads#logLocalHotThreads} to surface anything unexpected.
-     */
-    private void logProgressReport() {
-        // A shard snapshot has two phases for tracking, for reporting purposes. The first is while the shard snapshot is running on the
-        // data node. The second, to update the shard snapshot status in the cluster state on the master node, occurs asynchronously upon
-        // shard snapshot completion.
-        logger.info(
-            """
-                Current active shard snapshot stats. \
-                Node shutdown cluster state update received at [{}}]. \
-                Finished signalling shard snapshots to pause [{}]. \
-                [Phase 1 of 2] Number shard snapshots running on the data node (have not yet noticed pause signal) [{}]. \
-                [Phase 2 of 2] Number shard snapshots running according to the master node (awaiting response to status update \
-                requests sent to master node) [{}]. \
-                Shard snapshot completion stats during shutdown: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}] \
-                """,
-            shutdownStartMillis,
-            shutdownFinishedSignallingPausingMillis,
-            numberOfShardSnapshotsInProgressOnDataNode.get(),
-            shardSnapshotRequests.size(),
-            doneCount.get(),
-            failureCount.get(),
-            abortedCount.get(),
-            pausedCount.get()
-        );
-
-        HotThreads.logLocalHotThreads(logger, Level.INFO, "slow snapshot pausing", ReferenceDocs.STATELESS_EMPTY);
     }
 }

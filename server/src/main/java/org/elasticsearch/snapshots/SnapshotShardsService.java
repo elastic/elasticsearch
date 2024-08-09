@@ -103,7 +103,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = transportService.getThreadPool();
-        this.snapshotShutdownProgressTracker = new SnapshotShutdownProgressTracker(settings, threadPool, this);
+        this.snapshotShutdownProgressTracker = new SnapshotShutdownProgressTracker(settings, threadPool);
         this.remoteFailedRequestDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         if (DiscoveryNode.canContainData(settings)) {
             // this is only useful on the nodes that can hold data
@@ -721,7 +721,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     }
 
     /**
-     * TODO: should I use Stage or some other state? It seems the most precise for having PAUSING etc, but look around.
+     * TODO: might be useful for testing -- leftover from earlier development.
      */
     public Map<Stage, Long> getCountOfInProgressShardSnapshotsByShardSnapshotStage() {
         Map<Stage, Long> counts = new HashMap<>();

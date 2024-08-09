@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -702,6 +703,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
+         * @return collection of cluster aliases in the search response (including "(local)" if was searched).
+         */
+        public Set<String> getClusterAliases() {
+            return clusterInfo.keySet();
+        }
+
+        /**
          * Utility to swap a Cluster object. Guidelines for the remapping function:
          * <ul>
          * <li> The remapping function should return a new Cluster object to swap it for
@@ -803,6 +811,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public boolean hasRemoteClusters() {
             return total > 1 || clusterInfo.keySet().stream().anyMatch(alias -> alias != RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         }
+
     }
 
     /**

@@ -123,6 +123,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
             pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
+                logger.debug("Reloading plugin [" + p.getClass().getSimpleName() + "]");
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {

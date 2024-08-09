@@ -24,8 +24,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.util.ArrayList;
 import java.util.List;
 
-public final class
-CombineBinaryComparisons extends OptimizerRules.OptimizerExpressionRule<BinaryLogic> {
+public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpressionRule<BinaryLogic> {
 
     public CombineBinaryComparisons() {
         super(OptimizerRules.TransformDirection.DOWN);

@@ -164,28 +164,57 @@ public class QueryTranslatorTests extends ESTestCase {
             \\{"esql_single_value":\\{"field":"double","next":\\{"range":\\{"double":\\{"gt":10.9,"lte":12.1.*"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long""",
-            matchesRegex("""
+            FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long""", matchesRegex("""
             \\{"esql_single_value":\\{"field":"unsigned_long".*\\{"range":\\{"unsigned_long":\\{"gt":2147483648,"lt":2147483650.*"""));
 
-        assertQueryTranslation(
-            """
-                FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""",
-            matchesRegex("""
-                \\{"esql_single_value":\\{"field":"unsigned_long".*\\{"range":\\{"unsigned_long":\\{"gte":2147483648,"lte":2147483650.*""")
-        );
+        assertQueryTranslation("""
+            FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"unsigned_long".*\\{"range":\\{"unsigned_long":\\{"gte":2147483648,"lte":2147483650.*"""));
 
+        assertQueryTranslation("""
+            FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"unsigned_long".*\\{"range":\\{"unsigned_long":\\{"gte":2147483648,"lte":2147483650.*"""));
+
+        // mixed ANDs and NotEquals
+        assertQueryTranslation("""
+            FROM test | WHERE 10 < integer AND integer < 12 AND integer > 0 AND integer != 5""", matchesRegex("""
+            .*bool.*must.*""" + """
+            esql_single_value":\\{"field":"integer","next":\\{"bool":""" + """
+            .*must_not.*\\[\\{"term":\\{"integer":\\{"value":5.*""" + """
+            esql_single_value":\\{"field":"integer","next":\\{"range":\\{"integer":\\{"gt":10,"lt":12.*"""));
+
+        // multiple Ranges
+        assertQueryTranslation("""
+            FROM test | WHERE 10 < integer AND double < 1.0 AND integer < 12 AND double > -1.0""", matchesRegex("""
+            .*bool.*must.*""" + """
+            esql_single_value":\\{"field":"integer","next":\\{"range":\\{"integer":\\{"gt":10,"lt":12.*""" + """
+            esql_single_value":\\{"field":"double","next":\\{"range":\\{"double":\\{"gt":-1.0,"lt":1.0.*"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE "2007-12-03T10:15:30Z" <= date AND date <= "2024-01-01T10:15:30\"""", containsString("""
+            "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T10:15:30.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE "2007-12-03T10:15:30" <= date AND date <= "2024-01-01T10:15:30Z\"""", containsString("""
+            "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T10:15:30.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+
+        // various timezones
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gt":"2007-12-03T09:15:30.000Z","lt":"2024-01-01T09:15:30.000Z",\
             "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
 
         assertQueryTranslation("""
-            FROM test | WHERE "2007-12-03T10:15:30+01:00" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", containsString("""
-            "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T09:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
+            FROM test | WHERE "2007-12-03T10:15:30-01:00" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", containsString("""
+            "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T11:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
             "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
 
-
+        assertQueryTranslation("""
+            FROM test | WHERE "2007-12-03T10:15:30" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", containsString("""
+            "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
     }
 
     public void testIPs() {
@@ -199,7 +228,15 @@ public class QueryTranslatorTests extends ESTestCase {
             esql_single_value":\\{"field":"ip0".*"terms":\\{"ip0":\\["127.0.0.3".*""" + """
             esql_single_value":\\{"field":"ip1".*"terms":\\{"ip1":\\["fe80::cae2:65ff:fece:fec0".*"""));
 
-        // Combine Equals, In and CIDRMatch on IP type
+        // ANDs
+        assertQueryTranslationIPs("""
+            FROM hosts | WHERE ip1 >= "127.0.0.1" AND ip1 <= "128.0.0.1" \
+            AND ip0 > "127.0.0.1" AND  ip0 < "128.0.0.1\"""", matchesRegex("""
+            .*bool.*must.*""" + """
+            esql_single_value":\\{"field":"ip1".*"range":\\{"ip1":\\{"gte":"127.0.0.1","lte":"128.0.0.1".*""" + """
+            esql_single_value":\\{"field":"ip0".*"range":\\{"ip0":\\{"gt":"127.0.0.1","lt":"128.0.0.1".*"""));
+
+        // ORs - Combine Equals, In and CIDRMatch on IP type
         assertQueryTranslationIPs("""
             FROM hosts | WHERE host == "alpha" OR host == "gamma" OR CIDR_MATCH(ip1, "127.0.0.2/32") OR CIDR_MATCH(ip1, "127.0.0.3/32") \
             OR card IN ("eth0", "eth1") OR card == "lo0" OR CIDR_MATCH(ip0, "127.0.0.1") OR \

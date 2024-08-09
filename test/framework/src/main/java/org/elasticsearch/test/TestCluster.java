@@ -12,15 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -40,7 +39,7 @@ import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.ESTestCase.safeAwait;
 
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
@@ -75,84 +74,96 @@ public abstract class TestCluster {
         if (size() == 0) {
             return;
         }
-        final PlainActionFuture<Void> done = new PlainActionFuture<>();
-        try (RefCountingListener refCountingListener = new RefCountingListener(done)) {
-            wipeAllTemplates(excludeTemplates, refCountingListener);
-            // First delete data streams, because composable index templates can't be deleted if these templates are still used by data
-            // streams.
-            client().execute(
-                DeleteDataStreamAction.INSTANCE,
-                new DeleteDataStreamAction.Request(ESTestCase.TEST_REQUEST_TIMEOUT, "*").indicesOptions(
-                    IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
-                ),
-                new DelegatingActionListener<>(refCountingListener.acquire()) {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        assertAcked(acknowledgedResponse);
-                        wipeIndicesAsync(
-                            new String[] { "_all" },
-                            refCountingListener.acquire().delegateFailure((l, r) -> wipeRepositories(l))
-                        );
-                        deleteTemplates(excludeTemplates, delegate);
-                    }
+        safeAwait((ActionListener<Void> done) -> {
+            try (RefCountingListener listeners = new RefCountingListener(done)) {
+                wipeAllTemplates(excludeTemplates, listeners);
+                // First delete data streams, because composable index templates can't be deleted if these templates are still used by data
+                // streams.
+                SubscribableListener
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // Ignore if action isn't registered, because data streams is a module and
-                        // if the delete action isn't registered then there no data streams to delete.
-                        if (e.getMessage().startsWith("failed to find action") == false) {
-                            delegate.onFailure(e);
-                        } else {
-                            onResponse(AcknowledgedResponse.TRUE);
-                        }
-                    }
-                }
-            );
-        }
-        ESTestCase.safeGet(done);
+                    .<AcknowledgedResponse>newForked(
+                        l -> client().execute(
+                            DeleteDataStreamAction.INSTANCE,
+                            new DeleteDataStreamAction.Request(ESTestCase.TEST_REQUEST_TIMEOUT, "*").indicesOptions(
+                                IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+                            ),
+                            l.delegateResponse((ll, e) -> {
+                                // Ignore if action isn't registered, because data streams is a module and
+                                // if the delete action isn't registered then there no data streams to delete.
+                                if (e.getMessage().startsWith("failed to find action") == false) {
+                                    ll.onFailure(e);
+                                } else {
+                                    ll.onResponse(AcknowledgedResponse.TRUE);
+                                }
+                            })
+                        )
+                    )
+                    .andThenAccept(ElasticsearchAssertions::assertAcked)
+                    .andThenAccept(v -> {
+                        SubscribableListener.<Void>newForked(ll -> wipeIndicesAsync(new String[] { "_all" }, ll))
+                            .andThen(this::wipeRepositories)
+                            .addListener(listeners.acquire());
+
+                        deleteTemplates(excludeTemplates, listeners.acquire());
+                    })
+                    .addListener(listeners.acquire());
+            }
+        });
     }
 
     private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> listener) {
-        final SubscribableListener<GetComposableIndexTemplateAction.Response> getComposableTemplates = new SubscribableListener<>();
-        client().execute(
-            GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request("*"),
-            getComposableTemplates
+        final SubscribableListener<GetComposableIndexTemplateAction.Response> getComposableTemplates = SubscribableListener.newForked(
+            l -> client().execute(GetComposableIndexTemplateAction.INSTANCE, new GetComposableIndexTemplateAction.Request("*"), l)
         );
-        final SubscribableListener<Void> deleteComposableTemplates = getComposableTemplates.<AcknowledgedResponse>andThen((l, r) -> {
-            var templates = r.indexTemplates()
-                .keySet()
-                .stream()
-                .filter(template -> excludeTemplates.contains(template) == false)
-                .toArray(String[]::new);
-            if (templates.length == 0) {
-                l.onResponse(AcknowledgedResponse.TRUE);
-            } else {
-                var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
-                client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request, l);
-            }
-        }).andThenAccept(ElasticsearchAssertions::assertAcked);
-        final SubscribableListener<GetComponentTemplateAction.Response> getComponentTemplates = new SubscribableListener<>();
-        client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"), getComponentTemplates);
-        getComponentTemplates.<Void>andThen((l, response) -> {
-            var componentTemplates = response.getComponentTemplates()
-                .keySet()
-                .stream()
-                .filter(template -> excludeTemplates.contains(template) == false)
-                .toArray(String[]::new);
-            if (componentTemplates.length == 0) {
-                deleteComposableTemplates.addListener(l);
-            } else {
-                deleteComposableTemplates.<AcknowledgedResponse>andThen(
-                    (ll, v) -> client().execute(
+
+        final SubscribableListener<GetComponentTemplateAction.Response> getComponentTemplates = SubscribableListener.newForked(
+            l -> client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"), l)
+        );
+
+        SubscribableListener
+
+            // dummy start step for symmetry
+            .newSucceeded(null)
+
+            // delete composable templates
+            .<GetComposableIndexTemplateAction.Response>andThen(getComposableTemplates::addListener)
+            .<AcknowledgedResponse>andThen((l, r) -> {
+                var templates = r.indexTemplates()
+                    .keySet()
+                    .stream()
+                    .filter(template -> excludeTemplates.contains(template) == false)
+                    .toArray(String[]::new);
+                if (templates.length == 0) {
+                    l.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
+                    client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request, l);
+                }
+            })
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
+
+            // then delete component templates
+            .<GetComponentTemplateAction.Response>andThen(getComponentTemplates::addListener)
+            .<AcknowledgedResponse>andThen((l, response) -> {
+                var componentTemplates = response.getComponentTemplates()
+                    .keySet()
+                    .stream()
+                    .filter(template -> excludeTemplates.contains(template) == false)
+                    .toArray(String[]::new);
+                if (componentTemplates.length == 0) {
+                    l.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    client().execute(
                         TransportDeleteComponentTemplateAction.TYPE,
                         new TransportDeleteComponentTemplateAction.Request(componentTemplates),
-                        ll
-                    )
-                ).andThenAccept(ElasticsearchAssertions::assertAcked).addListener(l);
-            }
-        }).addListener(listener);
+                        l
+                    );
+                }
+            })
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
 
+            // and finish
+            .addListener(listener);
     }
 
     /**
@@ -212,83 +223,88 @@ public abstract class TestCluster {
      * all indices are removed.
      */
     public void wipeIndices(String... indices) {
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        wipeIndicesAsync(indices, future);
-        ESTestCase.safeGet(future);
+        safeAwait((ActionListener<Void> l) -> wipeIndicesAsync(indices, l));
     }
 
     private void wipeIndicesAsync(String[] indices, ActionListener<Void> listener) {
         assert indices != null && indices.length > 0;
-        // include wiping hidden indices!
-        client().admin()
-            .indices()
-            .prepareDelete(indices)
-            .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false))
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    assertAcked(acknowledgedResponse);
-                    listener.onResponse(null);
-                }
+        SubscribableListener
 
-                @Override
-                public void onFailure(Exception e) {
-                    Throwable t = ExceptionsHelper.unwrap(e, IndexNotFoundException.class, IllegalArgumentException.class);
-                    if (t instanceof IndexNotFoundException) {
-                        // ignore
-                        listener.onResponse(null);
-                    } else if (t instanceof IllegalArgumentException) {
-                        // Happens if `action.destructive_requires_name` is set to true
-                        // which is the case in the CloseIndexDisableCloseAllTests
-                        if ("_all".equals(indices[0])) {
-                            final SubscribableListener<ClusterStateResponse> clusterStateListener = new SubscribableListener<>();
-                            client().admin().cluster().prepareState().execute(clusterStateListener);
-                            clusterStateListener.<AcknowledgedResponse>andThen((l, clusterStateResponse) -> {
-                                ArrayList<String> concreteIndices = new ArrayList<>();
-                                for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
-                                    concreteIndices.add(indexMetadata.getIndex().getName());
-                                }
-                                if (concreteIndices.isEmpty() == false) {
-                                    client().admin().indices().prepareDelete(concreteIndices.toArray(Strings.EMPTY_ARRAY)).execute(l);
-                                } else {
-                                    l.onResponse(AcknowledgedResponse.TRUE);
-                                }
-                            }).andThenAccept(ElasticsearchAssertions::assertAcked).addListener(listener);
-                        } else {
-                            // TODO: this is clearly wrong but at least
-                            // org.elasticsearch.xpack.watcher.test.integration.BootStrapTests.testTriggeredWatchLoading depends on this
-                            // quietly passing when it tries to delete an alias instead of its backing indices
-                            listener.onResponse(null);
+            .<AcknowledgedResponse>newForked(
+                l -> client().admin()
+                    .indices()
+                    .prepareDelete(indices)
+                    .setIndicesOptions(
+                        // include wiping hidden indices!
+                        IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)
+                    )
+                    .execute(l.delegateResponse((ll, exception) -> handleWipeIndicesFailure(exception, "_all".equals(indices[0]), ll)))
+            )
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
+            .addListener(listener);
+    }
+
+    private void handleWipeIndicesFailure(Exception exception, boolean wipingAllIndices, ActionListener<AcknowledgedResponse> listener) {
+        Throwable unwrapped = ExceptionsHelper.unwrap(exception, IndexNotFoundException.class, IllegalArgumentException.class);
+        if (unwrapped instanceof IndexNotFoundException) {
+            // ignore
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        } else if (unwrapped instanceof IllegalArgumentException) {
+            // Happens if `action.destructive_requires_name` is set to true
+            // which is the case in the CloseIndexDisableCloseAllTests
+            if (wipingAllIndices) {
+                SubscribableListener
+
+                    .<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState().execute(l))
+                    .<AcknowledgedResponse>andThen((l, clusterStateResponse) -> {
+                        ArrayList<String> concreteIndices = new ArrayList<>();
+                        for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
+                            concreteIndices.add(indexMetadata.getIndex().getName());
                         }
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }
-            });
+                        if (concreteIndices.isEmpty() == false) {
+                            client().admin().indices().prepareDelete(concreteIndices.toArray(Strings.EMPTY_ARRAY)).execute(l);
+                        } else {
+                            l.onResponse(AcknowledgedResponse.TRUE);
+                        }
+                    })
+                    .addListener(listener);
+            } else {
+                // TODO: this is clearly wrong but at least
+                // org.elasticsearch.xpack.watcher.test.integration.BootStrapTests.testTriggeredWatchLoading depends on this
+                // quietly passing when it tries to delete an alias instead of its backing indices
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        } else {
+            listener.onFailure(exception);
+        }
     }
 
     /**
      * Removes all templates, except the templates defined in the exclude
      */
-    private void wipeAllTemplates(Set<String> exclude, RefCountingListener listener) {
-        client().admin().indices().prepareGetTemplates().execute(listener.acquire(response -> {
-            for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
-                if (exclude.contains(indexTemplate.getName())) {
-                    continue;
+    private void wipeAllTemplates(Set<String> exclude, RefCountingListener listeners) {
+        SubscribableListener
+
+            .<GetIndexTemplatesResponse>newForked(l -> client().admin().indices().prepareGetTemplates().execute(l))
+            .andThenAccept(response -> {
+                for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
+                    if (exclude.contains(indexTemplate.getName())) {
+                        continue;
+                    }
+                    client().admin()
+                        .indices()
+                        .prepareDeleteTemplate(indexTemplate.getName())
+                        .execute(listeners.<AcknowledgedResponse>acquire(ElasticsearchAssertions::assertAcked).delegateResponse((l, e) -> {
+                            if (e instanceof IndexTemplateMissingException) {
+                                // ignore
+                                l.onResponse(null);
+                            } else {
+                                l.onFailure(e);
+                            }
+                        }));
                 }
-                client().admin()
-                    .indices()
-                    .prepareDeleteTemplate(indexTemplate.getName())
-                    .execute(listener.<AcknowledgedResponse>acquire(ElasticsearchAssertions::assertAcked).delegateResponse((l, e) -> {
-                        if (e instanceof IndexTemplateMissingException) {
-                            // ignore
-                            l.onResponse(null);
-                        } else {
-                            l.onFailure(e);
-                        }
-                    }));
-            }
-        }));
+            })
+            .addListener(listeners.acquire());
     }
 
     /**
@@ -315,29 +331,23 @@ public abstract class TestCluster {
      * Deletes repositories, supports wildcard notation.
      */
     private void wipeRepositories(ActionListener<Void> listener) {
-        ActionListener.run(
-            listener,
-            l -> client().admin()
-                .cluster()
-                .prepareDeleteRepository(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT, "*")
-                .execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        assertAcked(acknowledgedResponse);
-                        l.onResponse(null);
-                    }
+        SubscribableListener
 
-                    @Override
-                    public void onFailure(Exception e) {
+            .<AcknowledgedResponse>newForked(
+                l -> client().admin()
+                    .cluster()
+                    .prepareDeleteRepository(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT, "*")
+                    .execute(l.delegateResponse((ll, e) -> {
                         if (e instanceof RepositoryMissingException) {
                             // ignore
-                            l.onResponse(null);
+                            l.onResponse(AcknowledgedResponse.TRUE);
                         } else {
                             l.onFailure(e);
                         }
-                    }
-                })
-        );
+                    }))
+            )
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
+            .addListener(listener);
     }
 
     /**

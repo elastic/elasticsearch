@@ -185,7 +185,7 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
     if(base == DockerBase.WOLFI) {
       from(projectDir.resolve("src/docker/Dockerfile.wolfi")) {
         rename ~/Dockerfile\.wolfi$/, 'Dockerfile'
-        //expand(varExpansions)
+        expand(varExpansions)
         filter SquashNewlinesFilter
       }
     } else {
@@ -197,14 +197,6 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
 
   }
 }
-//
-//def createAndSetWritable(Object... locations) {
-//  locations.each { location ->
-//    File file = file(location)
-//    file.mkdirs()
-//    file.setWritable(true, false)
-//  }
-//}
 
 tasks.register("copyNodeKeyMaterial", Sync) {
   def certsDir = file("build/certs")

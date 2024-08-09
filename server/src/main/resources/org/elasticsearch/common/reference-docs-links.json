@@ -41,6 +41,5 @@
   "LUCENE_MAX_DOCS_LIMIT": "size-your-shards.html#troubleshooting-max-docs-limit",
   "MAX_SHARDS_PER_NODE": "size-your-shards.html#troubleshooting-max-shards-open",
   "FLOOD_STAGE_WATERMARK": "fix-watermark-errors.html",
-  "X_OPAQUE_ID": "api-conventions.html#x-opaque-id",
-  "STATELESS_EMPTY": "N/A"
+  "X_OPAQUE_ID": "api-conventions.html#x-opaque-id"
 }

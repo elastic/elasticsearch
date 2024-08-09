@@ -138,7 +138,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 final var localNodeId = clusterService.localNode().getId();
 
                 {
-                    // Track when this node goes into shutdown mode because we'll start pausing shard snapshots for shutdown.
+                    // Track when this node enters and leaves shutdown mode because we pause shard snapshots for shutdown.
+                    // The snapshotShutdownProgressTracker will report (via logging) on the progress shard snapshots make
+                    // towards either completing (successfully or otherwise) or pausing.
                     final var previouslyInShutdownMode = previousSnapshots.isNodeIdForRemoval(localNodeId);
                     final var currentlyInShutdownMode = previousSnapshots.isNodeIdForRemoval(localNodeId);
                     if (previouslyInShutdownMode == false && currentlyInShutdownMode) {
@@ -150,7 +152,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 }
 
                 synchronized (shardSnapshots) {
-                    // Cancel any snapshots that were removed from the cluster state.
+                    // Cancel any snapshots that have been removed from the cluster state.
                     cancelRemoved(currentSnapshots);
 
                     // Update / start any snapshots that are set to run.
@@ -252,7 +254,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     }
 
     /**
-     * Starts, pauses or aborts shard snapshots if the snapshot is running.
+     * Starts, pauses or aborts shard snapshots if the snapshot is running, based on the updated {@link SnapshotsInProgress} entry.
      */
     private void handleUpdatedSnapshotsInProgressEntry(String localNodeId, boolean removingLocalNode, SnapshotsInProgress.Entry entry) {
         if (entry.isClone()) {

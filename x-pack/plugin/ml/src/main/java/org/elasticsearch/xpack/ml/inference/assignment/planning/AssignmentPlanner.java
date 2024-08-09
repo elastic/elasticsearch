@@ -50,7 +50,7 @@ public class AssignmentPlanner {
 
     public AssignmentPlanner(List<Node> nodes, List<AssignmentPlan.Deployment> deployments) {
         this.nodes = nodes.stream().sorted(Comparator.comparing(Node::id)).toList();
-        this.deployments = deployments.stream().sorted(Comparator.comparing(AssignmentPlan.Deployment::id)).toList();
+        this.deployments = deployments.stream().sorted(Comparator.comparing(AssignmentPlan.Deployment::deploymentId)).toList();
     }
 
     public AssignmentPlan computePlan() {
@@ -111,7 +111,7 @@ public class AssignmentPlanner {
             .filter(m -> m.hasEverBeenAllocated())
             .map(
                 m -> new AssignmentPlan.Deployment(
-                    m.id(),
+                    m.deploymentId(),
                     m.memoryBytes(),
                     1,
                     m.threadsPerAllocation(),
@@ -130,21 +130,21 @@ public class AssignmentPlanner {
         ).solvePlan(true);
 
         Map<String, String> modelIdToNodeIdWithSingleAllocation = new HashMap<>();
-        for (AssignmentPlan.Deployment m : planWithSingleAllocationForPreviouslyAssignedModels.models()) {
+        for (AssignmentPlan.Deployment m : planWithSingleAllocationForPreviouslyAssignedModels.deployments()) {
             Optional<Map<Node, Integer>> assignments = planWithSingleAllocationForPreviouslyAssignedModels.assignments(m);
             Set<Node> nodes = assignments.orElse(Map.of()).keySet();
             if (nodes.isEmpty() == false) {
                 assert nodes.size() == 1;
-                modelIdToNodeIdWithSingleAllocation.put(m.id(), nodes.iterator().next().id());
+                modelIdToNodeIdWithSingleAllocation.put(m.deploymentId(), nodes.iterator().next().id());
             }
         }
 
         List<AssignmentPlan.Deployment> planDeployments = deployments.stream().map(m -> {
-            Map<String, Integer> currentAllocationsByNodeId = modelIdToNodeIdWithSingleAllocation.containsKey(m.id())
-                ? Map.of(modelIdToNodeIdWithSingleAllocation.get(m.id()), 1)
+            Map<String, Integer> currentAllocationsByNodeId = modelIdToNodeIdWithSingleAllocation.containsKey(m.deploymentId())
+                ? Map.of(modelIdToNodeIdWithSingleAllocation.get(m.deploymentId()), 1)
                 : Map.of();
             return new AssignmentPlan.Deployment(
-                m.id(),
+                m.deploymentId(),
                 m.memoryBytes(),
                 m.allocations(),
                 m.threadsPerAllocation(),

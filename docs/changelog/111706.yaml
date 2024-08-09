@@ -1,0 +1,5 @@
+pr: 111706
+summary: Retry getting privileges on unavailable security index
+area: Security
+type: enhancement
+issues: []

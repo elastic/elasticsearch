@@ -23,7 +23,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -247,22 +246,18 @@ public class OperationRouting {
             }
             if (preference.charAt(0) == '_') {
                 preferenceType = Preference.parse(preference);
-                switch (preferenceType) {
-                    case PREFER_NODES:
-                        final Set<String> nodesIds = Arrays.stream(
-                            preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
-                        ).collect(Collectors.toSet());
-                        return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
-                    case LOCAL:
-                        return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
-                    case ONLY_LOCAL:
-                        return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
-                    case ONLY_NODES:
-                        String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
-                        return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
-                    default:
-                        throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
-                }
+                return switch (preferenceType) {
+                    case PREFER_NODES -> indexShard.preferNodeActiveInitializingShardsIt(
+                        Sets.newHashSet(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
+                    );
+                    case LOCAL -> indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
+                    case ONLY_LOCAL -> indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
+                    case ONLY_NODES -> indexShard.onlyNodeSelectorActiveInitializingShardsIt(
+                        preference.substring(Preference.ONLY_NODES.type().length() + 1).split(","),
+                        nodes
+                    );
+                    case SHARDS -> throw new IllegalArgumentException("unexpected preference [" + Preference.SHARDS + "]");
+                };
             }
         }
         // if not, then use it as the index

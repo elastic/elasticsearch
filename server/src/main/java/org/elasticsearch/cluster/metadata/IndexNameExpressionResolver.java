@@ -822,35 +822,40 @@ public class IndexNameExpressionResolver {
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
-            if (skipIdentity == false && resolvedExpressions.contains(dataStream.getName())) {
+            final String dsName = dataStream.getName();
+            if (skipIdentity == false && resolvedExpressions.contains(dsName)) {
                 // skip the filters when the request targets the data stream name
                 return null;
             }
             Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
-            List<DataStreamAlias> aliasesForDataStream;
-            if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
-                aliasesForDataStream = dataStreamAliases.values()
-                    .stream()
-                    .filter(dataStreamAlias -> resolvedExpressions.contains(dataStreamAlias.getName()))
-                    .filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
-                    .toList();
-            } else {
-                aliasesForDataStream = resolvedExpressions.stream()
-                    .map(dataStreamAliases::get)
-                    .filter(dataStreamAlias -> dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dataStream.getName()))
-                    .toList();
-            }
-
             List<String> requiredAliases = null;
-            for (DataStreamAlias dataStreamAlias : aliasesForDataStream) {
-                if (requiredDataStreamAlias.test(dataStreamAlias)) {
-                    if (requiredAliases == null) {
-                        requiredAliases = new ArrayList<>(aliasesForDataStream.size());
+            if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
+                for (DataStreamAlias dataStreamAlias : dataStreamAliases.values()) {
+                    final String dsAliasName = dataStreamAlias.getName();
+                    if (resolvedExpressions.contains(dsAliasName) && dataStreamAlias.getDataStreams().contains(dsName)) {
+                        if (requiredDataStreamAlias.test(dataStreamAlias) == false) {
+                            // we have a non-required alias for this data stream so no need to check further
+                            return null;
+                        }
+                        if (requiredAliases == null) {
+                            requiredAliases = new ArrayList<>();
+                        }
+                        requiredAliases.add(dsAliasName);
                     }
-                    requiredAliases.add(dataStreamAlias.getName());
-                } else {
-                    // we have a non-required alias for this data stream so no need to check further
-                    return null;
+                }
+            } else {
+                for (String resolvedExpression : resolvedExpressions) {
+                    DataStreamAlias dataStreamAlias = dataStreamAliases.get(resolvedExpression);
+                    if (dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dsName)) {
+                        if (requiredDataStreamAlias.test(dataStreamAlias) == false) {
+                            // we have a non-required alias for this data stream so no need to check further
+                            return null;
+                        }
+                        if (requiredAliases == null) {
+                            requiredAliases = new ArrayList<>();
+                        }
+                        requiredAliases.add(dataStreamAlias.getName());
+                    }
                 }
             }
             if (requiredAliases == null) {
@@ -1029,7 +1034,7 @@ public class IndexNameExpressionResolver {
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
     static boolean isExplicitAllPattern(Collection<String> aliasesOrIndices) {
-        return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && Metadata.ALL.equals(aliasesOrIndices.iterator().next());
+        return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && aliasesOrIndices.contains(Metadata.ALL);
     }
 
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
@@ -1798,10 +1803,11 @@ public class IndexNameExpressionResolver {
          */
         public ExpressionList(Context context, List<String> expressionStrings) {
             List<Expression> expressionsList = new ArrayList<>(expressionStrings.size());
+            final boolean expandWildCardExpressions = context.getOptions().expandWildcardExpressions();
             boolean wildcardSeen = false;
             for (String expressionString : expressionStrings) {
-                boolean isExclusion = expressionString.startsWith("-") && wildcardSeen;
-                if (context.getOptions().expandWildcardExpressions() && isWildcard(expressionString)) {
+                boolean isExclusion = wildcardSeen && expressionString.startsWith("-");
+                if (expandWildCardExpressions && isWildcard(expressionString)) {
                     wildcardSeen = true;
                     expressionsList.add(new Expression(expressionString, true, isExclusion));
                 } else {

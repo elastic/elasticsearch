@@ -22,6 +22,10 @@ class MemorySegmentUtil {
         return segment.getUtf8String(offset);
     }
 
+    static void setString(MemorySegment segment, long offset, String value) {
+        segment.setUtf8String(offset, value);
+    }
+
     static MemorySegment allocateString(Arena arena, String s) {
         return arena.allocateUtf8String(s);
     }

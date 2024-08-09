@@ -61,6 +61,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         return new TimeValue(tookInMillis);
     }
 
+    public long getTookInMillis() {
+        return tookInMillis;
+    }
+
     /**
      * If ingest is enabled returns the bulk ingest preprocessing time, otherwise 0 is returned.
      */

@@ -339,10 +339,8 @@ public abstract class Engine implements Closeable {
         }
         TermsEnum termsEnum = terms.iterator();
         for (var fieldName : fields) {
-            if (terms != null) {
-                if (termsEnum.seekExact(fieldName)) {
-                    count += termsEnum.docFreq();
-                }
+            if (termsEnum.seekExact(fieldName)) {
+                count += termsEnum.docFreq();
             }
         }
         return count;

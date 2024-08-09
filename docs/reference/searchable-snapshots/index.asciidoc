@@ -24,10 +24,10 @@ single shard copy will be sufficient. However, if you need to support a higher
 query volume, you can add replicas by adjusting the `index.number_of_replicas`
 index setting.
 
-If a node fails and {search-snap} shards need to be recovered elsewhere, there
-is a brief window of time while {es} allocates the shards to other nodes where
-the cluster health will not be `green`. Searches that hit these shards may fail
-or return partial results until the shards are reallocated to healthy nodes.
+If a node goes offline and {search-snap} shards need to be recovered elsewhere,
+there is a brief window of time where the cluster health will not be `green`
+while {es} allocates the shards to other nodes. Searches that hit these shards may
+fail or return partial results until the shards are reallocated to healthy nodes.
 
 You typically manage {search-snaps} through {ilm-init}. The
 <<ilm-searchable-snapshot, searchable snapshots>> action automatically converts
@@ -130,9 +130,10 @@ index, since there is minimal need to access the snapshot repository. While
 recovery is ongoing, search performance may be slower than with a regular index
 because a search may need some data that has not yet been retrieved into the
 local cache. If that happens, {es} will eagerly retrieve the data needed to
-complete the search in parallel with the ongoing recovery. On-disk data is
-preserved across restarts, such that the node does not need to re-download data
-that is already stored on the node after a restart.
+complete the search in parallel with the ongoing recovery. Cached data is
+preserved so that the node does not need to re-download data from the snapshot
+repository after a restart, as long as the index shards remain allocated to the
+original node.
 +
 Indices managed by {ilm-init} are prefixed with `restored-` when fully mounted.
 
@@ -162,7 +163,8 @@ To partially mount an index, you must have one or more nodes with a shared cache
 available. By default, dedicated frozen data tier nodes (nodes with the
 `data_frozen` role and no other data roles) have a shared cache configured using
 the greater of 90% of total disk space and total disk space subtracted a
-headroom of 100GB.
+headroom of 100GB. Shard data for partially-mounted indices is removed from
+the node on restart.
 
 Using a dedicated frozen tier is highly recommended for production use. If you
 do not have a dedicated frozen tier, you must configure the
@@ -239,7 +241,7 @@ index. Defaults to `10m`.
 === Reduce costs with {search-snaps}
 
 In most cases, {search-snaps} reduce the costs of running a cluster by removing
-the need for replica shards  and for shard data to be copied between nodes.
+the need for replica shards and for shard data to be copied between nodes.
 However, if it's particularly expensive to retrieve data from a snapshot
 repository in your environment, {search-snaps} may be more costly than regular
 indices. Ensure that the cost structure of your operating environment is

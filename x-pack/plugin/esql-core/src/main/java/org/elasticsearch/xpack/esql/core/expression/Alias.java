@@ -110,6 +110,11 @@ public final class Alias extends NamedExpression {
     }
 
     @Override
+    protected TypeResolution resolveType() {
+        return child.resolveType();
+    }
+
+    @Override
     public DataType dataType() {
         return child.dataType();
     }

@@ -20,9 +20,9 @@ import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateA
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -76,7 +77,7 @@ public abstract class TestCluster {
         }
         final PlainActionFuture<Void> done = new PlainActionFuture<>();
         try (RefCountingListener refCountingListener = new RefCountingListener(done)) {
-            wipeAllTemplates(excludeTemplates, refCountingListener.acquire());
+            wipeAllTemplates(excludeTemplates, refCountingListener);
             // First delete data streams, because composable index templates can't be deleted if these templates are still used by data
             // streams.
             client().execute(
@@ -108,74 +109,50 @@ public abstract class TestCluster {
                 }
             );
         }
-        try {
-            done.get();
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
+        ESTestCase.safeGet(done);
     }
 
     private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> listener) {
-        final ListenableActionFuture<AcknowledgedResponse> deleteComposableTemplates = new ListenableActionFuture<>();
+        final SubscribableListener<GetComposableIndexTemplateAction.Response> getComposableTemplates = new SubscribableListener<>();
         client().execute(
             GetComposableIndexTemplateAction.INSTANCE,
             new GetComposableIndexTemplateAction.Request("*"),
-            deleteComposableTemplates.delegateFailure((l, r) -> {
-                var templates = r.indexTemplates()
-                    .keySet()
-                    .stream()
-                    .filter(template -> excludeTemplates.contains(template) == false)
-                    .toArray(String[]::new);
-                if (templates.length == 0) {
-                    l.onResponse(AcknowledgedResponse.TRUE);
-                } else {
-                    var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
-                    client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request, l);
-                }
-            })
+            getComposableTemplates
         );
-        client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"), new ActionListener<>() {
-            @Override
-            public void onResponse(GetComponentTemplateAction.Response response) {
-                var componentTemplates = response.getComponentTemplates()
-                    .keySet()
-                    .stream()
-                    .filter(template -> excludeTemplates.contains(template) == false)
-                    .toArray(String[]::new);
-                deleteComposableTemplates.addListener(listener.delegateFailure((l, r) -> {
-                    assertAcked(r);
-                    if (componentTemplates.length == 0) {
-                        l.onResponse(null);
-                        return;
-                    }
-                    client().execute(
+        final SubscribableListener<Void> deleteComposableTemplates = getComposableTemplates.<AcknowledgedResponse>andThen((l, r) -> {
+            var templates = r.indexTemplates()
+                .keySet()
+                .stream()
+                .filter(template -> excludeTemplates.contains(template) == false)
+                .toArray(String[]::new);
+            if (templates.length == 0) {
+                l.onResponse(AcknowledgedResponse.TRUE);
+            } else {
+                var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
+                client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request, l);
+            }
+        }).andThenAccept(ElasticsearchAssertions::assertAcked);
+        final SubscribableListener<GetComponentTemplateAction.Response> getComponentTemplates = new SubscribableListener<>();
+        client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"), getComponentTemplates);
+        getComponentTemplates.<Void>andThen((l, response) -> {
+            var componentTemplates = response.getComponentTemplates()
+                .keySet()
+                .stream()
+                .filter(template -> excludeTemplates.contains(template) == false)
+                .toArray(String[]::new);
+            if (componentTemplates.length == 0) {
+                deleteComposableTemplates.addListener(l);
+            } else {
+                deleteComposableTemplates.<AcknowledgedResponse>andThen(
+                    (ll, v) -> client().execute(
                         TransportDeleteComponentTemplateAction.TYPE,
                         new TransportDeleteComponentTemplateAction.Request(componentTemplates),
-                        l.delegateFailureAndWrap((ll, rr) -> {
-                            assertAcked(rr);
-                            ll.onResponse(null);
-                        })
-                    );
-                }));
+                        ll
+                    )
+                ).andThenAccept(ElasticsearchAssertions::assertAcked).addListener(l);
             }
+        }).addListener(listener);
 
-            @Override
-            public void onFailure(Exception e) {
-                deleteComposableTemplates.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        assertAcked(acknowledgedResponse);
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public void onFailure(Exception ex) {
-                        ex.addSuppressed(e);
-                        listener.onFailure(ex);
-                    }
-                });
-            }
-        });
     }
 
     /**
@@ -237,11 +214,7 @@ public abstract class TestCluster {
     public void wipeIndices(String... indices) {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         wipeIndicesAsync(indices, future);
-        try {
-            future.get();
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
+        ESTestCase.safeGet(future);
     }
 
     private void wipeIndicesAsync(String[] indices, ActionListener<Void> listener) {
@@ -298,28 +271,23 @@ public abstract class TestCluster {
     /**
      * Removes all templates, except the templates defined in the exclude
      */
-    private void wipeAllTemplates(Set<String> exclude, ActionListener<Void> listener) {
-        client().admin().indices().prepareGetTemplates().execute(listener.delegateFailure((f, response) -> {
-            try (RefCountingListener subscribableListener = new RefCountingListener(f)) {
-                for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
-                    if (exclude.contains(indexTemplate.getName())) {
-                        continue;
-                    }
-                    client().admin()
-                        .indices()
-                        .prepareDeleteTemplate(indexTemplate.getName())
-                        .execute(subscribableListener.acquire().<AcknowledgedResponse>safeMap(r -> {
-                            assertAcked(r);
-                            return null;
-                        }).delegateResponse((l, e) -> {
-                            if (e instanceof IndexTemplateMissingException) {
-                                // ignore
-                                l.onResponse(null);
-                            } else {
-                                l.onFailure(e);
-                            }
-                        }));
+    private void wipeAllTemplates(Set<String> exclude, RefCountingListener listener) {
+        client().admin().indices().prepareGetTemplates().execute(listener.acquire(response -> {
+            for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
+                if (exclude.contains(indexTemplate.getName())) {
+                    continue;
                 }
+                client().admin()
+                    .indices()
+                    .prepareDeleteTemplate(indexTemplate.getName())
+                    .execute(listener.<AcknowledgedResponse>acquire(ElasticsearchAssertions::assertAcked).delegateResponse((l, e) -> {
+                        if (e instanceof IndexTemplateMissingException) {
+                            // ignore
+                            l.onResponse(null);
+                        } else {
+                            l.onFailure(e);
+                        }
+                    }));
             }
         }));
     }

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -34,6 +35,9 @@ import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.Set;
+import java.util.concurrent.Executor;
+
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeAction<
     DeleteInferenceEndpointAction.Request,
@@ -42,6 +46,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceEndpointAction.class);
+    private final Executor executor;
 
     @Inject
     public TransportDeleteInferenceEndpointAction(
@@ -66,11 +71,21 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         );
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
+        this.executor = threadPool.executor(UTILITY_THREAD_POOL_NAME);
     }
 
     @Override
     protected void masterOperation(
         Task task,
+        DeleteInferenceEndpointAction.Request request,
+        ClusterState state,
+        ActionListener<DeleteInferenceEndpointAction.Response> masterListener
+    ) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        executor.execute(ActionRunnable.wrap(masterListener, l -> doExecuteForked(request, state, l)));
+    }
+
+    private void doExecuteForked(
         DeleteInferenceEndpointAction.Request request,
         ClusterState state,
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener

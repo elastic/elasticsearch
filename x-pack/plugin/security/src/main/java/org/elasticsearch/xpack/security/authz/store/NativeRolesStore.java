@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -60,15 +62,16 @@ import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestVa
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
-import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -261,6 +264,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role management is disabled"));
+            return;
+        }
         SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
         SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
@@ -529,9 +536,63 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
     }
 
+    public void ensureBuiltinRolesAreQueriable(ActionListener<Void> listener) {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role management is disabled"));
+            return;
+        }
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(null);
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else if (frozenSecurityIndex.areReservedRolesIndexed()) {
+            logger.debug("security index already contains the latest reserved roles indexed");
+            listener.onResponse(null);
+        } else {
+            indexReservedRoles(
+                frozenSecurityIndex,
+                ActionListener.wrap(onResponse -> frozenSecurityIndex.markReservedRolesAsIndexed(listener), listener::onFailure)
+            );
+        }
+    }
+
     public void putRoles(
         final WriteRequest.RefreshPolicy refreshPolicy,
-        final List<RoleDescriptor> roles,
+        final Collection<RoleDescriptor> roles,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
+        putRoles(securityIndex, refreshPolicy, roles, true, listener);
+    }
+
+    private void indexReservedRoles(SecurityIndexManager frozenSecurityIndex, ActionListener<Void> listener) {
+        putRoles(
+            frozenSecurityIndex,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ReservedRolesStore.roleDescriptors(),
+            false,
+            ActionListener.wrap(onResponse -> {
+                if (onResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
+                    logger.warn("Automatic indexing of builtin reserved roles failed, {}", onResponse);
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Automatic indexing of builtin reserved roles failed",
+                            RestStatus.INTERNAL_SERVER_ERROR
+                        )
+                    );
+                } else {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure)
+        );
+    }
+
+    private void putRoles(
+        SecurityIndexManager securityIndexManager,
+        final WriteRequest.RefreshPolicy refreshPolicy,
+        final Collection<RoleDescriptor> roles,
+        boolean validateRoles,
         final ActionListener<BulkRolesResponse> listener
     ) {
         if (enabled == false) {
@@ -544,7 +605,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         for (RoleDescriptor role : roles) {
             Exception validationException;
             try {
-                validationException = validateRoleDescriptor(role);
+                validationException = validateRoles ? validateRoleDescriptor(role) : null;
             } catch (Exception e) {
                 validationException = e;
             }
@@ -567,7 +628,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        securityIndex.prepareIndexIfNeededThenExecute(
+        securityIndexManager.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
@@ -610,8 +671,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     // Package private for testing
     XContentBuilder createRoleXContentBuilder(RoleDescriptor role) throws IOException {
-        assert NativeRealmValidationUtil.validateRoleName(role.getName(), false) == null
-            : "Role name was invalid or reserved: " + role.getName();
         assert false == role.hasRestriction() : "restriction is not supported for native roles";
 
         XContentBuilder builder = jsonBuilder().startObject();

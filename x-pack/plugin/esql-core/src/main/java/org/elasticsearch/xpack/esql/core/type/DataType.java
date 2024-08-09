@@ -36,18 +36,42 @@ public enum DataType {
      * rendered as {@code null} in the response.
      */
     UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
+    /**
+     * Fields that are always {@code null}, usually created with constant
+     * {@code null} values.
+     */
     NULL(builder().esType("null").estimatedSize(0)),
+    /**
+     * Fields that can either be {@code true} or {@code false}.
+     */
     BOOLEAN(builder().esType("boolean").estimatedSize(1)),
 
     /**
-     * These are numeric fields labeled as metric counters in time-series indices. Although stored
-     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
-     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
-     * parent numeric type.
+     * 64-bit signed numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
      */
     COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter()),
+    /**
+     * 32-bit signed numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
+     */
     COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
+    /**
+     * 64-bit floating point numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
+     */
     COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
 
     /**
@@ -98,14 +122,39 @@ public enum DataType {
      */
     SCALED_FLOAT(builder().esType("scaled_float").estimatedSize(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
 
+    /**
+     * String fields that are analyzed when the document is received but never
+     * cut into more than one token. ESQL always loads these after-analysis.
+     * Generally ESQL uses {@code keyword} fields as raw strings. So things like
+     * {@code TO_STRING} will make a {@code keyword} field.
+     */
     KEYWORD(builder().esType("keyword").unknownSize().docValues()),
+    /**
+     * String fields that are analyzed when the document is received and may be
+     * cut into more than one token. Generally ESQL only sees {@code text} fields
+     * when loaded from the index and ESQL will load these fields
+     * <strong>without</strong> analysis. The {@code MATCH} operator can be used
+     * to query these fields with analysis.
+     */
     TEXT(builder().esType("text").unknownSize()),
+    /**
+     * Millisecond precision date, stored as a 64-bit signed number.
+     */
     DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues()),
+    /**
+     * Nanosecond precision date, stored as a 64-bit signed number.
+     */
     DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues()),
     /**
-     * IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
+     * IP addresses. IPv4 address are always
+     * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
+     * in IPv6. These flow through the compute engine as fixed length, 16 byte
+     * {@link BytesRef}s.
      */
     IP(builder().esType("ip").estimatedSize(16).docValues()),
+    /**
+     * A version encoded in a way that sorts using semver.
+     */
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
     VERSION(builder().esType("version").estimatedSize(15).docValues()),
     OBJECT(builder().esType("object").unknownSize()),

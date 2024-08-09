@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -62,7 +61,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -439,6 +437,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // e.g. STATS a ... GROUP BY a = x + 1
             Holder<Boolean> changed = new Holder<>(false);
             List<Expression> groupings = stats.groupings();
+            List<? extends NamedExpression> aggregates = stats.aggregates();
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             if (Resolvables.resolved(groupings) == false) {
@@ -457,17 +456,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (stats.expressionsResolved() == false) {
-                AttributeMap<Expression> resolved = new AttributeMap<>();
+            if (Resolvables.resolved(groupings) == false || (Resolvables.resolved(aggregates) == false)) {
+                ArrayList<Attribute> resolved = new ArrayList<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
                     if (attr != null && attr.resolved()) {
-                        resolved.put(attr, attr);
+                        resolved.add(attr);
                     }
                 }
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
-                List<NamedExpression> newAggregates = new ArrayList<>();
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolved, childrenOutput);
 
+                List<NamedExpression> newAggregates = new ArrayList<>();
                 for (NamedExpression aggregate : stats.aggregates()) {
                     var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
                         Expression ne = ua;
@@ -802,9 +801,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
                     if (Arrays.asList(allowed).contains(dataType) == false) {
-                        String suffix = "only " + Arrays.toString(allowed) + " allowed for type [" + matchType + "]";
+                        String suffix = "only ["
+                            + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
+                            + "] allowed for type ["
+                            + matchType
+                            + "]";
                         resolved = ua.withUnresolvedMessage(
-                            "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; " + suffix
+                            "Unsupported type ["
+                                + resolved.dataType().typeName()
+                                + "] for enrich matching field ["
+                                + ua.name()
+                                + "]; "
+                                + suffix
                         );
                     }
                 }
@@ -1057,24 +1065,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     target,
                     e.getMessage()
                 );
-                return new UnsupportedAttribute(
-                    from.source(),
-                    String.valueOf(from.fold()),
-                    new UnsupportedEsField(String.valueOf(from.fold()), from.dataType().typeName()),
-                    message
-                );
+                return new UnresolvedAttribute(from.source(), String.valueOf(from.fold()), message);
             }
         }
     }
 
     /**
      * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
-     * During ResolveRefs we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
+     * During {@link ResolveRefs} we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
      * instead be handled by conversion functions within the query. This rule looks for matching conversion functions and converts
      * those fields into MultiTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
      * This knowledge will be used later in generating the FieldExtractExec with built-in type conversion.
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
-     * (See UnresolveUnionTypes below).
+     * (See {@link UnionTypesCleanup} below).
      */
     private static class ResolveUnionTypes extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -1094,7 +1097,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             });
 
-            return plan.transformUp(LogicalPlan.class, p -> p.resolved() || p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
         }
 
         private LogicalPlan doRule(LogicalPlan plan) {
@@ -1108,24 +1111,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If no union fields were generated, return the plan as is
             if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
-            }
-
-            // In ResolveRefs the aggregates are resolved from the groupings, which might have an unresolved MultiTypeEsField.
-            // Now that we have resolved those, we need to re-resolve the aggregates.
-            if (plan instanceof Aggregate agg) {
-                // TODO once inlinestats supports expressions in groups we'll likely need the same sort of extraction here
-                // If the union-types resolution occurred in a child of the aggregate, we need to check the groupings
-                plan = agg.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
-
-                // Aggregates where the grouping key comes from a union-type field need to be resolved against the grouping key
-                Map<Attribute, Expression> resolved = new HashMap<>();
-                for (Expression e : agg.groupings()) {
-                    Attribute attr = Expressions.attribute(e);
-                    if (attr != null && attr.resolved()) {
-                        resolved.put(attr, e);
-                    }
-                }
-                plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> resolveAttribute(ua, resolved));
             }
 
             // And add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
@@ -1149,21 +1134,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Expression resolveAttribute(UnresolvedAttribute ua, Map<Attribute, Expression> resolved) {
-            var named = resolveAgainstList(ua, resolved.keySet());
-            return switch (named.size()) {
-                case 0 -> ua;
-                case 1 -> named.get(0).equals(ua) ? ua : resolved.get(named.get(0));
-                default -> ua.withUnresolvedMessage("Resolved [" + ua + "] unexpectedly to multiple attributes " + named);
-            };
-        }
-
         private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
-                imf.getTypesToIndices().keySet().forEach(typeName -> {
-                    DataType type = DataType.fromTypeName(typeName);
+                imf.types().forEach(type -> {
+                    // TODO: Shouldn't we perform widening of small numerical types here?
                     if (supportedTypes.contains(type)) {
                         TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                         var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
@@ -1236,13 +1212,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
-            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(LogicalPlan.class, p -> {
-                if (p instanceof EsRelation esRelation) {
-                    // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
-                    return esRelation;
-                }
-                return p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved);
-            });
+            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(
+                LogicalPlan.class,
+                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
+            );
 
             // To drop synthetic attributes at the end, we need to compute the plan's output.
             // This is only legal to do if the plan is resolved.
@@ -1254,7 +1227,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
                 String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                return new UnresolvedAttribute(fa.source(), fa.name(), fa.id(), unresolvedMessage, null);
+                String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
+                return new UnsupportedAttribute(
+                    fa.source(),
+                    fa.name(),
+                    new UnsupportedEsField(imf.getName(), types),
+                    unresolvedMessage,
+                    fa.id()
+                );
             }
             return fa;
         }

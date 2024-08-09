@@ -111,16 +111,23 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // we're only interested in the children
+                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
+                    if (p instanceof Project) {
+                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
+                            failures.add(fail(ae, ua.unresolvedMessage()));
+                        }
+                        if (ae instanceof UnsupportedAttribute) {
+                            return;
+                        }
+                    }
+
+                    // Do not fail multiple times in case the children are already unresolved.
                     if (ae.childrenResolved() == false) {
                         return;
                     }
 
                     if (ae instanceof Unresolvable u) {
-                        // special handling for Project and unsupported types
-                        if (p instanceof Project == false || u instanceof UnsupportedAttribute == false) {
-                            failures.add(fail(ae, u.unresolvedMessage()));
-                        }
+                        failures.add(fail(ae, u.unresolvedMessage()));
                     }
                     if (ae.typeResolved().unresolved()) {
                         failures.add(fail(ae, ae.typeResolved().message()));

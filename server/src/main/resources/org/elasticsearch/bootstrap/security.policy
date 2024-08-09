@@ -31,6 +31,9 @@ grant codeBase "${codebase.elasticsearch}" {
 
   // for plugin api dynamic settings instances
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
+
+  // For downloading remote resources for token filters
+  permission java.net.SocketPermission "*", "connect, resolve";
 };
 
 //// Very special jar permissions:

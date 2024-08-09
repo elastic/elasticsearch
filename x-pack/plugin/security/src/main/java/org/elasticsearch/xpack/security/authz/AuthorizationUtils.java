@@ -23,6 +23,7 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGet
 import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST_WRITE_REFRESH_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.index.analysis.WordListsIndexService.WORD_LISTS_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_ORIGIN;
@@ -166,6 +167,9 @@ public final class AuthorizationUtils {
                 break;
             case SYNONYMS_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.SYNONYMS_USER, version, consumer);
+                break;
+            case WORD_LISTS_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.WORD_LISTS_USER, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

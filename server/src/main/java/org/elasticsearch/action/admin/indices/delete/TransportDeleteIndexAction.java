@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.WordListsIndexService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,6 +44,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
 
     private final MetadataDeleteIndexService deleteIndexService;
     private final DestructiveOperations destructiveOperations;
+    private final WordListsIndexService wordListsIndexService;
 
     @Inject
     public TransportDeleteIndexAction(
@@ -51,7 +54,8 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
         MetadataDeleteIndexService deleteIndexService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        Client client
     ) {
         super(
             TYPE.name(),
@@ -65,6 +69,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
         );
         this.deleteIndexService = deleteIndexService;
         this.destructiveOperations = destructiveOperations;
+        this.wordListsIndexService = new WordListsIndexService(client);
     }
 
     @Override
@@ -91,10 +96,20 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             return;
         }
 
-        DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest(listener.delegateResponse((l, e) -> {
-            logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);
-            listener.onFailure(e);
-        })).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices.toArray(new Index[0]));
+        DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest(new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                concreteIndices.forEach(i -> wordListsIndexService.deleteIndexWordLists(i.getName(), this.delegateFailure((l, b) -> {})));
+                listener.onResponse(acknowledgedResponse);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // TODO: Detect when failure is due to word list deletion and update logged error message appropriately
+                logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);
+                listener.onFailure(e);
+            }
+        }).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices.toArray(new Index[0]));
 
         deleteIndexService.deleteIndices(deleteRequest);
     }

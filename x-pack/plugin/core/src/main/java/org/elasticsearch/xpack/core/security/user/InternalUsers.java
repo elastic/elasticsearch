@@ -221,6 +221,21 @@ public class InternalUsers {
         )
     );
 
+    public static final InternalUser WORD_LISTS_USER = new InternalUser(
+        UsernamesField.WORD_LISTS_USER_NAME,
+        new RoleDescriptor(
+            UsernamesField.WORD_LISTS_ROLE_NAME,
+            null,
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder().indices(".word_lists*").privileges("all").allowRestrictedIndices(true).build() },
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
     public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
 
     private static final Map<String, InternalUser> INTERNAL_USERS;
@@ -235,6 +250,7 @@ public class InternalUsers {
             STORAGE_USER,
             DATA_STREAM_LIFECYCLE_USER,
             SYNONYMS_USER,
+            WORD_LISTS_USER,
             LAZY_ROLLOVER_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }

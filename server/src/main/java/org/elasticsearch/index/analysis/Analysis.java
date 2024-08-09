@@ -45,25 +45,47 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.io.BufferedReader;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessControlException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -77,6 +99,7 @@ import static java.util.Map.entry;
 public class Analysis {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
+    private static final Logger logger = LogManager.getLogger(Analysis.class);
 
     public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");
@@ -261,6 +284,106 @@ public class Analysis {
         }
     }
 
+    public static void getWordListAsync(
+        String indexName,
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        boolean removeComments,
+        WordListsIndexService wordListIndexService,
+        ActionListener<List<String>> listener
+    ) {
+        String wordListPath = settings.get(settingPath, null);
+
+        if (wordListPath == null) {
+            List<String> explicitWordList = settings.getAsList(settingList, null);
+            listener.onResponse(explicitWordList);
+            return;
+        }
+
+        final URL pathAsUrl = tryToParsePathAsURL(wordListPath);
+        if (pathAsUrl != null) {
+            // Don't try to read data from URLs in the master update thread because you won't get the async results back in time to use them
+            if (MasterService.isMasterUpdateThread() == false) {
+                wordListIndexService.getWordListValue(indexName, wordListPath, new ActionListener<>() {
+                    @Override
+                    public void onResponse(String s) {
+                        if (s == null) {
+                            try {
+                                s = readFile(pathAsUrl);
+                            } catch (IOException e) {
+                                listener.onFailure(
+                                    new ElasticsearchStatusException("Unable to read file at " + settingPath, RestStatus.BAD_REQUEST, e)
+                                );
+                                return;
+                            }
+
+                            // TODO: Force indexing to complete before returning parsed word list to listener
+                            wordListIndexService.putWordList(indexName, wordListPath, s, new ActionListener<>() {
+                                @Override
+                                public void onResponse(WordListsIndexService.PutWordListResult putWordListResult) {
+                                    logger.debug("Indexed word list [" + wordListPath + "] for index [" + indexName + "]");
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.warn("Unable to index word list [" + wordListPath + "] for index [" + indexName + "]", e);
+                                    // listener.onFailure(new ElasticsearchStatusException(
+                                    // "Unable to index word list [" + wordListPath + "] for index [" + indexName + "]",
+                                    // RestStatus.INTERNAL_SERVER_ERROR,
+                                    // e
+                                    // ));
+                                }
+                            });
+                        }
+
+                        try {
+                            listener.onResponse(loadWordList(s, removeComments));
+                        } catch (IOException e) {
+                            listener.onFailure(
+                                new ElasticsearchStatusException(
+                                    "Unable to parse word list [" + wordListPath + "] for index [" + indexName + "]",
+                                    RestStatus.INTERNAL_SERVER_ERROR,
+                                    e
+                                )
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "Unable to get word list [" + wordListPath + "] for index [" + indexName + "]",
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                    }
+                });
+            }
+        } else {
+            // Throw exceptions synchronously here so that master thread validation can pick them up
+            final Path path = env.configFile().resolve(wordListPath);
+            try {
+                listener.onResponse(loadWordList(path, removeComments));
+            } catch (CharacterCodingException ex) {
+                String message = Strings.format(
+                    "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
+                    settingPath,
+                    path
+                );
+                throw new IllegalArgumentException(message, ex);
+            } catch (IOException ioe) {
+                String message = Strings.format("IOException while reading %s: %s", settingPath, path);
+                throw new IllegalArgumentException(message, ioe);
+            } catch (AccessControlException ace) {
+                throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
+            }
+        }
+    }
+
     public static List<String> getWordList(
         Environment env,
         Settings settings,
@@ -323,6 +446,22 @@ public class Analysis {
         return result;
     }
 
+    private static List<String> loadWordList(String value, boolean removeComments) throws IOException {
+        final List<String> result = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new StringReader(value))) {
+            String word;
+            while ((word = br.readLine()) != null) {
+                if (Strings.hasText(word) == false) {
+                    continue;
+                }
+                if (removeComments == false || word.startsWith("#") == false) {
+                    result.add(word.trim());
+                }
+            }
+        }
+        return result;
+    }
+
     /**
      * @return null If no settings set for "settingsPrefix" then return <code>null</code>.
      * @throws IllegalArgumentException
@@ -362,4 +501,115 @@ public class Analysis {
         return new StringReader(sb.toString());
     }
 
+    // TODO: How to handle file:// URLs?
+    private static URL tryToParsePathAsURL(String path) {
+        URL url = null;
+        try {
+            url = new URL(path);
+        } catch (MalformedURLException e) {
+            // OK to swallow this exception, it means the path is not a valid URL
+        }
+
+        return url;
+    }
+
+    private static Path downloadFile(URL url) throws IOException {
+        String protocol = url.getProtocol();
+        if (protocol.equals("http") == false && protocol.equals("https") == false) {
+            throw new IllegalArgumentException("Cannot handle protocol [" + protocol + "]");
+        }
+
+        SpecialPermission.check();
+        Path path = Files.createTempFile(UUIDs.randomBase64UUID(), null);
+        try (FileOutputStream fileOutputStream = new FileOutputStream(path.toFile())) {
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
+                fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+                return null;
+            });
+        } catch (PrivilegedActionException e) {
+            Files.deleteIfExists(path);
+            throw (IOException) e.getCause();
+        } catch (Exception e) {
+            Files.deleteIfExists(path);
+            throw e;
+        }
+
+        return path;
+    }
+
+    private static String readFile(URL url) throws IOException {
+        String protocol = url.getProtocol();
+        if (protocol.equals("http") == false && protocol.equals("https") == false) {
+            throw new IllegalArgumentException("Cannot handle protocol [" + protocol + "]");
+        }
+
+        SpecialPermission.check();
+        ReadableByteChannel readableByteChannel = null;
+        StringBuilder sb = new StringBuilder();
+        try {
+            readableByteChannel = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<ReadableByteChannel>) () -> Channels.newChannel(url.openStream())
+            );
+
+            Reader reader = Channels.newReader(readableByteChannel, StandardCharsets.UTF_8);
+            char[] arr = new char[1024];
+            int charsRead;
+            while ((charsRead = reader.read(arr, 0, arr.length)) != -1) {
+                sb.append(arr, 0, charsRead);
+            }
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        } finally {
+            if (readableByteChannel != null) {
+                readableByteChannel.close();
+            }
+        }
+
+        return sb.toString();
+    }
+
+    // TODO: How to handle file:// URLs?
+    private static URI tryToParsePathAsUri(String path) {
+        URI uri = null;
+        try {
+            uri = new URI(path);
+        } catch (URISyntaxException e) {
+            // OK to swallow this exception, it means the path is not a valid URL
+        }
+
+        return uri;
+    }
+
+    private static Path downloadFile(URI uri) throws IOException, InterruptedException {
+        String protocol = uri.getScheme();
+        if (protocol.equals("http") == false && protocol.equals("https") == false) {
+            throw new IllegalArgumentException("Cannot handle protocol [" + protocol + "]");
+        }
+
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpRequest httpRequest = HttpRequest.newBuilder(uri).build();
+        SpecialPermission.check();
+        HttpResponse<InputStream> httpResponse;
+        try {
+            httpResponse = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<HttpResponse<InputStream>>) () -> httpClient.send(
+                    httpRequest,
+                    HttpResponse.BodyHandlers.ofInputStream()
+                )
+            );
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        }
+
+        Path path = Files.createTempFile(UUIDs.randomBase64UUID(), null);
+        try (FileOutputStream fileOutputStream = new FileOutputStream(path.toFile()); InputStream body = httpResponse.body()) {
+            fileOutputStream.write(body.readAllBytes());
+        } catch (Exception e) {
+            Files.deleteIfExists(path);
+            throw e;
+        }
+
+        return path;
+    }
 }

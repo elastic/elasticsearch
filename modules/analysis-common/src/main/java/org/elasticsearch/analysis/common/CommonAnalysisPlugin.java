@@ -113,8 +113,10 @@ import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
+import org.elasticsearch.index.analysis.StopRemoteWordListTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.analysis.WordListsIndexService;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
@@ -142,11 +144,13 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
+    private final SetOnce<WordListsIndexService> wordListsIndexServiceHolder = new SetOnce<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
+        this.wordListsIndexServiceHolder.set(new WordListsIndexService(services.client()));
         return Collections.emptyList();
     }
 
@@ -326,6 +330,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("uppercase", UpperCaseTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
+        filters.put(
+            "stop_remote",
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new StopRemoteWordListTokenFilterFactory(i, e, n, s, wordListsIndexServiceHolder.get())
+            )
+        );
         return filters;
     }
 

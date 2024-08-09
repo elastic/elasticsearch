@@ -375,7 +375,8 @@ public class MvPercentile extends EsqlScalarFunction {
     /**
      * Calculates a percentile for a double avoiding overflows.
      * <p>
-     *     To do that, if the values are over a limit, it uses instead BigDecimals for the calculations.
+     *     If the values are too separated (negative + positive), it uses a slightly different approach.
+     *     This approach would fail if the values are big but not separated, so it's only used in this case.
      * </p>
      */
     private static double calculateDoublePercentile(double fraction, double lowerValue, double upperValue) {

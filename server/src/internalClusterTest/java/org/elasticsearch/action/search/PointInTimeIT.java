@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -43,7 +44,6 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -58,6 +58,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -590,7 +591,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
             // find which shards to relocate
             final String nodeId = admin().cluster().prepareNodesInfo(randomDataNode).get().getNodes().get(0).getNode().getId();
-            List<Integer> shardsToRelocate = new ArrayList<>();
+            Set<Integer> shardsToRelocate = new HashSet<>();
             for (ShardStats stats : admin().indices().prepareStats(index).get().getShards()) {
                 if (nodeId.equals(stats.getShardRouting().currentNodeId())) {
                     shardsToRelocate.add(stats.getShardRouting().shardId().id());
@@ -664,14 +665,29 @@ public class PointInTimeIT extends ESIntegTestCase {
                             .setPointInTime(new PointInTimeBuilder(pointInTimeResponseOneNodeDown.getPointInTimeId())),
                         resp -> {
                             assertThat(resp.pointInTimeId(), equalTo(pointInTimeResponseOneNodeDown.getPointInTimeId()));
-                            assertThat(resp.getTotalShards(), equalTo(numShards - shardsRemoved));
+                            assertThat(resp.getTotalShards(), equalTo(numShards));
                             assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
-                            assertThat(resp.getFailedShards(), equalTo(0));
+                            assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
+                            assertThat(resp.getShardFailures().length, equalTo(shardsRemoved));
+                            for (var failure : resp.getShardFailures()) {
+                                assertTrue(shardsToRelocate.contains(failure.shardId()));
+                                assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
+                            }
                             assertNotNull(resp.getHits().getTotalHits());
                             // we expect less documents as the newly indexed ones should not be part of the PIT
                             assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
                         }
                     );
+
+                    Exception exc = expectThrows(
+                        Exception.class,
+                        () -> prepareSearch().setQuery(new MatchAllQueryBuilder())
+                            .setPointInTime(new PointInTimeBuilder(pointInTimeResponseOneNodeDown.getPointInTimeId()))
+                            .setAllowPartialSearchResults(false)
+                            .get()
+                    );
+                    assertThat(exc.getCause().getMessage(), containsString("missing shards"));
+
                 } finally {
                     internalCluster().stopNode(newNodeName);
                 }

@@ -9,6 +9,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -21,14 +23,13 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -61,7 +62,10 @@ public class SearchContextIdTests extends ESTestCase {
             if (randomBoolean()) {
                 shardSearchFailures.put(
                     result.getSearchShardTarget(),
-                    new ShardSearchFailure(new UnsupportedOperationException("simulated failure"), result.getSearchShardTarget())
+                    new ShardSearchFailure(
+                        new NoShardAvailableActionException(result.getSearchShardTarget().getShardId()),
+                        result.getSearchShardTarget()
+                    )
                 );
                 queryResults.set(idx, null);
             } else {
@@ -79,7 +83,6 @@ public class SearchContextIdTests extends ESTestCase {
             }
             idx += 1;
         }
-        final int shardsFailed = shardSearchFailures.size();
         final BytesReference id = SearchContextId.encode(
             queryResults.asList(),
             aliasFilters,
@@ -87,18 +90,18 @@ public class SearchContextIdTests extends ESTestCase {
             shardSearchFailures.values().toArray(ShardSearchFailure[]::new)
         );
         final SearchContextId context = SearchContextId.decode(namedWriteableRegistry, id);
-        assertThat(context.shards().keySet(), hasSize(3 - shardsFailed));
-        assertThat(context.failedShards().keySet(), hasSize(shardsFailed));
+        assertThat(context.shards().keySet(), hasSize(3));
+        // TODO assertThat(context.failedShards().keySet(), hasSize(shardsFailed));
         assertThat(context.aliasFilter(), equalTo(aliasFilters));
 
         ShardId shardIdForNode1 = new ShardId("idx", "uuid1", 2);
         SearchShardTarget shardTargetForNode1 = new SearchShardTarget("node_1", shardIdForNode1, "cluster_x");
+        SearchContextIdForNode node1 = context.shards().get(shardIdForNode1);
+        assertThat(node1.getClusterAlias(), equalTo("cluster_x"));
         if (shardSearchFailures.containsKey(shardTargetForNode1)) {
-            assertThat(context.failedShards(), hasKey(shardTargetForNode1));
-            assertThat(context.failedShards().get(shardTargetForNode1), containsString("simulated failure"));
+            assertNull(node1.getNode());
+            assertNull(node1.getSearchContextId());
         } else {
-            SearchContextIdForNode node1 = context.shards().get(shardIdForNode1);
-            assertThat(node1.getClusterAlias(), equalTo("cluster_x"));
             assertThat(node1.getNode(), equalTo("node_1"));
             assertThat(node1.getSearchContextId().getId(), equalTo(1L));
             assertThat(node1.getSearchContextId().getSessionId(), equalTo("a"));
@@ -106,13 +109,12 @@ public class SearchContextIdTests extends ESTestCase {
 
         ShardId shardIdForNode2 = new ShardId("idy", "uuid2", 42);
         SearchShardTarget shardTargetForNode2 = new SearchShardTarget("node_2", shardIdForNode2, "cluster_y");
+        SearchContextIdForNode node2 = context.shards().get(shardIdForNode2);
+        assertThat(node2.getClusterAlias(), equalTo("cluster_y"));
         if (shardSearchFailures.containsKey(shardTargetForNode2)) {
-            assertThat(context.failedShards(), hasKey(shardTargetForNode2));
-            assertThat(context.failedShards().get(shardTargetForNode2), containsString("simulated failure"));
-
+            assertNull(node2.getNode());
+            assertNull(node2.getSearchContextId());
         } else {
-            SearchContextIdForNode node2 = context.shards().get(shardIdForNode2);
-            assertThat(node2.getClusterAlias(), equalTo("cluster_y"));
             assertThat(node2.getNode(), equalTo("node_2"));
             assertThat(node2.getSearchContextId().getId(), equalTo(12L));
             assertThat(node2.getSearchContextId().getSessionId(), equalTo("b"));
@@ -120,12 +122,12 @@ public class SearchContextIdTests extends ESTestCase {
 
         ShardId shardIdForNode3 = new ShardId("idy", "uuid2", 43);
         SearchShardTarget shardTargetForNode3 = new SearchShardTarget("node_3", shardIdForNode3, null);
+        SearchContextIdForNode node3 = context.shards().get(shardIdForNode3);
+        assertThat(node3.getClusterAlias(), nullValue());
         if (shardSearchFailures.containsKey(shardTargetForNode3)) {
-            assertThat(context.failedShards(), hasKey(shardTargetForNode3));
-            assertThat(context.failedShards().get(shardTargetForNode3), containsString("simulated failure"));
+            assertNull(node3.getNode());
+            assertNull(node3.getSearchContextId());
         } else {
-            SearchContextIdForNode node3 = context.shards().get(shardIdForNode3);
-            assertThat(node3.getClusterAlias(), nullValue());
             assertThat(node3.getNode(), equalTo("node_3"));
             assertThat(node3.getSearchContextId().getId(), equalTo(42L));
             assertThat(node3.getSearchContextId().getSessionId(), equalTo("c"));
@@ -136,5 +138,35 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(indices[0], equalTo("cluster_x:idx"));
         assertThat(indices[1], equalTo("cluster_y:idy"));
         assertThat(indices[2], equalTo("idy"));
+    }
+
+    public void testFailuresIgnoredInPreviousVersion() {
+        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
+            )
+        );
+        final AtomicArray<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults();
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getFirstVersion(),
+            TransportVersionUtils.getPreviousVersion(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)
+        );
+        Map<SearchShardTarget, ShardSearchFailure> shardSearchFailures = new HashMap<>();
+
+        final BytesReference id = SearchContextId.encode(
+            queryResults.asList(),
+            Map.of(),
+            version,
+            shardSearchFailures.values().toArray(ShardSearchFailure[]::new)
+        );
+
+        final SearchContextId context = SearchContextId.decode(namedWriteableRegistry, id);
+        assertThat(context.shards().size(), equalTo(queryResults.asList().size()));
+        for (var result : queryResults.asList()) {
+            assertTrue(context.shards().containsKey(result.getSearchShardTarget().getShardId()));
+        }
     }
 }

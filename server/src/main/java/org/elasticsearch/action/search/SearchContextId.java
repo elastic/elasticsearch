@@ -27,7 +27,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,25 +37,15 @@ public final class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final Map<String, AliasFilter> aliasFilter;
     private final transient Set<ShardSearchContextId> contextIds;
-    private final Map<SearchShardTarget, String> failedShardsWithCauses;
 
-    SearchContextId(
-        Map<ShardId, SearchContextIdForNode> shards,
-        Map<String, AliasFilter> aliasFilter,
-        Map<SearchShardTarget, String> failedShards
-    ) {
+    SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
         this.shards = shards;
         this.aliasFilter = aliasFilter;
         this.contextIds = shards.values().stream().map(SearchContextIdForNode::getSearchContextId).collect(Collectors.toSet());
-        this.failedShardsWithCauses = failedShards;
     }
 
     public Map<ShardId, SearchContextIdForNode> shards() {
         return shards;
-    }
-
-    public Map<SearchShardTarget, String> failedShards() {
-        return failedShardsWithCauses;
     }
 
     public Map<String, AliasFilter> aliasFilter() {
@@ -76,15 +65,26 @@ public final class SearchContextId {
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            out.writeCollection(searchPhaseResults, SearchContextId::writeSearchPhaseResult);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
-                Map<SearchShardTarget, String> failedShardsWithCauses = new HashMap<>();
-                for (ShardSearchFailure shardFailure : shardFailures) {
-                    if (shardFailure.shard() != null) {
-                        failedShardsWithCauses.put(shardFailure.shard(), shardFailure.reason());
-                    }
+            boolean allowNullContextId = out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT);
+            int shardSize = searchPhaseResults.size() + (allowNullContextId ? shardFailures.length : 0);
+            out.writeVInt(shardSize);
+            for (var searchResult : searchPhaseResults) {
+                final SearchShardTarget target = searchResult.getSearchShardTarget();
+                target.getShardId().writeTo(out);
+                new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchResult.getContextId()).writeTo(out);
+            }
+            if (allowNullContextId) {
+                /**
+                 * Shard failures are not encoded if there are nodes in the cluster that have not yet been upgraded to
+                 * {@link TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT}.
+                 * These shards will be silently ignored during searches using this PIT; however, this situation should never occur,
+                 * as failures are not permitted when creating a point in time with versions prior to
+                 * {@link TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT}.
+                 */
+                for (var failure : shardFailures) {
+                    failure.shard().getShardId().writeTo(out);
+                    new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);
                 }
-                out.writeMap(failedShardsWithCauses, StreamOutput::writeWriteable, StreamOutput::writeString);
             }
             out.writeMap(aliasFilter, StreamOutput::writeWriteable);
             return out.bytes();
@@ -94,12 +94,6 @@ public final class SearchContextId {
         }
     }
 
-    private static void writeSearchPhaseResult(StreamOutput out, SearchPhaseResult searchPhaseResult) throws IOException {
-        final SearchShardTarget target = searchPhaseResult.getSearchShardTarget();
-        target.getShardId().writeTo(out);
-        new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchPhaseResult.getContextId()).writeTo(out);
-    }
-
     public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, BytesReference id) {
         try (var in = new NamedWriteableAwareStreamInput(id.streamInput(), namedWriteableRegistry)) {
             final TransportVersion version = TransportVersion.readVersion(in);
@@ -107,15 +101,11 @@ public final class SearchContextId {
             final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
                 in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
             );
-            Map<SearchShardTarget, String> failedShards = new HashMap<>();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
-                failedShards = in.readMap(SearchShardTarget::new, StreamInput::readString);
-            }
             final Map<String, AliasFilter> aliasFilters = in.readImmutableMap(AliasFilter::readFrom);
             if (in.available() > 0) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }
-            return new SearchContextId(shards, aliasFilters, failedShards);
+            return new SearchContextId(shards, aliasFilters);
         } catch (IOException e) {
             assert false : e;
             throw new IllegalArgumentException(e);
@@ -129,11 +119,7 @@ public final class SearchContextId {
             final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
                 in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
             );
-            Map<SearchShardTarget, String> failedShards = new HashMap<>();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
-                failedShards = in.readMap(SearchShardTarget::new, StreamInput::readString);
-            }
-            return new SearchContextId(shards, Collections.emptyMap(), failedShards).getActualIndices();
+            return new SearchContextId(shards, Collections.emptyMap()).getActualIndices();
         } catch (IOException e) {
             assert false : e;
             throw new IllegalArgumentException(e);
@@ -150,15 +136,6 @@ public final class SearchContextId {
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards().entrySet()) {
             final String indexName = entry.getKey().getIndexName();
             final String clusterAlias = entry.getValue().getClusterAlias();
-            if (Strings.isEmpty(clusterAlias)) {
-                indices.add(indexName);
-            } else {
-                indices.add(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + indexName);
-            }
-        }
-        for (Map.Entry<SearchShardTarget, String> entry : failedShards().entrySet()) {
-            final String indexName = entry.getKey().getIndex();
-            final String clusterAlias = entry.getKey().getClusterAlias();
             if (Strings.isEmpty(clusterAlias)) {
                 indices.add(indexName);
             } else {

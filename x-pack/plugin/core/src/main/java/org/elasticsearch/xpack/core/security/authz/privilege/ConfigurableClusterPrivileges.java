@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,8 +29,9 @@ import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -41,12 +40,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -396,48 +397,53 @@ public final class ConfigurableClusterPrivileges {
 
     public static class ManageRolesPrivilege implements ConfigurableClusterPrivilege {
         public static final String WRITEABLE_NAME = "manage-roles-privilege";
-        private final Set<String> indices;
-        private final BiPredicate<TransportRequest, RestrictedIndices> requestPredicate;
+        private final List<IndexPatternPrivileges> indexPatternPrivileges;
+        Function<RestrictedIndices, Predicate<TransportRequest>> requestPredicateSupplier;
 
-        public ManageRolesPrivilege(Set<String> indices) {
-            this.indices = indices;
-            final Automaton indexAutomatons = Automatons.patterns(indices);
-            this.requestPredicate = (request, restrictedIndices) -> {
-                if (request instanceof final PutRoleRequest putRoleRequest) {
-                    final Set<String> requestIndexPatterns = Arrays.stream(putRoleRequest.indices())
-                        .flatMap(indexPrivilege -> Arrays.stream(indexPrivilege.getIndices()))
-                        .collect(Collectors.toSet());
-                    return requestIndexPatternsAllowed(indexAutomatons, requestIndexPatterns, restrictedIndices);
-                } else if (request instanceof final BulkPutRolesRequest bulkPutRoleRequest) {
-                    final Set<String> requestIndexPatterns = bulkPutRoleRequest.getRoles()
-                        .stream()
-                        .flatMap(
-                            roleDescriptor -> Arrays.stream(roleDescriptor.getIndicesPrivileges())
-                                .flatMap(indexPrivilege -> Arrays.stream(indexPrivilege.getIndices()))
-                        )
-                        .collect(Collectors.toSet());
-                    return requestIndexPatternsAllowed(indexAutomatons, requestIndexPatterns, restrictedIndices);
-                } else if (request instanceof final DeleteRoleRequest deleteRoleRequest) {
-                    return requestIndexPatternsAllowed(indexAutomatons, Set.of(deleteRoleRequest.name()), restrictedIndices);
-                } else if (request instanceof final BulkDeleteRolesRequest bulkDeleteRoleRequest) {
-                    return requestIndexPatternsAllowed(
-                        indexAutomatons,
-                        new HashSet<>(bulkDeleteRoleRequest.getRoleNames()),
-                        restrictedIndices
+        public ManageRolesPrivilege(List<IndexPatternPrivileges> indexPatternPrivileges) {
+            this.indexPatternPrivileges = indexPatternPrivileges;
+            this.requestPredicateSupplier = (restrictedIndices) -> {
+                IndicesPermission.Builder indicesPermissionBuilder = new IndicesPermission.Builder(restrictedIndices);
+                for (IndexPatternPrivileges indexPatternPrivilege : indexPatternPrivileges) {
+                    indicesPermissionBuilder.addGroup(
+                        IndexPrivilege.get(Set.of(indexPatternPrivilege.privileges())),
+                        FieldPermissions.DEFAULT,
+                        null,
+                        false,
+                        indexPatternPrivilege.indexPatterns()
                     );
                 }
+                IndicesPermission indicesPermission = indicesPermissionBuilder.build();
 
-                return false;
+                return (TransportRequest request) -> {
+                    if (request instanceof final PutRoleRequest putRoleRequest) {
+                        final Set<String> requestIndexPatterns = Arrays.stream(putRoleRequest.indices())
+                            .flatMap(indexPrivilege -> Arrays.stream(indexPrivilege.getIndices()))
+                            .collect(Collectors.toSet());
+                        return requestIndexPatternsAllowed(indicesPermission, requestIndexPatterns);
+                    } else if (request instanceof final BulkPutRolesRequest bulkPutRoleRequest) {
+                        final Set<String> requestIndexPatterns = bulkPutRoleRequest.getRoles()
+                            .stream()
+                            .flatMap(
+                                roleDescriptor -> Arrays.stream(roleDescriptor.getIndicesPrivileges())
+                                    .flatMap(indexPrivilege -> Arrays.stream(indexPrivilege.getIndices()))
+                            )
+                            .collect(Collectors.toSet());
+                        return requestIndexPatternsAllowed(indicesPermission, requestIndexPatterns);
+                    } else if (request instanceof final DeleteRoleRequest deleteRoleRequest) {
+                        return requestIndexPatternsAllowed(indicesPermission, Set.of(deleteRoleRequest.name()));
+                    } else if (request instanceof final BulkDeleteRolesRequest bulkDeleteRoleRequest) {
+                        return requestIndexPatternsAllowed(indicesPermission, new HashSet<>(bulkDeleteRoleRequest.getRoleNames()));
+                    }
+
+                    return false;
+                };
             };
         }
 
         @Override
         public Category getCategory() {
             return Category.ROLE;
-        }
-
-        public Collection<String> getIndices() {
-            return this.indices;
         }
 
         @Override
@@ -447,19 +453,31 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(this.indices);
+            out.writeCollection(indexPatternPrivileges);
         }
 
         public static ManageRolesPrivilege createFrom(StreamInput in) throws IOException {
-            final Set<String> indices = in.readCollectionAsSet(StreamInput::readString);
-            return new ManageRolesPrivilege(indices);
+            final List<IndexPatternPrivileges> indexPatternPrivileges = in.readCollectionAsList(IndexPatternPrivileges::createFrom);
+            return new ManageRolesPrivilege(indexPatternPrivileges);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(
                 Fields.MANAGE.getPreferredName(),
-                Map.of(Fields.INDICES.getPreferredName(), List.of(Map.of(Fields.NAMES.getPreferredName(), indices)))
+                Map.of(
+                    Fields.INDICES.getPreferredName(),
+                    indexPatternPrivileges.stream()
+                        .map(
+                            indexPatternPrivilege -> Map.of(
+                                Fields.NAMES.getPreferredName(),
+                                indexPatternPrivilege.indexPatterns(),
+                                Fields.PRIVILEGES.getPreferredName(),
+                                indexPatternPrivilege.privileges()
+                            )
+                        )
+                        .toList()
+                )
             );
         }
 
@@ -470,22 +488,67 @@ public final class ConfigurableClusterPrivileges {
             expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
             expectFieldName(parser, Fields.INDICES);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-            Set<String> indices = new HashSet<>();
+            List<IndexPatternPrivileges> indexPrivileges = new ArrayList<>();
+            Map<String, String[]> parsedArraysByFieldName = new HashMap<>();
+
+            parser.nextToken();
             XContentParser.Token token;
-            while ((token = (parser.nextToken())) != XContentParser.Token.END_ARRAY) {
+            while ((token = parser.currentToken()) != XContentParser.Token.END_ARRAY) {
                 expectedToken(token, parser, XContentParser.Token.START_OBJECT);
-                parser.nextToken();
-                expectFieldName(parser, Fields.NAMES);
-                parser.nextToken();
-                String[] parsedIndices = XContentUtils.readStringArray(parser, false);
-                if (parsedIndices != null) {
-                    indices.addAll(Arrays.asList(parsedIndices));
-                }
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+                String currentFieldName = parser.currentName();
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                parsedArraysByFieldName.put(currentFieldName, XContentUtils.readStringArray(parser, false));
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+                currentFieldName = parser.currentName();
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                parsedArraysByFieldName.put(currentFieldName, XContentUtils.readStringArray(parser, false));
+                indexPrivileges.add(
+                    new IndexPatternPrivileges(
+                        parsedArraysByFieldName.get(Fields.NAMES.getPreferredName()),
+                        parsedArraysByFieldName.get(Fields.PRIVILEGES.getPreferredName())
+                    )
+                );
+            }
+            return new ManageRolesPrivilege(indexPrivileges);
+        }
+
+        public record IndexPatternPrivileges(String[] indexPatterns, String[] privileges) implements Writeable {
+            public static IndexPatternPrivileges createFrom(StreamInput in) throws IOException {
+                return new IndexPatternPrivileges(in.readStringArray(), in.readStringArray());
             }
 
-            expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
-            return new ManageRolesPrivilege(indices);
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeStringArray(indexPatterns);
+                out.writeStringArray(privileges);
+            }
+
+            @Override
+            public String toString() {
+                return "{"
+                    + Fields.NAMES
+                    + ":"
+                    + Arrays.toString(indexPatterns())
+                    + ":"
+                    + Fields.PRIVILEGES
+                    + ":"
+                    + Arrays.toString(privileges())
+                    + "}";
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                IndexPatternPrivileges that = (IndexPatternPrivileges) o;
+                return Arrays.equals(indexPatterns, that.indexPatterns) && Arrays.equals(privileges, that.privileges);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(Arrays.hashCode(indexPatterns), Arrays.hashCode(privileges));
+            }
         }
 
         @Override
@@ -496,11 +559,9 @@ public final class ConfigurableClusterPrivileges {
                 + Fields.MANAGE.getPreferredName()
                 + ":"
                 + Fields.INDICES.getPreferredName()
-                + ":"
-                + Fields.NAMES.getPreferredName()
-                + "="
-                + Strings.collectionToDelimitedString(indices, ",")
-                + "}";
+                + "=["
+                + Strings.collectionToDelimitedString(indexPatternPrivileges, ",")
+                + "]}";
         }
 
         @Override
@@ -512,17 +573,27 @@ public final class ConfigurableClusterPrivileges {
                 return false;
             }
             final ManageRolesPrivilege that = (ManageRolesPrivilege) o;
-            return this.indices.equals(that.indices);
+
+            if (this.indexPatternPrivileges.size() != that.indexPatternPrivileges.size()) {
+                return false;
+            }
+
+            for (int i = 0; i < this.indexPatternPrivileges.size(); i++) {
+                if (Objects.equals(this.indexPatternPrivileges.get(i), that.indexPatternPrivileges.get(i)) == false) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         @Override
         public int hashCode() {
-            return indices.hashCode();
+            return Objects.hash(indexPatternPrivileges.hashCode());
         }
 
         @Override
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
-            return builder.add(
+            return builder.addWithPredicateSupplier(
                 this,
                 Set.of(
                     "cluster:admin/xpack/security/role/put",
@@ -530,36 +601,18 @@ public final class ConfigurableClusterPrivileges {
                     "cluster:admin/xpack/security/role/bulk_delete",
                     "cluster:admin/xpack/security/role/delete"
                 ),
-                requestPredicate
+                requestPredicateSupplier
             );
         }
 
-        private static boolean requestIndexPatternsAllowed(
-            Automaton indexAutomaton,
-            Set<String> requestIndexPatterns,
-            RestrictedIndices restrictedIndices
-        ) {
-            return requestIndexPatterns.isEmpty()
-                || (isRestrictedIndexPatterns(requestIndexPatterns, restrictedIndices) == false
-                    && isSubsetOfAllowedIndexPatterns(requestIndexPatterns, indexAutomaton));
-        }
-
-        private static boolean isRestrictedIndexPatterns(Set<String> requestIndexPatterns, RestrictedIndices restrictedIndices) {
-            return restrictedIndices != null && requestIndexPatterns.stream().anyMatch(restrictedIndices::isRestricted);
-        }
-
-        private static boolean isSubsetOfAllowedIndexPatterns(Set<String> requestIndexPatterns, Automaton indexAutomaton) {
-            return requestIndexPatterns.stream()
-                .map(Automatons::patterns)
-                .noneMatch(
-                    automatonToCheck -> false == Operations.isEmpty(automatonToCheck)
-                        && Operations.subsetOf(automatonToCheck, indexAutomaton) == false
-                );
+        private static boolean requestIndexPatternsAllowed(IndicesPermission indicesPermission, Set<String> requestIndexPatterns) {
+            return indicesPermission.checkResourcePrivileges(requestIndexPatterns, false, Set.of("read"), null);
         }
 
         private interface Fields {
             ParseField MANAGE = new ParseField("manage");
             ParseField INDICES = new ParseField("indices");
+            ParseField PRIVILEGES = new ParseField("privileges");
             ParseField NAMES = new ParseField("names");
         }
     }

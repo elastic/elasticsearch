@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -110,13 +111,22 @@ public class ManageRolesPrivilegeIT extends SecurityInBasicRestTestCase {
     }
 
     private void createManageRolesRole(String roleName, String[] clusterPrivileges, Set<String> indexPatterns) throws IOException {
+
         adminSecurityClient.putRole(
             new RoleDescriptor(
                 roleName,
                 clusterPrivileges,
                 new RoleDescriptor.IndicesPrivileges[0],
                 new RoleDescriptor.ApplicationResourcePrivileges[0],
-                new ConfigurableClusterPrivilege[] { new ConfigurableClusterPrivileges.ManageRolesPrivilege(indexPatterns) },
+                new ConfigurableClusterPrivilege[] {
+                    new ConfigurableClusterPrivileges.ManageRolesPrivilege(
+                        List.of(
+                            new ConfigurableClusterPrivileges.ManageRolesPrivilege.IndexPatternPrivileges(
+                                indexPatterns.toArray(String[]::new),
+                                new String[] { "read" }
+                            )
+                        )
+                    ) },
                 new String[0],
                 Map.of(),
                 Map.of()

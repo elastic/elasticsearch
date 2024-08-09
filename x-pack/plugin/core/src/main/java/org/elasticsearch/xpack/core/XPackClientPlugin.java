@@ -149,7 +149,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
             new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
-            // security : conditional privileges
+            // security : configurable cluster privileges
             new NamedWriteableRegistry.Entry(
                 ConfigurableClusterPrivilege.class,
                 ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,

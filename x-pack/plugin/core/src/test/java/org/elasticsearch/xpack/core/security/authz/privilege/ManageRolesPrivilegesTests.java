@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
@@ -36,7 +35,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
@@ -44,10 +42,16 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<ConfigurableClusterPrivilege> {
 
+    private static final int MIN_INDEX_NAME_LENGTH = 4;
+
     public void testSimplePutRoleRequest() {
         new ReservedRolesStore();
-        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(Sets.newHashSet("allowed-*"));
-        final ClusterPermission permission = privilege.buildPermission(ClusterPermission.builder()).build();
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(
+            List.of(new ManageRolesPrivilege.IndexPatternPrivileges(new String[] { "allowed*" }, new String[] { "read" }))
+        );
+        final ClusterPermission permission = privilege.buildPermission(
+            new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
+        ).build();
 
         assertAllowedIndexPatterns(permission, randomArray(10, String[]::new, () -> "allowed-" + randomAlphaOfLength(5)), true);
         assertAllowedIndexPatterns(permission, randomArray(10, String[]::new, () -> "not-allowed-" + randomAlphaOfLength(5)), false);
@@ -61,8 +65,13 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
     public void testSeveralIndexGroupsPutRoleRequest() {
         new ReservedRolesStore();
 
-        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(Sets.newHashSet("a*", "b*"));
-        final ClusterPermission permission = privilege.buildPermission(ClusterPermission.builder()).build();
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(
+            List.of(new ManageRolesPrivilege.IndexPatternPrivileges(new String[] { "a*", "b*" }, new String[] { "read" }))
+        );
+
+        final ClusterPermission permission = privilege.buildPermission(
+            new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
+        ).build();
 
         assertAllowedIndexPatterns(permission, new String[] { "/[ab].*/" }, true);
         assertAllowedIndexPatterns(permission, new String[] { "/[abc].*/" }, false);
@@ -71,7 +80,9 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
     public void testRestrictedIndexPutRoleRequest() {
         new ReservedRolesStore();
 
-        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(Sets.newHashSet("*"));
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(
+            List.of(new ManageRolesPrivilege.IndexPatternPrivileges(new String[] { "*" }, new String[] { "read" }))
+        );
         final ClusterPermission permission = privilege.buildPermission(
             new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
         ).build();
@@ -150,14 +161,15 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
     }
 
     public static ManageRolesPrivilege buildPrivileges() {
-        return buildPrivileges(randomIntBetween(4, 7));
+        return buildPrivileges(randomIntBetween(MIN_INDEX_NAME_LENGTH, 7));
     }
 
     private static ManageRolesPrivilege buildPrivileges(int indexNameLength) {
-        Set<String> indexNames = Sets.newHashSet(
-            Arrays.asList(Objects.requireNonNull(generateRandomStringArray(5, indexNameLength, false, false)))
+        String[] indexNames = Objects.requireNonNull(generateRandomStringArray(5, indexNameLength, false, false));
+
+        return new ManageRolesPrivilege(
+            List.of(new ManageRolesPrivilege.IndexPatternPrivileges(indexNames, IndexPrivilege.READ.name().toArray(String[]::new)))
         );
-        return new ManageRolesPrivilege(indexNames);
     }
 
     @Override
@@ -181,8 +193,8 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
 
     @Override
     protected ConfigurableClusterPrivilege mutateInstance(ConfigurableClusterPrivilege instance) throws IOException {
-        if (instance instanceof ManageRolesPrivilege manageRolesPrivilege) {
-            return buildPrivileges(manageRolesPrivilege.getIndices().stream().findFirst().orElse("").length() + randomIntBetween(1, 3));
+        if (instance instanceof ManageRolesPrivilege) {
+            return buildPrivileges(MIN_INDEX_NAME_LENGTH - 1);
         }
         fail();
         return null;

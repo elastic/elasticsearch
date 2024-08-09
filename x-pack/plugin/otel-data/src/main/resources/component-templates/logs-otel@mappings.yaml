@@ -5,7 +5,6 @@ _meta:
   managed: true
 template:
   mappings:
-    date_detection: false
     properties:
       data_stream.type:
         type: constant_keyword

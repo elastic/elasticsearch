@@ -8,9 +8,9 @@ _meta:
   description: default OpenTelemetry metrics template installed by x-pack
   managed: true
 composed_of:
-  - otel@mappings
   - metrics@mappings
   - metrics@tsdb-settings
+  - otel@mappings
   - metrics-otel@mappings
   - semconv-resource-to-ecs@mappings
   - metrics@custom

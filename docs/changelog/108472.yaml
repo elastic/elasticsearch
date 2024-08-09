@@ -1,5 +1,0 @@
-pr: 108472
-summary: Add support for Azure AI Studio embeddings and completions to the inference service.
-area: Machine Learning
-type: feature
-issues: []

@@ -260,8 +260,12 @@ public final class ExpressionTranslators {
         }
         List<Query> queries;
         // check if either side is already a bool query to an extra bool query
-        if (left instanceof BoolQuery bool && bool.isAnd() == isAnd) {
-            queries = CollectionUtils.combine(bool.queries(), right);
+        if (left instanceof BoolQuery leftBool && leftBool.isAnd() == isAnd) {
+            if (right instanceof BoolQuery rightBool && rightBool.isAnd() == isAnd) {
+                queries = CollectionUtils.combine(leftBool.queries(), rightBool.queries());
+            } else {
+                queries = CollectionUtils.combine(leftBool.queries(), right);
+            }
         } else if (right instanceof BoolQuery bool && bool.isAnd() == isAnd) {
             queries = CollectionUtils.combine(bool.queries(), left);
         } else {

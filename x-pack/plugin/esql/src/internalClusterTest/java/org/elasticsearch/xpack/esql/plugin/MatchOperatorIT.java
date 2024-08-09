@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -14,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
@@ -32,6 +35,12 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     @Before
     public void setupIndex() {
         createAndPopulateIndex();
+    }
+
+    @Override
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        assumeTrue("match operator available in snapshot builds only", Build.current().isSnapshot());
+        return super.run(request);
     }
 
     public void testSimpleWhereMatch() {

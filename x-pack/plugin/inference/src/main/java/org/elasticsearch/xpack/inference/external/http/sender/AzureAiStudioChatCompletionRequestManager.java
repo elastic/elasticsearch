@@ -36,7 +36,7 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -45,7 +45,7 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, docsInput);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 
     private static ResponseHandler createCompletionHandler() {

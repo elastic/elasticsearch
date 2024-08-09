@@ -45,7 +45,7 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -54,6 +54,6 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         CohereCompletionRequest request = new CohereCompletionRequest(docsInput, model);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 }

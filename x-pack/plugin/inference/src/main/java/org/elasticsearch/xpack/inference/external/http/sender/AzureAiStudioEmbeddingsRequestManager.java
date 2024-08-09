@@ -40,7 +40,7 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -49,7 +49,7 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         AzureAiStudioEmbeddingsRequest request = new AzureAiStudioEmbeddingsRequest(truncator, truncatedInput, model);
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 
     private static ResponseHandler createEmbeddingsHandler() {

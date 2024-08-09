@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
@@ -27,9 +31,26 @@ abstract class BaseRequestManager implements RequestManager {
         this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
     }
 
-    protected void execute(Runnable runnable) {
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(runnable);
+    public void execute(
+        InferenceInputs inferenceInputs,
+        RequestSender requestSender,
+        Supplier<Boolean> hasRequestCompletedFunction,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        try {
+            var runnable = createRunnableRequest(inferenceInputs, requestSender, hasRequestCompletedFunction, listener);
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(runnable);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
+
+    protected abstract Runnable createRunnableRequest(
+        InferenceInputs inferenceInputs,
+        RequestSender requestSender,
+        Supplier<Boolean> hasRequestCompletedFunction,
+        ActionListener<InferenceServiceResults> listener
+    );
 
     @Override
     public String inferenceEntityId() {

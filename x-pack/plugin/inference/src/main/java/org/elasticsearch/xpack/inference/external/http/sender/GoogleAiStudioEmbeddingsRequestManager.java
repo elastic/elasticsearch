@@ -47,7 +47,7 @@ public class GoogleAiStudioEmbeddingsRequestManager extends GoogleAiStudioReques
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -57,6 +57,6 @@ public class GoogleAiStudioEmbeddingsRequestManager extends GoogleAiStudioReques
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         GoogleAiStudioEmbeddingsRequest request = new GoogleAiStudioEmbeddingsRequest(truncator, truncatedInput, model);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 }

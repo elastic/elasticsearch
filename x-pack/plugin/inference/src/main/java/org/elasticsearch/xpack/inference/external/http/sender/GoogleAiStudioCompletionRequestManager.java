@@ -41,7 +41,7 @@ public class GoogleAiStudioCompletionRequestManager extends GoogleAiStudioReques
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -49,6 +49,6 @@ public class GoogleAiStudioCompletionRequestManager extends GoogleAiStudioReques
     ) {
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(docsInput, model);
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 }

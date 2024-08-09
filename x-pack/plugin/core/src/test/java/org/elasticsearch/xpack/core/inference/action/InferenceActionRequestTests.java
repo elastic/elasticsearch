@@ -86,6 +86,36 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertNull(e);
     }
 
+    public void testValidation_TextEmbedding_DoesNotAllowAQueryField() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            "some query",
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), is("Validation Failed: 1: Field [query] is not a valid field for task type [text_embedding];"));
+    }
+
+    public void testValidation_Completion_DoesNotAllowAQueryField() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.COMPLETION,
+            "model",
+            "some query",
+            List.of("input"),
+            null,
+            null,
+            null
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), is("Validation Failed: 1: Field [query] is not a valid field for task type [completion];"));
+    }
+
     public void testValidation_Rerank() {
         InferenceAction.Request request = new InferenceAction.Request(
             TaskType.RERANK,

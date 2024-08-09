@@ -55,7 +55,7 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -64,6 +64,6 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
         GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 }

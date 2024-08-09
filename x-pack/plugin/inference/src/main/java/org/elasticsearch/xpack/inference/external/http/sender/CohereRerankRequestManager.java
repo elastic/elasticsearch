@@ -42,7 +42,7 @@ public class CohereRerankRequestManager extends CohereRequestManager {
     }
 
     @Override
-    public void execute(
+    public Runnable createRunnableRequest(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
@@ -51,6 +51,6 @@ public class CohereRerankRequestManager extends CohereRequestManager {
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
         CohereRerankRequest request = new CohereRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        return new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener);
     }
 }

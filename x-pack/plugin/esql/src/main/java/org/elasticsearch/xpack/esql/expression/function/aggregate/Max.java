@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
@@ -32,12 +33,15 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 
 public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" },
         description = "The maximum value of a field.",
         isAggregation = true,
         examples = {
@@ -50,7 +54,13 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 tag = "docsStatsMaxNestedExpression"
             ) }
     )
-    public Max(Source source, @Param(name = "field", type = { "boolean", "double", "integer", "long", "date", "ip" }) Expression field) {
+    public Max(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" }
+        ) Expression field
+    ) {
         super(source, field);
     }
 
@@ -77,13 +87,10 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            e -> e == DataType.BOOLEAN || e == DataType.DATETIME || e == DataType.IP || (e.isNumeric() && e != DataType.UNSIGNED_LONG),
+            t -> isRepresentable(t) && t != UNSIGNED_LONG && isSpatial(t) == false,
             sourceText(),
             DEFAULT,
-            "boolean",
-            "datetime",
-            "ip",
-            "numeric except unsigned_long or counter types"
+            "representable except unsigned_long and spatial types"
         );
     }
 
@@ -109,6 +116,9 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         }
         if (type == DataType.IP) {
             return new MaxIpAggregatorFunctionSupplier(inputChannels);
+        }
+        if (type == DataType.VERSION || type == DataType.KEYWORD || type == DataType.TEXT) {
+            return new MaxBytesRefAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

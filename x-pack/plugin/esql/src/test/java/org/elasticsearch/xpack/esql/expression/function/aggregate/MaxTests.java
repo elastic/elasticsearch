@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,7 +45,10 @@ public class MaxTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
-            MultiRowTestCaseSupplier.ipCases(1, 1000)
+            MultiRowTestCaseSupplier.ipCases(1, 1000),
+            MultiRowTestCaseSupplier.versionCases(1, 1000),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(MaxTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
@@ -109,14 +113,44 @@ public class MaxTests extends AbstractAggregationTestCase {
                         DataType.IP,
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
-                )
+                ),
+                new TestCaseSupplier(List.of(DataType.KEYWORD), () -> {
+                    var value = new BytesRef(randomAlphaOfLengthBetween(0, 50));
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.KEYWORD, "field")),
+                        "Max[field=Attribute[channel=0]]",
+                        DataType.KEYWORD,
+                        equalTo(value)
+                    );
+                }),
+                new TestCaseSupplier(List.of(DataType.TEXT), () -> {
+                    var value = new BytesRef(randomAlphaOfLengthBetween(0, 50));
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.TEXT, "field")),
+                        "Max[field=Attribute[channel=0]]",
+                        DataType.TEXT,
+                        equalTo(value)
+                    );
+                }),
+                new TestCaseSupplier(List.of(DataType.VERSION), () -> {
+                    var value = randomBoolean()
+                        ? new Version(randomAlphaOfLengthBetween(1, 10)).toBytesRef()
+                        : new Version(randomIntBetween(0, 100) + "." + randomIntBetween(0, 100) + "." + randomIntBetween(0, 100))
+                            .toBytesRef();
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.VERSION, "field")),
+                        "Max[field=Attribute[channel=0]]",
+                        DataType.VERSION,
+                        equalTo(value)
+                    );
+                })
             )
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             suppliers,
             false,
-            (v, p) -> "boolean, datetime, ip or numeric except unsigned_long or counter types"
+            (v, p) -> "representable except unsigned_long and spatial types"
         );
     }
 

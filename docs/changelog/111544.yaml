@@ -1,0 +1,5 @@
+pr: 111544
+summary: "ESQL: Strings support for MAX and MIN aggregations"
+area: ES|QL
+type: feature
+issues: []

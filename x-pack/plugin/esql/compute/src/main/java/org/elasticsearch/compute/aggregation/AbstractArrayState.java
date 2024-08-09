@@ -21,7 +21,7 @@ public class AbstractArrayState implements Releasable {
         this.bigArrays = bigArrays;
     }
 
-    final boolean hasValue(int groupId) {
+    boolean hasValue(int groupId) {
         return seen == null || seen.get(groupId);
     }
 

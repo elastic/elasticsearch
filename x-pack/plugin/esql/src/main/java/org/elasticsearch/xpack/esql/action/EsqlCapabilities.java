@@ -68,6 +68,11 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_IP_SUPPORT,
 
         /**
+         * Support for strings in aggregations {@code MAX} and {@code MIN}.
+         */
+        AGG_MAX_MIN_STRING_SUPPORT,
+
+        /**
          * Support for booleans in {@code TOP} aggregation.
          */
         AGG_TOP_BOOLEAN_SUPPORT,

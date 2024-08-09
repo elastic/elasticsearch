@@ -10,5 +10,8 @@ datetime | datetime
 double | double
 integer | integer
 ip | ip
+keyword | keyword
 long | long
+text | text
+version | version
 |===

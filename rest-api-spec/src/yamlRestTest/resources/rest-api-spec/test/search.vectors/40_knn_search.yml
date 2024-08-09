@@ -543,4 +543,4 @@ setup:
             k: 2
             num_candidates: 3
 
-  - match: { hits.total: 0 }
+  - match: { hits.total.value: 0 }

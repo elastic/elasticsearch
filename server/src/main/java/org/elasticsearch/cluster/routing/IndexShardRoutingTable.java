@@ -26,12 +26,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -242,38 +241,23 @@ public class IndexShardRoutingTable {
         return new PlainShardIterator(shardId, ordered);
     }
 
-    private static Set<String> getAllNodeIds(final List<ShardRouting> shards) {
-        final Set<String> nodeIds = new HashSet<>();
-        for (ShardRouting shard : shards) {
-            nodeIds.add(shard.currentNodeId());
-        }
-        return nodeIds;
-    }
-
-    private static Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> getNodeStats(
-        final Set<String> nodeIds,
+    private static Map<String, ResponseCollectorService.ComputedNodeStats> getNodeStats(
+        final List<ShardRouting> shards,
         final ResponseCollectorService collector
     ) {
-
-        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = Maps.newMapWithExpectedSize(nodeIds.size());
-        for (String nodeId : nodeIds) {
-            nodeStats.put(nodeId, collector.getNodeStatistics(nodeId));
+        final Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats = new HashMap<>();
+        for (ShardRouting shard : shards) {
+            nodeStats.computeIfAbsent(shard.currentNodeId(), collector::getNodeStatistics);
         }
         return nodeStats;
     }
 
     private static Map<String, Double> rankNodes(
-        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
+        final Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats,
         final Map<String, Long> nodeSearchCounts
     ) {
         final Map<String, Double> nodeRanks = Maps.newMapWithExpectedSize(nodeStats.size());
-        for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
-            Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
-            maybeStats.ifPresent(stats -> {
-                final String nodeId = entry.getKey();
-                nodeRanks.put(nodeId, stats.rank(nodeSearchCounts.getOrDefault(nodeId, 0L)));
-            });
-        }
+        nodeStats.forEach((nodeId, value) -> nodeRanks.put(nodeId, value.rank(nodeSearchCounts.getOrDefault(nodeId, 0L))));
         return nodeRanks;
     }
 
@@ -290,28 +274,28 @@ public class IndexShardRoutingTable {
      */
     private static void adjustStats(
         final ResponseCollectorService collector,
-        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
-        final String minNodeId,
-        final ResponseCollectorService.ComputedNodeStats minStats
+        final Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats,
+        final String minNodeId
     ) {
-        if (minNodeId != null) {
-            for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
-                final String nodeId = entry.getKey();
-                final Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
-                if (nodeId.equals(minNodeId) == false && maybeStats.isPresent()) {
-                    final ResponseCollectorService.ComputedNodeStats stats = maybeStats.get();
-                    final int updatedQueue = (minStats.queueSize + stats.queueSize) / 2;
-                    final long updatedResponse = (long) (minStats.responseTime + stats.responseTime) / 2;
+        var minStats = nodeStats.get(minNodeId);
+        if (minStats == null) {
+            return;
+        }
+        for (Map.Entry<String, ResponseCollectorService.ComputedNodeStats> entry : nodeStats.entrySet()) {
+            final String nodeId = entry.getKey();
+            ResponseCollectorService.ComputedNodeStats stats = entry.getValue();
+            if (nodeId.equals(minNodeId) == false) {
+                final int updatedQueue = (minStats.queueSize + stats.queueSize) / 2;
+                final long updatedResponse = (long) (minStats.responseTime + stats.responseTime) / 2;
 
-                    ExponentiallyWeightedMovingAverage avgServiceTime = new ExponentiallyWeightedMovingAverage(
-                        ResponseCollectorService.ALPHA,
-                        stats.serviceTime
-                    );
-                    avgServiceTime.addValue((minStats.serviceTime + stats.serviceTime) / 2);
-                    final long updatedService = (long) avgServiceTime.getAverage();
+                ExponentiallyWeightedMovingAverage avgServiceTime = new ExponentiallyWeightedMovingAverage(
+                    ResponseCollectorService.ALPHA,
+                    stats.serviceTime
+                );
+                avgServiceTime.addValue((minStats.serviceTime + stats.serviceTime) / 2);
+                final long updatedService = (long) avgServiceTime.getAverage();
 
-                    collector.addNodeStatistics(nodeId, updatedQueue, updatedResponse, updatedService);
-                }
+                collector.addNodeStatistics(nodeId, updatedQueue, updatedResponse, updatedService);
             }
         }
     }
@@ -326,70 +310,52 @@ public class IndexShardRoutingTable {
         }
 
         // Retrieve which nodes we can potentially send the query to
-        final Set<String> nodeIds = getAllNodeIds(shards);
-        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(nodeIds, collector);
+        final Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats = getNodeStats(shards, collector);
 
         // Retrieve all the nodes the shards exist on
         final Map<String, Double> nodeRanks = rankNodes(nodeStats, nodeSearchCounts);
-
         // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
-        Collections.sort(sortedShards, new NodeRankComparator(nodeRanks));
-
-        // adjust the non-winner nodes' stats so they will get a chance to receive queries
-        if (sortedShards.size() > 1) {
-            ShardRouting minShard = sortedShards.get(0);
-            // If the winning shard is not started we are ranking initializing
-            // shards, don't bother to do adjustments
-            if (minShard.started()) {
-                String minNodeId = minShard.currentNodeId();
-                Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
-                if (maybeMinStats.isPresent()) {
-                    adjustStats(collector, nodeStats, minNodeId, maybeMinStats.get());
-                    // Increase the number of searches for the "winning" node by one.
-                    // Note that this doesn't actually affect the "real" counts, instead
-                    // it only affects the captured node search counts, which is
-                    // captured once for each query in TransportSearchAction
-                    nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
-                }
-            }
-        }
-
-        return sortedShards;
-    }
-
-    private static class NodeRankComparator implements Comparator<ShardRouting> {
-        private final Map<String, Double> nodeRanks;
-
-        NodeRankComparator(Map<String, Double> nodeRanks) {
-            this.nodeRanks = nodeRanks;
-        }
-
-        @Override
-        public int compare(ShardRouting s1, ShardRouting s2) {
-            if (s1.currentNodeId().equals(s2.currentNodeId())) {
+        sortedShards.sort((left, right) -> {
+            // not using Comparator#nullsFirst and the like since this is on the hot path for searches over many shards
+            final String leftId = left.currentNodeId();
+            final String rightId = right.currentNodeId();
+            if (leftId.equals(rightId)) {
                 // these shards on the same node
                 return 0;
             }
-            Double shard1rank = nodeRanks.get(s1.currentNodeId());
-            Double shard2rank = nodeRanks.get(s2.currentNodeId());
+            Double shard1rank = nodeRanks.get(leftId);
+            Double shard2rank = nodeRanks.get(rightId);
             if (shard1rank != null) {
                 if (shard2rank != null) {
                     return shard1rank.compareTo(shard2rank);
-                } else {
-                    // place non-nulls after null values
-                    return 1;
                 }
-            } else {
-                if (shard2rank != null) {
-                    // place nulls before non-null values
-                    return -1;
-                } else {
-                    // Both nodes do not have stats, they are equal
-                    return 0;
-                }
+                // place non-nulls after null values
+                return 1;
             }
+            if (shard2rank != null) {
+                // place nulls before non-null values
+                return -1;
+            }
+            // Both nodes do not have stats, they are equal
+            return 0;
+        });
+
+        // adjust the non-winner nodes' stats so they will get a chance to receive queries
+        ShardRouting minShard = sortedShards.get(0);
+        // If the winning shard is not started we are ranking initializing
+        // shards, don't bother to do adjustments
+        if (minShard.started()) {
+            String minNodeId = minShard.currentNodeId();
+            adjustStats(collector, nodeStats, minNodeId);
+            // Increase the number of searches for the "winning" node by one.
+            // Note that this doesn't actually affect the "real" counts, instead
+            // it only affects the captured node search counts, which is
+            // captured once for each query in TransportSearchAction
+            nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
         }
+
+        return sortedShards;
     }
 
     /**

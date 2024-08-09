@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -88,9 +87,12 @@ public final class ResponseCollectorService implements ClusterStateListener {
      * response information exists for the given node. Returns an empty
      * {@code Optional} if the node was not found.
      */
-    public Optional<ComputedNodeStats> getNodeStatistics(final String nodeId) {
-        final int clientNum = nodeIdToStats.size();
-        return Optional.ofNullable(nodeIdToStats.get(nodeId)).map(ns -> new ComputedNodeStats(clientNum, ns));
+    public ComputedNodeStats getNodeStatistics(final String nodeId) {
+        var ns = nodeIdToStats.get(nodeId);
+        if (ns == null) {
+            return null;
+        }
+        return new ComputedNodeStats(nodeIdToStats.size(), ns);
     }
 
     /**
@@ -99,10 +101,6 @@ public final class ResponseCollectorService implements ClusterStateListener {
      * and service time.
      */
     public static class ComputedNodeStats implements Writeable {
-        // We store timestamps with nanosecond precision, however, the
-        // formula specifies milliseconds, therefore we need to convert
-        // the values so the times don't unduely weight the formula
-        private final double FACTOR = 1000000.0;
         private final int clientNum;
 
         private double cachedRank = 0;
@@ -165,6 +163,10 @@ public final class ResponseCollectorService implements ClusterStateListener {
             double qBar = queueSize;
             double qHatS = 1 + concurrencyCompensation + qBar;
 
+            // We store timestamps with nanosecond precision, however, the
+            // formula specifies milliseconds, therefore we need to convert
+            // the values so the times don't unduely weight the formula
+            final double FACTOR = 1000000.0;
             // EWMA of response time
             double rS = responseTime / FACTOR;
             // EWMA of service time. We match the paper's notation, which

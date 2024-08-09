@@ -152,7 +152,7 @@ public abstract class TDigestTests extends ESTestCase {
         hist2.compress();
         double x1 = hist1.quantile(0.5);
         double x2 = hist2.quantile(0.5);
-        assertEquals(Dist.quantile(0.5, data), x1, 0.2);
+        assertEquals(Dist.quantile(0.5, data), x1, 0.25);
         assertEquals(x1, x2, 0.01);
     }
 

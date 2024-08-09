@@ -7,15 +7,36 @@
 
 package org.elasticsearch.blobcache;
 
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
 public class BlobCacheMetrics {
+    private static final String CACHE_POPULATION_TYPE_ATTRIBUTE_KEY = "cachePopulationType";
+    private static final String SHARD_ID_ATTRIBUTE_KEY = "shardId";
+
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
     private final LongHistogram cacheMissLoadTimes;
+    private final LongHistogram cachePopulateReadThroughput;
+    private final LongHistogram cachePopulateWriteThroughput;
+    private final LongHistogram cachePopulationElapsedTime;
+
+    public enum CachePopulationReason {
+        /**
+         * When warming the cache
+         */
+        Warming,
+        /**
+         * When fetching a new commit
+         */
+        LoadCommit
+    }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
         this(
@@ -33,14 +54,39 @@ public class BlobCacheMetrics {
                 "es.blob_cache.cache_miss_load_times.histogram",
                 "The time in milliseconds for populating entries in the blob store resulting from a cache miss, expressed as a histogram.",
                 "ms"
+            ),
+            meterRegistry.registerLongHistogram(
+                "es.blob_cache.cache_populate_read_throughput.histogram",
+                "The read throughput when reading from the blob store to populate the cache",
+                "bytes/second"
+            ),
+            meterRegistry.registerLongHistogram(
+                "es.blob_cache.cache_populate_write_throughput.histogram",
+                "The write throughput when writing data from the blobstore to the cache",
+                "bytes/second"
+            ),
+            meterRegistry.registerLongHistogram(
+                "es.blob_cache.cache_populate_elapsed_time.histogram",
+                "The time taken to copy a chunk from the blob store to the cache",
+                "ms"
             )
         );
     }
 
-    BlobCacheMetrics(LongCounter cacheMissCounter, LongCounter evictedCountNonZeroFrequency, LongHistogram cacheMissLoadTimes) {
+    BlobCacheMetrics(
+        LongCounter cacheMissCounter,
+        LongCounter evictedCountNonZeroFrequency,
+        LongHistogram cacheMissLoadTimes,
+        LongHistogram cachePopulateReadThroughput,
+        LongHistogram cachePopulateWriteThroughput,
+        LongHistogram cachePopulationElapsedTime
+    ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
+        this.cachePopulateReadThroughput = cachePopulateReadThroughput;
+        this.cachePopulateWriteThroughput = cachePopulateWriteThroughput;
+        this.cachePopulationElapsedTime = cachePopulationElapsedTime;
     }
 
     public static BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -55,5 +101,48 @@ public class BlobCacheMetrics {
 
     public LongHistogram getCacheMissLoadTimes() {
         return cacheMissLoadTimes;
+    }
+
+    /**
+     * Record the various cache population metrics after a chunk is copied to the cache
+     *
+     * @param totalBytesRead The total number of bytes read
+     * @param totalReadTimeNanos The time taken to read the bytes in nanoseconds
+     * @param totalBytesWritten The total number of bytes written
+     * @param totalWriteTimeNanos The time taken to write the bytes in nanoseconds
+     * @param elapsedTimeNanoseconds The time taken to copy the entire chunk in nanoseconds
+     * @param shardId The shard ID to which the chunk belonged
+     * @param cachePopulationReason The reason for the cache being populated
+     */
+    public void recordCachePopulationMetrics(
+        int totalBytesRead,
+        long totalReadTimeNanos,
+        int totalBytesWritten,
+        long totalWriteTimeNanos,
+        long elapsedTimeNanoseconds,
+        ShardId shardId,
+        CachePopulationReason cachePopulationReason
+    ) {
+        Map<String, Object> metricAttributes = Map.of(
+            SHARD_ID_ATTRIBUTE_KEY,
+            shardId,
+            CACHE_POPULATION_TYPE_ATTRIBUTE_KEY,
+            cachePopulationReason
+        );
+        cachePopulateReadThroughput.record(toBytesPerSecond(totalBytesRead, totalReadTimeNanos), metricAttributes);
+        cachePopulateWriteThroughput.record(toBytesPerSecond(totalBytesWritten, totalWriteTimeNanos), metricAttributes);
+        cachePopulationElapsedTime.record(TimeUnit.NANOSECONDS.toMillis(elapsedTimeNanoseconds), metricAttributes);
+    }
+
+    /**
+     * Calculate throughput as bytes/second
+     *
+     * @param totalBytes The total number of bytes transferred
+     * @param totalNanoseconds The time to transfer in nanoseconds
+     * @return The throughput as bytes/second
+     */
+    private int toBytesPerSecond(int totalBytes, long totalNanoseconds) {
+        double totalSeconds = totalNanoseconds / 1_000_000_000.0;
+        return (int) (totalBytes / totalSeconds);
     }
 }

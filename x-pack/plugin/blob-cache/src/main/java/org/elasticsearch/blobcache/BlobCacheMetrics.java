@@ -35,7 +35,11 @@ public class BlobCacheMetrics {
         /**
          * When fetching a new commit
          */
-        LoadCommit
+        LoadCommit,
+        /**
+         * When the data we need is not in the cache
+         */
+        CacheMiss
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {

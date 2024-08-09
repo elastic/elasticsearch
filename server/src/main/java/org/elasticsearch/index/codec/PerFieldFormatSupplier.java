@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -58,9 +59,9 @@ public class PerFieldFormatSupplier {
 
     private PostingsFormat internalGetPostingsFormatForField(String field) {
         if (mapperService != null) {
-            final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
-            if (format != null) {
-                return format;
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper instanceof CompletionFieldMapper) {
+                return CompletionFieldMapper.postingsFormat();
             }
         }
         // return our own posting format using PFOR

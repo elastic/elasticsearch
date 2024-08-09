@@ -170,9 +170,9 @@ public class SharedBytes extends AbstractRefCounted {
      * @param length number of bytes to copy
      * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
      * @param buf bytebuffer to use for writing
-     * @param metricsConsumer a consumer that will be provided with the read/write metrics upon completion of the copy
      * @throws IOException on failure
      */
+    // TODO: Add support for CacheCopyMetricsConsumer
     public static void copyToCacheFileAligned(
         IO fc,
         InputStream input,
@@ -180,26 +180,16 @@ public class SharedBytes extends AbstractRefCounted {
         int relativePos,
         int length,
         IntConsumer progressUpdater,
-        ByteBuffer buf,
-        CacheCopyMetricsConsumer metricsConsumer
+        ByteBuffer buf
     ) throws IOException {
-        final long copyStartTime = System.nanoTime();
         int bytesCopied = 0;
         long remaining = length;
-        int totalBytesRead = 0;
-        long totalReadTimeNanos = 0L;
-        long totalWriteTimeNanos = 0L;
         while (remaining > 0L) {
-            final long readStartTimeNanos = System.nanoTime();
             final int bytesRead = BlobCacheUtils.readSafe(input, buf, relativePos, remaining);
-            totalReadTimeNanos += System.nanoTime() - readStartTimeNanos;
-            totalBytesRead += bytesRead;
             if (buf.hasRemaining()) {
                 break;
             }
-            final long writeStartTime = System.nanoTime();
             bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-            totalWriteTimeNanos += System.nanoTime() - writeStartTime;
             progressUpdater.accept(bytesCopied);
             remaining -= bytesRead;
         }
@@ -208,15 +198,11 @@ public class SharedBytes extends AbstractRefCounted {
             final int remainder = buf.position() % PAGE_SIZE;
             final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
             buf.position(buf.position() + adjustment);
-            final long writeStartTime = System.nanoTime();
             bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buf);
-            totalWriteTimeNanos += System.nanoTime() - writeStartTime;
             final int adjustedBytesCopied = bytesCopied - adjustment; // adjust to not break RangeFileTracker
             assert adjustedBytesCopied == length : adjustedBytesCopied + " vs " + length;
             progressUpdater.accept(adjustedBytesCopied);
         }
-        long elapsedTimeNanos = System.nanoTime() - copyStartTime;
-        metricsConsumer.handleCopyMetrics(totalBytesRead, totalReadTimeNanos, bytesCopied, totalWriteTimeNanos, elapsedTimeNanos);
     }
 
     public interface CacheCopyMetricsConsumer {

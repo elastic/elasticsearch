@@ -440,6 +440,38 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testInternalRange() throws IOException {
+        final int NUM_SINGLE_VALUE_ROWS = 100;
+        bulkLoadTestData(NUM_SINGLE_VALUE_ROWS);
+
+        String upperBound = randomFrom(" < ", " <= ");
+        String lowerBound = randomFrom(" > ", " >= ");
+
+        String predicate = "{}" + upperBound + "{} and {}" + lowerBound + "{} and {} != {}";
+
+        List<String> predicates = List.of(
+            format(null, predicate, "integer", NUM_SINGLE_VALUE_ROWS + 1, "integer", -1, "integer", -1),
+            format(null, predicate, "long", NUM_SINGLE_VALUE_ROWS + 1, "long", -1, "long", -1),
+            format(null, predicate, "double", NUM_SINGLE_VALUE_ROWS + 1.0, "double", -1.0, "double", -1),
+            format(null, predicate, "date", "\"9999-12-31\"", "date", "\"1001-01-01\"", "date", "\"1000-01-01\""),
+            format(null, predicate, "keyword", "\"l\"", "keyword", "\"j\"", "keyword", "\"a\""),
+            format(null, predicate, "ip", "\"128.0.0.0\"", "ip", "\"126.0.0.0\"", "ip", "\"129.0.0.0\""),
+            format(null, predicate, "version", "\"2\"", "version", "\"1\"", "version", "\"0\"")
+        );
+
+        for (String p : predicates) {
+            var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), p));
+            var result = runEsql(query, List.of(), NO_WARNINGS_REGEX, mode);
+
+            var values = as(result.get("values"), ArrayList.class);
+            assertThat(
+                format(null, "Comparison [{}] should return all rows with single values.", p),
+                values.size(),
+                is(NUM_SINGLE_VALUE_ROWS)
+            );
+        }
+    }
+
     public void testWarningHeadersOnFailedConversions() throws IOException {
         int count = randomFrom(10, 40, 60);
         bulkLoadTestData(count);

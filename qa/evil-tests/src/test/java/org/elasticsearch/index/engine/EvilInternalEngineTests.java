@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class EvilInternalEngineTests extends EngineTestCase {
 
     public void testOutOfMemoryErrorWhileMergingIsRethrownAndIsUncaught() throws IOException, InterruptedException {
-        engine.close();
+        close(engine);
         final AtomicReference<Throwable> maybeFatal = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
@@ -79,7 +79,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
                 }
             };
 
-            try (Engine e = createEngine(defaultSettings, store, primaryTranslogDir, mergePolicy, (directory, iwc) -> {
+            Engine e = createEngine(defaultSettings, store, primaryTranslogDir, mergePolicy, (directory, iwc) -> {
                 final MergeScheduler mergeScheduler = iwc.getMergeScheduler();
                 assertNotNull(mergeScheduler);
                 iwc.setMergeScheduler(new FilterMergeScheduler(mergeScheduler) {
@@ -113,7 +113,8 @@ public class EvilInternalEngineTests extends EngineTestCase {
                     }
                 });
                 return new IndexWriter(directory, iwc);
-            }, null, null)) {
+            }, null, null);
+            try {
                 // force segments to exist on disk
                 final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
                 e.index(indexForDoc(doc1));
@@ -131,6 +132,8 @@ public class EvilInternalEngineTests extends EngineTestCase {
                 assertNotNull(maybeFatal.get());
                 assertThat(maybeFatal.get(), instanceOf(OutOfMemoryError.class));
                 assertThat(maybeFatal.get(), hasToString(containsString("640K ought to be enough for anybody")));
+            } finally {
+                close(e);
             }
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);

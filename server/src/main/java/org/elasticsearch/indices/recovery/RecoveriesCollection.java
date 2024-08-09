@@ -10,6 +10,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -91,10 +92,9 @@ public class RecoveriesCollection {
     /**
      * Resets the recovery and performs a recovery restart on the currently recovering index shard
      *
-     * @see IndexShard#performRecoveryRestart()
-     * @return newly created RecoveryTarget
+     * @see IndexShard#performRecoveryRestart(ActionListener)
      */
-    public RecoveryTarget resetRecovery(final long recoveryId, final TimeValue activityTimeout) {
+    public void resetRecovery(final long recoveryId, final TimeValue activityTimeout, ActionListener<RecoveryTarget> listener) {
         RecoveryTarget oldRecoveryTarget = null;
         final RecoveryTarget newRecoveryTarget;
 
@@ -104,7 +104,8 @@ public class RecoveriesCollection {
                 // cancelRecoveriesForShard whenever the old recovery target is picked up
                 oldRecoveryTarget = onGoingRecoveries.remove(recoveryId);
                 if (oldRecoveryTarget == null) {
-                    return null;
+                    listener.onResponse(null);
+                    return;
                 }
 
                 newRecoveryTarget = oldRecoveryTarget.retryCopy();
@@ -112,31 +113,33 @@ public class RecoveriesCollection {
             }
 
             // Closes the current recovery target
-            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
-            if (successfulReset) {
-                logger.trace(
-                    "{} restarted recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(),
-                    newRecoveryTarget.recoveryId(),
-                    oldRecoveryTarget.recoveryId()
-                );
-                return newRecoveryTarget;
-            } else {
-                logger.trace(
-                    "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(),
-                    newRecoveryTarget.recoveryId(),
-                    oldRecoveryTarget.recoveryId()
-                );
-                cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
-                return null;
-            }
+            var finalOldRecoveryTarget = oldRecoveryTarget;
+            oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads(), listener.map(successfulReset -> {
+                if (successfulReset) {
+                    logger.trace(
+                        "{} restarted recovery from {}, id [{}], previous id [{}]",
+                        newRecoveryTarget.shardId(),
+                        newRecoveryTarget.sourceNode(),
+                        newRecoveryTarget.recoveryId(),
+                        finalOldRecoveryTarget.recoveryId()
+                    );
+                    return newRecoveryTarget;
+                } else {
+                    logger.trace(
+                        "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
+                        newRecoveryTarget.shardId(),
+                        newRecoveryTarget.sourceNode(),
+                        newRecoveryTarget.recoveryId(),
+                        finalOldRecoveryTarget.recoveryId()
+                    );
+                    cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
+                    return null;
+                }
+            }));
         } catch (Exception e) {
             // fail shard to be safe
             oldRecoveryTarget.notifyListener(new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e), true);
-            return null;
+            listener.onResponse(null);
         }
     }
 

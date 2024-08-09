@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FrozenEngineTests extends EngineTestCase {
 
     public void testAcquireReleaseReset() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
@@ -56,11 +56,13 @@ public class FrozenEngineTests extends EngineTestCase {
                 globalCheckpoint::get,
                 new NoneCircuitBreakerService()
             );
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
-                engine.flushAndClose();
+                flushAndClose(engine);
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
+                FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean());
+                try {
                     assertFalse(frozenEngine.isReaderOpen());
                     try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                         assertFalse(frozenEngine.isReaderOpen());
@@ -83,13 +85,17 @@ public class FrozenEngineTests extends EngineTestCase {
                             assertEquals(search.scoreDocs.length, numDocs);
                         }
                     }
+                } finally {
+                    close(frozenEngine);
                 }
+            } finally {
+                close(engine);
             }
         }
     }
 
     public void testAcquireReleaseResetTwoSearchers() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
@@ -104,11 +110,13 @@ public class FrozenEngineTests extends EngineTestCase {
                 globalCheckpoint::get,
                 new NoneCircuitBreakerService()
             );
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
-                engine.flushAndClose();
+                flushAndClose(engine);
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
+                FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean());
+                try {
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.SearcherSupplier reader1 = frozenEngine.acquireSearcherSupplier(Function.identity());
                     try (Engine.Searcher searcher1 = reader1.acquireSearcher("test")) {
@@ -135,13 +143,17 @@ public class FrozenEngineTests extends EngineTestCase {
                     }
                     reader1.close();
                     assertFalse(frozenEngine.isReaderOpen());
+                } finally {
+                    close(frozenEngine);
                 }
+            } finally {
+                close(engine);
             }
         }
     }
 
     public void testSegmentStats() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
@@ -156,11 +168,13 @@ public class FrozenEngineTests extends EngineTestCase {
                 globalCheckpoint::get,
                 new NoneCircuitBreakerService()
             );
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 addDocuments(globalCheckpoint, engine);
-                engine.flushAndClose();
+                flushAndClose(engine);
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
+                FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean());
+                try {
                     try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                         SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
@@ -179,7 +193,11 @@ public class FrozenEngineTests extends EngineTestCase {
                         segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
                         assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                     }
+                } finally {
+                    close(frozenEngine);
                 }
+            } finally {
+                close(engine);
             }
         }
     }
@@ -217,7 +235,7 @@ public class FrozenEngineTests extends EngineTestCase {
 
     public void testSearchConcurrently() throws IOException, InterruptedException {
         // even though we don't want this to be searched concurrently we better make sure we release all resources etc.
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(
@@ -236,11 +254,13 @@ public class FrozenEngineTests extends EngineTestCase {
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 )
             );
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 int numDocsAdded = addDocuments(globalCheckpoint, engine);
-                engine.flushAndClose();
+                flushAndClose(engine);
                 int numIters = randomIntBetween(100, 1000);
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
+                FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean());
+                try {
                     int numThreads = randomIntBetween(2, 4);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads);
@@ -272,7 +292,11 @@ public class FrozenEngineTests extends EngineTestCase {
                         t.join();
                     }
                     assertFalse(frozenEngine.isReaderOpen());
+                } finally {
+                    close(frozenEngine);
                 }
+            } finally {
+                close(engine);
             }
         }
     }
@@ -300,7 +324,7 @@ public class FrozenEngineTests extends EngineTestCase {
     }
 
     public void testCanMatch() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
@@ -315,11 +339,13 @@ public class FrozenEngineTests extends EngineTestCase {
                 globalCheckpoint::get,
                 new NoneCircuitBreakerService()
             );
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 addDocuments(globalCheckpoint, engine);
-                engine.flushAndClose();
+                flushAndClose(engine);
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
+                FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean());
+                try {
                     DirectoryReader dirReader;
                     try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                         try (Engine.Searcher searcher = reader.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
@@ -344,13 +370,17 @@ public class FrozenEngineTests extends EngineTestCase {
                             assertThat(unwrap, Matchers.instanceOf(RewriteCachingDirectoryReader.class));
                         }
                     }
+                } finally {
+                    close(frozenEngine);
                 }
+            } finally {
+                close(engine);
             }
         }
     }
 
     public void testSearchers() throws Exception {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(
@@ -365,7 +395,8 @@ public class FrozenEngineTests extends EngineTestCase {
                 new NoneCircuitBreakerService()
             );
             final int totalDocs;
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 applyOperations(engine, generateHistoryOnReplica(between(10, 1000), false, randomBoolean(), randomBoolean()));
                 globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
                 engine.syncTranslog();
@@ -378,14 +409,19 @@ public class FrozenEngineTests extends EngineTestCase {
                         totalDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE).scoreDocs.length;
                     }
                 }
+            } finally {
+                close(engine);
             }
-            try (FrozenEngine frozenEngine = new FrozenEngine(config, true, randomBoolean())) {
+            FrozenEngine frozenEngine = new FrozenEngine(config, true, randomBoolean());
+            try {
                 try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                     try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
                         assertThat(topDocs.scoreDocs.length, equalTo(totalDocs));
                     }
                 }
+            } finally {
+                close(frozenEngine);
             }
         }
     }

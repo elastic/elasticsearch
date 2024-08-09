@@ -97,7 +97,6 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
-import static org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -672,12 +671,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllPrimaryOperationsPermits(ActionListener.wrap(r -> {
-            try {
-                shard.resetEngineToGlobalCheckpoint();
-            } finally {
+            shard.resetEngineToGlobalCheckpoint(ActionListener.running(() -> {
                 r.close();
                 engineResetLatch.countDown();
-            }
+            }));
         }, Assert::assertNotNull), TimeValue.timeValueMinutes(1L));
         engineResetLatch.await();
 

@@ -251,21 +251,40 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
     }
 
-    protected void retryRecovery(final long recoveryId, final Throwable reason, TimeValue retryAfter, TimeValue activityTimeout) {
+    protected void retryRecovery(
+        final long recoveryId,
+        final Throwable reason,
+        TimeValue retryAfter,
+        TimeValue activityTimeout,
+        ActionListener<Void> listener
+    ) {
         logger.trace(() -> format("will retry recovery with id [%s] in [%s]", recoveryId, retryAfter), reason);
-        retryRecovery(recoveryId, retryAfter, activityTimeout);
+        retryRecovery(recoveryId, retryAfter, activityTimeout, listener);
     }
 
-    protected void retryRecovery(final long recoveryId, final String reason, TimeValue retryAfter, TimeValue activityTimeout) {
+    protected void retryRecovery(
+        final long recoveryId,
+        final String reason,
+        TimeValue retryAfter,
+        TimeValue activityTimeout,
+        ActionListener<Void> listener
+    ) {
         logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryId, retryAfter, reason);
-        retryRecovery(recoveryId, retryAfter, activityTimeout);
+        retryRecovery(recoveryId, retryAfter, activityTimeout, listener);
     }
 
-    private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
-        RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
-        if (newTarget != null) {
-            threadPool.scheduleUnlessShuttingDown(retryAfter, threadPool.generic(), new RecoveryRunner(newTarget.recoveryId()));
-        }
+    private void retryRecovery(
+        final long recoveryId,
+        final TimeValue retryAfter,
+        final TimeValue activityTimeout,
+        ActionListener<Void> listener
+    ) {
+        onGoingRecoveries.resetRecovery(recoveryId, activityTimeout, listener.map(newTarget -> {
+            if (newTarget != null) {
+                threadPool.scheduleUnlessShuttingDown(retryAfter, threadPool.generic(), new RecoveryRunner(newTarget.recoveryId()));
+            }
+            return null;
+        }));
     }
 
     protected void reestablishRecovery(final StartRecoveryRequest request, final String reason, TimeValue retryAfter) {
@@ -830,7 +849,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     recoveryId,
                     "remote shard not ready",
                     recoverySettings.retryDelayStateSync(),
-                    recoverySettings.activityTimeout()
+                    recoverySettings.activityTimeout(),
+                    ActionListener.wrap(unused -> {}, e1 -> logger.error("Unable to retry recovery", e1))
                 );
                 return;
             }
@@ -838,7 +858,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             // PeerRecoveryNotFound is returned when the source node cannot find the recovery requested by
             // the REESTABLISH_RECOVERY request. In this case, we delay and then attempt to restart.
             if (cause instanceof DelayRecoveryException || cause instanceof PeerRecoveryNotFound) {
-                retryRecovery(recoveryId, cause, recoverySettings.retryDelayStateSync(), recoverySettings.activityTimeout());
+                retryRecovery(
+                    recoveryId,
+                    cause,
+                    recoverySettings.retryDelayStateSync(),
+                    recoverySettings.activityTimeout(),
+                    ActionListener.wrap(unused -> {}, e1 -> logger.error("Unable to retry recovery", e1))
+                );
                 return;
             }
 

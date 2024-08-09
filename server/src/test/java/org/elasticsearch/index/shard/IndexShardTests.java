@@ -4436,12 +4436,10 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), globalCheckpoint, 0L, ActionListener.wrap(r -> {
-            try {
-                shard.resetEngineToGlobalCheckpoint();
-            } finally {
+            shard.resetEngineToGlobalCheckpoint(ActionListener.running(() -> {
                 r.close();
                 engineResetLatch.countDown();
-            }
+            }));
         }, Assert::assertNotNull), TimeValue.timeValueMinutes(1L));
         engineResetLatch.await();
         assertThat(getShardDocUIDs(shard), equalTo(docBelowGlobalCheckpoint));
@@ -4499,11 +4497,10 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.getLastKnownGlobalCheckpoint(),
             0L,
             ActionListener.wrap(r -> {
-                try (r) {
-                    shard.resetEngineToGlobalCheckpoint();
-                } finally {
+                shard.resetEngineToGlobalCheckpoint(ActionListener.running(() -> {
+                    r.close();
                     engineResetLatch.countDown();
-                }
+                }));
             }, Assert::assertNotNull),
             TimeValue.timeValueMinutes(1L)
         );
@@ -4566,11 +4563,10 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.getLastKnownGlobalCheckpoint(),
             0L,
             ActionListener.wrap(r -> {
-                try (r) {
-                    shard.resetEngineToGlobalCheckpoint();
-                } finally {
+                shard.resetEngineToGlobalCheckpoint(ActionListener.running(() -> {
+                    r.close();
                     engineResetLatch.countDown();
-                }
+                }));
             }, Assert::assertNotNull),
             TimeValue.timeValueMinutes(1L)
         );

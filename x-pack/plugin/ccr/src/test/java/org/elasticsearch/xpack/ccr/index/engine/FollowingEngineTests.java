@@ -11,12 +11,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -128,11 +130,14 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
-            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
+            FollowingEngine followingEngine = createEngine(store, engineConfig);
+            try {
                 final VersionType versionType = randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE);
                 final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, 2, 2, 20, "id");
                 ops.stream().mapToLong(op -> op.seqNo()).max().ifPresent(followingEngine::advanceMaxSeqNoOfUpdatesOrDeletes);
                 EngineTestCase.assertOpsOnReplica(ops, followingEngine, true, logger);
+            } finally {
+                close(followingEngine);
             }
         }
     }
@@ -147,9 +152,12 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
-            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
+            FollowingEngine followingEngine = createEngine(store, engineConfig);
+            try {
                 final Engine.Index indexToTest = indexForFollowing("id", seqNo, origin);
                 consumer.accept(followingEngine, indexToTest);
+            } finally {
+                close(followingEngine);
             }
         }
     }
@@ -173,7 +181,8 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
-            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
+            FollowingEngine followingEngine = createEngine(store, engineConfig);
+            try {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
                     id,
@@ -189,6 +198,8 @@ public class FollowingEngineTests extends ESTestCase {
                 );
 
                 consumer.accept(followingEngine, delete);
+            } finally {
+                close(followingEngine);
             }
         }
     }
@@ -199,10 +210,13 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
-            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
+            FollowingEngine followingEngine = createEngine(store, engineConfig);
+            try {
                 followingEngine.index(indexForFollowing("id", 128, Engine.Operation.Origin.PRIMARY));
                 int addedNoops = followingEngine.fillSeqNoGaps(primaryTerm.get());
                 assertThat(addedNoops, equalTo(0));
+            } finally {
+                close(followingEngine);
             }
         }
     }
@@ -523,7 +537,7 @@ public class FollowingEngineTests extends ESTestCase {
             };
             TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), followerConfig.getIndexSettings());
             EngineTestCase.recoverFromTranslog(followingEngine, translogHandler, Long.MAX_VALUE);
-            try (followingEngine) {
+            try {
                 final long leaderMaxSeqNoOfUpdatesOnPrimary = 3;
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(leaderMaxSeqNoOfUpdatesOnPrimary);
 
@@ -558,6 +572,8 @@ public class FollowingEngineTests extends ESTestCase {
                 thread2.join();
 
                 assertThat(followingEngine.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leaderMaxSeqNoOfUpdatesOnPrimary));
+            } finally {
+                close(followingEngine);
             }
         }
     }
@@ -611,7 +627,8 @@ public class FollowingEngineTests extends ESTestCase {
                     1L
                 )
             );
-            try (InternalEngine leaderEngine = new InternalEngine(leaderConfig)) {
+            InternalEngine leaderEngine = new InternalEngine(leaderConfig);
+            try {
                 leaderEngine.skipTranslogRecovery();
                 Settings followerSettings = indexSettings(IndexVersion.current(), 1, 0).put("index.xpack.ccr.following_index", true)
                     .build();
@@ -619,12 +636,23 @@ public class FollowingEngineTests extends ESTestCase {
                 IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, leaderSettings);
                 try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
                     EngineConfig followerConfig = engineConfig(shardId, followerIndexSettings, threadPool, followerStore);
-                    try (FollowingEngine followingEngine = createEngine(followerStore, followerConfig)) {
+                    FollowingEngine followingEngine = createEngine(followerStore, followerConfig);
+                    try {
                         wrappedTask.accept(leaderEngine, followingEngine);
+                    } finally {
+                        close(followingEngine);
                     }
                 }
+            } finally {
+                close(leaderEngine);
             }
         }
+    }
+
+    private static void close(Engine engine) throws IOException {
+        var future = new PlainActionFuture<Void>();
+        engine.close(future);
+        FutureUtils.get(future);
     }
 
     private void fetchOperations(AtomicBoolean stopped, AtomicLong lastFetchedSeqNo, InternalEngine leader, FollowingEngine follower)
@@ -755,7 +783,8 @@ public class FollowingEngineTests extends ESTestCase {
         primaryTerm.set(oldTerm);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
-            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
+            FollowingEngine followingEngine = createEngine(store, engineConfig);
+            try {
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);
                 final Map<Long, Long> operationWithTerms = new HashMap<>();
                 for (Engine.Operation op : operations) {
@@ -802,6 +831,8 @@ public class FollowingEngineTests extends ESTestCase {
                 for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
+            } finally {
+                close(followingEngine);
             }
         }
     }
@@ -828,7 +859,8 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
-            try (FollowingEngine engine = createEngine(store, engineConfig)) {
+            FollowingEngine engine = createEngine(store, engineConfig);
+            try {
                 AtomicBoolean running = new AtomicBoolean(true);
                 Thread rollTranslog = new Thread(() -> {
                     while (running.get() && getTranslog(engine).currentFileGeneration() < 500) {
@@ -861,6 +893,8 @@ public class FollowingEngineTests extends ESTestCase {
                 indexing.join();
                 rollTranslog.join();
                 EngineTestCase.assertMaxSeqNoInCommitUserData(engine);
+            } finally {
+                close(engine);
             }
         }
     }

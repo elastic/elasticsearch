@@ -38,6 +38,11 @@ public class EsqlCapabilities {
         FN_MV_APPEND,
 
         /**
+         * Support for {@code MV_PERCENTILE} function.
+         */
+        FN_MV_PERCENTILE,
+
+        /**
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,

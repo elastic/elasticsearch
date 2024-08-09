@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -48,10 +49,6 @@ public class MvPercentile extends EsqlScalarFunction {
      * 2^52 is the smallest integer where it and all smaller integers can be represented exactly as double
      */
     private static final double MAX_SAFE_LONG_DOUBLE = Double.longBitsToDouble(0x4330000000000000L);
-    /**
-     * Max double that can be used to calculate averages without overflowing
-     */
-    private static final double MAX_SAFE_DOUBLE = Double.MAX_VALUE / 4;
 
     private final Expression field;
     private final Expression percentile;
@@ -59,24 +56,12 @@ public class MvPercentile extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = { "double", "integer", "long" },
         description = "Converts a multivalued field into a single valued field containing "
-            + "the value at which a certain percentage of observed values occur."
-        /*examples = {
-            @Example(file = "math", tag = "mv_median"),
-            @Example(
-                description = "If the row has an even number of values for a column, "
-                    + "the result will be the average of the middle two entries. If the column is not floating point, "
-                    + "the average rounds *down*:",
-                file = "math",
-                tag = "mv_median_round_down"
-            ) }*/
+            + "the value at which a certain percentage of observed values occur.",
+        examples = @Example(file = "mv_percentile", tag = "example")
     )
     public MvPercentile(
         Source source,
-        @Param(
-            name = "number",
-            type = { "double", "integer", "long" },
-            description = "Multivalue expression."
-        ) Expression field,
+        @Param(name = "number", type = { "double", "integer", "long" }, description = "Multivalue expression.") Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {
         super(source, List.of(field, percentile));

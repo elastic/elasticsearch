@@ -27,7 +27,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -305,8 +304,9 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
         }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(
-            (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL
-                && nullPosition == 0 ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL && nullPosition == 0
+                ? DataType.NULL
+                : original.expectedType(),
             (nullPosition, nullData, original) -> original,
             cases,
             (v, p) -> "numeric except unsigned_long"

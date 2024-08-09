@@ -1,0 +1,50 @@
+default
+required_capability: mv_pseries_weighted_sum
+
+// tag::example[]
+ROW values = [5, 5, 10, 12, 5000]
+| EVAL p50 = MV_PERCENTILE(values, 50), median = MV_MEDIAN(values)
+// end::example[]
+;
+
+// tag::example-result[]
+values:integer       | p50:integer | median:integer
+[5, 5, 10, 12, 5000] | 10          | 10
+// end::example-result[]
+;
+
+p0
+required_capability: mv_pseries_weighted_sum
+
+ROW a = [5, 5, 10, 12, 5000]
+| EVAL pInt = MV_PERCENTILE(a, 0), pLong = MV_PERCENTILE(a, 0::long), pDouble = MV_PERCENTILE(a, 0.0)
+| KEEP pInt, pLong, pDouble
+;
+
+pInt:integer | pLong:integer | pDouble:integer
+5            | 5             | 5
+;
+
+p100
+required_capability: mv_pseries_weighted_sum
+
+ROW a = [5, 5, 10, 12, 5000]
+| EVAL pInt = MV_PERCENTILE(a, 100), pLong = MV_PERCENTILE(a, 100::long), pDouble = MV_PERCENTILE(a, 100.0)
+| KEEP pInt, pLong, pDouble
+;
+
+pInt:integer | pLong:integer | pDouble:integer
+5000         | 5000          | 5000
+;
+
+fraction
+required_capability: mv_pseries_weighted_sum
+
+ROW a = [0, 10]
+| EVAL pInt = MV_PERCENTILE(a, 75), pLong = MV_PERCENTILE(a, 75::long), pDouble = MV_PERCENTILE(a, 75.0)
+| KEEP pInt, pLong, pDouble
+;
+
+pInt:integer | pLong:integer | pDouble:integer
+7            | 7             | 7
+;

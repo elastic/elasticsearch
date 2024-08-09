@@ -25,7 +25,10 @@ public enum DockerBase {
 
     // Based on CLOUD above, with more extras. We don't set a base image because
     // we programmatically extend from the Cloud image.
-    CLOUD_ESS(null, "-cloud-ess");
+    CLOUD_ESS(null, "-cloud-ess"),
+
+    // Chainguard based wolfi image with latest jdk
+    WOLFI("docker.elastic.co/wolfi/chainguard-base:latest", "wolfi");
 
     private final String image;
     private final String suffix;

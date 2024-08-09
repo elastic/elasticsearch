@@ -182,11 +182,19 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
         from projectDir.resolve("src/docker/config")
       }
     }
-
-    from(projectDir.resolve("src/docker/Dockerfile")) {
-      expand(varExpansions)
-      filter SquashNewlinesFilter
+    if(base == DockerBase.WOLFI) {
+      from(projectDir.resolve("src/docker/Dockerfile.wolfi")) {
+        rename ~/Dockerfile\.wolfi$/, 'Dockerfile'
+        //expand(varExpansions)
+        filter SquashNewlinesFilter
+      }
+    } else {
+      from(projectDir.resolve("src/docker/Dockerfile")) {
+        expand(varExpansions)
+        filter SquashNewlinesFilter
+      }
     }
+
   }
 }
 //

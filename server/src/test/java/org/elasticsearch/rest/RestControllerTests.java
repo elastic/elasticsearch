@@ -599,7 +599,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -638,7 +638,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -663,7 +663,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -689,7 +689,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });
@@ -714,7 +714,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
+            public boolean supportsBulkContent() {
                 return true;
             }
         });

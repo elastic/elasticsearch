@@ -150,7 +150,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                             // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                             // to avoid the block from being trimmed
                             if (output.isEmpty()) {
-                                var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", null, Literal.NULL, null, true);
+                                var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", Literal.NULL, null, true);
                                 List<Alias> fields = singletonList(alias);
                                 logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
                                 output = Expressions.asAttributes(fields);

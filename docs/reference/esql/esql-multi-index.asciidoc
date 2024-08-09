@@ -97,8 +97,7 @@ In addition, if the query refers to this unsupported field directly, the query f
 [source.merge.styled,esql]
 ----
 FROM events_*
-| KEEP @timestamp, client_ip, event_duration, message
-| SORT @timestamp DESC
+| SORT client_ip DESC
 ----
 
 [source,bash]
@@ -118,9 +117,8 @@ experimental::[]
 {esql} has a way to handle <<esql-multi-index-invalid-mapping, field type mismatches>>. When the same field is mapped to multiple types in multiple indices,
 the type of the field is understood to be a _union_ of the various types in the index mappings.
 As seen in the preceding examples, this _union type_ cannot be used in the results,
-and cannot be referred to by the query
--- except when it's passed to a type conversion function that accepts all the types in the _union_ and converts the field
-to a single type. {esql} offers a suite of <<esql-type-conversion-functions,type conversion functions>> to achieve this.
+and cannot be referred to by the query -- except in `KEEP`, `DROP` or when it's passed to a type conversion function that accepts all the types in
+the _union_ and converts the field to a single type. {esql} offers a suite of <<esql-type-conversion-functions,type conversion functions>> to achieve this.
 
 In the above examples, the query can use a command like `EVAL client_ip = TO_IP(client_ip)` to resolve
 the union of `ip` and `keyword` to just `ip`.

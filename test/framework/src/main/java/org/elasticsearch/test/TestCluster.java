@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
@@ -75,7 +76,6 @@ public abstract class TestCluster {
         }
         final PlainActionFuture<Void> done = new PlainActionFuture<>();
         try (RefCountingListener refCountingListener = new RefCountingListener(done)) {
-            final ActionListener<Void> templatesDeleted = refCountingListener.acquire();
             wipeAllTemplates(excludeTemplates, refCountingListener.acquire());
             // First delete data streams, because composable index templates can't be deleted if these templates are still used by data
             // streams.
@@ -84,7 +84,7 @@ public abstract class TestCluster {
                 new DeleteDataStreamAction.Request(ESTestCase.TEST_REQUEST_TIMEOUT, "*").indicesOptions(
                     IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
                 ),
-                new ActionListener<>() {
+                new DelegatingActionListener<>(refCountingListener.acquire()) {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         assertAcked(acknowledgedResponse);
@@ -92,7 +92,7 @@ public abstract class TestCluster {
                             new String[] { "_all" },
                             refCountingListener.acquire().delegateFailure((l, r) -> wipeRepositories(l))
                         );
-                        deleteTemplates(excludeTemplates, templatesDeleted);
+                        deleteTemplates(excludeTemplates, delegate);
                     }
 
                     @Override
@@ -100,7 +100,7 @@ public abstract class TestCluster {
                         // Ignore if action isn't registered, because data streams is a module and
                         // if the delete action isn't registered then there no data streams to delete.
                         if (e.getMessage().startsWith("failed to find action") == false) {
-                            templatesDeleted.onFailure(e);
+                            delegate.onFailure(e);
                         } else {
                             onResponse(AcknowledgedResponse.TRUE);
                         }
@@ -115,7 +115,7 @@ public abstract class TestCluster {
         }
     }
 
-    private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> templatesDeleted) {
+    private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> listener) {
         final ListenableActionFuture<AcknowledgedResponse> deleteComposableTemplates = new ListenableActionFuture<>();
         client().execute(
             GetComposableIndexTemplateAction.INSTANCE,
@@ -142,7 +142,7 @@ public abstract class TestCluster {
                     .stream()
                     .filter(template -> excludeTemplates.contains(template) == false)
                     .toArray(String[]::new);
-                deleteComposableTemplates.addListener(templatesDeleted.delegateFailure((l, r) -> {
+                deleteComposableTemplates.addListener(listener.delegateFailure((l, r) -> {
                     assertAcked(r);
                     if (componentTemplates.length == 0) {
                         l.onResponse(null);
@@ -165,13 +165,13 @@ public abstract class TestCluster {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         assertAcked(acknowledgedResponse);
-                        templatesDeleted.onFailure(e);
+                        listener.onFailure(e);
                     }
 
                     @Override
                     public void onFailure(Exception ex) {
                         ex.addSuppressed(e);
-                        templatesDeleted.onFailure(ex);
+                        listener.onFailure(ex);
                     }
                 });
             }

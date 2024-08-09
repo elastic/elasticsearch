@@ -1,6 +1,0 @@
-pr: 108429
-summary: Fix `ClassCastException` in Significant Terms
-area: Aggregations
-type: bug
-issues:
- - 108427

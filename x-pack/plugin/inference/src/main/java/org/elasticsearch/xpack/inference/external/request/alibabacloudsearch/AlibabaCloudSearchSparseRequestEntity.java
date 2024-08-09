@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.request.alibabacloudsearch;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings;
@@ -17,17 +16,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings.invalidInputTypeMessage;
-
 public record AlibabaCloudSearchSparseRequestEntity(
     List<String> input,
     AlibabaCloudSearchSparseTaskSettings taskSettings,
     @Nullable String model
 ) implements ToXContentObject {
-
-    private static final String SEARCH_DOCUMENT = "document";
-    private static final String SEARCH_QUERY = "query";
-
     private static final String TEXTS_FIELD = "input";
 
     static final String INPUT_TYPE_FIELD = "input_type";
@@ -44,24 +37,12 @@ public record AlibabaCloudSearchSparseRequestEntity(
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
         if (taskSettings.getInputType() != null) {
-            builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.getInputType()));
+            builder.field(INPUT_TYPE_FIELD, AlibabaCloudSearchEmbeddingsRequestEntity.covertToString(taskSettings.getInputType()));
         }
         if (taskSettings.isReturnToken() != null) {
             builder.field(RETURN_TOKEN_FIELD, taskSettings.isReturnToken());
         }
         builder.endObject();
         return builder;
-    }
-
-    // default for testing
-    static String covertToString(InputType inputType) {
-        return switch (inputType) {
-            case INGEST -> SEARCH_DOCUMENT;
-            case SEARCH -> SEARCH_QUERY;
-            default -> {
-                assert false : invalidInputTypeMessage(inputType);
-                yield null;
-            }
-        };
     }
 }

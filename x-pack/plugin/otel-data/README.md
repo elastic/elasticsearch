@@ -1,6 +1,6 @@
 ## OpenTelemetry Ingest plugin
 
-The OpenTelemetry Ingest plugin installs index templates and component templates for Elastic OpenTelemetry data.
+The OpenTelemetry Ingest plugin installs index templates and component templates for OpenTelemetry data.
 
 All resources are defined as YAML under [src/main/resources](src/main/resources).
 

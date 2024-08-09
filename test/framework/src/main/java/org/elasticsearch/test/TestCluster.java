@@ -297,7 +297,7 @@ public abstract class TestCluster {
                         .execute(listeners.<AcknowledgedResponse>acquire(ElasticsearchAssertions::assertAcked).delegateResponse((l, e) -> {
                             if (e instanceof IndexTemplateMissingException) {
                                 // ignore
-                                l.onResponse(null);
+                                l.onResponse(AcknowledgedResponse.TRUE);
                             } else {
                                 l.onFailure(e);
                             }

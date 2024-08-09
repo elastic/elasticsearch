@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
-import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.Result;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -80,7 +79,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -1929,17 +1927,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         public void onFailure(Exception e) {
             searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
             if (collectTelemetry()) {
-                // TODO: better failure recognition
-                Result status;
-                if (e instanceof RemoteTransportException) {
-                    status = Result.REMOTES_UNAVAILABLE;
-                } else if (task.isCancelled() || (e instanceof TaskCancelledException)) {
-                    status = Result.CANCELED;
-                } else {
-                    status = Result.UNKNOWN;
-                }
-                usageBuilder.setFailure(status);
-                // TODO: can we still get some time measurements here? Do we want to?
+                usageBuilder.setFailure(e);
                 recordTelemetry();
             }
             listener.onFailure(e);

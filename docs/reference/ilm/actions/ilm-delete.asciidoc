@@ -17,13 +17,13 @@ This option is applicable when the <<ilm-searchable-snapshot,searchable
 snapshot>> action is used in any previous phase.
 +
 If you set this option to `false`, use the <<delete-snapshot-api,Delete
-snapshots API>> to remove {search-snaps} from your snapshot repository once
+snapshots API>> to remove {search-snaps} from your snapshot repository when
 they are no longer needed.
 +
-If you manually delete an index before the {ilm-cap} delete phase runs then
+If you manually delete an index before the {ilm-cap} delete phase runs, then
 {ilm-init} will not delete the underlying {search-snap}. Use the
 <<delete-snapshot-api,Delete snapshots API>> to remove the {search-snap} from
-your snapshot repository once it is no longer needed.
+your snapshot repository when it is no longer needed.
 +
 See <<searchable-snapshots-reliability,Reliability of {search-snaps}>> for
 further information about deleting {search-snaps}.

@@ -93,6 +93,13 @@ public class XPackSettings {
     /** Setting for enabling or disabling APM Data. Defaults to true. */
     public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting("xpack.apm_data.enabled", true, Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling OTel Data. Defaults to true. */
+    public static final Setting<Boolean> OTEL_DATA_ENABLED = Setting.boolSetting(
+        "xpack.otel_data.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     /** Setting for enabling or disabling enterprise search. Defaults to true. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
         "xpack.ent_search.enabled",

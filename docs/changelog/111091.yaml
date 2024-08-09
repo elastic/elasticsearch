@@ -1,0 +1,5 @@
+pr: 111091
+summary: "X-pack/plugin/otel: introduce x-pack-otel plugin"
+area: Data streams
+type: feature
+issues: []

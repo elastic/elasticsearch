@@ -194,6 +194,7 @@ public final class ClientHelper {
     public static final String CONNECTORS_ORIGIN = "connectors";
     public static final String INFERENCE_ORIGIN = "inference";
     public static final String APM_ORIGIN = "apm";
+    public static final String OTEL_ORIGIN = "otel";
 
     private ClientHelper() {}
 

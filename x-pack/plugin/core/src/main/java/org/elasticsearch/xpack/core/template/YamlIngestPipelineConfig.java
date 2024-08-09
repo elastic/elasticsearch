@@ -5,23 +5,29 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.apmdata;
+package org.elasticsearch.xpack.core.template;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.apmdata.ResourceUtils.loadVersionedResourceUTF8;
+import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedResourceUTF8;
 
-/**
- * An APM-plugin-specific implementation that loads ingest pipelines in yaml format from a local resources repository
- */
 public class YamlIngestPipelineConfig extends IngestPipelineConfig {
-    public YamlIngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies) {
+    private final Class<?> clazz;
+
+    public YamlIngestPipelineConfig(
+        String id,
+        String resource,
+        int version,
+        String versionProperty,
+        List<String> dependencies,
+        Class<?> clazz
+    ) {
         super(id, resource, version, versionProperty, dependencies);
+        this.clazz = clazz;
     }
 
     @Override
@@ -31,6 +37,6 @@ public class YamlIngestPipelineConfig extends IngestPipelineConfig {
 
     @Override
     public BytesReference loadConfig() {
-        return new BytesArray(loadVersionedResourceUTF8("/ingest-pipelines/" + id + ".yaml", version, variables));
+        return new BytesArray(loadVersionedResourceUTF8(clazz, "/ingest-pipelines/" + id + ".yaml", version, versionProperty, variables));
     }
 }

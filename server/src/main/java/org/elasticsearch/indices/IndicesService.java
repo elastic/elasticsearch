@@ -98,6 +98,7 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -136,6 +137,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -1754,8 +1756,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices) {
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices, pit);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {
@@ -1763,13 +1765,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
-        return new CoordinatorRewriteContextProvider(
-            parserConfig,
-            client,
-            nowInMillis,
-            clusterService::state,
-            this::getTimestampFieldTypeInfo
-        );
+        return new CoordinatorRewriteContextProvider(parserConfig, client, nowInMillis, clusterService::state, this::getTimestampFieldType);
     }
 
     /**
@@ -1859,16 +1855,14 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * @return DateFieldRangeInfo holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the index.
-     * or {@code null} if:
+     * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
      * - the index is not found,
      * - the field is not found, or
-     * - the mapping is not known yet, or
-     * - the index does not have a useful timestamp field.
+     * - the field is not a timestamp field.
      */
     @Nullable
-    public DateFieldRangeInfo getTimestampFieldTypeInfo(Index index) {
-        return timestampFieldMapperService.getTimestampFieldTypeMap(index);
+    public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
+        return timestampFieldMapperService.getTimestampFieldType(index);
     }
 
     public IndexScopedSettings getIndexScopedSettings() {

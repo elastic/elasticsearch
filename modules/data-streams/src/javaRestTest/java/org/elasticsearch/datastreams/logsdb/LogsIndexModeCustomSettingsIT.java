@@ -94,6 +94,32 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(type, equalTo("date"));
     }
 
+    public void testConfigureStoredSource() throws IOException {
+        var storedSourceMapping = """
+            {
+              "template": {
+                "mappings": {
+                  "_source": {
+                    "mode": "stored"
+                  }
+                }
+              }
+            }""";
+
+        Exception e = assertThrows(ResponseException.class, () -> putComponentTemplate(client, "logs@custom", storedSourceMapping));
+        assertThat(
+            e.getMessage(),
+            containsString("updating component template [logs@custom] results in invalid composable template [logs]")
+        );
+        assertThat(e.getMessage(), containsString("Indices with with index mode [logsdb] only support synthetic source"));
+
+        assertOK(createDataStream(client, "logs-custom-dev"));
+
+        var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
+        String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
+        assertThat(sourceMode, equalTo("synthetic"));
+    }
+
     public void testOverrideIndexCodec() throws IOException {
         var indexCodecOverrideTemplate = """
             {

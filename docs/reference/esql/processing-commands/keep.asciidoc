@@ -16,6 +16,8 @@ KEEP columns
 
 `columns`::
 A comma-separated list of columns to keep. Supports wildcards.
+See below for the behavior in case an existing column matches multiple
+given wildcards or column names.
 
 *Description*
 
@@ -29,7 +31,7 @@ Fields are added in the order they appear. If one field matches multiple express
 2. Partial wildcard expressions (for example: `fieldNam*`)
 3. Wildcard only (`*`)
 
-If a field matches two expressions with the same precedence, the right-most expression wins.
+If a field matches two expressions with the same precedence, the rightmost expression wins.
 
 Refer to the examples for illustrations of these precedence rules.
 

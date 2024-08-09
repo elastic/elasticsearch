@@ -107,7 +107,8 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
         return ADD_MISTRAL_EMBEDDINGS_INFERENCE;
     }
 
-    public String model() {
+    @Override
+    public String modelId() {
         return this.model;
     }
 

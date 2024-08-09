@@ -429,9 +429,6 @@ public final class ServiceUtils {
 
         if (optionalField != null && optionalField <= 0) {
             validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, optionalField));
-        }
-
-        if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 

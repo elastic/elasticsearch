@@ -61,4 +61,27 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
             }
         );
     }
+
+    public void testCollapseWithFields() {
+        final String indexName = "test_collapse";
+        createIndex(indexName);
+        final String collapseField = "collapse_field";
+        final String otherField = "other_field";
+        assertAcked(indicesAdmin().preparePutMapping(indexName).setSource(collapseField, "type=keyword", otherField, "type=keyword"));
+        index(indexName, "id_1_0", Map.of(collapseField, "value1", otherField, "other_value1"));
+        index(indexName, "id_1_1", Map.of(collapseField, "value1", otherField, "other_value2"));
+        index(indexName, "id_2_0", Map.of(collapseField, "value2", otherField, "other_value3"));
+        refresh(indexName);
+
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setQuery(new MatchAllQueryBuilder())
+                .setFetchSource(false)
+                .addFetchField(otherField)
+                .setCollapse(new CollapseBuilder(collapseField).setInnerHits(new InnerHitBuilder("ih").setSize(2))),
+            searchResponse -> {
+                assertEquals(collapseField, searchResponse.getHits().getCollapseField());
+                assertEquals(Set.of(new BytesRef("value1"), new BytesRef("value2")), Set.of(searchResponse.getHits().getCollapseValues()));
+            }
+        );
+    }
 }

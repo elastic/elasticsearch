@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.CheckedConsumer;
 
 import java.util.Objects;
 
@@ -26,27 +25,29 @@ public class UnsafePlainActionFuture<T> extends PlainActionFuture<T> {
     private final String unsafeExecutor;
     private final String unsafeExecutor2;
 
+    /**
+     * Allow the single executor passed to be used unsafely. This allows waiting for the future and completing the future on threads in
+     * the same executor, but only for the specific executor.
+     */
     public UnsafePlainActionFuture(String unsafeExecutor) {
-        this(unsafeExecutor, null);
+        this(unsafeExecutor, "__none__");
     }
 
+    /**
+     * Allow both executors passed to be used unsafely. This allows waiting for the future and completing the future on threads in
+     * the same executor, but only for the two specific executors.
+     */
     public UnsafePlainActionFuture(String unsafeExecutor, String unsafeExecutor2) {
         Objects.requireNonNull(unsafeExecutor);
+        Objects.requireNonNull(unsafeExecutor2);
         this.unsafeExecutor = unsafeExecutor;
         this.unsafeExecutor2 = unsafeExecutor2;
     }
 
     @Override
-    boolean allowedExecutors(Thread thread1, Thread thread2) {
-        return super.allowedExecutors(thread1, thread2)
-            || unsafeExecutor.equals(EsExecutors.executorName(thread1))
-            || unsafeExecutor2 == null
-            || unsafeExecutor2.equals(EsExecutors.executorName(thread1));
-    }
-
-    public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e, String allowedExecutor) throws E {
-        PlainActionFuture<T> fut = new UnsafePlainActionFuture<>(allowedExecutor);
-        e.accept(fut);
-        return fut.actionGet();
+    boolean allowedExecutors(Thread blockedThread, Thread completingThread) {
+        return super.allowedExecutors(blockedThread, completingThread)
+            || unsafeExecutor.equals(EsExecutors.executorName(blockedThread))
+            || unsafeExecutor2.equals(EsExecutors.executorName(blockedThread));
     }
 }

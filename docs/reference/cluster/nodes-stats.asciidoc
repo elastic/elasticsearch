@@ -808,6 +808,14 @@ This is not shown for the `shards` level, since mappings may be shared across th
 `total_estimated_overhead_in_bytes`::
 (integer) Estimated heap overhead, in bytes, of mappings on this node, which allows for 1kiB of heap for every mapped field.
 
+`total_segments`::
+(integer) Estimated number of Lucene segments on this node
+
+`total_segment_fields`::
+(integer) Estimated number of fields at the segment level on this node
+
+`average_fields_per_segment`::
+(integer) Estimated average number of fields per segment on this node
 =======
 
 `dense_vector`::

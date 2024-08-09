@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -369,18 +368,6 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         return new UncategorizedExecutionException("Failed execution", root);
     }
 
-    public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e) throws E {
-        PlainActionFuture<T> fut = new PlainActionFuture<>();
-        e.accept(fut);
-        return fut.actionGet();
-    }
-
-    public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e, long timeout, TimeUnit unit) throws E {
-        PlainActionFuture<T> fut = new PlainActionFuture<>();
-        e.accept(fut);
-        return fut.actionGet(timeout, unit);
-    }
-
     private boolean assertCompleteAllowed() {
         Thread waiter = sync.getFirstQueuedThread();
         assert waiter == null || allowedExecutors(waiter, Thread.currentThread())
@@ -394,12 +381,12 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     }
 
     // only used in assertions
-    boolean allowedExecutors(Thread thread1, Thread thread2) {
+    boolean allowedExecutors(Thread blockedThread, Thread completingThread) {
         // this should only be used to validate thread interactions, like not waiting for a future completed on the same
         // executor, hence calling it with the same thread indicates a bug in the assertion using this.
-        assert thread1 != thread2 : "only call this for different threads";
-        String thread1Name = EsExecutors.executorName(thread1);
-        String thread2Name = EsExecutors.executorName(thread2);
-        return thread1Name == null || thread2Name == null || thread1Name.equals(thread2Name) == false;
+        assert blockedThread != completingThread : "only call this for different threads";
+        String blockedThreadName = EsExecutors.executorName(blockedThread);
+        String completingThreadName = EsExecutors.executorName(completingThread);
+        return blockedThreadName == null || completingThreadName == null || blockedThreadName.equals(completingThreadName) == false;
     }
 }

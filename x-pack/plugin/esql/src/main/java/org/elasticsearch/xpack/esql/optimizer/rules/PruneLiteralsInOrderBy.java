@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
-import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 

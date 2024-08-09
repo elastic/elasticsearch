@@ -83,18 +83,18 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
 
         assertThat(ObjectPath.eval("document.id", convertedRequest.sourceAsMap()), is(equalTo("1")));
         assertThat(ObjectPath.eval("document.routing", convertedRequest.sourceAsMap()), is(equalTo("fake_routing")));
-        assertThat(ObjectPath.eval("document.index", convertedRequest.sourceAsMap()), is(equalTo("original_index")));
+        assertThat(ObjectPath.eval("document.index", convertedRequest.sourceAsMap()), is(equalTo(targetIndexName)));
         assertThat(ObjectPath.eval("document.source.key", convertedRequest.sourceAsMap()), is(equalTo("value")));
 
         assertThat(ObjectPath.eval("error.type", convertedRequest.sourceAsMap()), is(equalTo("exception")));
         assertThat(ObjectPath.eval("error.message", convertedRequest.sourceAsMap()), is(equalTo("Test exception please ignore")));
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            startsWith("org.elasticsearch.ElasticsearchException: Test exception please ignore")
+            startsWith("o.e.ElasticsearchException: Test exception please ignore")
         );
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            containsString("at org.elasticsearch.action.bulk.FailureStoreDocumentConverterTests.testFailureStoreDocumentConversion")
+            containsString("at o.e.a.b.FailureStoreDocumentConverterTests.testFailureStoreDocumentConversion")
         );
         assertThat(
             ObjectPath.eval("error.pipeline_trace", convertedRequest.sourceAsMap()),

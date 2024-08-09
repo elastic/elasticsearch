@@ -55,11 +55,11 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.CsvSpecReader;
 import org.elasticsearch.xpack.esql.core.SpecReader;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
-import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -82,7 +82,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
@@ -127,7 +127,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * The results used in these files were manually added by running the same query on a real (debug mode) ES node. CsvTestsDataLoader loads
  * the test data helping to get the said results.
  * <p>
- * CsvTestsDataLoader creates an index using the mapping in mapping-default.json. The same mapping file is also used to create the
+ * {@link CsvTestsDataLoader} creates an index using the mapping in mapping-default.json. The same mapping file is also used to create the
  * IndexResolver that helps validate the correctness of the query and the supported field data types.
  * The created index and this class uses the data from employees.csv file as data. This class is creating one Page with Blocks in it using
  * this file and the type of blocks matches the type of the schema specified on the first line of the csv file. These being said, the
@@ -159,7 +159,7 @@ public class CsvTests extends ESTestCase {
     private final CsvSpecReader.CsvTestCase testCase;
     private final String instructions;
 
-    private final EsqlConfiguration configuration = EsqlTestUtils.configuration(
+    private final Configuration configuration = EsqlTestUtils.configuration(
         new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
     );
     private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -237,21 +237,29 @@ public class CsvTests extends ESTestCase {
              */
             assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
             assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse(
+                "can't use match in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR.capabilityName())
+            );
             assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
             assumeFalse(
                 "multiple indices aren't supported",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
             );
+            assumeFalse(
+                "can't use match command in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_COMMAND.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
-                    "nonexistent capabilities declared as required",
+                    "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.CAPABILITIES))
                 );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
-                    if (c.snapshotOnly()) {
+                    if (false == c.isEnabled()) {
                         assumeFalse(
                             c.capabilityName() + " is not supported in non-snapshot releases",
                             testCase.requiredCapabilities.contains(c.capabilityName())
@@ -286,7 +294,8 @@ public class CsvTests extends ESTestCase {
             assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
-            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
+            assertBusy(() -> assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L)));
         }
     }
 

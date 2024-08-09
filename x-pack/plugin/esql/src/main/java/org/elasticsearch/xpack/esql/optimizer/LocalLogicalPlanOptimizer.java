@@ -58,6 +58,13 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanu
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operators;
 import static org.elasticsearch.xpack.esql.optimizer.rules.OptimizerRules.TransformDirection.UP;
 
+/**
+ * <p>This class is part of the planner. Data node level logical optimizations.  At this point we have access to
+ * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index. </p>
+ *
+ * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()}
+ * </p>
+ */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
@@ -140,19 +147,20 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
 
                 for (NamedExpression projection : projections) {
-                    if (projection instanceof FieldAttribute f && stats.exists(f.qualifiedName()) == false) {
+                    // Do not use the attribute name, this can deviate from the field name for union types.
+                    if (projection instanceof FieldAttribute f && stats.exists(f.fieldName()) == false) {
                         DataType dt = f.dataType();
                         Alias nullAlias = nullLiteral.get(f.dataType());
                         // save the first field as null (per datatype)
                         if (nullAlias == null) {
-                            Alias alias = new Alias(f.source(), f.name(), null, Literal.of(f, null), f.id());
+                            Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), f.id());
                             nullLiteral.put(dt, alias);
                             projection = alias.toAttribute();
                         }
                         // otherwise point to it
                         else {
                             // since avoids creating field copies
-                            projection = new Alias(f.source(), f.name(), f.qualifier(), nullAlias.toAttribute(), f.id());
+                            projection = new Alias(f.source(), f.name(), nullAlias.toAttribute(), f.id());
                         }
                     }
 
@@ -170,7 +178,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 || plan instanceof TopN) {
                     plan = plan.transformExpressionsOnlyUp(
                         FieldAttribute.class,
-                        f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)
+                        // Do not use the attribute name, this can deviate from the field name for union types.
+                        f -> stats.exists(f.fieldName()) ? f : Literal.of(f, null)
                     );
                 }
 

@@ -25,18 +25,17 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
-import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
+import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -57,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,12 +70,18 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
+/**
+ * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
+ * which change the grammar will need to make changes here as well.
+ *
+ */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
@@ -192,21 +198,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             try {
                 DissectParser parser = new DissectParser(pattern, appendSeparator);
+
                 Set<String> referenceKeys = parser.referenceKeys();
-                if (referenceKeys.size() > 0) {
+                if (referenceKeys.isEmpty() == false) {
                     throw new ParsingException(
                         src,
                         "Reference keys not supported in dissect patterns: [%{*{}}]",
                         referenceKeys.iterator().next()
                     );
                 }
-                List<Attribute> keys = new ArrayList<>();
-                for (var x : parser.outputKeys()) {
-                    if (x.isEmpty() == false) {
-                        keys.add(new ReferenceAttribute(src, x, DataType.KEYWORD));
-                    }
-                }
-                return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
+
+                Dissect.Parser esqlDissectParser = new Dissect.Parser(pattern, appendSeparator, parser);
+                List<Attribute> keys = esqlDissectParser.keyAttributes(src);
+
+                return new Dissect(src, p, expression(ctx.primaryExpression()), esqlDissectParser, keys);
             } catch (DissectException e) {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }
@@ -234,8 +239,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), visitFields(ctx.fields()));
+        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
     @Override
@@ -326,6 +332,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
+        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG.isEnabled()) {
+            throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
+        }
         List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
@@ -336,6 +345,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
         Expression expression = expression(ctx.booleanExpression());
         return input -> new Filter(source(ctx), input, expression);
+    }
+
+    @Override
+    public PlanFactory visitMatchCommand(EsqlBaseParser.MatchCommandContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source(ctx), "MATCH command currently requires a snapshot build");
+        }
+
+        StringQueryPredicate stringQueryPredicate = visitMatchQuery(ctx.matchQuery());
+        return input -> new Filter(source(ctx), input, stringQueryPredicate);
+    }
+
+    @Override
+    public StringQueryPredicate visitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) {
+        Source source = source(ctx);
+        String queryString = unquote(ctx.QUOTED_STRING().getText());
+        return new StringQueryPredicate(source, queryString, null);
     }
 
     @Override

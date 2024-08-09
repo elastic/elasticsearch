@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -74,7 +75,8 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             ValidateQueryAction.NAME,
             new ActionFilters(Collections.emptySet()),
-            taskManager
+            taskManager,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}

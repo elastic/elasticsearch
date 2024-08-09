@@ -49,7 +49,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
     }
 
     boolean getOrDefault(int groupId) {
-        return groupId < values.size() ? values.get(groupId) : init;
+        return groupId < size ? values.get(groupId) : init;
     }
 
     void set(int groupId, boolean value) {
@@ -102,7 +102,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < values.size()) {
+                if (group < size) {
                     valuesBuilder.appendBoolean(values.get(group));
                 } else {
                     valuesBuilder.appendBoolean(false); // TODO can we just use null?

@@ -1,5 +1,0 @@
-pr: 109651
-summary: Support synthetic source for `geo_point` when `ignore_malformed` is used
-area: Mapping
-type: enhancement
-issues: []

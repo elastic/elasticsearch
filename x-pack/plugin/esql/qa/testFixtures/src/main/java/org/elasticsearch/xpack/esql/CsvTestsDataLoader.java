@@ -55,6 +55,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
     private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
+    private static final TestsDataset ALERTS = new TestsDataset("alerts", "mapping-alerts.json", "alerts.csv");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data", "mapping-sample_data.json", "sample_data.csv");
     private static final TestsDataset SAMPLE_DATA_STR = new TestsDataset(
@@ -75,6 +76,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
     private static final TestsDataset AIRPORTS_MP = new TestsDataset("airports_mp", "mapping-airports.json", "airports_mp.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
+    private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos", "mapping-date_nanos.json", "date_nanos.csv");
     private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
         "countries_bbox",
         "mapping-countries_bbox.json",
@@ -96,8 +98,8 @@ public class CsvTestsDataLoader {
         "cartesian_multipolygons.csv"
     );
     private static final TestsDataset DISTANCES = new TestsDataset("distances", "mapping-distances.json", "distances.csv");
-
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true);
+    private static final TestsDataset ADDRESSES = new TestsDataset("addresses", "mapping-addresses.json", "addresses.csv", null, true);
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -106,6 +108,7 @@ public class CsvTestsDataLoader {
         Map.entry(LANGUAGES.indexName, LANGUAGES),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
+        Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
@@ -120,8 +123,10 @@ public class CsvTestsDataLoader {
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
         Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
         Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
+        Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(K8S.indexName, K8S),
-        Map.entry(DISTANCES.indexName, DISTANCES)
+        Map.entry(DISTANCES.indexName, DISTANCES),
+        Map.entry(ADDRESSES.indexName, ADDRESSES)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

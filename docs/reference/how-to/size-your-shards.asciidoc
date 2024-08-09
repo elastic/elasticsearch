@@ -152,9 +152,10 @@ same data. However, very large shards can also cause slower searches and will
 take longer to recover after a failure.
 
 There is no hard limit on the physical size of a shard, and each shard can in
-theory contain up to just over two billion documents. However, experience shows
-that shards between 10GB and 50GB typically work well for many use cases, as
-long as the per-shard document count is kept below 200 million.
+theory contain up to <<troubleshooting-max-docs-limit,just over two billion 
+documents>>. However, experience shows that shards between 10GB and 50GB 
+typically work well for many use cases, as long as the per-shard document count 
+is kept below 200 million.
 
 You may be able to use larger shards depending on your network and use case,
 and smaller shards may be appropriate for
@@ -183,6 +184,29 @@ index                                 prirep shard store
 // TESTRESPONSE[non_json]
 // TESTRESPONSE[s/\.ds-my-data-stream-2099\.05\.06-000001/my-index-000001/]
 // TESTRESPONSE[s/50gb/.*/]
+
+If an index's shard is experiencing degraded performance from surpassing the 
+recommended 50GB size, you may consider fixing the index's shards' sizing. 
+Shards are immutable and therefore their size is fixed in place, 
+so indices must be copied with corrected settings. This requires first ensuring 
+sufficient disk to copy the data. Afterwards, you can copy the index's data 
+with corrected settings via one of the following options:
+
+* running <<indices-split-index,Split Index>> to increase number of primary 
+shards 
+
+* creating a destination index with corrected settings and then running 
+<<docs-reindex,Reindex>> 
+
+Kindly note performing a <<restore-snapshot-api,Restore Snapshot>> and/or 
+<<indices-clone-index,Clone Index>> would be insufficient to resolve shards' 
+sizing. 
+
+Once a source index's data is copied into its destination index, the source 
+index can be <<indices-delete-index,removed>>. You may then consider setting 
+<<indices-add-alias,Create Alias>> against the destination index for the source 
+index's name to point to it for continuity. 
+
 
 [discrete]
 [[shard-count-recommendation]]
@@ -501,6 +525,7 @@ POST _reindex
 Here’s how to resolve common shard-related errors.
 
 [discrete]
+[[troubleshooting-max-shards-open]]
 ==== this action would add [x] total shards, but this cluster currently has [y]/[z] maximum shards open;
 
 The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
@@ -544,3 +569,42 @@ PUT _cluster/settings
   }
 }
 ----
+
+[discrete]
+[[troubleshooting-max-docs-limit]]
+==== Number of documents in the shard cannot exceed [2147483519]
+
+Each {es} shard is a separate Lucene index, so it shares Lucene's
+https://github.com/apache/lucene/issues/5176[`MAX_DOC` limit] of having at most
+2,147,483,519 (`(2^31)-129`) documents. This per-shard limit applies to the sum
+of `docs.count` plus `docs.deleted` as reported by the <<indices-stats,Index
+stats API>>. Exceeding this limit will result in errors like the following:
+
+[source,txt]
+----
+Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the shard cannot exceed [2147483519]]
+----
+
+TIP: This calculation may differ from the <<search-count,Count API's>>
+calculation, because the Count API does not include nested documents and does
+not count deleted documents.
+
+This limit is much higher than the <<shard-size-recommendation,recommended
+maximum document count>> of approximately 200M documents per shard.
+
+If you encounter this problem, try to mitigate it by using the
+<<indices-forcemerge,Force Merge API>> to merge away some deleted docs. For
+example:
+
+[source,console]
+----
+POST my-index-000001/_forcemerge?only_expunge_deletes=true
+----
+// TEST[setup:my_index]
+
+This will launch an asynchronous task which can be monitored via the
+<<tasks,Task Management API>>.
+
+It may also be helpful to <<docs-delete-by-query,delete unneeded documents>>,
+or to <<indices-split-index,split>> or <<docs-reindex,reindex>> the index into
+one with a larger number of shards.

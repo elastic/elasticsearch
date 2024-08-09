@@ -1,0 +1,6 @@
+pr: 111756
+summary: Fix `NullPointerException` when doing knn search on empty index without dims
+area: Vector Search
+type: bug
+issues:
+ - 111733

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
@@ -26,8 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
@@ -72,6 +72,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
 import static org.elasticsearch.core.Types.forciblyCast;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -464,7 +465,17 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
     }
 
-    public void testCanMatchFilteringOnCoordinatorThatCanBeSkipped() throws Exception {
+    // test using @timestamp
+    public void testCanMatchFilteringOnCoordinatorThatCanBeSkippedUsingTimestamp() throws Exception {
+        doCanMatchFilteringOnCoordinatorThatCanBeSkipped(DataStream.TIMESTAMP_FIELD_NAME);
+    }
+
+    // test using event.ingested
+    public void testCanMatchFilteringOnCoordinatorThatCanBeSkippedUsingEventIngested() throws Exception {
+        doCanMatchFilteringOnCoordinatorThatCanBeSkipped(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+    }
+
+    public void doCanMatchFilteringOnCoordinatorThatCanBeSkipped(String timestampField) throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
         DataStream dataStream = DataStreamTestHelper.newInstance("mydata", List.of(dataStreamIndex1, dataStreamIndex2));
@@ -475,15 +486,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(
-                dataStreamIndex,
-                DataStream.TIMESTAMP_FIELD_NAME,
-                indexMinTimestamp,
-                indexMaxTimestamp
-            );
+            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timestampField, indexMinTimestamp, indexMaxTimestamp);
         }
 
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampField);
         // We query a range outside of the timestamp range covered by both datastream indices
         rangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
 
@@ -516,12 +522,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 // When all the shards can be skipped we should query at least 1
                 // in order to get a valid search response.
                 if (regularIndexShardCount == 0) {
-                    assertThat(nonSkippedShards.size(), equalTo(1));
+                    assertThat(nonSkippedShards.size(), equalTo(1)); // FIXME - fails here with expected 1 but was 11 OR
                 } else {
                     boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
                         .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
 
-                    assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true));
+                    assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true)); // FIXME - OR fails here with "false"
                 }
 
                 boolean allSkippedShardAreFromDataStream = skippedShards.stream()
@@ -535,6 +541,90 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
     }
 
+    public void testCoordinatorCanMatchFilteringThatCanBeSkippedUsingBothTimestamps() throws Exception {
+        Index dataStreamIndex1 = new Index(".ds-twoTimestamps0001", UUIDs.base64UUID());
+        Index dataStreamIndex2 = new Index(".ds-twoTimestamps0002", UUIDs.base64UUID());
+        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", List.of(dataStreamIndex1, dataStreamIndex2));
+
+        List<Index> regularIndices = randomList(1, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
+
+        long indexMinTimestamp = randomLongBetween(0, 5000);
+        long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        for (Index dataStreamIndex : dataStream.getIndices()) {
+            // use same range for both @timestamp and event.ingested
+            contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(
+                dataStreamIndex,
+                indexMinTimestamp,
+                indexMaxTimestamp,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
+        }
+
+        /**
+         * Expected behavior: if either @timestamp or 'event.ingested' filters in the query are "out of range" (do not
+         * overlap the range in cluster state), then all shards in the datastream should be skipped.
+         * Only if both @timestamp or 'event.ingested' filters are "in range" should the data stream shards be searched
+         */
+        boolean timestampQueryOutOfRange = randomBoolean();
+        boolean eventIngestedQueryOutOfRange = randomBoolean();
+        int timestampOffset = timestampQueryOutOfRange ? 1 : -500;
+        int eventIngestedOffset = eventIngestedQueryOutOfRange ? 1 : -500;
+
+        RangeQueryBuilder tsRangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
+        tsRangeQueryBuilder.from(indexMaxTimestamp + timestampOffset).to(indexMaxTimestamp + 2);
+
+        RangeQueryBuilder eventIngestedRangeQueryBuilder = new RangeQueryBuilder(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+        eventIngestedRangeQueryBuilder.from(indexMaxTimestamp + eventIngestedOffset).to(indexMaxTimestamp + 2);
+
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(tsRangeQueryBuilder).filter(eventIngestedRangeQueryBuilder);
+
+        if (randomBoolean()) {
+            // Add an additional filter that cannot be evaluated in the coordinator but shouldn't
+            // affect the end result as we're filtering
+            queryBuilder.filter(new TermQueryBuilder("fake", "value"));
+        }
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(dataStream),
+            regularIndices,
+            contextProviderBuilder.build(),
+            queryBuilder,
+            List.of(),
+            null,
+            (updatedSearchShardIterators, requests) -> {
+                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
+                    .filter(searchShardIterator -> searchShardIterator.skip() == false)
+                    .toList();
+
+                if (timestampQueryOutOfRange || eventIngestedQueryOutOfRange) {
+                    // data stream shards should have been skipped
+                    assertThat(skippedShards.size(), greaterThan(0));
+                    boolean allSkippedShardAreFromDataStream = skippedShards.stream()
+                        .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
+                    assertThat(allSkippedShardAreFromDataStream, equalTo(true));
+
+                    boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
+                        .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
+                    assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true));
+
+                    boolean allRequestsWereTriggeredAgainstRegularIndices = requests.stream()
+                        .allMatch(request -> regularIndices.contains(request.shardId().getIndex()));
+                    assertThat(allRequestsWereTriggeredAgainstRegularIndices, equalTo(true));
+
+                } else {
+                    assertThat(skippedShards.size(), equalTo(0));
+                    long countSkippedShardsFromDatastream = nonSkippedShards.stream()
+                        .filter(iter -> dataStream.getIndices().contains(iter.shardId().getIndex()))
+                        .count();
+                    assertThat(countSkippedShardsFromDatastream, greaterThan(0L));
+                }
+            }
+        );
+    }
+
     public void testCanMatchFilteringOnCoordinatorParsingFails() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
@@ -542,19 +632,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 
+        String timeField = randomFrom(DataStream.TIMESTAMP_FIELD_NAME, IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+
         long indexMinTimestamp = randomLongBetween(0, 5000);
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(
-                dataStreamIndex,
-                DataStream.TIMESTAMP_FIELD_NAME,
-                indexMinTimestamp,
-                indexMaxTimestamp
-            );
+            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timeField, indexMinTimestamp, indexMaxTimestamp);
         }
 
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timeField);
         // Query with a non default date format
         rangeQueryBuilder.from("2020-1-01").to("2021-1-01");
 
@@ -585,23 +672,20 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 
+        String timeField = randomFrom(DataStream.TIMESTAMP_FIELD_NAME, IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+
         long indexMinTimestamp = 10;
         long indexMaxTimestamp = 20;
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(
-                dataStreamIndex,
-                DataStream.TIMESTAMP_FIELD_NAME,
-                indexMinTimestamp,
-                indexMaxTimestamp
-            );
+            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timeField, indexMinTimestamp, indexMaxTimestamp);
         }
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder();
         // Query inside of the data stream index range
         if (randomBoolean()) {
             // Query generation
-            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
+            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timeField);
             // We query a range within the timestamp range covered by both datastream indices
             rangeQueryBuilder.from(indexMinTimestamp).to(indexMaxTimestamp);
 
@@ -614,8 +698,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         } else {
             // We query a range outside of the timestamp range covered by both datastream indices
-            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(indexMaxTimestamp + 1)
-                .to(indexMaxTimestamp + 2);
+            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timeField).from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
 
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder("fake", "value");
 
@@ -635,17 +718,86 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
     }
 
+    public void testCanMatchFilteringOnCoordinatorWithTimestampAndEventIngestedThatCanNotBeSkipped() throws Exception {
+        // Generate indices
+        Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
+        Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
+        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", List.of(dataStreamIndex1, dataStreamIndex2));
+
+        List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
+
+        long indexMinTimestampForTs = 10;
+        long indexMaxTimestampForTs = 20;
+        long indexMinTimestampForEventIngested = 10;
+        long indexMaxTimestampForEventIngested = 20;
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        for (Index dataStreamIndex : dataStream.getIndices()) {
+            contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(
+                dataStreamIndex,
+                indexMinTimestampForTs,
+                indexMaxTimestampForTs,
+                indexMinTimestampForEventIngested,
+                indexMaxTimestampForEventIngested
+            );
+        }
+
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder();
+        // Query inside of the data stream index range
+        if (randomBoolean()) {
+            // Query generation
+            // We query a range within both timestamp ranges covered by both datastream indices
+            RangeQueryBuilder tsRangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
+            tsRangeQueryBuilder.from(indexMinTimestampForTs).to(indexMaxTimestampForTs);
+
+            RangeQueryBuilder eventIngestedRangeQueryBuilder = new RangeQueryBuilder(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+            eventIngestedRangeQueryBuilder.from(indexMinTimestampForEventIngested).to(indexMaxTimestampForEventIngested);
+
+            queryBuilder.filter(tsRangeQueryBuilder).filter(eventIngestedRangeQueryBuilder);
+
+            if (randomBoolean()) {
+                // Add an additional filter that cannot be evaluated in the coordinator but shouldn't
+                // affect the end result as we're filtering
+                queryBuilder.filter(new TermQueryBuilder("fake", "value"));
+            }
+        } else {
+            // We query a range outside of the both ranges covered by both datastream indices
+            RangeQueryBuilder tsRangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(indexMaxTimestampForTs + 1)
+                .to(indexMaxTimestampForTs + 2);
+            RangeQueryBuilder eventIngestedRangeQueryBuilder = new RangeQueryBuilder(IndexMetadata.EVENT_INGESTED_FIELD_NAME).from(
+                indexMaxTimestampForEventIngested + 1
+            ).to(indexMaxTimestampForEventIngested + 2);
+
+            TermQueryBuilder termQueryBuilder = new TermQueryBuilder("fake", "value");
+
+            // This is always evaluated as true in the coordinator as we cannot determine there if
+            // the term query clause is false.
+            queryBuilder.should(tsRangeQueryBuilder).should(eventIngestedRangeQueryBuilder).should(termQueryBuilder);
+        }
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(dataStream),
+            regularIndices,
+            contextProviderBuilder.build(),
+            queryBuilder,
+            List.of(),
+            null,
+            this::assertAllShardsAreQueried
+        );
+    }
+
     public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withDefaultBackgroundFilter() throws Exception {
         Index index1 = new Index("index1", UUIDs.base64UUID());
         Index index2 = new Index("index2", UUIDs.base64UUID());
         Index index3 = new Index("index3", UUIDs.base64UUID());
 
-        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
-        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
-        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+        String timeField = randomFrom(DataStream.TIMESTAMP_FIELD_NAME, IndexMetadata.EVENT_INGESTED_FIELD_NAME);
 
-        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2100).to(2200));
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, timeField, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, timeField, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, timeField, 2000, 2999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(timeField).from(2100).to(2200));
         AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms");
 
         assignShardsAndExecuteCanMatchPhase(
@@ -661,20 +813,22 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withBackgroundFilter() throws Exception {
+        String timestampField = randomFrom(IndexMetadata.EVENT_INGESTED_FIELD_NAME, DataStream.TIMESTAMP_FIELD_NAME);
+
         Index index1 = new Index("index1", UUIDs.base64UUID());
         Index index2 = new Index("index2", UUIDs.base64UUID());
         Index index3 = new Index("index3", UUIDs.base64UUID());
         Index index4 = new Index("index4", UUIDs.base64UUID());
 
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
-        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
-        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
-        contextProviderBuilder.addIndexMinMaxTimestamps(index4, DataStream.TIMESTAMP_FIELD_NAME, 3000, 3999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, timestampField, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, timestampField, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, timestampField, 2000, 2999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index4, timestampField, 3000, 3999);
 
-        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(3100).to(3200));
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(timestampField).from(3100).to(3200));
         AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms").backgroundFilter(
-            new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(0).to(1999)
+            new RangeQueryBuilder(timestampField).from(0).to(1999)
         );
 
         assignShardsAndExecuteCanMatchPhase(
@@ -703,14 +857,53 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         Index index2 = new Index("index2", UUIDs.base64UUID());
         Index index3 = new Index("index3", UUIDs.base64UUID());
 
-        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
-        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
-        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+        String timestampField = randomFrom(IndexMetadata.EVENT_INGESTED_FIELD_NAME, DataStream.TIMESTAMP_FIELD_NAME);
 
-        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2100).to(2200));
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, timestampField, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, timestampField, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, timestampField, 2000, 2999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(timestampField).from(2100).to(2200));
         AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms").backgroundFilter(
-            new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2000).to(2300)
+            new RangeQueryBuilder(timestampField).from(2000).to(2300)
+        );
+        SuggestBuilder suggest = new SuggestBuilder().setGlobalText("test");
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(),
+            List.of(index1, index2, index3),
+            contextProviderBuilder.build(),
+            query,
+            List.of(aggregation),
+            suggest,
+            // The query and aggregation and match only index3, but suggest should match everything.
+            this::assertAllShardsAreQueried
+        );
+    }
+
+    public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withSuggest_withTwoTimestamps() throws Exception {
+        Index index1 = new Index("index1", UUIDs.base64UUID());
+        Index index2 = new Index("index2", UUIDs.base64UUID());
+        Index index3 = new Index("index3", UUIDs.base64UUID());
+
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(index1, 0, 999, 0, 999);
+        contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(index2, 1000, 1999, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(index3, 2000, 2999, 2000, 2999);
+
+        String fieldInRange = IndexMetadata.EVENT_INGESTED_FIELD_NAME;
+        String fieldOutOfRange = DataStream.TIMESTAMP_FIELD_NAME;
+
+        if (randomBoolean()) {
+            fieldInRange = DataStream.TIMESTAMP_FIELD_NAME;
+            fieldOutOfRange = IndexMetadata.EVENT_INGESTED_FIELD_NAME;
+        }
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(fieldInRange).from(2100).to(2200))
+            .filter(new RangeQueryBuilder(fieldOutOfRange).from(8888).to(9999));
+        AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms").backgroundFilter(
+            new RangeQueryBuilder(fieldInRange).from(2000).to(2300)
         );
         SuggestBuilder suggest = new SuggestBuilder().setGlobalText("test");
 
@@ -744,13 +937,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
         for (Index index : dataStream1.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(index, indexMinTimestamp, indexMaxTimestamp);
+            contextProviderBuilder.addIndexMinMaxTimestamps(index, DataStream.TIMESTAMP_FIELD_NAME, indexMinTimestamp, indexMaxTimestamp);
         }
         for (Index index : dataStream2.getIndices()) {
             contextProviderBuilder.addIndex(index);
         }
 
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("@timestamp");
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
         // We query a range outside of the timestamp range covered by both datastream indices
         rangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
 
@@ -954,9 +1147,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         canMatchResultsConsumer.accept(updatedSearchShardIterators, requests);
     }
 
-    private static class StaticCoordinatorRewriteContextProviderBuilder {
+    static class StaticCoordinatorRewriteContextProviderBuilder {
         private ClusterState clusterState = ClusterState.EMPTY_STATE;
-        private final Map<Index, DateFieldMapper.DateFieldType> fields = new HashMap<>();
+        private final Map<Index, DateFieldRangeInfo> fields = new HashMap<>();
 
         private void addIndexMinMaxTimestamps(Index index, String fieldName, long minTimeStamp, long maxTimestamp) {
             if (clusterState.metadata().index(index) != null) {
@@ -974,35 +1167,64 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
                 .numberOfShards(1)
-                .numberOfReplicas(0)
-                .timestampRange(timestampRange);
+                .numberOfReplicas(0);
+            if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+                indexMetadataBuilder.timestampRange(timestampRange);
+                fields.put(index, new DateFieldRangeInfo(new DateFieldMapper.DateFieldType(fieldName), null, null, null));
+            } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
+                indexMetadataBuilder.eventIngestedRange(timestampRange, TransportVersion.current());
+                fields.put(index, new DateFieldRangeInfo(null, null, new DateFieldMapper.DateFieldType(fieldName), null));
+            }
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
-
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-
-            fields.put(index, new DateFieldMapper.DateFieldType(fieldName));
         }
 
-        private void addIndexMinMaxTimestamps(Index index, long minTimestamp, long maxTimestamp) {
+        /**
+         * Add min/max timestamps to IndexMetadata for the specified index for both @timestamp and 'event.ingested'
+         */
+        private void addIndexMinMaxForTimestampAndEventIngested(
+            Index index,
+            long minTimestampForTs,
+            long maxTimestampForTs,
+            long minTimestampForEventIngested,
+            long maxTimestampForEventIngested
+        ) {
             if (clusterState.metadata().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "a_field")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minTimestamp))
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(maxTimestamp));
+            IndexLongFieldRange tsTimestampRange = IndexLongFieldRange.NO_SHARDS.extendWithShardRange(
+                0,
+                1,
+                ShardLongFieldRange.of(minTimestampForTs, maxTimestampForTs)
+            );
+            IndexLongFieldRange eventIngestedTimestampRange = IndexLongFieldRange.NO_SHARDS.extendWithShardRange(
+                0,
+                1,
+                ShardLongFieldRange.of(minTimestampForEventIngested, maxTimestampForEventIngested)
+            );
+
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
 
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
                 .numberOfShards(1)
-                .numberOfReplicas(0);
+                .numberOfReplicas(0)
+                .timestampRange(tsTimestampRange)
+                .eventIngestedRange(eventIngestedTimestampRange, TransportVersion.current());
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-            fields.put(index, new DateFieldMapper.DateFieldType("@timestamp"));
+            fields.put(
+                index,
+                new DateFieldRangeInfo(
+                    new DateFieldMapper.DateFieldType(DataStream.TIMESTAMP_FIELD_NAME),
+                    null,
+                    new DateFieldMapper.DateFieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME),
+                    null
+                )
+            );
         }
 
         private void addIndex(Index index) {
@@ -1018,7 +1240,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-            fields.put(index, new DateFieldMapper.DateFieldType("@timestamp"));
+            fields.put(index, new DateFieldRangeInfo(new DateFieldMapper.DateFieldType(DataStream.TIMESTAMP_FIELD_NAME), null, null, null));
         }
 
         public CoordinatorRewriteContextProvider build() {

@@ -1,0 +1,5 @@
+pr: 111523
+summary: Search coordinator uses `event.ingested` in cluster state to do rewrites
+area: Search
+type: enhancement
+issues: []

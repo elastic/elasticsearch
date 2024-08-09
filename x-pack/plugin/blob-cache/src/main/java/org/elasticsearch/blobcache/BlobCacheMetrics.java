@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class BlobCacheMetrics {
-    private static final String CACHE_POPULATION_TYPE_ATTRIBUTE_KEY = "cachePopulationType";
+    private static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "cachePopulationReason";
     private static final String SHARD_ID_ATTRIBUTE_KEY = "shardId";
 
     private final LongCounter cacheMissCounter;
@@ -126,7 +126,7 @@ public class BlobCacheMetrics {
         Map<String, Object> metricAttributes = Map.of(
             SHARD_ID_ATTRIBUTE_KEY,
             shardId,
-            CACHE_POPULATION_TYPE_ATTRIBUTE_KEY,
+            CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason
         );
         cachePopulateReadThroughput.record(toBytesPerSecond(totalBytesRead, totalReadTimeNanos), metricAttributes);

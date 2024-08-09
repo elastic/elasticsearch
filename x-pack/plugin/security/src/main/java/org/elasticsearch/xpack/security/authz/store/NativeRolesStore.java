@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestVa
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -476,7 +477,15 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
                                 + "] or higher to support specifying role description"
                         );
-                    }
+                    } else if (Arrays.stream(role.getConditionalClusterPrivileges())
+                        .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
+                        && clusterService.state().getMinTransportVersion().before(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
+                            return new IllegalStateException(
+                                "all nodes must have version ["
+                                    + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                                    + "] or higher to support the manage roles privilege"
+                            );
+                        }
         try {
             DLSRoleQueryValidator.validateQueryField(role.getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {

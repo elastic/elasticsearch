@@ -10,6 +10,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -84,6 +86,16 @@ public class ClusterPermission {
         private final List<Automaton> actionAutomatons = new ArrayList<>();
         private final List<PermissionCheck> permissionChecks = new ArrayList<>();
 
+        private final RestrictedIndices restrictedIndices;
+
+        public Builder(RestrictedIndices restrictedIndices) {
+            this.restrictedIndices = restrictedIndices;
+        }
+
+        public Builder() {
+            this.restrictedIndices = null;
+        }
+
         public Builder add(
             final ClusterPrivilege clusterPrivilege,
             final Set<String> allowedActionPatterns,
@@ -108,6 +120,16 @@ public class ClusterPermission {
             this.clusterPrivileges.add(clusterPrivilege);
             this.permissionChecks.add(permissionCheck);
             return this;
+        }
+
+        public Builder addWithPredicateSupplier(
+            final ClusterPrivilege clusterPrivilege,
+            final Set<String> allowedActionPatterns,
+            final Function<RestrictedIndices, Predicate<TransportRequest>> requestPredicateSupplier
+        ) {
+            final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, Set.of());
+            Predicate<TransportRequest> requestPredicate = requestPredicateSupplier.apply(restrictedIndices);
+            return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(clusterPrivilege, actionAutomaton, requestPredicate));
         }
 
         public ClusterPermission build() {

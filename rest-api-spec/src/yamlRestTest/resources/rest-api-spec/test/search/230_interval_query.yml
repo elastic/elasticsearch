@@ -444,4 +444,44 @@ setup:
                         prefix: out
   - match: { hits.total.value: 3 }
 
+---
+"Test regexp":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: "Implemented in 8.16"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - regexp:
+                        pattern: ou.*ide
+  - match: { hits.total.value: 3 }
 
+
+---
+"Test range":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: "Implemented in 8.16"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - range:
+                        gte: out
+                        lte: ouu
+  - match: { hits.total.value: 3 }

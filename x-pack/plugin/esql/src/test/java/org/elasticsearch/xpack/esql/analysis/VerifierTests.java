@@ -207,6 +207,26 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2], [keyword] in [test3]",
             error("from test* | rename multi_typed as x", analyzer)
         );
+
+        assertEquals(
+            "1:19: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | sort unsupported asc", analyzer)
+        );
+        assertEquals(
+            "1:19: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | sort multi_typed desc", analyzer)
+        );
+
+        assertEquals(
+            "1:20: Cannot use field [unsupported] with unsupported type [flattened]",
+            error("from test* | where unsupported is null", analyzer)
+        );
+        assertEquals(
+            "1:20: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                + " [ip] in [test1, test2], [keyword] in [test3]",
+            error("from test* | where multi_typed is not null", analyzer)
+        );
     }
 
     public void testRoundFunctionInvalidInputs() {

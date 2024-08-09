@@ -10,7 +10,9 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -91,6 +93,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final OriginSettingClient rolloverClient;
     private final Set<String> failureStoresToBeRolledOver = ConcurrentCollections.newConcurrentSet();
     private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
+    private final FailureStoreMetrics failureStoreMetrics;
 
     BulkOperation(
         Task task,
@@ -104,7 +107,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
-        ActionListener<BulkResponse> listener
+        ActionListener<BulkResponse> listener,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         this(
             task,
@@ -120,7 +124,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             startTimeNanos,
             listener,
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
-            new FailureStoreDocumentConverter()
+            new FailureStoreDocumentConverter(),
+            failureStoreMetrics
         );
     }
 
@@ -138,7 +143,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
         ClusterStateObserver observer,
-        FailureStoreDocumentConverter failureStoreDocumentConverter
+        FailureStoreDocumentConverter failureStoreDocumentConverter,
+        FailureStoreMetrics failureStoreMetrics
     ) {
         super(listener);
         this.task = task;
@@ -156,6 +162,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
+        this.failureStoreMetrics = failureStoreMetrics;
     }
 
     @Override
@@ -437,17 +444,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 for (int idx = 0; idx < bulkShardResponse.getResponses().length; idx++) {
                     // We zip the requests and responses together so that we can identify failed documents and potentially store them
                     BulkItemResponse bulkItemResponse = bulkShardResponse.getResponses()[idx];
+                    BulkItemRequest bulkItemRequest = bulkShardRequest.items()[idx];
 
                     if (bulkItemResponse.isFailed()) {
-                        BulkItemRequest bulkItemRequest = bulkShardRequest.items()[idx];
                         assert bulkItemRequest.id() == bulkItemResponse.getItemId() : "Bulk items were returned out of order";
-
-                        DataStream failureStoreReference = getRedirectTarget(bulkItemRequest.request(), getClusterState().metadata());
-                        if (failureStoreReference != null) {
-                            maybeMarkFailureStoreForRollover(failureStoreReference);
-                            var cause = bulkItemResponse.getFailure().getCause();
-                            addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreReference.getName());
-                        }
+                        processFailure(bulkItemRequest, bulkItemResponse.getFailure().getCause());
                         addFailure(bulkItemResponse);
                     } else {
                         bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
@@ -464,11 +465,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     final String indexName = request.index();
                     DocWriteRequest<?> docWriteRequest = request.request();
 
-                    DataStream failureStoreReference = getRedirectTarget(docWriteRequest, getClusterState().metadata());
-                    if (failureStoreReference != null) {
-                        maybeMarkFailureStoreForRollover(failureStoreReference);
-                        addDocumentToRedirectRequests(request, e, failureStoreReference.getName());
-                    }
+                    processFailure(request, e);
                     addFailure(docWriteRequest, request.id(), indexName, e);
                 }
                 completeShardOperation();
@@ -479,45 +476,56 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 clusterState = null;
                 releaseOnFinish.close();
             }
+
+            private void processFailure(BulkItemRequest bulkItemRequest, Exception cause) {
+                var errorType = ElasticsearchException.getExceptionName(ExceptionsHelper.unwrapCause(cause));
+                DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
+                DataStream failureStoreCandidate = getRedirectTargetCandidate(docWriteRequest, getClusterState().metadata());
+                // If the candidate is not null, the BulkItemRequest targets a data stream, but we'll still have to check if
+                // it has the failure store enabled.
+                if (failureStoreCandidate != null) {
+                    // Do not redirect documents to a failure store that were already headed to one.
+                    var isFailureStoreDoc = docWriteRequest instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore();
+                    if (isFailureStoreDoc == false && failureStoreCandidate.isFailureStoreEnabled()) {
+                        // Redirect to failure store.
+                        maybeMarkFailureStoreForRollover(failureStoreCandidate);
+                        addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreCandidate.getName());
+                        failureStoreMetrics.incrementFailureStore(
+                            bulkItemRequest.index(),
+                            errorType,
+                            FailureStoreMetrics.ErrorLocation.SHARD
+                        );
+                    } else {
+                        // If we can't redirect to a failure store (because either the data stream doesn't have the failure store enabled
+                        // or this request was already targeting a failure store), we increment the rejected counter.
+                        failureStoreMetrics.incrementRejected(
+                            bulkItemRequest.index(),
+                            errorType,
+                            FailureStoreMetrics.ErrorLocation.SHARD,
+                            isFailureStoreDoc
+                        );
+                    }
+                }
+            }
         });
     }
 
     /**
-     * Determines if the write request can be redirected if it fails. Write requests can be redirected IFF they are targeting a data stream
-     * with a failure store and are not already redirected themselves. If the document can be redirected, the data stream name to use for
-     * the redirection is returned.
+     * Tries to find a <i>candidate</i> redirect target for this write request. A candidate redirect target is a data stream that may or
+     * may not have the failure store enabled.
      *
      * @param docWriteRequest the write request to check
      * @param metadata cluster state metadata for resolving index abstractions
-     * @return a data stream if the write request points to a data stream that has the failure store enabled, or {@code null} if it does not
+     * @return a data stream if the write request points to a data stream, or {@code null} if it does not
      */
-    private static DataStream getRedirectTarget(DocWriteRequest<?> docWriteRequest, Metadata metadata) {
+    private static DataStream getRedirectTargetCandidate(DocWriteRequest<?> docWriteRequest, Metadata metadata) {
         // Feature flag guard
         if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return null;
         }
-        // Do not resolve a failure store for documents that were already headed to one
-        if (docWriteRequest instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore()) {
-            return null;
-        }
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
         IndexAbstraction ia = metadata.getIndicesLookup().get(docWriteRequest.index());
-        if (ia == null) {
-            return null;
-        }
-        if (ia.isDataStreamRelated()) {
-            // The index abstraction could be an alias. Alias abstractions (even for data streams) only keep track of which _index_ they
-            // will write to, not which _data stream_.
-            // We work backward to find the data stream from the concrete write index to cover this case.
-            Index concreteIndex = ia.getWriteIndex();
-            IndexAbstraction writeIndexAbstraction = metadata.getIndicesLookup().get(concreteIndex.getName());
-            DataStream parentDataStream = writeIndexAbstraction.getParentDataStream();
-            if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
-                // Keep the data stream name around to resolve the redirect to failure store if the shard level request fails.
-                return parentDataStream;
-            }
-        }
-        return null;
+        return DataStream.resolveDataStream(ia, metadata);
     }
 
     /**

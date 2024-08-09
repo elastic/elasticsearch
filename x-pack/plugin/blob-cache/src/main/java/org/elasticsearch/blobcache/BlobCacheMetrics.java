@@ -56,17 +56,17 @@ public class BlobCacheMetrics {
                 "ms"
             ),
             meterRegistry.registerLongHistogram(
-                "es.blob_cache.cache_populate_read_throughput.histogram",
+                "es.blob_cache.populate_read_throughput.histogram",
                 "The read throughput when reading from the blob store to populate the cache",
                 "bytes/second"
             ),
             meterRegistry.registerLongHistogram(
-                "es.blob_cache.cache_populate_write_throughput.histogram",
+                "es.blob_cache.populate_write_throughput.histogram",
                 "The write throughput when writing data from the blobstore to the cache",
                 "bytes/second"
             ),
             meterRegistry.registerLongHistogram(
-                "es.blob_cache.cache_populate_elapsed_time.histogram",
+                "es.blob_cache.populate_elapsed_time.histogram",
                 "The time taken to copy a chunk from the blob store to the cache",
                 "ms"
             )

@@ -25,12 +25,14 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.concurrent.Executor;
 
 public final class FrozenIndexInput extends MetadataCachingIndexInput {
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
 
     private final SharedBlobCacheService<CacheKey>.CacheFile cacheFile;
+    private final Executor fetchExecutor;
 
     public FrozenIndexInput(
         String name,
@@ -39,7 +41,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
         IOContext context,
         IndexInputStats stats,
         int rangeSize,
-        int recoveryRangeSize
+        int recoveryRangeSize,
+        Executor fetchExecutor
     ) {
         this(
             name,
@@ -55,7 +58,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
             rangeSize,
             recoveryRangeSize,
             directory.getBlobCacheByteRange(name, fileInfo.length()),
-            ByteRange.EMPTY
+            ByteRange.EMPTY,
+            fetchExecutor
         );
         stats.incrementOpenCount();
     }
@@ -74,7 +78,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
         int defaultRangeSize,
         int recoveryRangeSize,
         ByteRange headerBlobCacheByteRange,
-        ByteRange footerBlobCacheByteRange
+        ByteRange footerBlobCacheByteRange,
+        Executor fetchExecutor
     ) {
         super(
             logger,
@@ -93,6 +98,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
             footerBlobCacheByteRange
         );
         this.cacheFile = cacheFile.copy();
+        this.fetchExecutor = fetchExecutor;
     }
 
     /**
@@ -101,6 +107,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
     private FrozenIndexInput(FrozenIndexInput input) {
         super(input);
         this.cacheFile = input.cacheFile.copy();
+        this.fetchExecutor = input.fetchExecutor;
     }
 
     @Override
@@ -171,7 +178,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                     final long endTimeNanos = stats.currentTimeNanos();
                     stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
                 }
-            });
+            }, fetchExecutor);
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);
         } finally {
@@ -202,7 +209,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
             defaultRangeSize,
             recoveryRangeSize,
             sliceHeaderByteRange,
-            sliceFooterByteRange
+            sliceFooterByteRange,
+            fetchExecutor
         );
     }
 

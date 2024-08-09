@@ -122,6 +122,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final ThreadPool threadPool;
     private final CacheService cacheService;
     private final boolean useCache;
+    private final Executor cacheFetchAsyncExecutor;
     private final boolean prewarmCache;
     private final Set<String> excludedFileTypes;
     private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
@@ -169,6 +170,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.shardPath = Objects.requireNonNull(shardPath);
         this.closed = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
+        this.cacheFetchAsyncExecutor = threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         this.partial = SNAPSHOT_PARTIAL_SETTING.get(indexSettings);
         this.prewarmCache = partial == false && useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
@@ -368,7 +370,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public Executor cacheFetchAsyncExecutor() {
-        return threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        return cacheFetchAsyncExecutor;
     }
 
     public Executor prewarmExecutor() {
@@ -407,7 +409,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     context,
                     inputStats,
                     sharedBlobCacheService.getRangeSize(),
-                    sharedBlobCacheService.getRecoveryRangeSize()
+                    sharedBlobCacheService.getRecoveryRangeSize(),
+                    cacheFetchAsyncExecutor
                 );
             } else {
                 return new CachedBlobContainerIndexInput(

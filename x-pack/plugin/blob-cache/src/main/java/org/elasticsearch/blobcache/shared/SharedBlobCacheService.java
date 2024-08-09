@@ -301,9 +301,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final ThreadPool threadPool;
 
-    // executor to run reading from the blobstore on
-    private final Executor ioExecutor;
-
     private final SharedBytes sharedBytes;
     private final long cacheSize;
     private final int regionSize;
@@ -335,22 +332,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
-        String ioExecutor,
         BlobCacheMetrics blobCacheMetrics
     ) {
-        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, System::nanoTime);
+        this(environment, settings, threadPool, blobCacheMetrics, System::nanoTime);
     }
 
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
-        String ioExecutor,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInNanosSupplier
     ) {
         this.threadPool = threadPool;
-        this.ioExecutor = threadPool.executor(ioExecutor);
         long totalFsSize;
         try {
             totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
@@ -1093,11 +1087,22 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return res;
         }
 
+        /**
+         * Populates a rangeToWrite in the cache (if the range is not available), and reads a sub rangeToRead from it.
+         *
+         * @param rangeToWrite The range to populate in the cache if it is not available.
+         * @param rangeToRead The range to read.
+         * @param reader The read handler.
+         * @param writer The write handler.
+         * @param fetchExecutor The executor to use when fetching data from the blob store to write the range.
+         * @return The bytes read.
+         */
         public int populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
-            final RangeMissingHandler writer
+            final RangeMissingHandler writer,
+            final Executor fetchExecutor
         ) throws Exception {
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
@@ -1128,9 +1133,17 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final int startRegion = getRegion(rangeToWrite.start());
             final int endRegion = getEndingRegion(rangeToWrite.end());
             if (startRegion == endRegion) {
-                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion);
+                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, fetchExecutor);
             }
-            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion);
+            return readMultiRegions(
+                rangeToWrite,
+                rangeToRead,
+                reader,
+                writerInstrumentationDecorator,
+                startRegion,
+                endRegion,
+                fetchExecutor
+            );
         }
 
         private int readSingleRegion(
@@ -1138,7 +1151,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
-            int region
+            int region,
+            final Executor fetchExecutor
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Integer> readFuture = new UnsafePlainActionFuture<>(
                 BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
@@ -1150,7 +1164,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 mapSubRangeToRegion(rangeToRead, region),
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                 writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
-                ioExecutor,
+                fetchExecutor,
                 readFuture
             );
             return readFuture.get();
@@ -1162,7 +1176,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
             int startRegion,
-            int endRegion
+            int endRegion,
+            final Executor fetchExecutor
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Void> readsComplete = new UnsafePlainActionFuture<>(
                 BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
@@ -1184,7 +1199,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                             writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
-                            ioExecutor,
+                            fetchExecutor,
                             listener
                         );
                     } catch (Exception e) {

@@ -9,17 +9,18 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,10 +30,12 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
-public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
+public class UpdateRequestBuilder extends ActionRequestLazyBuilder<UpdateRequest, UpdateResponse>
     implements
         WriteRequestBuilder<UpdateRequestBuilder> {
 
+    private String index;
+    private TimeValue timeout;
     private String id;
     private String routing;
     private Script script;
@@ -72,6 +75,16 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         super(client, TransportUpdateAction.TYPE);
         setIndex(index);
         setId(id);
+    }
+
+    public UpdateRequestBuilder setIndex(String index) {
+        this.index = index;
+        return this;
+    }
+
+    public UpdateRequestBuilder setTimeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
     }
 
     /**
@@ -422,7 +435,12 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     public UpdateRequest request() {
         validate();
         UpdateRequest request = new UpdateRequest();
-        super.apply(request);
+        if (index != null) {
+            request.index(index);
+        }
+        if (timeout != null) {
+            request.timeout(timeout);
+        }
         if (id != null) {
             request.id(id);
         }

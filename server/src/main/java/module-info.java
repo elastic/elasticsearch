@@ -148,7 +148,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
     exports org.elasticsearch.action.support.replication;
-    exports org.elasticsearch.action.support.single.instance;
     exports org.elasticsearch.action.support.single.shard;
     exports org.elasticsearch.action.support.tasks;
     exports org.elasticsearch.action.termvectors;

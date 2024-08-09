@@ -29,6 +29,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
         .nodes(NODE_NUM)
+        .node(0, s -> s.name("test-cluster-data-1").setting("node.roles", "data"))
         .setting("path.repo", new Supplier<>() {
             @Override
             @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")

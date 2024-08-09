@@ -835,32 +835,20 @@ This is not shown for the `shards` level, since mappings may be shared across th
 =======
 
 `shards`::
-(object) Contains statistics aggregated at the `shards` level, per index, as well as shard-specific statistics.
+(object) When the `shards` level is requested, contains the aforementioned `indices` statistics for every shard (per
+index, and then per shard ID), as well as the following shard-specific statistics (which are not shown when the
+requested level is higher than `shards`):
 +
-.Properties of `shards`
+.Additional shard-specific statistics for the `shards` level
 [%collapsible%open]
 =======
 
-`<index_name>`::
-(array of objects) Contains a list of all shards for the index.
-+
-.Properties of `<index_name>`
-[%collapsible%open]
-========
-
-`<shard_id>`::
-(object) Contains statistics for the shard.
-+
-.Properties of `<shard_id>`
-[%collapsible%open]
-=========
-
 `routing`::
-(object) Contains routing information about the shard instance.
+(object) Contains routing information about the shard.
 +
 .Properties of `routing`
 [%collapsible%open]
-==========
+========
 
 `state`::
 (string) State of the shard. Returned values are:
@@ -879,14 +867,14 @@ This is not shown for the `shards` level, since mappings may be shared across th
 `relocating_node`::
 (string) ID of the node the shard is either relocating to or relocating from, or null if shard is not relocating.
 
-==========
+========
 
 `commit`::
 (object) Contains information regarding the last commit point of the shard.
 +
 .Properties of `commit`
 [%collapsible%open]
-==========
+========
 
 `id`::
 (string) Base64 version of the commit ID.
@@ -900,14 +888,14 @@ This is not shown for the `shards` level, since mappings may be shared across th
 `num_docs`::
 (integer) The number of docs in the commit.
 
-==========
+========
 
 `seq_no`::
-(object) Contains information about sequence numbers and checkpoints for the shard.
+(object) Contains information about <<optimistic-concurrency-control,sequence numbers>> and checkpoints for the shard.
 +
 .Properties of `seq_no`
 [%collapsible%open]
-==========
+========
 
 `max_seq_no`::
 (integer) The maximum sequence number issued so far.
@@ -918,17 +906,17 @@ This is not shown for the `shards` level, since mappings may be shared across th
 `global_checkpoint`::
 (integer) The current global checkpoint of the shard.
 
-==========
+========
 
 `retention_leases`::
-(object) Contains information about history retention leases.
+(object) Contains information about <<index-modules-history-retention,history retention leases>>.
 +
 .Properties of `retention_leases`
 [%collapsible%open]
-==========
+========
 
 `primary_term`::
-(integer) The current primary term.
+(integer) The primary term of this retention lease collection.
 
 `version`::
 (integer) The current version of the retention lease collection.
@@ -938,7 +926,7 @@ This is not shown for the `shards` level, since mappings may be shared across th
 +
 .Properties of `leases`
 [%collapsible%open]
-===========
+=========
 
 `id`::
 (string) The ID of the lease.
@@ -953,36 +941,34 @@ Recorded in milliseconds since the {wikipedia}/Unix_time[Unix Epoch].
 `source`::
 (string) The source of the lease.
 
-===========
-==========
+=========
+========
 
 `shard_path`::
 (object)
 +
 .Properties of `shard_path`
 [%collapsible%open]
-==========
+========
 
 `state_path`::
-(string) The file system path to the shard state.
+(string) The state-path root, without the index name and the shard ID.
 
 `data_path`::
-(string) The file system path to the data belonging to the shard.
+(string) The data-path root, without the index name and the shard ID.
 
 `is_custom_data_path`::
-(boolean) Whether the data path is a custom set location or not.
+(boolean) Whether the data path is a custom data location and therefore outside of the nodes configured data paths.
 
-==========
+========
 
 `search_idle`::
-(boolean) Whether the shard is search idle or not.
+(boolean) Whether the shard is <<dynamic-index-search-idle-after,search idle>> or not.
 
 `search_idle_time`::
 (integer) Time since previous searcher access.
 Recorded in milliseconds.
 
-=========
-========
 =======
 ======
 

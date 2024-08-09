@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -24,12 +25,12 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartActio
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -38,102 +39,126 @@ import static org.elasticsearch.core.Strings.format;
  */
 class ModelImporter {
     private static final int DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB
-    private static final int MAX_IN_FLIGHT_REQUESTS = 5;
+    private static final int MAX_IN_FLIGHT_REQUESTS = 3;
     private static final Logger logger = LogManager.getLogger(ModelImporter.class);
     private final Client client;
     private final String modelId;
     private final ModelPackageConfig config;
     private final ModelDownloadTask task;
-    private final Semaphore requestLimiter;
 
     ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, ModelDownloadTask task) {
         this.client = client;
         this.modelId = Objects.requireNonNull(modelId);
         this.config = Objects.requireNonNull(packageConfig);
         this.task = Objects.requireNonNull(task);
-        this.requestLimiter = new Semaphore(MAX_IN_FLIGHT_REQUESTS);
     }
 
-    public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException, InterruptedException {
+    public void doImport(ActionListener<AcknowledgedResponse> finalListener) {
         long size = config.getSize();
 
-        var releasingListener = ActionListener.<AcknowledgedResponse>wrap(r -> requestLimiter.release(), e -> requestLimiter.release());
+        var firstError = new AtomicReference<Exception>();
+        var requestLimiter = new Semaphore(MAX_IN_FLIGHT_REQUESTS);
 
-        // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
-        // download is complete
-        if (Strings.isNullOrEmpty(config.getVocabularyFile()) == false) {
-            uploadVocabulary(releasingListener);
+        try (var countingListener = new RefCountingListener(1, finalListener.map(ignored -> AcknowledgedResponse.TRUE))) {
+            var releasingListener = ActionListener.<AcknowledgedResponse>wrap(r -> requestLimiter.release(), e -> {
+                requestLimiter.release();
+                firstError.compareAndSet(null, e);
+            });
 
-            logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
-        }
+            // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
+            // download is complete
+            if (Strings.isNullOrEmpty(config.getVocabularyFile()) == false) {
+                uploadVocabulary(requestLimiter, releasingListener);
 
-        URI uri = ModelLoaderUtils.resolvePackageLocation(
-            config.getModelRepository(),
-            config.getPackagedModelId() + ModelLoaderUtils.MODEL_FILE_EXTENSION
-        );
+                logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
+            }
 
-        InputStream modelInputStream = ModelLoaderUtils.getInputStreamFromModelRepository(uri);
+            URI uri = ModelLoaderUtils.resolvePackageLocation(
+                config.getModelRepository(),
+                config.getPackagedModelId() + ModelLoaderUtils.MODEL_FILE_EXTENSION
+            );
 
-        ModelLoaderUtils.InputStreamChunker chunkIterator = new ModelLoaderUtils.InputStreamChunker(modelInputStream, DEFAULT_CHUNK_SIZE);
+            InputStream modelInputStream = ModelLoaderUtils.getInputStreamFromModelRepository(uri);
 
-        // simple round up
-        int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
+            ModelLoaderUtils.InputStreamChunker chunkIterator = new ModelLoaderUtils.InputStreamChunker(
+                modelInputStream,
+                DEFAULT_CHUNK_SIZE
+            );
 
-        for (int part = 0; part < totalParts - 1; ++part) {
-            task.setProgress(totalParts, part);
+            // simple round up
+            int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
+
+            for (int part = 0; part < totalParts - 1; ++part) {
+                task.setProgress(totalParts, part);
+                BytesArray definition = chunkIterator.next();
+
+                PutTrainedModelDefinitionPartAction.Request modelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
+                    modelId,
+                    definition,
+                    part,
+                    size,
+                    totalParts,
+                    true
+                );
+
+                executeRequestIfNotCancelled(
+                    PutTrainedModelDefinitionPartAction.INSTANCE,
+                    modelPartRequest,
+                    requestLimiter,
+                    releasingListener
+                );
+            }
+
+            // get the last part, this time verify the checksum and size
             BytesArray definition = chunkIterator.next();
 
-            PutTrainedModelDefinitionPartAction.Request modelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
+            if (config.getSha256().equals(chunkIterator.getSha256()) == false) {
+                String message = format(
+                    "Model sha256 checksums do not match, expected [%s] but got [%s]",
+                    config.getSha256(),
+                    chunkIterator.getSha256()
+                );
+
+                throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
+            }
+
+            if (config.getSize() != chunkIterator.getTotalBytesRead()) {
+                String message = format(
+                    "Model size does not match, expected [%d] but got [%d]",
+                    config.getSize(),
+                    chunkIterator.getTotalBytesRead()
+                );
+
+                throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
+            }
+
+            PutTrainedModelDefinitionPartAction.Request finalModelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
                 modelId,
                 definition,
-                part,
+                totalParts - 1,
                 size,
                 totalParts,
                 true
             );
 
-            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest, releasingListener);
-        }
-
-        // get the last part, this time verify the checksum and size
-        BytesArray definition = chunkIterator.next();
-
-        if (config.getSha256().equals(chunkIterator.getSha256()) == false) {
-            String message = format(
-                "Model sha256 checksums do not match, expected [%s] but got [%s]",
-                config.getSha256(),
-                chunkIterator.getSha256()
+            executeRequestIfNotCancelled(
+                PutTrainedModelDefinitionPartAction.INSTANCE,
+                finalModelPartRequest,
+                requestLimiter,
+                releasingListener
             );
 
-            throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
+            requestLimiter.acquire(MAX_IN_FLIGHT_REQUESTS); // cannot acquire until all inflight requests have completed
+
+            logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
+        } catch (Exception e) {
+            
+//            finalListener.onFailure(e); TODO is this called twice
         }
-
-        if (config.getSize() != chunkIterator.getTotalBytesRead()) {
-            String message = format(
-                "Model size does not match, expected [%d] but got [%d]",
-                config.getSize(),
-                chunkIterator.getTotalBytesRead()
-            );
-
-            throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
-        }
-
-        PutTrainedModelDefinitionPartAction.Request finalModelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
-            modelId,
-            definition,
-            totalParts - 1,
-            size,
-            totalParts,
-            true
-        );
-
-        executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest, releasingListener);
-        logger.info("waiting for finish");
-        requestLimiter.acquire(MAX_IN_FLIGHT_REQUESTS); // cannot acquire until all inflight requests have completed
-        logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
     }
 
-    private void uploadVocabulary(ActionListener<AcknowledgedResponse> listener) throws URISyntaxException, InterruptedException {
+    private void uploadVocabulary(Semaphore requestLimiter, ActionListener<AcknowledgedResponse> listener) throws URISyntaxException,
+        InterruptedException {
         ModelLoaderUtils.VocabularyParts vocabularyParts = ModelLoaderUtils.loadVocabulary(
             ModelLoaderUtils.resolvePackageLocation(config.getModelRepository(), config.getVocabularyFile())
         );
@@ -146,12 +171,13 @@ class ModelImporter {
             true
         );
 
-        executeRequestIfNotCancelled(PutTrainedModelVocabularyAction.INSTANCE, request, listener);
+        executeRequestIfNotCancelled(PutTrainedModelVocabularyAction.INSTANCE, request, requestLimiter, listener);
     }
 
     private <Request extends ActionRequest, Response extends ActionResponse> void executeRequestIfNotCancelled(
         ActionType<Response> action,
         Request request,
+        Semaphore requestLimiter,
         ActionListener<Response> listener
     ) throws InterruptedException {
         if (task.isCancelled()) {

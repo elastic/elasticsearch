@@ -62,6 +62,12 @@ grant codeBase "${codebase.elasticsearch-core}" {
   permission java.lang.RuntimePermission "getClassLoader";
 };
 
+//grant codeBase "${codebase.elasticsearch-nalbind}" {
+grant {
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
 grant codeBase "${codebase.elasticsearch-cli}" {
   // we don't actually use write, but it is needed to get the entire property map
   permission java.util.PropertyPermission "*", "read,write";

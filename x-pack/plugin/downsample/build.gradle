@@ -18,6 +18,7 @@ dependencies {
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
+  compileOnly project(':libs:elasticsearch-nalbind')
 }
 
 addQaCheckDependencies(project)

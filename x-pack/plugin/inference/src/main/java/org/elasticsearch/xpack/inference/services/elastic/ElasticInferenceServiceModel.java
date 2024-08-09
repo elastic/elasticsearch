@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenc
 import java.util.Map;
 import java.util.Objects;
 
-//TODO: test
 public abstract class ElasticInferenceServiceModel extends Model {
 
     private final ElasticInferenceServiceRateLimitServiceSettings rateLimitServiceSettings;
@@ -52,7 +51,5 @@ public abstract class ElasticInferenceServiceModel extends Model {
     }
 
     public abstract ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings);
-
-    // TODO: don't expose rate limit settings
 
 }

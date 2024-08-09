@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.inference.services.elser.ElserModels;
 
 public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
 
-    // TODO: place create model utility methods for other tests here
-
     public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url) {
         return createModel(url, null);
     }

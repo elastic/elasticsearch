@@ -18,7 +18,6 @@ public abstract class ElasticInferenceServiceRequestManager extends BaseRequestM
         super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
     }
 
-    // TODO: this should change in the future to a per tenant grouping (api key?)
     record RateLimitGrouping(int modelIdHash) {
         public static RateLimitGrouping of(ElasticInferenceServiceModel model) {
             Objects.requireNonNull(model);

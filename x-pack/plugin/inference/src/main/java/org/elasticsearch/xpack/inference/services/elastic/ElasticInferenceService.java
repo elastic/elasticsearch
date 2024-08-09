@@ -49,8 +49,6 @@ public class ElasticInferenceService extends SenderService {
 
     public static final String NAME = "elastic";
 
-    static final int EMBEDDING_MAX_BATCH_SIZE = 20;
-
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
     public ElasticInferenceService(
@@ -108,7 +106,6 @@ public class ElasticInferenceService extends SenderService {
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         // Pass-through without actually performing chunking (result will have a single chunk per input)
-        // TODO: discuss chunking strategy and implement it
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
         );

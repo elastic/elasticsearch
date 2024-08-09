@@ -24,7 +24,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-//TODO: test
 public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
 
     private final URI uri;
@@ -43,11 +42,8 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             inferenceEntityId,
             taskType,
             service,
-            // TODO: do we need parsing context here?
             ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            // TODO: embeddings size?
             EmptyTaskSettings.INSTANCE,
-            // TODO: empty secret settings?
             EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents
         );
@@ -104,7 +100,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     }
 
     private URI createUri() throws URISyntaxException {
-        // TODO: use URI builder here
         String modelId = getServiceSettings().modelId();
         String modelIdUriPath;
 

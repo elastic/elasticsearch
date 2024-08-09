@@ -60,8 +60,6 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 return;
             }
 
-            // TODO: check for EIS endpoints -> trigger model storage
-
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // not the wildcard task type and not the model task type
                 delegate.onFailure(

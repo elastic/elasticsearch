@@ -37,7 +37,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     public static final String NAME = "elastic_inference_service_sparse_embeddings_service_settings";
 
-    // TODO: to be determined
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings fromMap(
@@ -53,7 +52,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        // TODO: dims?
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -63,7 +61,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             context
         );
 
-        // TODO: add "ELSERv2" or change in model-server?
         if (modelId != null && ElserModels.isValidEisModel(modelId) == false) {
             validationException.addValidationError("unknown ELSER model id [" + modelId + "]");
         }

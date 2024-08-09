@@ -183,6 +183,9 @@ Query cache evictions, such as `0`.
 `recoverysource.type`, `rs`::
 Type of recovery source.
 
+`refresh.is_search_idle`, `rsi`, `refreshSearchIdle`::
+Whether the shard is idle or not.
+
 `refresh.total`, `rto`, `refreshTotal`::
 Number of refreshes, such as `16`.
 

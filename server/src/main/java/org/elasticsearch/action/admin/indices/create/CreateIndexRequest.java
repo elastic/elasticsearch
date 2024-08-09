@@ -67,8 +67,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private boolean initializeFailureStore;
 
     private Settings settings = Settings.EMPTY;
+    private static final String EMPTY_MAPPINGS = "{}";
 
-    private String mappings = "{}";
+    private String mappings = EMPTY_MAPPINGS;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -284,8 +285,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        // wrap it in a type map if its not
-        if (source.size() != 1 || source.containsKey(type) == false) {
+        if (source.isEmpty()) {
+            // If no source is provided we return empty mappings
+            return mapping(EMPTY_MAPPINGS);
+        } else if (source.size() != 1 || source.containsKey(type) == false) {
+            // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
         } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
             // if it has a different type name, then unwrap and rewrap with _doc

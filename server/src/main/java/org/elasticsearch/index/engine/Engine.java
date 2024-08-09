@@ -113,7 +113,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public abstract class Engine implements Closeable {
+public abstract class Engine {
 
     @UpdateForV9 // TODO: Remove sync_id in 9.0
     public static final String SYNC_COMMIT_ID = "sync_id";
@@ -2050,7 +2050,6 @@ public abstract class Engine implements Closeable {
         awaitPendingClose();
     }
 
-    @Override
     public void close() throws IOException {
         logger.debug("close() maybe draining ops");
         if (isClosed.get() == false && drainForClose()) {
@@ -2297,6 +2296,15 @@ public abstract class Engine implements Closeable {
 
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
         listener.onFailure(new UnsupportedOperationException("Engine type " + this.getClass() + " does not support flush listeners."));
+    }
+
+    /**
+     * Safely close the provided engine
+     */
+    public static void close(@Nullable Engine engine) throws IOException {
+        if (engine != null) {
+            engine.close();
+        }
     }
 
     /**

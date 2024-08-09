@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
@@ -193,15 +194,20 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         // is identical to an existing job (meaning the version has not changed) then this does
         // not reschedule it.
         scheduledTasks.computeIfAbsent(jobId, id -> {
-            final SchedulerEngine.Job job = new SchedulerEngine.Job(
-                jobId,
-                new CronSchedule(snapshotLifecyclePolicy.getPolicy().getSchedule())
-            );
             if (existingJobsFoundAndCancelled) {
                 logger.info("rescheduling updated snapshot lifecycle job [{}]", jobId);
             } else {
                 logger.info("scheduling snapshot lifecycle job [{}]", jobId);
             }
+
+            final SchedulerEngine.Job job;
+            if (snapshotLifecyclePolicy.getPolicy().isCronSchedule()) {
+                job = new SchedulerEngine.Job(jobId, new CronSchedule(snapshotLifecyclePolicy.getPolicy().getSchedule()));
+            } else {
+                TimeValue timeValue = TimeValue.parseTimeValue(snapshotLifecyclePolicy.getPolicy().getSchedule(), "schedule");
+                job = new SchedulerEngine.Job(jobId, new TimeValueSchedule(timeValue), snapshotLifecyclePolicy.getModifiedDate());
+            }
+
             scheduler.add(job);
             return job;
         });
@@ -249,7 +255,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      */
     public static void validateMinimumInterval(final SnapshotLifecyclePolicy lifecycle, final ClusterState state) {
         TimeValue minimum = LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING.get(state.metadata().settings());
-        TimeValue next = lifecycle.calculateNextInterval();
+        TimeValue next = lifecycle.calculateNextInterval(Clock.systemUTC());
         if (next.duration() > 0 && minimum.duration() > 0 && next.millis() < minimum.millis()) {
             throw new IllegalArgumentException(
                 "invalid schedule ["

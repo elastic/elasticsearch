@@ -100,13 +100,19 @@ Minimum number of snapshots to retain, even if the snapshots have expired.
 ====
 
 `schedule`::
-(Required, <<api-cron-expressions,Cron syntax>>)
+(Required, <<api-cron-expressions,Cron syntax>> or <<time-units, time units>>)
 Periodic or absolute schedule at which the policy creates snapshots. {slm-init}
 applies `schedule` changes immediately.
+Schedule may be either a Cron schedule or a time unit describing the interval between snapshots.
+When using a time unit interval, the first snapshot is scheduled one interval after the policy modification time, and then again every interval after.
+
 
 [[slm-api-put-example]]
 ==== {api-examples-title}
 
+
+[[slm-api-put-daily-policy]]
+===== Create a policy
 Create a `daily-snapshots` lifecycle policy:
 
 [source,console]
@@ -139,3 +145,24 @@ PUT /_slm/policy/daily-snapshots
 <7> Keep snapshots for 30 days
 <8> Always keep at least 5 successful snapshots, even if they're more than 30 days old
 <9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
+
+
+[[slm-api-put-hourly-policy]]
+===== Use Interval Scheduling
+Create an `hourly-snapshots` lifecycle policy using interval scheduling:
+
+[source,console]
+--------------------------------------------------
+PUT /_slm/policy/hourly-snapshots
+{
+  "schedule": "1h",
+  "name": "<hourly-snap-{now/d}>",
+  "repository": "my_repository",
+  "config": {
+    "indices": ["data-*", "important"]
+  }
+}
+--------------------------------------------------
+// TEST[setup:setup-repository]
+Creates a snapshot once every hour. The first snapshot will be created one hour after the policy is modified,
+with subsequent snapshots being created every hour afterward.

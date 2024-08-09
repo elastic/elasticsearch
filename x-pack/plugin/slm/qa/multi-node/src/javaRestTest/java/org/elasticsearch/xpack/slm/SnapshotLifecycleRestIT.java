@@ -108,7 +108,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // allow arbitrarily frequent slm snapshots
         disableSLMMinimumIntervalValidation();
 
-        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
+        var schedule = randomBoolean() ? "*/1 * * * * ?" : "1s";
+        createSnapshotPolicy(policyName, "snap", schedule, repoId, indexName, true);
 
         // Check that the snapshot was actually taken
         assertBusy(() -> {
@@ -176,7 +177,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         disableSLMMinimumIntervalValidation();
 
         // Create a policy with ignore_unavailable: false and an index that doesn't exist
-        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoName, indexPattern, false);
+        var schedule = randomBoolean() ? "*/1 * * * * ?" : "1s";
+        createSnapshotPolicy(policyName, "snap", schedule, repoName, indexPattern, false);
 
         assertBusy(() -> {
             // Check that the failure is written to the cluster state
@@ -300,10 +302,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         });
 
         try {
+            var schedule = randomBoolean() ? "0 0/15 * * * ?" : "30m";
             createSnapshotPolicy(
                 policyName,
                 "snap",
-                "0 0/15 * * * ?",
+                schedule,
                 repoId,
                 indexName,
                 true,

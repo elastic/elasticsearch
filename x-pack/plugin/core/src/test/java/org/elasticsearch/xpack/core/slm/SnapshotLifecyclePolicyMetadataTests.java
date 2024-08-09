@@ -13,7 +13,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotInvocationRecordTests.randomSnapshotInvocationRecord;
@@ -79,7 +81,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         SnapshotLifecyclePolicyMetadata.Builder builder = SnapshotLifecyclePolicyMetadata.builder()
             .setPolicy(randomSnapshotLifecyclePolicy(policyId))
             .setVersion(randomNonNegativeLong())
-            .setModifiedDate(randomNonNegativeLong());
+            .setModifiedDate(randomModifiedTime());
         if (randomBoolean()) {
             builder.setHeaders(randomHeaders());
         }
@@ -102,6 +104,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
         }
+
         return new SnapshotLifecyclePolicy(
             policyId,
             randomAlphaOfLength(4),
@@ -122,7 +125,22 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
             );
     }
 
-    public static String randomSchedule() {
+    public static String randomCronSchedule() {
         return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
+    }
+
+    public static String randomTimeValueString() {
+        // minimum valid time value for schedule is 1ms
+        List<String> units = List.of("ms", "s", "m", "h", "d");
+        return randomIntBetween(1, 1000) + randomFrom(units);
+    }
+
+    public static String randomSchedule() {
+        return randomBoolean() ? randomCronSchedule() : randomTimeValueString();
+    }
+
+    public static long randomModifiedTime() {
+        // if modified time is after the current time, validation will fail
+        return randomLongBetween(0, Clock.systemUTC().millis());
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -129,9 +130,27 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         return this.retentionPolicy;
     }
 
-    public long calculateNextExecution() {
-        final Cron scheduleEvaluator = new Cron(this.schedule);
-        return scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
+    /**
+     * @return whether `schedule` is a cron expression, as opposed to a time unit
+     */
+    public boolean isCronSchedule() {
+        try {
+            new Cron(schedule);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    public long calculateNextExecution(long modifiedDate, Clock clock) {
+        if (isCronSchedule()) {
+            final Cron scheduleEvaluator = new Cron(this.schedule);
+            return scheduleEvaluator.getNextValidTimeAfter(clock.millis());
+        } else {
+            final TimeValue interval = TimeValue.parseTimeValue(this.schedule, SCHEDULE.getPreferredName());
+            final TimeValueSchedule timeValueSchedule = new TimeValueSchedule(interval);
+            return timeValueSchedule.nextScheduledTimeAfter(modifiedDate, clock.millis());
+        }
     }
 
     /**
@@ -139,13 +158,17 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
      * <p>
      * In ordinary cases, this can be treated as the interval between executions of the schedule (for schedules like 'twice an hour' or
      * 'every five minutes').
-     *
+     * @param clock a clock to provide current time
      * @return a {@link TimeValue} representing the difference between the next two valid times after now, or {@link TimeValue#MINUS_ONE}
      *         if either of the next two times after now is unsupported according to @{@link Cron#getNextValidTimeAfter(long)}
      */
-    public TimeValue calculateNextInterval() {
+    public TimeValue calculateNextInterval(Clock clock) {
+        if (isCronSchedule() == false) {
+            return TimeValue.parseTimeValue(schedule, SCHEDULE.getPreferredName());
+        }
+
         final Cron scheduleEvaluator = new Cron(this.schedule);
-        long next1 = scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
+        long next1 = scheduleEvaluator.getNextValidTimeAfter(clock.millis());
         long next2 = scheduleEvaluator.getNextValidTimeAfter(next1);
         if (next1 > 0 && next2 > 0) {
             return TimeValue.timeValueMillis(next2 - next1);
@@ -182,13 +205,21 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         }
 
         // Schedule validation
+        // n.b. there's more validation beyond this in SnapshotLifecycleService#validateMinimumInterval
         if (Strings.hasText(schedule) == false) {
             err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
         } else {
             try {
-                new Cron(schedule);
-            } catch (IllegalArgumentException e) {
-                err.addValidationError("invalid schedule: " + ExceptionsHelper.unwrapCause(e).getMessage());
+                var intervalTimeValue = TimeValue.parseTimeValue(schedule, SCHEDULE.getPreferredName());
+                if (intervalTimeValue.millis() == 0) {
+                    err.addValidationError("invalid schedule [" + schedule + "]: time unit must be at least 1 millisecond");
+                }
+            } catch (IllegalArgumentException e1) {
+                try {
+                    new Cron(schedule);
+                } catch (IllegalArgumentException e2) {
+                    err.addValidationError("invalid schedule [" + schedule + "]: must be a valid cron expression or time unit");
+                }
             }
         }
 

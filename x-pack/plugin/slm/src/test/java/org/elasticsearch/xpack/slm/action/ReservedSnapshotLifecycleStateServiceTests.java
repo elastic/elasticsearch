@@ -83,7 +83,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         assertThat(action.optionalDependencies(), contains(ReservedRepositoryAction.NAME));
     }
 
-    public void testValidationFails() {
+    public void testValidationFailsNeitherScheduleOrInterval() {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final ClusterName clusterName = new ClusterName("elasticsearch");

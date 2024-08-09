@@ -20,7 +20,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -115,24 +117,26 @@ public class CCSUsage {
             if (unwrapped instanceof Exception) {
                 e = (Exception) unwrapped;
             }
-            if (ExceptionsHelper.unwrapCorruption(e) != null) {
-                return Result.CORRUPTION;
+            if (isRemoteUnavailable(e)) {
+                return Result.REMOTES_UNAVAILABLE;
             }
             if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
                 return Result.NOT_FOUND;
             }
-            if (ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class) != null) {
-                return Result.SECURITY;
+            if (e instanceof TaskCancelledException || (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null)) {
+                return Result.CANCELED;
             }
             if (ExceptionsHelper.unwrap(e, SearchTimeoutException.class) != null) {
                 return Result.TIMEOUT;
             }
-            if (e instanceof TaskCancelledException || (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null)) {
-                return Result.CANCELED;
+            if (ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class) != null) {
+                return Result.SECURITY;
             }
-            if (ExceptionsHelper.unwrap(e, TransportException.class) != null) {
-                return Result.REMOTES_UNAVAILABLE;
+            if (ExceptionsHelper.unwrapCorruption(e) != null) {
+                return Result.CORRUPTION;
             }
+            // This is kind of last resort check - if we still don't know the reason but all shard failures are remote,
+            // we assume it's remote's fault somehow.
             if (e instanceof SearchPhaseExecutionException spe) {
                 // If this is a failure that happened because of remote failures only
                 var groupedFails = ExceptionsHelper.groupBy(spe.shardFailures());
@@ -140,7 +144,29 @@ public class CCSUsage {
                     return Result.REMOTES_UNAVAILABLE;
                 }
             }
+            // OK we don't know what happened
             return Result.UNKNOWN;
+        }
+
+        /**
+         * Is this failure exception because remote was unavailable?
+         * See also: TransportResolveClusterAction#notConnectedError
+         */
+        public static boolean isRemoteUnavailable(Exception e) {
+            if (ExceptionsHelper.unwrap(
+                e,
+                ConnectTransportException.class,
+                NoSuchRemoteClusterException.class,
+                NoSeedNodeLeftException.class
+            ) != null) {
+                return true;
+            }
+            Throwable ill = ExceptionsHelper.unwrap(e, IllegalStateException.class, IllegalArgumentException.class);
+            if (ill != null && (ill.getMessage().contains("Unable to open any connections") || ill.getMessage().contains("unknown host"))) {
+                return true;
+            }
+            // Ok doesn't look like any of the known remote exceptions
+            return false;
         }
 
         /**

@@ -1,0 +1,5 @@
+pr: 111752
+summary: "[8.15] Fix: Preallocate open ignored creation flag"
+area: Infra/Core
+type: bug
+issues: []

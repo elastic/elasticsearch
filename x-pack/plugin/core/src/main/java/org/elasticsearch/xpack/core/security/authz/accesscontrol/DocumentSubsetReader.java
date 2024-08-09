@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -85,31 +84,21 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
     /**
      * Like {@link #computeNumDocs} but caches results.
      */
-    private static int getNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) throws IOException, ExecutionException {
+    private static int getNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) throws ExecutionException {
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper(); // this one takes deletes into account
         if (cacheHelper == null) {
             return computeNumDocs(reader, roleQueryBits);
         }
-        final boolean[] added = new boolean[] { false };
-        Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(), key -> {
-            added[0] = true;
-            return CacheBuilder.<Query, Integer>builder()
+        return NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(), key -> {
+            var res = CacheBuilder.<Query, Integer>builder()
                 // Not configurable, this limit only exists so that if a role query is updated
                 // then we won't risk OOME because of old role queries that are not used anymore
                 .setMaximumWeight(1000)
                 .weigher((k, v) -> 1) // just count
                 .build();
-        });
-        if (added[0]) {
-            IndexReader.ClosedListener closedListener = NUM_DOCS_CACHE::remove;
-            try {
-                cacheHelper.addClosedListener(closedListener);
-            } catch (AlreadyClosedException e) {
-                closedListener.onClose(cacheHelper.getKey());
-                throw e;
-            }
-        }
-        return perReaderCache.computeIfAbsent(roleQuery, q -> computeNumDocs(reader, roleQueryBits));
+            cacheHelper.addClosedListener(NUM_DOCS_CACHE::remove);
+            return res;
+        }).computeIfAbsent(roleQuery, q -> computeNumDocs(reader, roleQueryBits));
     }
 
     public static final class DocumentSubsetDirectoryReader extends FilterDirectoryReader {

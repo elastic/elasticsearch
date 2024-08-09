@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -289,6 +290,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 public boolean isCompound() {
                     return true;
                 }
+
+                @Override
+                public QueryBuilder topDocsQuery() {
+                    return null;
+                }
             }));
             searchRequest.allowPartialSearchResults(true);
             searchRequest.scroll((Scroll) null);
@@ -303,6 +309,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // allow_partial_results and non-compound retriever
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().retriever(new RetrieverBuilder() {
+                @Override
+                public QueryBuilder topDocsQuery() {
+                    return null;
+                }
+
                 @Override
                 public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
                     // no-op
@@ -360,6 +371,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 @Override
                 public boolean isCompound() {
                     return true;
+                }
+
+                @Override
+                public QueryBuilder topDocsQuery() {
+                    return null;
                 }
             }));
             searchRequest.scroll((Scroll) null);

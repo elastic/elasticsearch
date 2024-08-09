@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -73,6 +74,11 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     List<RetrieverBuilder> retrieverBuilders = Collections.emptyList();
     int rankWindowSize = RRFRankBuilder.DEFAULT_RANK_WINDOW_SIZE;
     int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
+
+    @Override
+    public QueryBuilder topDocsQuery() {
+        throw new IllegalStateException("{" + getName() + "} cannot be nested");
+    }
 
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {

@@ -200,7 +200,7 @@ public class ClientYamlTestExecutionContext {
                 for (int i = bytesRef.offset; i < bytesRef.length; i++) {
                     bytes[position++] = bytesRef.bytes[i];
                 }
-                bytes[position++] = xContentType.xContent().streamSeparator();
+                bytes[position++] = xContentType.xContent().bulkSeparator();
             }
             return new ByteArrayEntity(bytes, ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
         }

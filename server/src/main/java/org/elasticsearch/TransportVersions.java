@@ -187,8 +187,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_NESTED_UNSUPPORTED = def(8_717_00_0);
     public static final TransportVersion ESQL_SINGLE_VALUE_QUERY_SOURCE = def(8_718_00_0);
     public static final TransportVersion ESQL_ORIGINAL_INDICES = def(8_719_00_0);
-    public static final TransportVersion ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED = def(8_720_00_0);
-  
+    public static final TransportVersion ML_INFERENCE_EIS_INTEGRATION_ADDED = def(8_720_00_0);
+    public static final TransportVersion ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED = def(8_721_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -252,7 +252,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_14_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.response.huggingface;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -303,14 +302,17 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            XContentEOFException.class,
+            XContentParseException.class,
             () -> HuggingFaceElserResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(thrownException.getMessage(), containsString("expected close marker for Array (start marker at [Source: (byte[])"));
+        assertThat(
+            thrownException.getCause().getMessage(),
+            containsString("expected close marker for Array (start marker at [Source: (byte[])")
+        );
     }
 
     public void testFails_ResponseIsInvalidJson_MissingField() {

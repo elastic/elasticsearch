@@ -25,7 +25,7 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentEOFException;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -412,7 +412,7 @@ public final class BulkRequestParser {
     }
 
     @UpdateForV9
-    // Warnings will need to be replaced with XContentEOFException from 9.x
+    // Warnings will need to be replaced with XContentParseException from 9.x
     private static void warnBulkActionNotProperlyClosed(String message) {
         deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);
     }
@@ -421,12 +421,22 @@ public final class BulkRequestParser {
         XContentParser.Token token;
         try {
             token = parser.nextToken();
-        } catch (XContentEOFException ignore) {
-            warnBulkActionNotProperlyClosed(
-                "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
-                    + "rejected in a future version."
-            );
-            return;
+        } catch (XContentParseException e) {
+            Throwable cause = e.getCause();
+            if (cause != null) {
+                String exName = cause.getClass().getName();
+                if (exName.equals("com.fasterxml.jackson.core.io.JsonEOFException")) {
+                    warnBulkActionNotProperlyClosed(
+                        "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
+                            + "rejected in a future version."
+                    );
+                    return;
+                } else {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
         }
         if (token != XContentParser.Token.END_OBJECT) {
             warnBulkActionNotProperlyClosed(

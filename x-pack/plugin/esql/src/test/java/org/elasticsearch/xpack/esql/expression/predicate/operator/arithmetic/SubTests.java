@@ -22,8 +22,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

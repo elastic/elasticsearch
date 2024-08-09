@@ -27,8 +27,8 @@ import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

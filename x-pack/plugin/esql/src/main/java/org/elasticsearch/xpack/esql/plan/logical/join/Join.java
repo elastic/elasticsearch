@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -56,19 +55,15 @@ public class Join extends BinaryPlan {
     }
 
     public Join(StreamInput in) throws IOException {
-        super(
-            Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readLogicalPlanNode(),
-            ((PlanStreamInput) in).readLogicalPlanNode()
-        );
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        ((PlanStreamOutput) out).writeLogicalPlanNode(left());
-        ((PlanStreamOutput) out).writeLogicalPlanNode(right());
+        out.writeNamedWriteable(left());
+        out.writeNamedWriteable(right());
         config.writeTo(out);
     }
 
@@ -161,7 +156,7 @@ public class Join extends BinaryPlan {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
             if (a.resolved() && a instanceof ReferenceAttribute == false) {
-                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
+                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
             } else {
                 out.add(a);
             }

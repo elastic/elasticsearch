@@ -209,9 +209,21 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             }
         }
 
-        logger.debug("Appending {} {} commit with internal files {}", shardId, primaryTermAndGeneration, internalFiles);
-
         var header = materializeCompoundCommitHeader(reference, internalFiles, referencedFiles);
+
+        if (logger.isDebugEnabled()) {
+            var referencedBlobs = referencedFiles.values().stream().map(location -> location.blobFile().blobName()).distinct().count();
+            logger.debug(
+                "{}{} appending commit ({} bytes). References external {} files in {} other CCs and adds {} internal files {}.",
+                shardId,
+                primaryTermAndGeneration,
+                header.length + internalFilesSize,
+                referencedFiles.size(),
+                referencedBlobs,
+                internalFiles.size(),
+                internalFiles
+            );
+        }
 
         // Add padding to the previous CC if it exists
         if (pendingCompoundCommits.isEmpty() == false) {

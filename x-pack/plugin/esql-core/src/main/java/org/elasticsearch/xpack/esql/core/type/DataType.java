@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -140,6 +141,10 @@ public enum DataType {
      * Millisecond precision date, stored as a 64-bit signed number.
      */
     DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues()),
+    /**
+     * Nanosecond precision date, stored as a 64-bit signed number.
+     */
+    DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues()),
     /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
@@ -285,6 +290,9 @@ public enum DataType {
 
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
+        if (type == DATE_NANOS && EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
+            type = UNSUPPORTED;
+        }
         return type != null ? type : UNSUPPORTED;
     }
 
@@ -386,18 +394,34 @@ public enum DataType {
      * Supported types that can be contained in a block.
      */
     public static boolean isRepresentable(DataType t) {
-        return t != OBJECT
-            && t != UNSUPPORTED
-            && t != DATE_PERIOD
-            && t != TIME_DURATION
-            && t != BYTE
-            && t != SHORT
-            && t != FLOAT
-            && t != SCALED_FLOAT
-            && t != SOURCE
-            && t != HALF_FLOAT
-            && t != PARTIAL_AGG
-            && t.isCounter() == false;
+        if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled()) {
+            return t != OBJECT
+                && t != UNSUPPORTED
+                && t != DATE_PERIOD
+                && t != TIME_DURATION
+                && t != BYTE
+                && t != SHORT
+                && t != FLOAT
+                && t != SCALED_FLOAT
+                && t != SOURCE
+                && t != HALF_FLOAT
+                && t != PARTIAL_AGG
+                && t.isCounter() == false;
+        } else {
+            return t != OBJECT
+                && t != UNSUPPORTED
+                && t != DATE_PERIOD
+                && t != DATE_NANOS
+                && t != TIME_DURATION
+                && t != BYTE
+                && t != SHORT
+                && t != FLOAT
+                && t != SCALED_FLOAT
+                && t != SOURCE
+                && t != HALF_FLOAT
+                && t != PARTIAL_AGG
+                && t.isCounter() == false;
+        }
     }
 
     public static boolean isSpatialPoint(DataType t) {

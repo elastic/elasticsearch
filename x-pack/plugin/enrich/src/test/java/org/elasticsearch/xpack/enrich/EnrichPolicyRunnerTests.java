@@ -1805,23 +1805,23 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            protected void ensureSingleSegment(
-                String destinationIndexName,
-                int attempt,
-                ActionListener<ExecuteEnrichPolicyStatus> listener
-            ) {
-                forceMergeAttempts.incrementAndGet();
+            protected void afterRefreshEnrichIndex(ActionListener<Void> listener) {
+                final var attempt = forceMergeAttempts.incrementAndGet();
                 if (attempt == 1) {
                     // Put and flush a document to increase the number of segments, simulating not
                     // all segments were merged on the first try.
-                    DocWriteResponse indexRequest = client().index(
+                    client().index(
                         new IndexRequest().index(createdEnrichIndex)
                             .source(unmergedDocument)
-                            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    ).actionGet();
-                    assertEquals(RestStatus.CREATED, indexRequest.status());
+                            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+                        listener.delegateFailureAndWrap((l, response) -> {
+                            assertEquals(RestStatus.CREATED, response.status());
+                            super.afterRefreshEnrichIndex(l);
+                        })
+                    );
+                } else {
+                    super.afterRefreshEnrichIndex(listener);
                 }
-                super.ensureSingleSegment(destinationIndexName, attempt, listener);
             }
         };
 

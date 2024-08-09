@@ -34,7 +34,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
@@ -45,8 +44,14 @@ public class MvPercentile extends EsqlScalarFunction {
         MvPercentile::new
     );
 
-    // 2^52 is the smallest integer where it and all smaller integers can be represented exactly as double
-    private static final double MAX_SAFE_DOUBLE = Double.longBitsToDouble(0x4330000000000000L);
+    /**
+     * 2^52 is the smallest integer where it and all smaller integers can be represented exactly as double
+     */
+    private static final double MAX_SAFE_LONG_DOUBLE = Double.longBitsToDouble(0x4330000000000000L);
+    /**
+     * Max double that can be used to calculate averages without overflowing
+     */
+    private static final double MAX_SAFE_DOUBLE = Double.MAX_VALUE / 4;
 
     private final Expression field;
     private final Expression percentile;
@@ -230,10 +235,8 @@ public class MvPercentile extends EsqlScalarFunction {
                 builder.appendDouble(valuesBlock.getDouble(valueCount - 1));
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                var lowerValue = valuesBlock.getDouble(lowerIndex);
-                var upperValue = valuesBlock.getDouble(upperIndex);
-                var percentileValue = lowerValue + fraction * (upperValue - lowerValue);
-                builder.appendDouble(percentileValue);
+                var result = calculateDoublePercentile(fraction, valuesBlock.getDouble(lowerIndex), valuesBlock.getDouble(upperIndex));
+                builder.appendDouble(result);
             }
         }
 
@@ -251,10 +254,8 @@ public class MvPercentile extends EsqlScalarFunction {
             builder.appendDouble(values[valueCount - 1]);
         } else {
             assert lowerIndex >= 0 && upperIndex < valueCount;
-            var lowerValue = values[lowerIndex];
-            var upperValue = values[upperIndex];
-            var percentileValue = lowerValue + fraction * (upperValue - lowerValue);
-            builder.appendDouble(percentileValue);
+            var result = calculateDoublePercentile(fraction, values[lowerIndex], values[upperIndex]);
+            builder.appendDouble(result);
         }
     }
 
@@ -374,15 +375,32 @@ public class MvPercentile extends EsqlScalarFunction {
      * </p>
      */
     private static long calculateLongPercentile(double fraction, long lowerValue, long upperValue) {
-        if (upperValue < MAX_SAFE_DOUBLE && lowerValue > -MAX_SAFE_DOUBLE) {
+        if (upperValue < MAX_SAFE_LONG_DOUBLE && lowerValue > -MAX_SAFE_LONG_DOUBLE) {
             var difference = upperValue - lowerValue;
             return lowerValue + (long) (fraction * difference);
         }
 
-        var lowerBigDecimal = new BigDecimal(lowerValue);
-        var upperBigDecimal = new BigDecimal(upperValue);
-        var difference = upperBigDecimal.subtract(lowerBigDecimal);
+        return calculateBigDecimalPercentile(fraction, new BigDecimal(lowerValue), new BigDecimal(upperValue)).longValue();
+    }
+
+    /**
+     * Calculates a percentile for a double avoiding overflows.
+     * <p>
+     *     To do that, if the values are over a limit, it uses instead BigDecimals for the calculations.
+     * </p>
+     */
+    private static double calculateDoublePercentile(double fraction, double lowerValue, double upperValue) {
+        if (upperValue < MAX_SAFE_DOUBLE && lowerValue > -MAX_SAFE_DOUBLE) {
+            var difference = upperValue - lowerValue;
+            return lowerValue + fraction * difference;
+        }
+
+        return calculateBigDecimalPercentile(fraction, new BigDecimal(lowerValue), new BigDecimal(upperValue)).doubleValue();
+    }
+
+    private static BigDecimal calculateBigDecimalPercentile(double fraction, BigDecimal lowerValue, BigDecimal upperValue) {
+        var difference = upperValue.subtract(lowerValue);
         var fractionBigDecimal = new BigDecimal(fraction);
-        return lowerBigDecimal.add(fractionBigDecimal.multiply(difference)).longValue();
+        return lowerValue.add(fractionBigDecimal.multiply(difference));
     }
 }

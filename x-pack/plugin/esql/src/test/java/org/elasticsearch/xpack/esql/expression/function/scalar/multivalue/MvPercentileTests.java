@@ -127,6 +127,19 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                             equalTo(7.5)
                         )
                     ),
+                    new TestCaseSupplier(
+                        "big double difference",
+                        List.of(DOUBLE, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(-Double.MAX_VALUE, Double.MAX_VALUE), DOUBLE, "field"),
+                                percentileWithType(50, percentileType)
+                            ),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            closeTo(0, 0.0000001)
+                        )
+                    ),
 
                     // Int
                     new TestCaseSupplier(
@@ -313,7 +326,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                 var percentileTypedData = percentileSupplier.get();
 
                 var values = (List<Number>) fieldTypedData.data();
-                var percentile = ((Number) percentileTypedData.data()).intValue();
+                var percentile = ((Number) percentileTypedData.data()).doubleValue();
 
                 var expected = calculatePercentile(values, percentile);
 

@@ -167,7 +167,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                         len,
                         progressUpdater,
                         writeBuffer.get().clear(),
-                        SharedBytes.CacheCopyMetricsConsumer.NO_OP
+                        SharedBytes.CacheCopyMetricsConsumer.NOOP
                     );
                     final long endTimeNanos = stats.currentTimeNanos();
                     stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);

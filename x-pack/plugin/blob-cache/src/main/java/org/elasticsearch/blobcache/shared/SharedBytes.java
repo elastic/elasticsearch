@@ -221,7 +221,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     public interface CacheCopyMetricsConsumer {
 
-        CacheCopyMetricsConsumer NO_OP = (br, rtn, bw, wtn, et) -> {};
+        CacheCopyMetricsConsumer NOOP = (br, rtn, bw, wtn, et) -> {};
 
         /**
          * Notify the times taken to read from the input stream and write to the destination

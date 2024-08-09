@@ -707,7 +707,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
             final BytesReference searchContextId;
             if (buildPointInTimeFromSearchResults()) {
-                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion);
+                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion, failures);
             } else {
                 if (request.source() != null
                     && request.source().pointInTimeBuilder() != null

@@ -1116,11 +1116,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 final String clusterAlias = entry.getKey();
                 assert clusterAlias.equals(perNode.getClusterAlias()) : clusterAlias + " != " + perNode.getClusterAlias();
                 final List<String> targetNodes = new ArrayList<>(group.allocatedNodes().size());
-                targetNodes.add(perNode.getNode());
-                if (perNode.getSearchContextId().getSearcherId() != null) {
-                    for (String node : group.allocatedNodes()) {
-                        if (node.equals(perNode.getNode()) == false) {
-                            targetNodes.add(node);
+                if (perNode.getNode() != null) {
+                    // If the shard was available when the PIT was created, it's included.
+                    // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
+                    // be thrown when a search phase attempts to access it.
+                    targetNodes.add(perNode.getNode());
+                    if (perNode.getSearchContextId().getSearcherId() != null) {
+                        for (String node : group.allocatedNodes()) {
+                            if (node.equals(perNode.getNode()) == false) {
+                                targetNodes.add(node);
+                            }
                         }
                     }
                 }
@@ -1216,7 +1221,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             assert searchRequest.pointInTimeBuilder() != null;
             aliasFilter = resolvedIndices.getSearchContextId().aliasFilter();
             concreteLocalIndices = resolvedIndices.getLocalIndices() == null ? new String[0] : resolvedIndices.getLocalIndices().indices();
-            localShardIterators = getLocalLocalShardsIteratorFromPointInTime(
+            localShardIterators = getLocalShardsIteratorFromPointInTime(
                 clusterState,
                 searchRequest.indicesOptions(),
                 searchRequest.getLocalClusterAlias(),
@@ -1723,7 +1728,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
     }
 
-    static List<SearchShardIterator> getLocalLocalShardsIteratorFromPointInTime(
+    static List<SearchShardIterator> getLocalShardsIteratorFromPointInTime(
         ClusterState clusterState,
         IndicesOptions indicesOptions,
         String localClusterAlias,
@@ -1737,25 +1742,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (Strings.isEmpty(perNode.getClusterAlias())) {
                 final ShardId shardId = entry.getKey();
                 final List<String> targetNodes = new ArrayList<>(2);
-                try {
-                    final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
-                    // Prefer executing shard requests on nodes that are part of PIT first.
-                    if (clusterState.nodes().nodeExists(perNode.getNode())) {
-                        targetNodes.add(perNode.getNode());
-                    }
-                    if (perNode.getSearchContextId().getSearcherId() != null) {
-                        for (ShardRouting shard : shards) {
-                            if (shard.currentNodeId().equals(perNode.getNode()) == false) {
-                                targetNodes.add(shard.currentNodeId());
+                if (perNode.getNode() != null) {
+                    // If the shard was available when the PIT was created, it's included.
+                    // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
+                    // be thrown when a search phase attempts to access it.
+                    try {
+                        final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                        // Prefer executing shard requests on nodes that are part of PIT first.
+                        if (clusterState.nodes().nodeExists(perNode.getNode())) {
+                            targetNodes.add(perNode.getNode());
+                        }
+                        if (perNode.getSearchContextId().getSearcherId() != null) {
+                            for (ShardRouting shard : shards) {
+                                if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                    targetNodes.add(shard.currentNodeId());
+                                }
                             }
                         }
-                    }
-                } catch (IndexNotFoundException | ShardNotFoundException e) {
-                    // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
-                    // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards
-                    // when allowPartialSearchResults is false
-                    if (allowPartialSearchResults == false) {
-                        throw e;
+                    } catch (IndexNotFoundException | ShardNotFoundException e) {
+                        // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
+                        // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards
+                        // when allowPartialSearchResults is false
+                        if (allowPartialSearchResults == false) {
+                            throw e;
+                        }
                     }
                 }
                 OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);

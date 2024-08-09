@@ -1646,7 +1646,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
         TimeValue keepAlive = randomBoolean() ? null : TimeValue.timeValueSeconds(between(30, 3600));
 
-        final List<SearchShardIterator> shardIterators = TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
+        final List<SearchShardIterator> shardIterators = TransportSearchAction.getLocalShardsIteratorFromPointInTime(
             clusterState,
             null,
             null,
@@ -1691,7 +1691,7 @@ public class TransportSearchActionTests extends ESTestCase {
             )
         );
         IndexNotFoundException error = expectThrows(IndexNotFoundException.class, () -> {
-            TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
+            TransportSearchAction.getLocalShardsIteratorFromPointInTime(
                 clusterState,
                 null,
                 null,
@@ -1702,7 +1702,7 @@ public class TransportSearchActionTests extends ESTestCase {
         });
         assertThat(error.getIndex().getName(), equalTo("another-index"));
         // Ok when some indices don't exist and `allowPartialSearchResults` is true.
-        Optional<SearchShardIterator> anotherShardIterator = TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
+        Optional<SearchShardIterator> anotherShardIterator = TransportSearchAction.getLocalShardsIteratorFromPointInTime(
             clusterState,
             null,
             null,

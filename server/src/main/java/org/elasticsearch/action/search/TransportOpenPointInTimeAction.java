@@ -98,13 +98,19 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .routing(request.routing())
-            .allowPartialSearchResults(false)
+            .allowPartialSearchResults(request.allowPartialSearchResults())
             .source(new SearchSourceBuilder().query(request.indexFilter()));
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest((SearchTask) task, searchRequest, listener.map(r -> {
             assert r.pointInTimeId() != null : r;
-            return new OpenPointInTimeResponse(r.pointInTimeId());
+            return new OpenPointInTimeResponse(
+                r.pointInTimeId(),
+                r.getTotalShards(),
+                r.getSuccessfulShards(),
+                r.getFailedShards(),
+                r.getSkippedShards()
+            );
         }), searchListener -> new OpenPointInTimePhase(request, searchListener));
     }
 
@@ -215,7 +221,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ) {
                 @Override
                 protected String missingShardsErrorMessage(StringBuilder missingShards) {
-                    return "[open_point_in_time] action requires all shards to be available. Missing shards: [" + missingShards + "]";
+                    return "[open_point_in_time] action requires all shards to be available. Missing shards: ["
+                        + missingShards
+                        + "].  Consider using `allow_partial_search_results` setting to bypass this error.";
                 }
 
                 @Override

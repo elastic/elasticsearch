@@ -43,6 +43,23 @@ public class EsqlMediaTypeParser {
         return validateColumnarRequest(esqlRequest.columnar(), mediaType, request);
     }
 
+    /*
+     * If requests have no media type in params nor headers, default to JSON
+     */
+    public static MediaType getResponseMediaType(RestRequest request) {
+        MediaType mediaType;
+        if (request.hasParam(URL_PARAM_FORMAT)) {
+            mediaType = mediaTypeFromParams(request);
+        } else {
+            ParsedMediaType acceptType = request.getParsedAccept();
+            mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
+        }
+        if (mediaType == null) {
+            mediaType = XContentType.JSON;
+        }
+        return mediaType;
+    }
+
     private static MediaType mediaTypeFromHeaders(RestRequest request) {
         ParsedMediaType acceptType = request.getParsedAccept();
         MediaType mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();

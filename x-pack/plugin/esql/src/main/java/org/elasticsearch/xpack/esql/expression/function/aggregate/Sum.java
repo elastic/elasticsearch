@@ -83,7 +83,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
     @Override
     protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        return new SumLongAggregatorFunctionSupplier(inputChannels);
+        var location = source().source();
+        return new SumLongAggregatorFunctionSupplier(location.getLineNumber(), location.getColumnNumber(), source().text(), inputChannels);
     }
 
     @Override

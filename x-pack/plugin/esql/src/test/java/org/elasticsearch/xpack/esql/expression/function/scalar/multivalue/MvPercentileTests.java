@@ -356,6 +356,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
         var index = p * (valueCount - 1);
         var lowerIndex = (int) index;
         var upperIndex = lowerIndex + 1;
+        var fraction = index - lowerIndex;
 
         if (rawValues.get(0) instanceof Integer) {
             var values = rawValues.stream().mapToInt(Number::intValue).sorted().toArray();
@@ -366,7 +367,6 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                 return values[valueCount - 1];
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                var fraction = index - lowerIndex;
                 var difference = (long) values[upperIndex] - values[lowerIndex];
                 return values[lowerIndex] + (int) (fraction * difference);
             }
@@ -381,11 +381,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                 return values[valueCount - 1];
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                var fraction = new BigDecimal(index - lowerIndex);
-                var upperValue = new BigDecimal(values[upperIndex]);
-                var lowerValue = new BigDecimal(values[lowerIndex]);
-                var difference = upperValue.subtract(lowerValue);
-                return lowerValue.add(fraction.multiply(difference)).longValue();
+                return calculatePercentile(fraction, new BigDecimal(values[lowerIndex]), new BigDecimal(values[upperIndex])).longValue();
             }
         }
 
@@ -398,12 +394,15 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                 return values[valueCount - 1];
             } else {
                 assert lowerIndex >= 0 && upperIndex < valueCount;
-                var fraction = index - lowerIndex;
-                return values[lowerIndex] + fraction * (values[upperIndex] - values[lowerIndex]);
+                return calculatePercentile(fraction, new BigDecimal(values[lowerIndex]), new BigDecimal(values[upperIndex])).doubleValue();
             }
         }
 
         throw new IllegalArgumentException("Unsupported type: " + rawValues.get(0).getClass());
+    }
+
+    private static BigDecimal calculatePercentile(double fraction, BigDecimal lowerValue, BigDecimal upperValue) {
+        return lowerValue.add(new BigDecimal(fraction).multiply(upperValue.subtract(lowerValue)));
     }
 
     private static TestCaseSupplier.TypedData percentileWithType(int value, DataType type) {

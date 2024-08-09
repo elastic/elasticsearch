@@ -380,7 +380,11 @@ public class MvPercentile extends EsqlScalarFunction {
             return lowerValue + (long) (fraction * difference);
         }
 
-        return calculateBigDecimalPercentile(fraction, new BigDecimal(lowerValue), new BigDecimal(upperValue)).longValue();
+        var lowerValueBigDecimal = new BigDecimal(lowerValue);
+        var upperValueBigDecimal = new BigDecimal(upperValue);
+        var difference = upperValueBigDecimal.subtract(lowerValueBigDecimal);
+        var fractionBigDecimal = new BigDecimal(fraction);
+        return lowerValueBigDecimal.add(fractionBigDecimal.multiply(difference)).longValue();
     }
 
     /**
@@ -390,17 +394,12 @@ public class MvPercentile extends EsqlScalarFunction {
      * </p>
      */
     private static double calculateDoublePercentile(double fraction, double lowerValue, double upperValue) {
-        if (upperValue < MAX_SAFE_DOUBLE && lowerValue > -MAX_SAFE_DOUBLE) {
-            var difference = upperValue - lowerValue;
-            return lowerValue + fraction * difference;
+        if (lowerValue < 0 && upperValue > 0) {
+            // Order is required to avoid `upper - lower` overflows
+            return (lowerValue + fraction * upperValue) - fraction * lowerValue;
         }
 
-        return calculateBigDecimalPercentile(fraction, new BigDecimal(lowerValue), new BigDecimal(upperValue)).doubleValue();
-    }
-
-    private static BigDecimal calculateBigDecimalPercentile(double fraction, BigDecimal lowerValue, BigDecimal upperValue) {
-        var difference = upperValue.subtract(lowerValue);
-        var fractionBigDecimal = new BigDecimal(fraction);
-        return lowerValue.add(fractionBigDecimal.multiply(difference));
+        var difference = upperValue - lowerValue;
+        return lowerValue + fraction * difference;
     }
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -39,7 +39,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -497,14 +496,17 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Executor fetchExecutor,
         ActionListener<Void> listener
     ) {
+        final SubscribableListener<Void> fetchListener = new SubscribableListener<>();
+        fetchListener.addListener(listener, fetchExecutor, null);
+
         int finalRegion = getEndingRegion(length);
         if (freeRegionCount() < finalRegion) {
             // Not enough room to download a full file without evicting existing data, so abort
-            listener.onResponse(null);
+            fetchListener.onResponse(null);
             return false;
         }
         long regionLength = regionSize;
-        try (RefCountingListener refCountingListener = new RefCountingListener(listener)) {
+        try (RefCountingListener refCountingListener = new RefCountingListener(fetchListener)) {
             for (int region = 0; region <= finalRegion; region++) {
                 if (region == finalRegion) {
                     regionLength = length - getRegionStart(region);
@@ -569,22 +571,25 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
+        final SubscribableListener<Boolean> fetchListener = new SubscribableListener<>();
+        fetchListener.addListener(listener, fetchExecutor, null);
+
         if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
-            listener.onResponse(false);
+            fetchListener.onResponse(false);
             return;
         }
         try {
             ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, region));
             if (regionRange.isEmpty()) {
-                listener.onResponse(false);
+                fetchListener.onResponse(false);
                 return;
             }
             final CacheFileRegion entry = get(cacheKey, blobLength, region);
-            entry.populate(regionRange, writer, fetchExecutor, listener);
+            entry.populate(regionRange, writer, fetchExecutor, fetchListener);
         } catch (Exception e) {
-            listener.onFailure(e);
+            fetchListener.onFailure(e);
         }
     }
 
@@ -617,16 +622,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
+        final SubscribableListener<Boolean> fetchListener = new SubscribableListener<>();
+        fetchListener.addListener(listener, fetchExecutor, null);
+
         if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
-            listener.onResponse(false);
+            fetchListener.onResponse(false);
             return;
         }
         try {
             var regionRange = mapSubRangeToRegion(range, region);
             if (regionRange.isEmpty()) {
-                listener.onResponse(false);
+                fetchListener.onResponse(false);
                 return;
             }
             final CacheFileRegion entry = get(cacheKey, blobLength, region);
@@ -634,10 +642,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 regionRange,
                 writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
                 fetchExecutor,
-                listener
+                fetchListener
             );
         } catch (Exception e) {
-            listener.onFailure(e);
+            fetchListener.onFailure(e);
         }
     }
 
@@ -1140,9 +1148,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             RangeMissingHandler writer,
             int region
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Integer> readFuture = new UnsafePlainActionFuture<>(
-                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
-            );
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
             final CacheFileRegion fileRegion = get(cacheKey, length, region);
             final long regionStart = getRegionStart(region);
             fileRegion.populateAndRead(
@@ -1164,9 +1170,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             int startRegion,
             int endRegion
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Void> readsComplete = new UnsafePlainActionFuture<>(
-                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
-            );
+            final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
             final AtomicInteger bytesRead = new AtomicInteger();
             try (var listeners = new RefCountingListener(1, readsComplete)) {
                 for (int region = startRegion; region <= endRegion; region++) {

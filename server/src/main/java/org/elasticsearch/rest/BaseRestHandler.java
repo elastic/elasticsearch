@@ -110,7 +110,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
             }
 
-            if (request.hasContent() && request.isContentConsumed() == false) {
+            if (request.hasContent() && (request.isContentConsumed() == false && request.isFullContent())) {
                 throw new IllegalArgumentException(
                     "request [" + request.method() + " " + request.path() + "] does not support having a body"
                 );

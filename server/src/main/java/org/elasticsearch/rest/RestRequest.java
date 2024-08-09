@@ -72,7 +72,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     private final long requestId;
 
     public boolean isContentConsumed() {
-        return contentConsumed || isStreamedContent();
+        return contentConsumed;
     }
 
     @SuppressWarnings("this-escape")
@@ -279,24 +279,20 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return contentLength() > 0 || isStreamedContent();
+        return isStreamedContent() || contentLength() > 0;
     }
 
     public int contentLength() {
-        if (httpRequest.body().isFull()) {
-            return httpRequest.body().asFull().bytes().length();
-        } else {
-            return 0;
-        }
+        return httpRequest.body().asFull().bytes().length();
+    }
+
+    public boolean isFullContent() {
+        return httpRequest.body().isFull();
     }
 
     public BytesReference content() {
         this.contentConsumed = true;
-        if (httpRequest.body().isFull()) {
-            return httpRequest.body().asFull().bytes();
-        } else {
-            return BytesArray.EMPTY;
-        }
+        return httpRequest.body().asFull().bytes();
     }
 
     public boolean isStreamedContent() {

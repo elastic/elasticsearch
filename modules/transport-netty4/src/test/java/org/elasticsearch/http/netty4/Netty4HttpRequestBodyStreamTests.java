@@ -46,6 +46,7 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         });
     }
 
+    // ensures that no chunks are sent downstream without request
     public void testEnqueueChunksBeforeRequest() {
         var totalChunks = randomIntBetween(1, 100);
         for (int i = 0; i < totalChunks; i++) {
@@ -54,8 +55,8 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         assertEquals(totalChunks, stream.chunkQueue().size());
     }
 
-    // test that every small request consume at least one chunk
-    public void testFlushQueuedSmallRequests() {
+    // ensures all queued chunks can be flushed downstream
+    public void testFlushQueued() {
         var chunks = new ArrayList<ReleasableBytesReference>();
         var totalBytes = new AtomicInteger();
         stream.setHandler((chunk, isLast) -> {
@@ -76,7 +77,8 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         assertEquals(chunkSize * totalChunks, totalBytes.get());
     }
 
-    // test that we read from channel when not enough available bytes
+    // ensures that we read from channel when chunks queue is empty
+    // and pass next chunk downstream without queuing
     public void testReadFromChannel() {
         var gotChunks = new ArrayList<ReleasableBytesReference>();
         var gotLast = new AtomicBoolean(false);

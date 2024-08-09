@@ -43,7 +43,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -54,15 +53,17 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -82,9 +83,11 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         try (var ctx = setupClientCtx()) {
             var totalRequests = randomIntBetween(1, 10);
             for (int reqNo = 0; reqNo < totalRequests; reqNo++) {
+                var opaqueId = opaqueId(reqNo);
+
                 // send request with empty content
-                ctx.clientChannel.writeAndFlush(fullHttpRequest(Unpooled.EMPTY_BUFFER));
-                var handler = ctx.awaitRestChannelAccepted();
+                ctx.clientChannel.writeAndFlush(fullHttpRequest(opaqueId, Unpooled.EMPTY_BUFFER));
+                var handler = ctx.awaitRestChannelAccepted(opaqueId);
                 handler.stream.next();
 
                 // should receive a single empty chunk
@@ -105,25 +108,25 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         try (var ctx = setupClientCtx()) {
             var totalRequests = randomIntBetween(1, 10);
             for (int reqNo = 0; reqNo < totalRequests; reqNo++) {
+                var opaqueId = opaqueId(reqNo);
 
                 // this dataset will be compared with one on server side
                 var dataSize = randomIntBetween(1024, 10 * 1024 * 1024);
                 var sendData = Unpooled.wrappedBuffer(randomByteArrayOfLength(dataSize));
                 sendData.retain();
-                ctx.clientChannel.writeAndFlush(fullHttpRequest(sendData));
+                ctx.clientChannel.writeAndFlush(fullHttpRequest(opaqueId, sendData));
 
-                var handler = ctx.awaitRestChannelAccepted();
+                var handler = ctx.awaitRestChannelAccepted(opaqueId);
 
-                var gotAllChunks = false;
                 var recvData = Unpooled.buffer(dataSize);
-                while (gotAllChunks == false) {
+                while (true) {
                     handler.stream.next();
                     var recvChunk = safePoll(handler.recvChunks);
                     try (recvChunk.chunk) {
-                        if (recvChunk.isLast) {
-                            gotAllChunks = true;
-                        }
                         recvData.writeBytes(Netty4Utils.toByteBuf(recvChunk.chunk));
+                        if (recvChunk.isLast) {
+                            break;
+                        }
                     }
                 }
 
@@ -137,12 +140,14 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     // ensures that all queued chunks are released when connection closed
     public void testClientConnectionCloseMidStream() throws Exception {
         try (var ctx = setupClientCtx()) {
+            var opaqueId = opaqueId(0);
+
             // write half of http request
-            ctx.clientChannel.write(httpRequest(2 * 1024));
+            ctx.clientChannel.write(httpRequest(opaqueId, 2 * 1024));
             ctx.clientChannel.writeAndFlush(randomContent(1024, false));
 
             // await stream handler is ready and request full content
-            var handler = ctx.awaitRestChannelAccepted();
+            var handler = ctx.awaitRestChannelAccepted(opaqueId);
             assertBusy(() -> assertEquals(1, handler.stream.chunkQueue().size()));
 
             // enable auto-read to receive channel close event
@@ -157,35 +162,34 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     // ensures that all queued chunks are released when server decides to close connection
     public void testServerCloseConnectionMidStream() throws Exception {
         try (var ctx = setupClientCtx()) {
+            var opaqueId = opaqueId(0);
+
             // write half of http request
-            ctx.clientChannel.write(httpRequest(2 * 1024));
+            ctx.clientChannel.write(httpRequest(opaqueId, 2 * 1024));
             ctx.clientChannel.writeAndFlush(randomContent(1024, false));
 
             // await stream handler is ready and request full content
-            var handler = ctx.awaitRestChannelAccepted();
+            var handler = ctx.awaitRestChannelAccepted(opaqueId);
             assertBusy(() -> assertEquals(1, handler.stream.chunkQueue().size()));
 
             // terminate connection on server and wait resources are released
-            handler.httpChannel.close();
+            handler.channel.request().getHttpChannel().close();
             assertBusy(() -> assertEquals(0, handler.stream.chunkQueue().size()));
         }
-    }
-
-    static int MBytes(int m) {
-        return m * 1024 * 1024;
     }
 
     // ensure that client's socket buffers data when server is not consuming data
     public void testClientBackpressure() throws Exception {
         try (var ctx = setupClientCtx()) {
+            var opaqueId = opaqueId(0);
             var payloadSize = MBytes(50);
-            ctx.clientChannel.writeAndFlush(httpRequest(payloadSize));
+            ctx.clientChannel.writeAndFlush(httpRequest(opaqueId, payloadSize));
             for (int i = 0; i < 5; i++) {
                 ctx.clientChannel.writeAndFlush(randomContent(MBytes(10), false));
             }
             ctx.clientChannel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
 
-            var handler = ctx.awaitRestChannelAccepted();
+            var handler = ctx.awaitRestChannelAccepted(opaqueId);
 
             // Read buffers for socket and channel usually within few MBytes range all together.
             // This test assumes that buffers will not exceed 10 MBytes, in other words there should
@@ -208,6 +212,14 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    private String opaqueId(int reqNo) {
+        return getTestName() + "-" + reqNo;
+    }
+
+    static int MBytes(int m) {
+        return m * 1024 * 1024;
+    }
+
     static <T> T safePoll(BlockingDeque<T> queue) {
         try {
             var t = queue.poll(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
@@ -218,21 +230,23 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    static FullHttpRequest fullHttpRequest(ByteBuf content) {
-        var req = new DefaultFullHttpRequest(HTTP_1_1, POST, SingleRequestHandlerPlugin.ROUTE, Unpooled.wrappedBuffer(content));
+    static FullHttpRequest fullHttpRequest(String opaqueId, ByteBuf content) {
+        var req = new DefaultFullHttpRequest(HTTP_1_1, POST, ControlServerRequestPlugin.ROUTE, Unpooled.wrappedBuffer(content));
         req.headers().add(CONTENT_LENGTH, content.readableBytes());
         req.headers().add(CONTENT_TYPE, APPLICATION_JSON);
+        req.headers().add(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
         return req;
     }
 
-    static HttpRequest httpRequest(int contentLength) {
-        return httpRequest(SingleRequestHandlerPlugin.ROUTE, contentLength);
+    static HttpRequest httpRequest(String opaqueId, int contentLength) {
+        return httpRequest(ControlServerRequestPlugin.ROUTE, opaqueId, contentLength);
     }
 
-    static HttpRequest httpRequest(String uri, int contentLength) {
+    static HttpRequest httpRequest(String uri, String opaqueId, int contentLength) {
         var req = new DefaultHttpRequest(HTTP_1_1, POST, uri);
         req.headers().add(CONTENT_LENGTH, contentLength);
         req.headers().add(CONTENT_TYPE, APPLICATION_JSON);
+        req.headers().add(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
         return req;
     }
 
@@ -245,37 +259,12 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    record Ctx(String nodeName, Bootstrap clientBootstrap, Channel clientChannel, BlockingDeque<Object> clientRespQueue)
-        implements
-            AutoCloseable {
-
-        @Override
-        public void close() throws Exception {
-            safeGet(clientChannel.close());
-            safeGet(clientBootstrap.config().group().shutdownGracefully());
-            clientRespQueue.forEach(o -> { if (o instanceof FullHttpResponse resp) resp.release(); });
-            for (var handler : SingleRequestHandlerPlugin.handlers) {
-                handler.recvChunks.forEach(c -> c.chunk.close());
-                handler.httpChannel.close();
-            }
-            SingleRequestHandlerPlugin.handlers.clear();
-        }
-
-        ServerRequestHandler awaitRestChannelAccepted() throws Exception {
-            var handlers = SingleRequestHandlerPlugin.handlers;
-            assertBusy(() -> { assertEquals(1, handlers.size()); });
-            var handler = handlers.get(0);
-            safeAwait(handler.channelAccepted);
-            return handler;
-        }
-    }
-
     Ctx setupClientCtx() throws Exception {
         var nodeName = internalCluster().getRandomNodeName();
         var clientRespQueue = new LinkedBlockingDeque<>(16);
         var bootstrap = bootstrapClient(nodeName, clientRespQueue);
         var channel = bootstrap.connect().sync().channel();
-        return new Ctx(nodeName, bootstrap, channel, clientRespQueue);
+        return new Ctx(getTestName(), nodeName, bootstrap, channel, clientRespQueue);
     }
 
     Bootstrap bootstrapClient(String node, BlockingQueue<Object> queue) {
@@ -308,7 +297,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(SingleRequestHandlerPlugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(List.of(ControlServerRequestPlugin.class), super.nodePlugins());
     }
 
     @Override
@@ -316,15 +305,46 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         return false; // enable http
     }
 
-    static class ServerRequestHandler implements BaseRestHandler.RequestBodyChunkConsumer {
-        SubscribableListener<Void> channelAccepted = new SubscribableListener<>();
-        RestChannel channel;
-        HttpChannel httpChannel;
-        Netty4HttpRequestBodyStream stream;
-        boolean recvLast = false;
-        BlockingDeque<Chunk> recvChunks = new LinkedBlockingDeque<>();
+    record Ctx(String testName, String nodeName, Bootstrap clientBootstrap, Channel clientChannel, BlockingDeque<Object> clientRespQueue)
+        implements
+            AutoCloseable {
 
-        record Chunk(ReleasableBytesReference chunk, boolean isLast) {}
+        @Override
+        public void close() throws Exception {
+            safeGet(clientChannel.close());
+            safeGet(clientBootstrap.config().group().shutdownGracefully());
+            clientRespQueue.forEach(o -> { if (o instanceof FullHttpResponse resp) resp.release(); });
+            for (var opaqueId : ControlServerRequestPlugin.handlers.keySet()) {
+                if (opaqueId.startsWith(testName)) {
+                    var handler = ControlServerRequestPlugin.handlers.get(opaqueId);
+                    handler.recvChunks.forEach(c -> c.chunk.close());
+                    handler.channel.request().getHttpChannel().close();
+                    ControlServerRequestPlugin.handlers.remove(opaqueId);
+                }
+            }
+        }
+
+        ServerRequestHandler awaitRestChannelAccepted(String opaqueId) throws Exception {
+            assertBusy(() -> assertTrue(ControlServerRequestPlugin.handlers.containsKey(opaqueId)));
+            var handler = ControlServerRequestPlugin.handlers.get(opaqueId);
+            safeAwait(handler.channelAccepted);
+            return handler;
+        }
+    }
+
+    static class ServerRequestHandler implements BaseRestHandler.RequestBodyChunkConsumer {
+        final SubscribableListener<Void> channelAccepted = new SubscribableListener<>();
+        final String opaqueId;
+        final BlockingDeque<Chunk> recvChunks = new LinkedBlockingDeque<>();
+        final Netty4HttpRequestBodyStream stream;
+        RestChannel channel;
+
+        boolean recvLast = false;
+
+        ServerRequestHandler(String opaqueId, Netty4HttpRequestBodyStream stream) {
+            this.opaqueId = opaqueId;
+            this.stream = stream;
+        }
 
         @Override
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
@@ -334,14 +354,10 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         @Override
         public void accept(RestChannel channel) throws Exception {
             this.channel = channel;
-            this.httpChannel = channel.request().getHttpChannel();
-            this.stream = (Netty4HttpRequestBodyStream) channel.request().contentStream();
             channelAccepted.onResponse(null);
         }
 
         void sendResponse(RestResponse response) {
-            assertEquals(SingleRequestHandlerPlugin.handlers.get(0), this);
-            SingleRequestHandlerPlugin.handlers.remove(0);
             channel.sendResponse(response);
         }
 
@@ -360,13 +376,20 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 }
             }
         }
+
+        Future<?> onChannelThread(Callable<?> task) {
+            return this.stream.channel().eventLoop().submit(task);
+        }
+
+        record Chunk(ReleasableBytesReference chunk, boolean isLast) {}
     }
 
-    public static class SingleRequestHandlerPlugin extends Plugin implements ActionPlugin {
+    // takes full control of rest handler from the outside
+    public static class ControlServerRequestPlugin extends Plugin implements ActionPlugin {
 
         static final String ROUTE = "/_test/request-stream";
 
-        static final List<ServerRequestHandler> handlers = Collections.synchronizedList(new ArrayList<>());
+        static final ConcurrentHashMap<String, ServerRequestHandler> handlers = new ConcurrentHashMap<>();
 
         @Override
         public Collection<RestHandler> getRestHandlers(
@@ -393,8 +416,10 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-                    var handler = new ServerRequestHandler();
-                    handlers.add(handler);
+                    var stream = (Netty4HttpRequestBodyStream) request.contentStream();
+                    var opaqueId = request.getHeaders().get(Task.X_OPAQUE_ID_HTTP_HEADER).get(0);
+                    var handler = new ServerRequestHandler(opaqueId, stream);
+                    handlers.put(opaqueId, handler);
                     return handler;
                 }
             });

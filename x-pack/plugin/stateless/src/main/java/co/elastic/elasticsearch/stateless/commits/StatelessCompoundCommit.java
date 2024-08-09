@@ -240,7 +240,7 @@ public record StatelessCompoundCommit(
             b.endObject();
         }
         // Write the end marker manually, can't customize XContent to use SmileGenerator.Feature#WRITE_END_MARKER
-        bytesStreamOutput.write(XContentType.SMILE.xContent().streamSeparator());
+        bytesStreamOutput.write(XContentType.SMILE.xContent().bulkSeparator());
         bytesStreamOutput.flush();
 
         BytesReference xContentHeader = bytesStreamOutput.bytes();

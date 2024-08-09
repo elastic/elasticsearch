@@ -78,6 +78,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
+    protected TypeResolution resolveType() {
+        return new TypeResolution("unresolved attribute [" + name() + "]");
+    }
+
+    @Override
     public DataType dataType() {
         throw new UnresolvedException("dataType", this);
     }

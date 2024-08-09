@@ -37,6 +37,35 @@ public abstract class AggregatorBase extends Aggregator {
     /** The default "weight" that a bucket takes when performing an aggregation */
     public static final int DEFAULT_WEIGHT = 1024 * 5; // 5kb
 
+    private static final BucketCollector BAD_STATE = new BucketCollector() {
+        private static void badState() {
+            throw new IllegalStateException("preCollection not called on new Aggregator before use");
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
+            badState();
+            assert false;
+            return null; // unreachable but compiler does not agree
+        }
+
+        @Override
+        public void preCollection() {
+            badState();
+        }
+
+        @Override
+        public void postCollection() {
+            badState();
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            badState();
+            return ScoreMode.COMPLETE; // unreachable
+        }
+    };
+
     protected final String name;
     protected final Aggregator parent;
     private final AggregationContext context;
@@ -75,34 +104,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.subAggregators = factories.createSubAggregators(this, subAggregatorCardinality);
         context.addReleasable(this);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
-        collectableSubAggregators = new BucketCollector() {
-            static void badState() {
-                throw new IllegalStateException("preCollection not called on new Aggregator before use");
-            }
-
-            @Override
-            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
-                badState();
-                assert false;
-                return null; // unreachable but compiler does not agree
-            }
-
-            @Override
-            public void preCollection() throws IOException {
-                badState();
-            }
-
-            @Override
-            public void postCollection() throws IOException {
-                badState();
-            }
-
-            @Override
-            public ScoreMode scoreMode() {
-                badState();
-                return ScoreMode.COMPLETE; // unreachable
-            }
-        };
+        collectableSubAggregators = BAD_STATE;
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
     }
 

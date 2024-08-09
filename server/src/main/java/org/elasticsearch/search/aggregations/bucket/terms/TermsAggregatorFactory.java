@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -258,19 +257,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new UnmappedTerms(
+        Aggregator agg = NonCollectingAggregator.withEmptyAggregation(
             name,
-            order,
-            bucketCountThresholds.getRequiredSize(),
-            bucketCountThresholds.getMinDocCount(),
-            metadata
+            context,
+            parent,
+            factories,
+            metadata,
+            new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), metadata)
         );
-        Aggregator agg = new NonCollectingAggregator(name, context, parent, factories, metadata) {
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return aggregation;
-            }
-        };
         // even in the case of an unmapped aggregator, validate the order
         order.validate(agg);
         return agg;

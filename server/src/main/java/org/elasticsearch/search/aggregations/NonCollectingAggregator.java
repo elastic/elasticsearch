@@ -31,6 +31,22 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
         super(name, subFactories, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
+    public static NonCollectingAggregator withEmptyAggregation(
+        String name,
+        AggregationContext context,
+        Aggregator parent,
+        AggregatorFactories subFactories,
+        Map<String, Object> metadata,
+        InternalAggregation emptyAggregation
+    ) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, subFactories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return emptyAggregation;
+            }
+        };
+    }
+
     @Override
     public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
         // the framework will automatically eliminate it

@@ -851,18 +851,23 @@ public class ObjectMapper extends Mapper {
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
                 // Use an ordered map between field names and writer functions, to order writing by field name.
-                Map<String, CheckedConsumer<XContentBuilder, IOException>> orderedFields = new TreeMap<>();
+                Map<String, List<CheckedConsumer<XContentBuilder, IOException>>> orderedFields = new TreeMap<>();
                 for (IgnoredSourceFieldMapper.NameValue value : ignoredValues) {
-                    orderedFields.put(value.name(), value::write);
+                    orderedFields.computeIfAbsent(value.name(), k -> new ArrayList<>()).add(value::write);
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
                     if (field.hasValue()) {
                         // Skip if the field source is stored separately, to avoid double-printing.
-                        orderedFields.putIfAbsent(field.fieldName(), field::write);
+                        var writers = orderedFields.computeIfAbsent(field.fieldName(), k -> new ArrayList<>());
+                        if (writers.isEmpty()) {
+                            writers.add(field::write);
+                        }
                     }
                 }
-                for (var writer : orderedFields.values()) {
-                    writer.accept(b);
+                for (var writers : orderedFields.values()) {
+                    for (var writer : writers) {
+                        writer.accept(b);
+                    }
                 }
                 ignoredValues = null;
             } else {

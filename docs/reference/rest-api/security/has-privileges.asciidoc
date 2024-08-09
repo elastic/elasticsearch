@@ -58,6 +58,24 @@ actions that are granted by those privileges
 `resources`::: (list) A list of resource names against which the privileges
 should be checked
 
+[[security-api-has-privileges-response-body]]
+==== {api-response-body-title}
+
+A successful `HasPrivilegesResponse` API call returns a JSON structure that contains the username, a boolean field `"has_all_requested"` indicating if the user has all the requested privileges, and detailed information on the user's cluster, index, and application-level privileges.
+This API returns the following top level fields:
+
+`username`:: The username that identifies the user.
+
+`has_all_requested`:: (Boolean) This field signifies if user has all the enquired privileges or not.
+
+`cluster`:: It contains nested json of cluster's privileges and its status.
+
+`index`:: It contains nested json of each index's privileges and its status.
+
+`application`::
+`application`::: (string) The name of the application.
+`resource`::: Resource name against which the privileges are listed
+`privileges`::: Privilege name and its status
 
 [[security-api-has-privileges-example]]
 ==== {api-examples-title}

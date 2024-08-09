@@ -161,3 +161,56 @@ teardown:
           mappings:
             properties:
               join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" }, "fields": {"keyword": {"type": "keyword"}} }
+
+
+---
+"join on field named _type":
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
+      reason: "deprecation added in 8.14"
+
+  - do:
+      indices.create:
+        index: type-join
+        body:
+          mappings:
+            properties:
+              text: { "type": "keyword" }
+              _type: { "type": "join", "relations": { "question": "answer" }}
+
+  - do:
+      bulk:
+        index: type-join
+        refresh: true
+        body:
+          - '{ "index": {"_id": "1"}}'
+          - '{ "text": "What species does chewbacca belong to?", "_type": { "name": "question" }}'
+          - '{ "index": {"_id": "2"}}'
+          - '{ "text": "How did Yoda die?", "_type": { "name": "question" }}'
+
+  - do:
+      bulk:
+        index: type-join
+        refresh: true
+        body:
+          - '{ "index": {"_id": "3"}}'
+          - '{ "text": "Wookie", "_type": { "name": "answer", "parent": "1" }}'
+          - '{ "index": {"_id": "4"}}'
+          - '{ "text": "Old age", "_type": { "name": "answer", "parent": "2" }}'
+
+  - do:
+      search:
+        index: type-join
+        body: { query: { match_all: { } } }
+
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._type: null }
+  - match: { hits.hits.0._source._type.name: "question" }
+  - match: { hits.hits.0._source.text: "What species does chewbacca belong to?"}
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._type: null }
+  - match: { hits.hits.1._source._type.name: "question" }
+  - match: { hits.hits.1._source.text: "How did Yoda die?" }

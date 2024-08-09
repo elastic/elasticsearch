@@ -1,0 +1,6 @@
+pr: 110825
+summary: Do not include root level `_type` field if it is not a metadata field
+area: Mapping
+type: bug
+issues:
+ - 110438

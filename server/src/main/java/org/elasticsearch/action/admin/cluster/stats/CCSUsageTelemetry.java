@@ -42,8 +42,12 @@ public class CCSUsageTelemetry {
         SUCCESS("success"),
         REMOTES_UNAVAILABLE("remotes_unavailable"),
         CANCELED("canceled"),
+        NOT_FOUND("not_found"),
+        TIMEOUT("timeout"),
+        CORRUPTION("corruption"),
+        SECURITY("security"),
         // May be helpful if there's a lot of other reasons, and it may be hard to calculate the unknowns for some clients.
-        UNKNOWN("unknown");
+        UNKNOWN("other");
 
         private final String name;
 

@@ -982,6 +982,24 @@ required_capability: union_types
 required_capability: inlinestats
 
 FROM sample_data, sample_data_ts_long
+| INLINESTATS count = COUNT(*)
+           BY @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
+| SORT client_ip ASC, @timestamp ASC
+| LIMIT 4
+;
+
+client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
+  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
+  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
+;
+
+inlineStatsUnionGroupWithEval
+required_capability: union_types
+required_capability: inlinestats
+
+FROM sample_data, sample_data_ts_long
 | EVAL @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
 | INLINESTATS count = COUNT(*) BY @timestamp
 | SORT client_ip ASC, @timestamp ASC
@@ -993,7 +1011,6 @@ client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword 
   172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
-
 ;
 
 inlineStatsUnionGroupTogether
@@ -1001,8 +1018,8 @@ required_capability: union_types
 required_capability: inlinestats
 
 FROM sample_data, sample_data_ts_long
-| EVAL @timestamp = TO_STRING(TO_DATETIME(@timestamp))
-| INLINESTATS count = COUNT(*) BY @timestamp
+| INLINESTATS count = COUNT(*)
+           BY @timestamp = TO_STRING(TO_DATETIME(@timestamp))
 | SORT client_ip ASC, @timestamp ASC
 | LIMIT 4
 ;

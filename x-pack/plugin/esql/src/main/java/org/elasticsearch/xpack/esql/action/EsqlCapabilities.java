@@ -52,6 +52,11 @@ public class EsqlCapabilities {
         INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
+         * Support for the expressions in grouping in {@code INLINESTATS} syntax.
+         */
+        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
          * Support for aggregation function {@code TOP}.
          */
         AGG_TOP,

@@ -25,19 +25,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Replace nested expressions inside an aggregate with synthetic eval (which end up being projected away by the aggregate).
- * {@code STAT SUM(a + 1) BY x % 2}
+ * Replace nested expressions inside a {@link Stats} with synthetic eval.
+ * {@code STATS SUM(a + 1) BY x % 2}
  * becomes
  * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a+1`_ref) BY `x % 2`_ref}
+ * and
+ * {@code INLINESTATS SUM(a + 1) BY x % 2}
+ * becomes
+ * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINESTATS SUM(`a+1`_ref) BY `x % 2`_ref}
  */
 public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.OptimizerRule<LogicalPlan> {
 
     @Override
-    protected LogicalPlan rule(LogicalPlan aggregate) {
-        if (aggregate instanceof Stats stats) {
+    protected LogicalPlan rule(LogicalPlan p) {
+        if (p instanceof Stats stats) {
             return rule(stats);
         }
-        return aggregate;
+        return p;
     }
 
     private LogicalPlan rule(Stats aggregate) {

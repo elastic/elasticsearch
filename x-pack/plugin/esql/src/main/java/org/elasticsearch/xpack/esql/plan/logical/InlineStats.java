@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -121,15 +122,18 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, Phased, St
     public List<Attribute> output() {
         if (this.lazyOutput == null) {
             List<NamedExpression> addedFields = new ArrayList<>();
-            AttributeSet childOutput = child().outputSet();
+            AttributeSet set = child().outputSet();
 
             for (NamedExpression agg : aggregates) {
-                if (childOutput.contains(agg) == false) {
+                Attribute att = agg.toAttribute();
+                if (set.contains(att) == false) {
                     addedFields.add(agg);
+                    set.add(att);
                 }
             }
 
             this.lazyOutput = mergeOutputAttributes(addedFields, child().output());
+            LogManager.getLogger(InlineStats.class).error("ADF DADF {}", lazyOutput, new Exception());
         }
         return lazyOutput;
     }

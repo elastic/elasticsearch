@@ -251,7 +251,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_14_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.not;
 public class ReadOnlyEngineTests extends EngineTestCase {
 
     public void testReadOnlyEngine() throws Exception {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         Engine readOnlyEngine = null;
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
@@ -47,7 +47,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             int numDocs = scaledRandomIntBetween(10, 1000);
             final SeqNoStats lastSeqNoStats;
             final List<DocIdSeqNoAndSource> lastDocIds;
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 Engine.Get get = null;
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
@@ -101,18 +102,19 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                         engine.flush();
                     }
                 }
-                try (
-                    ReadOnlyEngine readOnlyEngineWithLazySoftDeletes = new ReadOnlyEngine(
-                        engine.engineConfig,
-                        engine.getSeqNoStats(globalCheckpoint.get()),
-                        engine.getTranslogStats(),
-                        false,
-                        Function.identity(),
-                        true,
-                        true
-                    )
-                ) {
+                ReadOnlyEngine readOnlyEngineWithLazySoftDeletes = new ReadOnlyEngine(
+                    engine.engineConfig,
+                    engine.getSeqNoStats(globalCheckpoint.get()),
+                    engine.getTranslogStats(),
+                    false,
+                    Function.identity(),
+                    true,
+                    true
+                );
+                try {
                     EngineTestCase.checkNoSoftDeletesLoaded(readOnlyEngineWithLazySoftDeletes);
+                } finally {
+                    close(readOnlyEngineWithLazySoftDeletes);
                 }
                 Engine.Searcher external = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL);
                 Engine.Searcher internal = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
@@ -140,27 +142,33 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 ) {
                     assertTrue(getResult.exists());
                 }
+            } finally {
+                close(engine);
             }
             // Close and reopen the main engine
-            try (InternalEngine recoveringEngine = new InternalEngine(config)) {
+            InternalEngine recoveringEngine = new InternalEngine(config);
+            try {
                 recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
+            } finally {
+                close(recoveringEngine);
             }
         } finally {
-            IOUtils.close(readOnlyEngine);
+            close(readOnlyEngine);
         }
     }
 
     public void testEnsureMaxSeqNoIsEqualToGlobalCheckpoint() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             final int numDocs = scaledRandomIntBetween(10, 100);
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
@@ -184,7 +192,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 }
                 engine.syncTranslog();
                 globalCheckpoint.set(engine.getPersistedLocalCheckpoint() - 1);
-                engine.flushAndClose();
+                flushAndClose(engine);
 
                 IllegalStateException exception = expectThrows(
                     IllegalStateException.class,
@@ -206,33 +214,36 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                             + "]"
                     )
                 );
+            } finally {
+                close(engine);
             }
         }
     }
 
     public void testReadOnly() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty();
-            try (
-                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
-                    config,
-                    null,
-                    new TranslogStats(),
-                    true,
-                    Function.identity(),
-                    true,
-                    randomBoolean()
-                )
-            ) {
+            ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
+                config,
+                null,
+                new TranslogStats(),
+                true,
+                Function.identity(),
+                true,
+                randomBoolean()
+            );
+            try {
                 Class<? extends Throwable> expectedException = LuceneTestCase.TEST_ASSERTS_ENABLED
                     ? AssertionError.class
                     : UnsupportedOperationException.class;
                 expectThrows(expectedException, () -> readOnlyEngine.index(null));
                 expectThrows(expectedException, () -> readOnlyEngine.delete(null));
                 expectThrows(expectedException, () -> readOnlyEngine.noOp(null));
+            } finally {
+                close(readOnlyEngine);
             }
         }
     }
@@ -242,40 +253,42 @@ public class ReadOnlyEngineTests extends EngineTestCase {
      * whatever the value of the global checkpoint to check is.
      */
     public void testVerifyShardBeforeIndexClosingIsNoOp() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty();
-            try (
-                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
-                    config,
-                    null,
-                    new TranslogStats(),
-                    true,
-                    Function.identity(),
-                    true,
-                    randomBoolean()
-                )
-            ) {
+            ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
+                config,
+                null,
+                new TranslogStats(),
+                true,
+                Function.identity(),
+                true,
+                randomBoolean()
+            );
+            try {
                 globalCheckpoint.set(randomNonNegativeLong());
                 try {
                     readOnlyEngine.verifyEngineBeforeIndexClosing();
                 } catch (final IllegalStateException e) {
                     fail("Read-only engine pre-closing verifications failed");
                 }
+            } finally {
+                close(readOnlyEngine);
             }
         }
     }
 
     public void testForceMergeOnReadOnlyEngine() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             int numDocs = scaledRandomIntBetween(10, 100);
             int numSegments;
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(
@@ -298,11 +311,14 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     globalCheckpoint.set(i);
                 }
                 engine.syncTranslog();
-                engine.flushAndClose();
+                flushAndClose(engine);
                 numSegments = engine.getLastCommittedSegmentInfos().size();
+            } finally {
+                close(engine);
             }
 
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean())) {
+            ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean());
+            try {
                 if (numSegments > 1) {
                     final int target = between(1, numSegments - 1);
                     UnsupportedOperationException exception = expectThrows(
@@ -326,17 +342,20 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 readOnlyEngine.forceMerge(true, numSegments, false, UUIDs.randomBase64UUID());
                 readOnlyEngine.forceMerge(true, numSegments + 1, false, UUIDs.randomBase64UUID());
                 assertEquals(readOnlyEngine.getLastCommittedSegmentInfos().size(), numSegments);
+            } finally {
+                close(readOnlyEngine);
             }
         }
     }
 
     public void testRecoverFromTranslogAppliesNoOperations() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             int numDocs = scaledRandomIntBetween(10, 1000);
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(
@@ -361,19 +380,24 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     globalCheckpoint.set(i);
                 }
                 engine.syncTranslog();
-                engine.flushAndClose();
+                flushAndClose(engine);
+            } finally {
+                close(engine);
             }
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean())) {
+            ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean());
+            try {
                 final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
                 recoverFromTranslog(readOnlyEngine, translogHandler, randomNonNegativeLong());
 
                 assertThat(translogHandler.appliedOperations(), equalTo(0L));
+            } finally {
+                close(readOnlyEngine);
             }
         }
     }
 
     public void testTranslogStats() throws IOException {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         try (Store store = createStore()) {
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
@@ -381,7 +405,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             final int numDocs = frequently() ? scaledRandomIntBetween(10, 200) : 0;
             int uncommittedDocs = 0;
 
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(
@@ -419,20 +444,25 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 assertThat(engine.getTranslogStats().getEarliestLastModifiedAge(), greaterThanOrEqualTo(0L));
 
                 engine.flush(true, true);
+            } finally {
+                close(engine);
             }
 
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean())) {
+            ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean());
+            try {
                 assertThat(readOnlyEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
                 assertThat(readOnlyEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
                 assertThat(readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
                 assertThat(readOnlyEngine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
                 assertThat(readOnlyEngine.getTranslogStats().getEarliestLastModifiedAge(), greaterThanOrEqualTo(0L));
+            } finally {
+                close(readOnlyEngine);
             }
         }
     }
 
     public void testSearcherId() throws Exception {
-        IOUtils.close(engine, store);
+        IOUtils.close(() -> close(engine), store);
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             final EngineConfig config = config(
@@ -445,7 +475,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 globalCheckpoint::get
             );
             String lastSearcherId;
-            try (InternalEngine engine = createEngine(config)) {
+            InternalEngine engine = createEngine(config);
+            try {
                 lastSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
                 assertNotNull(lastSearcherId);
                 int iterations = randomIntBetween(0, 10);
@@ -469,8 +500,11 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     lastSearcherId = newCommitId;
                 }
                 globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+            } finally {
+                close(engine);
             }
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean())) {
+            ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean());
+            try {
                 try (
                     Engine.SearcherSupplier searcher = readOnlyEngine.acquireSearcherSupplier(
                         Function.identity(),
@@ -479,6 +513,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 ) {
                     assertThat(searcher.getSearcherId(), equalTo(lastSearcherId));
                 }
+            } finally {
+                close(readOnlyEngine);
             }
         }
     }

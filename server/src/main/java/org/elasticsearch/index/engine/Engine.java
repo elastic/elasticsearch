@@ -113,7 +113,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public abstract class Engine implements Closeable {
+public abstract class Engine {
 
     @UpdateForV9 // TODO: Remove sync_id in 9.0
     public static final String SYNC_COMMIT_ID = "sync_id";
@@ -2031,7 +2031,14 @@ public abstract class Engine implements Closeable {
     /**
      * Flush the engine (committing segments to disk and truncating the translog) and close it.
      */
-    public void flushAndClose() throws IOException {
+    public void flushAndClose(ActionListener<Void> listener) throws IOException {
+        ActionListener.completeWith(listener, () -> {
+            flushAndClose();
+            return null;
+        });
+    }
+
+    private void flushAndClose() throws IOException {
         logger.trace("flushAndClose() maybe draining ops");
         if (isClosed.get() == false && drainForClose()) {
             logger.trace("flushAndClose drained ops");
@@ -2050,8 +2057,14 @@ public abstract class Engine implements Closeable {
         awaitPendingClose();
     }
 
-    @Override
-    public void close() throws IOException {
+    public void close(ActionListener<Void> listener) throws IOException {
+        ActionListener.completeWith(listener, () -> {
+            close();
+            return null;
+        });
+    }
+
+    private void close() throws IOException {
         logger.debug("close() maybe draining ops");
         if (isClosed.get() == false && drainForClose()) {
             logger.debug("close drained ops");
@@ -2297,6 +2310,17 @@ public abstract class Engine implements Closeable {
 
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
         listener.onFailure(new UnsupportedOperationException("Engine type " + this.getClass() + " does not support flush listeners."));
+    }
+
+    /**
+     * Safely close the provided engine
+     */
+    public static void close(@Nullable Engine engine, ActionListener<Void> listener) throws IOException {
+        if (engine != null) {
+            engine.close(listener);
+        } else {
+            listener.onResponse(null);
+        }
     }
 
     /**

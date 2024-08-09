@@ -166,12 +166,28 @@ public class CommunityIdProcessorTests extends ESTestCase {
         testCommunityIdProcessor(event, "1:D3t8Q1aFA6Ev0A/AO4i9PnU3AeI=");
     }
 
-    public void testBeatsIanaNumber() throws Exception {
+    public void testBeatsIanaNumberProtocolTCP() throws Exception {
         @SuppressWarnings("unchecked")
         var network = (Map<String, Object>) event.get("network");
         network.remove("transport");
-        network.put("iana_number", CommunityIdProcessor.Transport.Tcp.getTransportNumber());
+        network.put("iana_number", CommunityIdProcessor.Transport.Type.Tcp.getTransportNumber());
         testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
+    }
+
+    public void testBeatsIanaNumberProtocolIPv4() throws Exception {
+        @SuppressWarnings("unchecked")
+        var network = (Map<String, Object>) event.get("network");
+        network.put("iana_number", "4");
+        network.remove("transport");
+        @SuppressWarnings("unchecked")
+        var source = (Map<String, Object>) event.get("source");
+        source.put("ip", "192.168.1.2");
+        source.remove("port");
+        @SuppressWarnings("unchecked")
+        var destination = (Map<String, Object>) event.get("destination");
+        destination.put("ip", "10.1.2.3");
+        destination.remove("port");
+        testCommunityIdProcessor(event, "1:KXQzmk3bdsvD6UXj7dvQ4bM6Zvw=");
     }
 
     public void testIpv6() throws Exception {
@@ -201,10 +217,10 @@ public class CommunityIdProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         var network = (Map<String, Object>) event.get("network");
         network.remove("transport");
-        network.put("iana_number", CommunityIdProcessor.Transport.Tcp.getTransportNumber());
+        network.put("iana_number", CommunityIdProcessor.Transport.Type.Tcp.getTransportNumber());
         testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
 
-        network.put("iana_number", Integer.toString(CommunityIdProcessor.Transport.Tcp.getTransportNumber()));
+        network.put("iana_number", Integer.toString(CommunityIdProcessor.Transport.Type.Tcp.getTransportNumber()));
         testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
 
         // protocol number
@@ -359,8 +375,13 @@ public class CommunityIdProcessorTests extends ESTestCase {
     }
 
     public void testTransportEnum() {
-        for (CommunityIdProcessor.Transport t : CommunityIdProcessor.Transport.values()) {
-            assertThat(CommunityIdProcessor.Transport.fromNumber(t.getTransportNumber()), equalTo(t));
+        for (CommunityIdProcessor.Transport.Type t : CommunityIdProcessor.Transport.Type.values()) {
+            if (t == CommunityIdProcessor.Transport.Type.Unknown) {
+                expectThrows(IllegalArgumentException.class, () -> CommunityIdProcessor.Transport.fromNumber(t.getTransportNumber()));
+                continue;
+            }
+
+            assertThat(CommunityIdProcessor.Transport.fromNumber(t.getTransportNumber()).getType(), equalTo(t));
         }
     }
 

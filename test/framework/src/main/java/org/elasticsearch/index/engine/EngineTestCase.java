@@ -50,6 +50,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -1644,5 +1645,17 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public static void ensureOpen(Engine engine) {
         engine.ensureOpen();
+    }
+
+    protected static void flushAndClose(Engine engine) throws IOException {
+        var listener = new SubscribableListener<Void>();
+        engine.flushAndClose(listener);
+        safeAwait(listener);
+    }
+
+    protected static void close(Engine engine) throws IOException {
+        var listener = new SubscribableListener<Void>();
+        engine.close(listener);
+        safeAwait(listener);
     }
 }

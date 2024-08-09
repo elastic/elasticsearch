@@ -8,6 +8,7 @@
 package org.elasticsearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -35,26 +36,26 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close(ActionListener<Void> listener) throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.CLOSE)) {
-            case FLUSH_AND_CLOSE -> flushAndCloseInternal();
-            case CLOSE -> super.close();
+            case FLUSH_AND_CLOSE -> flushAndCloseInternal(listener);
+            case CLOSE -> super.close(listener);
         }
     }
 
     @Override
-    public void flushAndClose() throws IOException {
+    public void flushAndClose(ActionListener<Void> listener) throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
-            case FLUSH_AND_CLOSE -> flushAndCloseInternal();
-            case CLOSE -> super.close();
+            case FLUSH_AND_CLOSE -> flushAndCloseInternal(listener);
+            case CLOSE -> super.close(listener);
         }
     }
 
-    private void flushAndCloseInternal() throws IOException {
+    private void flushAndCloseInternal(ActionListener<Void> listener) throws IOException {
         if (support().isFlushOnCloseDisabled() == false) {
-            super.flushAndClose();
+            super.flushAndClose(listener);
         } else {
-            super.close();
+            super.close(listener);
         }
     }
 

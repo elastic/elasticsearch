@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class EvilInternalEngineTests extends EngineTestCase {
 
     public void testOutOfMemoryErrorWhileMergingIsRethrownAndIsUncaught() throws IOException, InterruptedException {
-        engine.close();
+        close(engine);
         final AtomicReference<Throwable> maybeFatal = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();

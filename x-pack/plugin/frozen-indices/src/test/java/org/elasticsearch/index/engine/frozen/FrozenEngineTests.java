@@ -58,7 +58,7 @@ public class FrozenEngineTests extends EngineTestCase {
             );
             try (InternalEngine engine = createEngine(config)) {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
-                engine.flushAndClose();
+                flushAndClose(engine);
                 listener.reset();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     assertFalse(frozenEngine.isReaderOpen());
@@ -106,7 +106,7 @@ public class FrozenEngineTests extends EngineTestCase {
             );
             try (InternalEngine engine = createEngine(config)) {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
-                engine.flushAndClose();
+                flushAndClose(engine);
                 listener.reset();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     assertFalse(frozenEngine.isReaderOpen());
@@ -158,7 +158,7 @@ public class FrozenEngineTests extends EngineTestCase {
             );
             try (InternalEngine engine = createEngine(config)) {
                 addDocuments(globalCheckpoint, engine);
-                engine.flushAndClose();
+                flushAndClose(engine);
                 listener.reset();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
@@ -238,7 +238,7 @@ public class FrozenEngineTests extends EngineTestCase {
             );
             try (InternalEngine engine = createEngine(config)) {
                 int numDocsAdded = addDocuments(globalCheckpoint, engine);
-                engine.flushAndClose();
+                flushAndClose(engine);
                 int numIters = randomIntBetween(100, 1000);
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     int numThreads = randomIntBetween(2, 4);
@@ -317,7 +317,7 @@ public class FrozenEngineTests extends EngineTestCase {
             );
             try (InternalEngine engine = createEngine(config)) {
                 addDocuments(globalCheckpoint, engine);
-                engine.flushAndClose();
+                flushAndClose(engine);
                 listener.reset();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     DirectoryReader dirReader;

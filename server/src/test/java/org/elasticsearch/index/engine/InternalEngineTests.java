@@ -574,7 +574,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.ensureCanFlush(); // recovered already
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
         engine.index(indexForDoc(doc));
-        engine.close();
+        close(engine);
 
         engine = new InternalEngine(engine.config());
         expectThrows(IllegalStateException.class, engine::ensureCanFlush);
@@ -680,7 +680,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testPreCommitRecordedSegmentGeneration() throws IOException {
-        engine.close();
+        close(engine);
         final AtomicLong preCommitGen = new AtomicLong(-1);
         final AtomicLong lastSegmentInfoGenUponCommit = new AtomicLong(-1);
         final AtomicLong postFlushSegmentInfoGen = new AtomicLong(-1);
@@ -741,7 +741,7 @@ public class InternalEngineTests extends EngineTestCase {
                     initialEngine.flush();
                 }
             }
-            initialEngine.close();
+            close(initialEngine);
             recoveringEngine = new InternalEngine(initialEngine.config());
             recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
             recoveringEngine.refresh("test");
@@ -1291,9 +1291,9 @@ public class InternalEngineTests extends EngineTestCase {
         assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
         EngineConfig config = engine.config();
         if (randomBoolean()) {
-            engine.close();
+            close(engine);
         } else {
-            engine.flushAndClose();
+            flushAndClose(engine);
         }
         if (randomBoolean()) {
             final String translogUUID = Translog.createEmptyTranslog(
@@ -1337,7 +1337,7 @@ public class InternalEngineTests extends EngineTestCase {
         doc = testParsedDocument("2", null, testDocumentWithTextField(), new BytesArray("{}"), null);
         engine.index(indexForDoc(doc));
         EngineConfig config = engine.config();
-        engine.close();
+        close(engine);
         engine = new InternalEngine(config);
         recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         assertNull(
@@ -2550,7 +2550,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
-            engine.close();
+            close(engine);
         } finally {
             Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();
@@ -2631,7 +2631,7 @@ public class InternalEngineTests extends EngineTestCase {
                 });
 
                 Loggers.setLevel(rootLogger, savedLevel);
-                engine.close();
+                close(engine);
             }
         } finally {
             Loggers.setLevel(rootLogger, savedLevel);
@@ -3146,7 +3146,7 @@ public class InternalEngineTests extends EngineTestCase {
                 for (int j = 0; j < numStarts; j++) {
                     try {
                         assertEquals(store.refCount(), refCount + 1);
-                        holder.close();
+                        close(holder);
                         holder = createEngine(store, translogPath);
                         assertEquals(store.refCount(), refCount + 1);
                     } catch (EngineCreationFailureException ex) {
@@ -3155,7 +3155,7 @@ public class InternalEngineTests extends EngineTestCase {
                         break;
                     }
                 }
-                holder.close();
+                close(holder);
                 assertEquals(store.refCount(), refCount);
             }
         }
@@ -3261,7 +3261,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testMissingTranslog() throws IOException {
         // test that we can force start the engine , even if the translog is missing.
-        engine.close();
+        close(engine);
         // fake a new translog, causing the engine to point to a missing one.
         final long newPrimaryTerm = randomLongBetween(0L, primaryTerm.get());
         final Translog translog = createTranslog(() -> newPrimaryTerm);
@@ -3330,7 +3330,7 @@ public class InternalEngineTests extends EngineTestCase {
                 if (started) {
                     engine.refresh("warm_up");
                     assertVisibleCount(engine, numDocs, false);
-                    engine.close();
+                    close(engine);
                 }
             }
         }
@@ -3416,7 +3416,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         EngineConfig config = engine.config();
         assertVisibleCount(engine, numDocs);
-        engine.close();
+        close(engine);
         try (InternalEngine engine = new InternalEngine(config)) {
             engine.skipTranslogRecovery();
             try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
@@ -3451,7 +3451,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertVisibleCount(engine, numDocs);
         translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
 
-        engine.close();
+        close(engine);
         // we need to reuse the engine config unless the parser.mappingModified won't work
         engine = new InternalEngine(copy(engine.config(), inSyncGlobalCheckpointSupplier));
         recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
@@ -3460,7 +3460,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertVisibleCount(engine, numDocs, false);
         assertEquals(numDocs, translogHandler.appliedOperations());
 
-        engine.close();
+        close(engine);
         translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
         engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         engine.refresh("warm_up");
@@ -3514,7 +3514,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(topDocs.totalHits.value, equalTo(numDocs + 1L));
         }
 
-        engine.close();
+        close(engine);
         translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
         engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         engine.refresh("warm_up");
@@ -3525,7 +3525,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertEquals(flush ? 1 : 2, translogHandler.appliedOperations());
         engine.delete(new Engine.Delete(Integer.toString(randomId), newUid(doc), primaryTerm.get()));
         if (randomBoolean()) {
-            engine.close();
+            close(engine);
             engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         }
         engine.refresh("test");
@@ -3558,7 +3558,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         assertVisibleCount(engine, numDocs);
         Translog.TranslogGeneration generation = engine.getTranslog().getGeneration();
-        engine.close();
+        close(engine);
 
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
@@ -3641,7 +3641,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
         };
         mergeThread.start();
-        engine.close();
+        close(engine);
         mergeThread.join();
         logger.info("exception caught: ", exception.get());
         assertTrue(
@@ -3681,9 +3681,9 @@ public class InternalEngineTests extends EngineTestCase {
                 protected void doRun() throws Exception {
                     barrier.await();
                     if (flushAndClose) {
-                        engine.flushAndClose();
+                        flushAndClose(engine);
                     } else {
-                        engine.close();
+                        close(engine);
                     }
                     // try to acquire the writer lock - i.e., everything is closed, we need to synchronize
                     // to avoid races between closing threads
@@ -3792,7 +3792,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertNotNull(indexResult.getTranslogLocation());
                 engine.index(indexForDoc(doc2));
 
-                engine.close();
+                close(engine);
 
                 // now the engine is closed check we respond correctly
                 expectThrows(AlreadyClosedException.class, () -> engine.index(indexForDoc(doc1)));
@@ -4781,7 +4781,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSequenceNumberAdvancesToMaxSeqOnEngineOpenOnPrimary() throws BrokenBarrierException, InterruptedException, IOException {
-        engine.close();
+        close(engine);
         final int docs = randomIntBetween(1, 32);
         InternalEngine initialEngine = null;
         try {
@@ -5000,7 +5000,7 @@ public class InternalEngineTests extends EngineTestCase {
      * are correctly added to the translog.
      */
     public void testNoOps() throws IOException {
-        engine.close();
+        close(engine);
         InternalEngine noOpEngine = null;
         final int maxSeqNo = randomIntBetween(0, 128);
         final int localCheckpoint = randomIntBetween(0, maxSeqNo);
@@ -5139,7 +5139,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testMinGenerationForSeqNo() throws IOException, BrokenBarrierException, InterruptedException {
-        engine.close();
+        close(engine);
         final int numberOfTriplets = randomIntBetween(1, 32);
         InternalEngine actualEngine = null;
         try {
@@ -5473,7 +5473,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSeqNoGenerator() throws IOException {
-        engine.close();
+        close(engine);
         final long seqNo = randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Integer.MAX_VALUE);
         final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier = (ms, lcp) -> new LocalCheckpointTracker(
             SequenceNumbers.NO_OPS_PERFORMED,
@@ -5889,7 +5889,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testShouldPeriodicallyFlushAfterMerge() throws Exception {
-        engine.close();
+        close(engine);
         // Do not use MockRandomMergePolicy as it can cause a force merge performing two merges.
         engine = createEngine(copy(engine.config(), newMergePolicy(random(), false)));
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
@@ -6360,9 +6360,9 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
         if (randomBoolean()) {
-            engine.close();
+            close(engine);
         } else {
-            engine.flushAndClose();
+            flushAndClose(engine);
         }
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
             assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastMinRetainedSeqNo));
@@ -6468,17 +6468,17 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testAcquireSearcherOnClosingEngine() throws Exception {
-        engine.close();
+        close(engine);
         expectThrows(AlreadyClosedException.class, () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL));
     }
 
     public void testNoOpOnClosingEngine() throws Exception {
-        engine.close();
+        close(engine);
         try (
             Store store = createStore();
             InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
         ) {
-            engine.close();
+            close(engine);
             expectThrows(
                 AlreadyClosedException.class,
                 () -> engine.noOp(new Engine.NoOp(2, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), "reason"))
@@ -6487,18 +6487,18 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSoftDeleteOnClosingEngine() throws Exception {
-        engine.close();
+        close(engine);
         try (
             Store store = createStore();
             InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
         ) {
-            engine.close();
+            close(engine);
             expectThrows(AlreadyClosedException.class, () -> engine.delete(replicaDeleteForDoc("test", 42, 7, System.nanoTime())));
         }
     }
 
     public void testTrackMaxSeqNoOfUpdatesOrDeletesOnPrimary() throws Exception {
-        engine.close();
+        close(engine);
         Set<String> liveDocIds = new HashSet<>();
         engine = new InternalEngine(engine.config());
         assertThat(engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
@@ -6851,7 +6851,7 @@ public class InternalEngineTests extends EngineTestCase {
             if (randomBoolean()) {
                 engine.failEngine("test", new IOException("simulated error"));
             } else {
-                engine.close();
+                close(engine);
             }
         } finally {
             stopped.set(true);
@@ -7048,7 +7048,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testNoOpFailure() throws IOException {
-        engine.close();
+        close(engine);
         try (Store store = createStore(); Engine engine = createEngine((dir, iwc) -> new IndexWriter(dir, iwc) {
 
             @Override
@@ -7076,7 +7076,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     private void runTestDeleteFailure(final CheckedBiConsumer<InternalEngine, Engine.Delete, IOException> consumer) throws IOException {
-        engine.close();
+        close(engine);
         final AtomicReference<ThrowingIndexWriter> iw = new AtomicReference<>();
         try (Store store = createStore(); InternalEngine engine = createEngine((dir, iwc) -> {
             iw.set(new ThrowingIndexWriter(dir, iwc));
@@ -7234,7 +7234,7 @@ public class InternalEngineTests extends EngineTestCase {
                         )
                     );
                 refreshStarted.await();
-                engine.close();
+                close(engine);
                 engineClosed.countDown();
             }
         }
@@ -7350,7 +7350,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testMaxDocsOnPrimary() throws Exception {
-        engine.close();
+        close(engine);
         int maxDocs = randomIntBetween(1, 100);
         setIndexWriterMaxDocs(maxDocs);
         try {
@@ -7390,7 +7390,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testMaxDocsOnReplica() throws Exception {
-        engine.close();
+        close(engine);
         int maxDocs = randomIntBetween(1, 100);
         setIndexWriterMaxDocs(maxDocs);
         try {
@@ -7433,7 +7433,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testExtraUserDataIsCommitted() throws IOException {
-        engine.close();
+        close(engine);
         engine = new InternalEngine(engine.config()) {
             @Override
             protected Map<String, String> getCommitExtraUserData() {
@@ -7700,7 +7700,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testFlushListenerWithConcurrentIndexing() throws IOException, InterruptedException {
-        engine.close();
+        close(engine);
         final var barrierReference = new AtomicReference<CyclicBarrier>();
         engine = new InternalTestEngine(engine.config()) {
             @Override

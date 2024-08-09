@@ -64,11 +64,11 @@ class ModelImporter {
                 requestLimiter.release();
                 firstError.compareAndSet(null, e);
             });
-
+            
             // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
             // download is complete
             if (Strings.isNullOrEmpty(config.getVocabularyFile()) == false) {
-                uploadVocabulary(requestLimiter, releasingListener);
+                uploadVocabulary(requestLimiter, countingListener);
 
                 logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
             }
@@ -105,7 +105,7 @@ class ModelImporter {
                     PutTrainedModelDefinitionPartAction.INSTANCE,
                     modelPartRequest,
                     requestLimiter,
-                    releasingListener
+                    countingListener
                 );
             }
 
@@ -145,19 +145,18 @@ class ModelImporter {
                 PutTrainedModelDefinitionPartAction.INSTANCE,
                 finalModelPartRequest,
                 requestLimiter,
-                releasingListener
+                countingListener
             );
-
-            requestLimiter.acquire(MAX_IN_FLIGHT_REQUESTS); // cannot acquire until all inflight requests have completed
 
             logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
         } catch (Exception e) {
-            
+
+
 //            finalListener.onFailure(e); TODO is this called twice
         }
     }
 
-    private void uploadVocabulary(Semaphore requestLimiter, ActionListener<AcknowledgedResponse> listener) throws URISyntaxException,
+    private void uploadVocabulary(Semaphore requestLimiter, RefCountingListener listener) throws URISyntaxException,
         InterruptedException {
         ModelLoaderUtils.VocabularyParts vocabularyParts = ModelLoaderUtils.loadVocabulary(
             ModelLoaderUtils.resolvePackageLocation(config.getModelRepository(), config.getVocabularyFile())
@@ -178,13 +177,15 @@ class ModelImporter {
         ActionType<Response> action,
         Request request,
         Semaphore requestLimiter,
-        ActionListener<Response> listener
+        RefCountingListener listener
     ) throws InterruptedException {
         if (task.isCancelled()) {
             throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
         }
 
         requestLimiter.acquire();
-        client.execute(action, request, listener);
+        client.execute(action, request, listener.acquire(response -> requestLimiter.release())
+            .<Response>delegateResponse((l, e) -> { requestLimiter.release(); l.onFailure(e);})
+        );
     }
 }

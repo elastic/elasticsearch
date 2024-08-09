@@ -63,49 +63,49 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         assertThat(notificationArg.getValue().getMessage(), CoreMatchers.containsString("finished model import after"));
     }
 
-    public void testSendsErrorNotificationForInternalError() throws URISyntaxException, IOException {
+    public void testSendsErrorNotificationForInternalError() throws Exception {
         ElasticsearchStatusException exception = new ElasticsearchStatusException("exception", RestStatus.INTERNAL_SERVER_ERROR);
         String message = format("Model importing failed due to [%s]", exception.toString());
 
         assertUploadCallsOnFailure(exception, message, Level.ERROR);
     }
 
-    public void testSendsErrorNotificationForMalformedURL() throws URISyntaxException, IOException {
+    public void testSendsErrorNotificationForMalformedURL() throws Exception {
         MalformedURLException exception = new MalformedURLException("exception");
         String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an invalid URL", exception.toString());
 
         assertUploadCallsOnFailure(exception, message, RestStatus.INTERNAL_SERVER_ERROR, Level.ERROR);
     }
 
-    public void testSendsErrorNotificationForURISyntax() throws URISyntaxException, IOException {
+    public void testSendsErrorNotificationForURISyntax() throws Exception {
         URISyntaxException exception = mock(URISyntaxException.class);
         String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an invalid URL syntax", exception.toString());
 
         assertUploadCallsOnFailure(exception, message, RestStatus.INTERNAL_SERVER_ERROR, Level.ERROR);
     }
 
-    public void testSendsErrorNotificationForIOException() throws URISyntaxException, IOException {
+    public void testSendsErrorNotificationForIOException() throws Exception {
         IOException exception = mock(IOException.class);
         String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an IOException", exception.toString());
 
         assertUploadCallsOnFailure(exception, message, RestStatus.SERVICE_UNAVAILABLE, Level.ERROR);
     }
 
-    public void testSendsErrorNotificationForException() throws URISyntaxException, IOException {
+    public void testSendsErrorNotificationForException() throws Exception {
         RuntimeException exception = mock(RuntimeException.class);
         String message = format(MODEL_IMPORT_FAILURE_MSG_FORMAT, "an Exception", exception.toString());
 
         assertUploadCallsOnFailure(exception, message, RestStatus.INTERNAL_SERVER_ERROR, Level.ERROR);
     }
 
-    public void testSendsWarningNotificationForTaskCancelledException() throws URISyntaxException, IOException {
+    public void testSendsWarningNotificationForTaskCancelledException() throws Exception {
         TaskCancelledException exception = new TaskCancelledException("cancelled");
         String message = format("Model importing failed due to [%s]", exception.toString());
 
         assertUploadCallsOnFailure(exception, message, Level.WARNING);
     }
 
-    public void testCallsOnResponseWithAcknowledgedResponse() throws URISyntaxException, IOException {
+    public void testCallsOnResponseWithAcknowledgedResponse() throws Exception {
         var client = mock(Client.class);
         var taskManager = mock(TaskManager.class);
         var task = mock(Task.class);
@@ -134,15 +134,13 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         );
     }
 
-    private void assertUploadCallsOnFailure(Exception exception, String message, RestStatus status, Level level) throws URISyntaxException,
-        IOException {
+    private void assertUploadCallsOnFailure(Exception exception, String message, RestStatus status, Level level) throws Exception {
         var esStatusException = new ElasticsearchStatusException(message, status, exception);
 
         assertNotificationAndOnFailure(exception, esStatusException, message, level);
     }
 
-    private void assertUploadCallsOnFailure(ElasticsearchException exception, String message, Level level) throws URISyntaxException,
-        IOException {
+    private void assertUploadCallsOnFailure(ElasticsearchException exception, String message, Level level) throws Exception {
         assertNotificationAndOnFailure(exception, exception, message, level);
     }
 
@@ -151,7 +149,7 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         ElasticsearchException onFailureException,
         String message,
         Level level
-    ) throws URISyntaxException, IOException {
+    ) throws Exception {
         var client = mock(Client.class);
         var taskManager = mock(TaskManager.class);
         var task = mock(Task.class);
@@ -179,14 +177,10 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
         verify(taskManager).unregister(task);
     }
 
-    private ModelImporter createUploader(Exception exception) throws URISyntaxException, IOException {
+    private ModelImporter createUploader(Exception exception) {
         ModelImporter uploader = mock(ModelImporter.class);
         if (exception != null) {
-            try {
-                doThrow(exception).when(uploader).doImport();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            doThrow(exception).when(uploader).doImport();
         }
 
         return uploader;

@@ -182,7 +182,11 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
     private ModelImporter createUploader(Exception exception) throws URISyntaxException, IOException {
         ModelImporter uploader = mock(ModelImporter.class);
         if (exception != null) {
-            doThrow(exception).when(uploader).doImport();
+            try {
+                doThrow(exception).when(uploader).doImport();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         return uploader;

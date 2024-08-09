@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.ml.packageloader.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -27,6 +29,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Objects;
+import java.util.concurrent.Semaphore;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -35,26 +38,31 @@ import static org.elasticsearch.core.Strings.format;
  */
 class ModelImporter {
     private static final int DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB
+    private static final int MAX_IN_FLIGHT_REQUESTS = 5;
     private static final Logger logger = LogManager.getLogger(ModelImporter.class);
     private final Client client;
     private final String modelId;
     private final ModelPackageConfig config;
     private final ModelDownloadTask task;
+    private final Semaphore requestLimiter;
 
     ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, ModelDownloadTask task) {
         this.client = client;
         this.modelId = Objects.requireNonNull(modelId);
         this.config = Objects.requireNonNull(packageConfig);
         this.task = Objects.requireNonNull(task);
+        this.requestLimiter = new Semaphore(MAX_IN_FLIGHT_REQUESTS);
     }
 
-    public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException {
+    public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException, InterruptedException {
         long size = config.getSize();
+
+        var releasingListener = ActionListener.<AcknowledgedResponse>wrap(r -> requestLimiter.release(), e -> requestLimiter.release());
 
         // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
         // download is complete
         if (Strings.isNullOrEmpty(config.getVocabularyFile()) == false) {
-            uploadVocabulary();
+            uploadVocabulary(releasingListener);
 
             logger.debug(() -> format("[%s] imported model vocabulary [%s]", modelId, config.getVocabularyFile()));
         }
@@ -84,7 +92,7 @@ class ModelImporter {
                 true
             );
 
-            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
+            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest, releasingListener);
         }
 
         // get the last part, this time verify the checksum and size
@@ -119,11 +127,13 @@ class ModelImporter {
             true
         );
 
-        executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest);
+        executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest, releasingListener);
+        logger.info("waiting for finish");
+        requestLimiter.acquire(MAX_IN_FLIGHT_REQUESTS); // cannot acquire until all inflight requests have completed
         logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
     }
 
-    private void uploadVocabulary() throws URISyntaxException {
+    private void uploadVocabulary(ActionListener<AcknowledgedResponse> listener) throws URISyntaxException, InterruptedException {
         ModelLoaderUtils.VocabularyParts vocabularyParts = ModelLoaderUtils.loadVocabulary(
             ModelLoaderUtils.resolvePackageLocation(config.getModelRepository(), config.getVocabularyFile())
         );
@@ -136,17 +146,19 @@ class ModelImporter {
             true
         );
 
-        executeRequestIfNotCancelled(PutTrainedModelVocabularyAction.INSTANCE, request);
+        executeRequestIfNotCancelled(PutTrainedModelVocabularyAction.INSTANCE, request, listener);
     }
 
     private <Request extends ActionRequest, Response extends ActionResponse> void executeRequestIfNotCancelled(
         ActionType<Response> action,
-        Request request
-    ) {
+        Request request,
+        ActionListener<Response> listener
+    ) throws InterruptedException {
         if (task.isCancelled()) {
             throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
         }
 
-        client.execute(action, request).actionGet();
+        requestLimiter.acquire();
+        client.execute(action, request, listener);
     }
 }

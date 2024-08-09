@@ -58,12 +58,15 @@ public class Preallocate {
         }
     }
 
-    @SuppressForbidden(reason = "need access to toFile for RandomAccessFile")
+    @SuppressForbidden(reason = "need access to toFile for RandomAccessFile and mkdirs")
     private static void preallocate(final Path cacheFile, final long fileSize, final Preallocator prealloactor) throws IOException {
         boolean success = false;
         try {
             if (prealloactor.useNative()) {
-                try (NativeFileHandle openFile = prealloactor.open(cacheFile.toAbsolutePath().toString())) {
+                var absolutePath = cacheFile.toAbsolutePath();
+                var directory = absolutePath.getParent();
+                directory.toFile().mkdirs();
+                try (NativeFileHandle openFile = prealloactor.open(absolutePath.toString())) {
                     long currentSize = openFile.getSize();
                     if (currentSize < fileSize) {
                         logger.info("pre-allocating cache file [{}] ({} bytes) using native methods", cacheFile, fileSize);

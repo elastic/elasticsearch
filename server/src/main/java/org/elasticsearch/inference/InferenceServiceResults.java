@@ -9,12 +9,12 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 
 import java.util.List;
 import java.util.Map;
 
-public interface InferenceServiceResults extends NamedWriteable, ToXContentFragment {
+public interface InferenceServiceResults extends NamedWriteable, ChunkedToXContent {
 
     /**
      * Transform the result to match the format required for the TransportCoordinatedInferenceAction.

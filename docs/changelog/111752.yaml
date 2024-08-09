@@ -1,5 +1,0 @@
-pr: 111752
-summary: "Fix native preallocate failing on non-existing files"
-area: Infra/Core
-type: bug
-issues: []

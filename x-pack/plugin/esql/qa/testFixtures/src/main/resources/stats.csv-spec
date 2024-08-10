@@ -2018,6 +2018,19 @@ M
 null
 ;
 
+shadowingInternalWithGroup2#[skip:-8.14.1,reason:implemented in 8.14]
+FROM employees
+| STATS x = MAX(emp_no), y = count(x) BY x = emp_no, x = gender
+| SORT x ASC
+;
+
+y:long | x:keyword
+    33 | F
+    57 | M
+     0 | null
+;
+
+
 shadowingTheGroup
 FROM employees
 | STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender

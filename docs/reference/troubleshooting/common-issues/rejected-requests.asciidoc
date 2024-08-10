@@ -23,8 +23,49 @@ To check the number of rejected tasks for each thread pool, use the
 
 [source,console]
 ----
-GET /_cat/thread_pool?v=true&h=id,name,active,rejected,completed
+GET /_cat/thread_pool?v=true&h=id,name,queue,active,rejected,completed
 ----
+
+The `write` thread pool rejections frequently surface in the erring API and
+correlating log as `EsRejectedExecutionException` with either
+`QueueResizingEsThreadPoolExecutor` or `queue capacity`.
+
+This frequently relates to <<task-queue-backlog,backlogged tasks>>
+
+[discrete]
+[[check-circuit-breakers]]
+==== Check circuit breakers
+
+To check the number of tripped <<circuit-breaker,circuit breakers>>, use the
+<<cluster-nodes-stats,node stats API>>.
+
+[source,console]
+----
+GET /_nodes/stats/breaker
+----
+
+These statistics are cumulative from node start up. For more information, see
+<<circuit_breaker,circuit breaker errors>>.
+
+[discrete]
+[[check-indexing-pressure]]
+==== Check indexing pressure
+
+To check the number of <<index-modules-indexing-pressure,indexing pressure>>
+rejections, use the <<cluster-nodes-stats,node stats API>>
+
+[source,console]
+----
+GET _nodes/stats?human=true&filter_path=nodes.*.indexing_pressure
+----
+
+The statistics are cumulative from node start up. Related API errors would
+include `EsRejectedExecutionException` sub sections calling out rejected due
+to `coordinating_and_primary_bytes`, `coordinating`, `primary`, or `replica`.
+
+This frequently relates to <<task-queue-backlog,backlogged tasks>>,
+<<docs-bulk,bulk index>> sizing, and/or the ingest target's
+<<index-modules,`refresh_interval` setting>>.
 
 [discrete]
 [[prevent-rejected-requests]]
@@ -35,8 +76,3 @@ GET /_cat/thread_pool?v=true&h=id,name,active,rejected,completed
 If {es} regularly rejects requests and other tasks, your cluster likely has high
 CPU usage or high JVM memory pressure. For tips, see <<high-cpu-usage>> and
 <<high-jvm-memory-pressure>>.
-
-**Prevent circuit breaker errors**
-
-If you regularly trigger circuit breaker errors, see <<circuit-breaker-errors>>
-for tips on diagnosing and preventing them.

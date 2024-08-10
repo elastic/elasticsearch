@@ -9,11 +9,29 @@ If a thread pool is depleted, {es} will <<rejected-requests,reject requests>>
 related to the thread pool. For example, if the `search` thread pool is
 depleted, {es} will reject search requests until more threads are available.
 
+CPU degradation frequently occurs related to a <<data-tiers,data tier>>'s traffic,
+potentially being <<hotspotting,hot spotted>>.
+
 [discrete]
 [[diagnose-high-cpu-usage]]
 ==== Diagnose high CPU usage
 
 **Check CPU usage**
+
+Current CPU usage per node can be polled from the <<cat-nodes,cat nodes API>>:
+
+// tag::cpu-usage-cat-nodes[]
+[source,console]
+----
+GET _cat/nodes?v=true&s=cpu:desc
+----
+
+The response's `cpu` column contains the current CPU usage as a percentage.
+The `name` column contains the node's name. Elevated but transient `cpu` is
+normal, but if `cpu` is elevated for an extended duration it should be
+investigated.
+
+To track CPU usage over time, we recommend enabling monitoring:
 
 include::{es-ref-dir}/tab-widgets/cpu-usage-widget.asciidoc[]
 
@@ -24,11 +42,13 @@ threads API>> to check for resource-intensive threads running on the node.
 
 [source,console]
 ----
-GET _nodes/my-node,my-other-node/hot_threads
+GET _nodes/hot_threads
 ----
 // TEST[s/\/my-node,my-other-node//]
 
-This API returns a breakdown of any hot threads in plain text.
+This API returns a breakdown of any hot threads in plain text. High CPU usage
+frequently correlates to <<task-queue-backlog,particular tasks and/or their
+backlog>>.
 
 [discrete]
 [[reduce-cpu-usage]]
@@ -56,7 +76,7 @@ for these searches, use the <<tasks,task management API>>.
 
 [source,console]
 ----
-GET _tasks?actions=*search&detailed
+GET _tasks?actions=*search&detailed=true
 ----
 
 The response's `description` contains the search request and its queries.

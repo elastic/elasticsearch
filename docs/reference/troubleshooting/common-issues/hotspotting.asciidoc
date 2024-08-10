@@ -263,7 +263,7 @@ further insight on it via <<tasks,the task management API>>,
 
 [source,console]
 ----
-GET _tasks?human&detailed
+GET _tasks?pretty=true&human=true&detailed=true
 ----
 
 Its response contains a `description` that reports this query:

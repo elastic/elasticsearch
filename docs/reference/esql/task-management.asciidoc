@@ -9,7 +9,7 @@ You can list running {esql} queries with the <<tasks,task management API>>:
 
 [source,console,id=esql-task-management-get-all]
 ----
-GET /_tasks?pretty&detailed&group_by=parents&human&actions=*data/read/esql
+GET /_tasks?pretty=true&human=true&detailed=true&group_by=parents&actions=*data/read/esql
 ----
 
 Which returns a list of statuses like this:

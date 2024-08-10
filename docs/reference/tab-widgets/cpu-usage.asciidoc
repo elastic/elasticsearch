@@ -1,30 +1,29 @@
 // tag::cloud[]
-From your deployment menu, click **Performance**. The page's **CPU Usage** chart
-shows your deployment's CPU usage as a percentage.
+* (Recommended) Enabling {cloud}/ec-monitoring-setup.html[Logs and Metrics]. Data will then
+report under {kib}'s {kibana-ref}/xpack-monitoring.html[Stack Monitoring]. We
+recommend enabling its {kibana-ref}/kibana-alerts.html[CPU Usage Threshold Alert]
+to be proactively notified about potential issues.
 
-High CPU usage can also deplete your CPU credits. CPU credits let {ess} provide
-smaller clusters with a performance boost when needed. The **CPU credits**
-chart shows your remaining CPU credits, measured in seconds of CPU time.
+* From your deployment menu, clicking into
+{cloud}/ec-saas-metrics-accessing.html[**Performance**]. This page's **CPU
+Usage** chart shows your deployment's CPU usage as a percentage. The page's
+**CPU credits** chart shows your remaining CPU credits, measured in seconds of
+CPU time.
 
-You can also use the <<cat-nodes,cat nodes API>> to get the current CPU usage
-for each node.
+{ess} grants {cloud}/ec-vcpu-boost-instance.html[CPU credits] per deployment
+to provide smaller clusters with performance boosts when needed. High CPU
+usage can deplete these credits which may lead to symptoms like:
 
-// tag::cpu-usage-cat-nodes[]
-[source,console]
-----
-GET _cat/nodes?v=true&s=cpu:desc
-----
+* {cloud}/ec-scenario_why_is_performance_degrading_over_time.html[Why is
+performance degrading over time?].
 
-The response's `cpu` column contains the current CPU usage as a percentage. The
-`name` column contains the node's name.
-// end::cpu-usage-cat-nodes[]
-
+* {cloud}/ec-scenario_why_are_my_cluster_response_times_suddenly_so_much_worse.html[Why
+are my cluster response times suddenly so much worse?]
 // end::cloud[]
 
 // tag::self-managed[]
-
-Use the <<cat-nodes,cat nodes API>> to get the current CPU usage for each node.
-
-include::cpu-usage.asciidoc[tag=cpu-usage-cat-nodes]
-
+* Enabling <<monitoring-overview,{es} Monitoring>>. Data will then
+report under {kib}'s {kibana-ref}/xpack-monitoring.html[Stack Monitoring]. We
+recommend enabling its {kibana-ref}/kibana-alerts.html[CPU Usage Threshold Alert]
+to be proactively notified about potential issues.
 // end::self-managed[]

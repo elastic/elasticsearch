@@ -20,7 +20,7 @@ by your `transform_id`.
 information about the {transform} status and failures.
 * If the {transform} exists as a task, you can use the
 <<tasks,task management API>> to gather task information. For example:
-`GET _tasks?actions=data_frame/transforms*&detailed`. Typically, the task exists
+`GET _tasks?actions=data_frame/transforms*&detailed=true`. Typically, the task exists
 when the {transform} is in a started or failed state.
 * The {es} logs from the node that was running the {transform} might
 also contain useful information. You can identify the node from the notification

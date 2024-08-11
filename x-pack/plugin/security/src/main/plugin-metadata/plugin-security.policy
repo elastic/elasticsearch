@@ -52,12 +52,6 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };
 
-grant codeBase "${codebase.oauth2-oidc-sdk}" {
-    // for JSON serialization based on a shaded GSON dependency
-    permission java.lang.RuntimePermission "accessDeclaredMembers";
-    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
 grant codeBase "${codebase.nimbus-jose-jwt-fixed}" {
     // for JSON serialization based on a shaded GSON dependency
     permission java.lang.RuntimePermission "accessDeclaredMembers";

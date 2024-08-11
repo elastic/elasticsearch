@@ -62,7 +62,7 @@ POST my-image-index/_search
     "knn": {
       "field": "image-vector",
       "query_vector": [-5, 9, -12],
-      "k": 10
+      "num_candidates": 10
     }
   }
 }

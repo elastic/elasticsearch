@@ -111,7 +111,6 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-//  testImplementation('com.nimbusds:nimbus-jose-jwt:9.37.3')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')
@@ -415,7 +414,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.xml.bind.UnmarshallerHandler',
     // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
     'org.cryptomator.siv.SivMode',
-    // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
     'com.nimbusds.common.contenttype.ContentType',
     'com.nimbusds.common.contenttype.ContentType$Parameter',
     'javax.activation.ActivationDataFlavor',
@@ -437,33 +435,3 @@ tasks.named("internalClusterTest").configure {
 }
 
 addQaCheckDependencies(project)
-
-// These unit tests are run without the security manager because they use, directly or
-// indirectly, nimbus-jose-jwt code, which uses gson internally, which is not friendly
-// to the security manager. Note that we do not disable the security manager for
-// any integration tests, any failures of which should be taken very seriously.
-String[] noSecurityManagerClasses = [
-  "**/JwtRealmAuthenticateTests.class",
-  "**/JwtRealmAuthenticateAccessTokenTypeTests.class",
-  "**/JwtRealmGenerateTests.class",
-  "**/JwtAuthenticatorAccessTokenTypeTests.class",
-  "**/JwtAuthenticatorIdTokenTypeTests.class",
-  "**/JwtSignatureValidatorTests.class",
-  "**/OpenIdConnectAuthenticatorTests.class",
-  "**/TransportOpenIdConnectLogoutActionTests.class",
-  "**/OpenIdConnectRealmTests.class",
-]
-//
-//tasks.register('testNoSecurityManager', Test) {
-//  testClassesDirs = sourceSets.test.output.classesDirs
-//  classpath = sourceSets.test.runtimeClasspath
-//  include noSecurityManagerClasses
-//  systemProperty 'tests.security.manager', 'false'
-//  systemProperty 'es.insecure_network_trace_enabled', 'true'
-//}
-//
-//tasks.named("check").configure { dependsOn 'testNoSecurityManager' }
-//
-//tasks.named('test').configure {
-//  exclude noSecurityManagerClasses
-//}

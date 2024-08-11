@@ -81,14 +81,13 @@ dependencies {
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.10.1"
   api project(path: xpackModule('security:lib:nimbus-jose-jwt-fixed'), configuration: 'shadow')
-//  if (isEclipse) {
-//    /*
-//     * Eclipse can't pick up the shadow dependency so we point it at *something*
-//     * so it can compile things.
-//     */
-//    api project(xpackModule('security:lib:nimbus-jose-jwt-fixed'))
-//  }
-//  api project(xpackModule('security:lib:jose-wrapper'))
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(xpackModule('security:lib:nimbus-jose-jwt-fixed'))
+  }
   api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"
   api "net.jcip:jcip-annotations:1.0"
@@ -194,11 +193,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('forbiddenApisMain').configure {
-  signaturesFiles += files(
-    'forbidden/ldap-signatures.txt',
-    'forbidden/xml-signatures.txt',
-    'forbidden/oidc-signatures.txt',
-  )
+  signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
 }
 
 tasks.named('forbiddenApisTest').configure {
